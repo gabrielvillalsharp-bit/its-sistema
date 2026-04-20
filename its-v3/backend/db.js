@@ -63,7 +63,7 @@ function init() {
       nombre TEXT NOT NULL, apellido TEXT NOT NULL,
       ci TEXT UNIQUE, email TEXT UNIQUE,
       password_hash TEXT NOT NULL,
-      rol TEXT NOT NULL CHECK(rol IN ('director','docente','alumno')),
+      rol TEXT NOT NULL CHECK(rol IN ('director','docente','alumno','admin','secretaria')),
       activo INTEGER DEFAULT 1,
       fecha_registro TEXT DEFAULT (date('now'))
     );

@@ -31,7 +31,7 @@ function auth(roles = []) {
     } catch { res.status(401).json({ error: 'Token inválido' }); }
   };
 }
-const ADM = ['director'];
+const ADM = ['director','admin','secretaria'];
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 app.post('/api/login', (req, res) => {
@@ -46,87 +46,11 @@ app.post('/api/login', (req, res) => {
   res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId } });
 });
 
-// ── GESTIÓN DE USUARIOS ───────────────────────────────────────────────────────
-app.get('/api/usuarios', auth(['director']), (req, res) => {
-  res.json(db.prepare(`
-    SELECT u.id, u.nombre, u.apellido, u.ci, u.email, u.rol, u.activo, u.fecha_registro,
-      CASE WHEN u.rol='docente' THEN d.id ELSE NULL END as docente_id
-    FROM usuarios u
-    LEFT JOIN docentes d ON u.id=d.usuario_id
-    ORDER BY u.rol, u.apellido`).all());
-});
-
-app.post('/api/usuarios', auth(['director']), (req, res) => {
-  const { nombre, apellido, ci, email, password, rol } = req.body;
-  if (!nombre || !apellido || !email || !password || !rol)
-    return res.status(400).json({ error: 'Completar todos los campos' });
-  const existe = db.prepare('SELECT id FROM usuarios WHERE email=?').get(email);
-  if (existe) return res.status(400).json({ error: 'El email ya está registrado' });
-  const uid = 'u_' + Date.now();
-  db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)')
-    .run(uid, nombre, apellido, ci||null, email, bcrypt.hashSync(password, 10), rol);
-  if (rol === 'docente') {
-    db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono) VALUES (?,?,?,?,?)')
-      .run('d_'+Date.now(), uid, null, null, null);
-  }
-  res.json({ id: uid });
-});
-
-app.put('/api/usuarios/:id', auth(['director']), (req, res) => {
-  const { nombre, apellido, ci, email, rol, activo } = req.body;
-  const user = db.prepare('SELECT * FROM usuarios WHERE id=?').get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  // Si cambia a docente y no tenía registro en docentes, lo creamos
-  if (rol === 'docente' && user.rol !== 'docente') {
-    const tieneDocente = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.params.id);
-    if (!tieneDocente) {
-      db.prepare('INSERT INTO docentes (id,usuario_id) VALUES (?,?)').run('d_'+Date.now(), req.params.id);
-    }
-  }
-  db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=?,rol=?,activo=? WHERE id=?')
-    .run(nombre, apellido, ci||null, email, rol, activo?1:0, req.params.id);
-  res.json({ ok: true });
-});
-
-app.put('/api/usuarios/:id/password', auth(['director']), (req, res) => {
-  const { password } = req.body;
-  if (!password || password.length < 6) return res.status(400).json({ error: 'Mínimo 6 caracteres' });
-  db.prepare('UPDATE usuarios SET password_hash=? WHERE id=?').run(bcrypt.hashSync(password, 10), req.params.id);
-  res.json({ ok: true });
-});
-
-app.put('/api/usuarios/:id/toggle', auth(['director']), (req, res) => {
-  const user = db.prepare('SELECT activo FROM usuarios WHERE id=?').get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'No encontrado' });
-  db.prepare('UPDATE usuarios SET activo=? WHERE id=?').run(user.activo ? 0 : 1, req.params.id);
-  res.json({ activo: !user.activo });
-});
-
-app.delete('/api/usuarios/:id', auth(['director']), (req, res) => {
-  const user = db.prepare('SELECT rol FROM usuarios WHERE id=?').get(req.params.id);
-  if (!user) return res.status(404).json({ error: 'No encontrado' });
-  if (user.rol === 'docente') db.prepare('DELETE FROM docentes WHERE usuario_id=?').run(req.params.id);
-  if (user.rol === 'alumno') db.prepare('UPDATE alumnos SET usuario_id=NULL WHERE usuario_id=?').run(req.params.id);
-  db.prepare('DELETE FROM usuarios WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
-});
-
-// Cambio de contraseña propio (cualquier usuario logueado)
-app.put('/api/mi-password', auth(), (req, res) => {
-  const { actual, nueva } = req.body;
-  if (!nueva || nueva.length < 6) return res.status(400).json({ error: 'Mínimo 6 caracteres' });
-  const user = db.prepare('SELECT password_hash FROM usuarios WHERE id=?').get(req.user.id);
-  if (!bcrypt.compareSync(actual, user.password_hash))
-    return res.status(400).json({ error: 'Contraseña actual incorrecta' });
-  db.prepare('UPDATE usuarios SET password_hash=? WHERE id=?').run(bcrypt.hashSync(nueva, 10), req.user.id);
-  res.json({ ok: true });
-});
-
 // ── ESCALA DE NOTAS ───────────────────────────────────────────────────────────
 app.get('/api/escala', auth(), (req, res) => {
   res.json(db.prepare('SELECT * FROM escala_notas ORDER BY nota').all());
 });
-app.put('/api/escala', auth(['director']), (req, res) => {
+app.put('/api/escala', auth(['director','admin']), (req, res) => {
   const { escala } = req.body; // array de {id, nota, puntaje_min, puntaje_max, descripcion}
   const upd = db.prepare('UPDATE escala_notas SET nota=?,puntaje_min=?,puntaje_max=?,descripcion=? WHERE id=?');
   const trx = db.transaction(() => escala.forEach(e => upd.run(e.nota, e.puntaje_min, e.puntaje_max, e.descripcion, e.id)));
@@ -389,7 +313,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
 });
 
 // Guardar/actualizar notas de un alumno
-app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, res) => {
+app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente','admin']), (req, res) => {
   const { tp, parcial, parcial_recuperatorio, final, final_extraordinario } = req.body;
   const asig = db.prepare('SELECT a.*,m.peso_tp,m.peso_parcial,m.peso_final FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
   if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
@@ -443,7 +367,7 @@ app.get('/api/asistencia/asignacion/:asig_id', auth(), (req, res) => {
     FROM asistencia as2 JOIN alumnos al ON as2.alumno_id=al.id LEFT JOIN usuarios u ON al.usuario_id=u.id
     WHERE as2.asignacion_id=? ORDER BY as2.fecha,COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id));
 });
-app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
+app.post('/api/asistencia/bulk', auth(['director','docente','admin']), (req, res) => {
   const { asignacion_id, fecha, registros } = req.body;
   db.transaction(() => {
     registros.forEach(r => {
@@ -469,7 +393,7 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
 
 // ── USUARIOS CON ACCESO TOTAL (directores) ────────────────────────────────────
 app.get('/api/usuarios/directores', auth(['director']), (req, res) => {
-  res.json(db.prepare("SELECT id,nombre,apellido,email,ci,activo,rol FROM usuarios WHERE rol IN ('director') ORDER BY nombre").all());
+  res.json(db.prepare("SELECT id,nombre,apellido,email,ci,activo,rol FROM usuarios WHERE rol IN ('director','admin','secretaria') ORDER BY nombre").all());
 });
 app.post('/api/usuarios/directores', auth(['director']), (req, res) => {
   const { nombre, apellido, email, password, ci, rol } = req.body;
