@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ITS — Sistema Académico</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+:root{--blue:#185FA5;--bl:#E6F1FB;--bld:#0C447C;--green:#27500A;--gl:#EAF3DE;--red:#791F1F;--rl:#FCEBEB;--amb:#633806;--al:#FAEEDA;--pur:#3C3489;--pl:#EEEDFE;--bdr:#e5e4df;--bg:#f8f7f4;--txt:#1a1a18;--t2:#5f5e5a;--t3:#888780}
+body{background:var(--bg);color:var(--txt);min-height:100vh}
+.hidden{display:none!important}
+input,select,textarea,button{font-family:inherit;font-size:14px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);outline:none}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,95,165,.1)}
+#lp{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.lc{background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:2rem;width:360px}
+.ll{text-align:center;margin-bottom:1.5rem}
+.lb{width:52px;height:52px;background:var(--blue);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px}
+.lb svg{width:26px;height:26px;fill:white}
+.lc h1{font-size:18px;font-weight:600;margin-bottom:2px}
+.lc p{font-size:13px;color:var(--t2)}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:12px;color:var(--t2);margin-bottom:4px;font-weight:500}
+.bp{width:100%;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.bp:hover{background:var(--bld)}
+.dl{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--bdr)}
+.dl p{font-size:11px;color:var(--t3);margin-bottom:6px}
+.db2{display:block;width:100%;text-align:left;padding:7px 10px;border:1px solid var(--bdr);border-radius:8px;background:#fafaf8;color:var(--t2);cursor:pointer;font-size:12px;margin-bottom:4px}
+.db2:hover{background:#f1f0ec}
+#le{font-size:12px;color:#b91c1c;margin-top:6px;display:none}
+#ap{display:flex;flex-direction:column;min-height:100vh}
+.tb{display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;background:#fff;border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:30}
+.tl{width:32px;height:32px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.tl svg{width:16px;height:16px;fill:white}
+.tb h2{font-size:15px;font-weight:600}
+.tr2{margin-left:auto;display:flex;align-items:center;gap:8px}
+.rp{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600}
+.rp-director,.rp-admin,.rp-secretaria{background:var(--bl);color:var(--bld)}
+.rp-docente{background:var(--gl);color:var(--green)}
+.rp-alumno{background:var(--al);color:var(--amb)}
+.xb{font-size:12px;padding:5px 10px;border:1px solid var(--bdr);border-radius:8px;background:none;color:var(--t2);cursor:pointer}
+.xb:hover{background:#f1f0ec}
+.ly{display:flex;flex:1}
+.sb{width:200px;flex-shrink:0;background:#fff;border-right:1px solid var(--bdr);padding:12px 8px;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto}
+.ng{font-size:10px;font-weight:700;color:var(--t3);padding:8px 8px 4px;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--t2);border:none;background:none;width:100%;text-align:left;margin-bottom:1px}
+.ni:hover{background:#f1f0ec}
+.ni.active{background:var(--bl);color:var(--bld);font-weight:600}
+.nd{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ct{flex:1;padding:20px;min-width:0;overflow-x:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;flex-wrap:wrap}
+.ph h3{font-size:17px;font-weight:600}
+.ph-right{display:flex;gap:8px;flex-wrap:wrap}
+.bn{padding:7px 14px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.bn:hover{background:var(--bld)}
+.sr{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
+.sc{background:#fff;border:1px solid var(--bdr);border-radius:10px;padding:12px 14px}
+.sc .sl{font-size:11px;color:var(--t3);margin-bottom:2px}
+.sc .sv{font-size:26px;font-weight:700}
+.sc .ss{font-size:11px;color:var(--t2);margin-top:1px}
+.card{background:#fff;border:1px solid var(--bdr);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:9px 12px;text-align:left;background:#fafaf8;color:var(--t2);font-weight:600;font-size:12px;border-bottom:1px solid var(--bdr)}
+td{padding:8px 10px;border-bottom:1px solid var(--bdr);color:var(--txt);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.bx{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;white-space:nowrap}
+.bg{background:var(--gl);color:var(--green)}
+.br{background:var(--rl);color:var(--red)}
+.bb{background:var(--bl);color:var(--bld)}
+.ba{background:var(--al);color:var(--amb)}
+.bp2{background:var(--pl);color:var(--pur)}
+.bgr{background:#f1f0ec;color:#5f5e5a}
+.abs{display:flex;gap:4px;flex-wrap:wrap}
+.bs{padding:4px 10px;font-size:12px;border:1px solid var(--bdr);border-radius:6px;background:#fff;color:var(--txt);cursor:pointer;white-space:nowrap}
+.bs:hover{background:#f1f0ec}
+.bs.d{color:#b91c1c;border-color:#fca5a5}.bs.d:hover{background:var(--rl)}
+.bs.i{color:var(--bld);border-color:#93c5fd}.bs.i:hover{background:var(--bl)}
+.bs.s{color:var(--green);border-color:#86efac}.bs.s:hover{background:var(--gl)}
+.es{text-align:center;padding:40px;color:var(--t3);font-size:14px}
+.fb{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.fb select{padding:7px 10px;font-size:13px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);width:auto}
+.mb{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto}
+.modal{background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:1.5rem;width:100%;max-width:520px}
+.modal h4{font-size:16px;font-weight:600;margin-bottom:1.2rem}
+.fg{display:grid;gap:12px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.mf{display:flex;justify-content:flex-end;gap:8px;margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--bdr)}
+.nota-inp{width:58px!important;padding:5px 4px!important;text-align:center;border:1px solid var(--bdr);border-radius:6px;font-size:13px}
+.nota-inp:focus{border-color:var(--blue)}
+.nota-inp:disabled{background:#f5f5f3;color:var(--t3);cursor:not-allowed}
+.nota-lbl{font-size:10px;color:var(--t3);text-align:center;display:block;margin-top:2px}
+.nota-col{text-align:center}
+.prom-tag{display:inline-flex;align-items:center;justify-content:center;min-width:36px;padding:4px 8px;border-radius:8px;font-size:14px;font-weight:700}
+.nota-tag{display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:4px 10px;border-radius:20px;font-size:15px;font-weight:800}
+.n5{background:#EAF3DE;color:#27500A}
+.n4{background:#E6F1FB;color:#0C447C}
+.n3{background:#EEEDFE;color:#3C3489}
+.n2{background:#FAEEDA;color:#633806}
+.n1{background:#FCEBEB;color:#791F1F}
+.n-{background:#f1f0ec;color:#888}
+.asopt{padding:7px 14px;border:1px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;background:#fff;color:var(--t2)}
+.asopt.P{background:var(--gl);color:var(--green);border-color:#86efac}
+.asopt.A{background:var(--rl);color:var(--red);border-color:#fca5a5}
+.asopt.T{background:var(--al);color:var(--amb);border-color:#fcd34d}
+.asopt.J{background:var(--bl);color:var(--bld);border-color:#93c5fd}
+.cur-tag{display:inline-flex;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--pl);color:var(--pur);font-weight:600}
+.tip{font-size:12px;color:var(--t3);margin-top:4px}
+.peso-box{background:#fafaf8;border:1px solid var(--bdr);border-radius:8px;padding:10px;font-size:12px}
+.peso-box .titulo{font-weight:600;font-size:13px;margin-bottom:6px}
+.iz{border:2px dashed var(--bdr);border-radius:10px;padding:24px;text-align:center;cursor:pointer;color:var(--t2);font-size:13px}
+.iz:hover{border-color:var(--blue);color:var(--blue);background:var(--bl)}
+.ir{margin-top:10px;padding:10px;border-radius:8px;font-size:13px}
+.ir.ok{background:var(--gl);color:var(--green)}
+.ir.err{background:var(--rl);color:var(--red)}
+.escala-row{display:grid;grid-template-columns:60px 80px 80px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.escala-row label{font-size:12px;color:var(--t2)}
+.info-nota{background:#fafaf8;border-radius:8px;padding:10px;margin-bottom:8px;font-size:13px}
+.rec-indicator{font-size:10px;color:var(--amb);font-weight:600;display:block}
+</style>
+</head>
+<body>
+
+<div id="lp">
+<div class="lc">
+  <div class="ll">
+    <div class="lb"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
+    <h1>Instituto Técnico Superior</h1>
+    <p>Sistema de Gestión Académica</p>
+  </div>
+  <div class="f"><label>Email o C.I.</label><input id="lem" placeholder="director@its.edu.py"/></div>
+  <div class="f"><label>Contraseña</label><input id="lps" type="password" placeholder="••••••"/></div>
+  <button class="bp" onclick="doLogin()">Ingresar al sistema</button>
+  <div id="le">Email/CI o contraseña incorrectos</div>
+  <div class="dl">
+    <p>Accesos de demostración:</p>
+    <button class="db2" onclick="ql('director@its.edu.py','director123')">Director — acceso total</button>
+    <button class="db2" onclick="ql('admin@its.edu.py','admin123')">Administrativo — gestión y carga</button>
+  </div>
+</div>
+</div>
+
+<div id="ap" class="hidden">
+<div class="tb">
+  <div class="tl"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
+  <h2>ITS — Sistema Académico</h2>
+  <div class="tr2">
+    <span id="un" style="font-size:13px;color:var(--t2)"></span>
+    <span id="rp" class="rp"></span>
+    <button class="xb" onclick="logout()">Salir</button>
+  </div>
+</div>
+<div class="ly">
+  <nav class="sb" id="nav"></nav>
+  <div class="ct" id="mc"></div>
+</div>
+</div>
+<div id="mr"></div>
+
+<script>
+const API='';let tok=localStorage.getItem('its_tk3');let me=null;const W=window;
+
+async function api(m,u,b,isFile){
+  const o={method:m,headers:{}};
+  if(tok)o.headers.Authorization='Bearer '+tok;
+  if(b&&!isFile){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}
+  else if(b)o.body=b;
+  const r=await fetch(API+u,o);
+  if(!r.ok){const e=await r.json().catch(()=>({error:'Error'}));throw new Error(e.error||'Error');}
+  return r.json();
+}
+
+async function doLogin(){
+  document.getElementById('le').style.display='none';
+  try{
+    const res=await api('POST','/api/login',{email:v('lem'),password:v('lps')});
+    tok=res.token;me=res.user;localStorage.setItem('its_tk3',tok);startApp();
+  }catch{document.getElementById('le').style.display='block';}
+}
+function ql(e,p){document.getElementById('lem').value=e;document.getElementById('lps').value=p;}
+function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
+
+function startApp(){
+  hide('lp');show('ap');
+  document.getElementById('un').textContent=me.nombre+' '+me.apellido;
+  const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
+  buildNav();go('dashboard');
+}
+
+function navFor(r){
+  return [
+    {g:'General',i:[{id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','admin','secretaria','docente','alumno']}]},
+    {g:'Estructura',i:[
+      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director','admin','secretaria']},
+      {id:'cursos',l:'Cursos / Grupos',c:'#D85A30',r:['director','admin','secretaria']},
+      {id:'materias',l:'Materias',c:'#BA7517',r:['director','admin','secretaria']},
+      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director','admin','secretaria']},
+    ]},
+    {g:'Personas',i:[
+      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director','admin','secretaria']},
+      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director','admin','secretaria']},
+      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director','admin','secretaria']},
+    ]},
+    {g:'Académico',i:[
+      {id:'notas',l:'Notas',c:'#185FA5',r:['director','admin','docente']},
+      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','admin','docente']},
+      {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director','admin','secretaria']},
+    ]},
+    {g:'Mi área',i:[
+      {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
+      {id:'mis-notas',l:'Mis notas',c:'#185FA5',r:['alumno']},
+    ]},
+    {g:'Configuración',i:[
+      {id:'escala',l:'Escala de notas',c:'#D85A30',r:['director','admin']},
+      {id:'institucion',l:'Institución',c:'#888780',r:['director','admin']},
+    ]},
+  ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
+}
+function buildNav(){
+  document.getElementById('nav').innerHTML=navFor(me.rol).map(g=>`
+    <div class="ng">${g.g}</div>
+    ${g.i.map(i=>`<button class="ni" id="ni-${i.id}" onclick="go('${i.id}')"><span class="nd" style="background:${i.c}"></span>${i.l}</button>`).join('')}
+  `).join('');
+}
+
+let cur='';
+function go(p){
+  cur=p;
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
+  document.getElementById('ni-'+p)?.classList.add('active');
+  const el=document.getElementById('mc');
+  el.innerHTML='<div class="es">Cargando...</div>';
+  ({dashboard:pgDash,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,periodos:pgPeriodos,
+    docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,
+    notas:pgNotas,asistencia:pgAsist,pagos:pgPagos,
+    escala:pgEscala,institucion:pgInst,
+    'mis-materias':pgMisMat,'mis-notas':pgMisNotas})[p]?.(el);
+}
+
+// DASHBOARD
+async function pgDash(el){
+  const d=await api('GET','/api/dashboard');
+  el.innerHTML=`<div class="ph"><h3>Dashboard — ${d.periodo_activo}</h3></div>
+  <div class="sr">
+    <div class="sc"><div class="sl">Alumnos</div><div class="sv">${d.total_alumnos}</div></div>
+    <div class="sc"><div class="sl">Docentes</div><div class="sv">${d.total_docentes}</div></div>
+    <div class="sc"><div class="sl">Carreras</div><div class="sv">${d.total_carreras}</div></div>
+    <div class="sc"><div class="sl">Cursos</div><div class="sv">${d.total_cursos}</div></div>
+    <div class="sc"><div class="sl">Aprobados</div><div class="sv" style="color:var(--green)">${d.aprobados}</div></div>
+    <div class="sc"><div class="sl">Reprobados</div><div class="sv" style="color:var(--red)">${d.reprobados}</div></div>
+  </div>
+  <div class="ph"><h3>Alumnos por carrera</h3></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Carrera</th><th>Alumnos</th></tr></thead><tbody>
+  ${d.por_carrera.map(c=>`<tr><td>${c.nombre}</td><td><span class="bx bb">${c.total}</span></td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+
+// ESCALA DE NOTAS
+async function pgEscala(el){
+  const escala=await api('GET','/api/escala');
+  W._escala=escala;
+  el.innerHTML=`<div class="ph"><h3>Escala de calificaciones</h3><button class="bn" onclick="svEscala()">Guardar cambios</button></div>
+  <div class="card" style="padding:16px">
+    <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Configurá los rangos de puntaje que corresponden a cada nota. Los cambios se aplican a todos los cálculos futuros.</p>
+    <div style="display:grid;grid-template-columns:70px 100px 100px 1fr 80px;gap:8px;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600;color:var(--t3)">Nota</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t3)">Pts. mínimo</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t3)">Pts. máximo</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t3)">Descripción</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t3)">Vista previa</span>
+    </div>
+    ${escala.map(e=>`
+    <div style="display:grid;grid-template-columns:70px 100px 100px 1fr 80px;gap:8px;margin-bottom:8px;align-items:center">
+      <input type="number" min="1" max="10" value="${e.nota}" id="en-${e.id}" style="text-align:center;font-weight:700"/>
+      <input type="number" min="0" max="100" value="${e.puntaje_min}" id="emin-${e.id}"/>
+      <input type="number" min="0" max="100" value="${e.puntaje_max}" id="emax-${e.id}"/>
+      <input type="text" value="${e.descripcion||''}" id="edesc-${e.id}" placeholder="Ej: Bueno"/>
+      <span class="nota-tag n${e.nota}" style="justify-content:center">${e.nota}</span>
+    </div>`).join('')}
+    <p class="tip" style="margin-top:8px">Los puntajes deben ser continuos de 0 a 100. El mínimo aprobatorio es la nota 2 (actualmente desde ${escala.find(e=>e.nota===2)?.puntaje_min||70} puntos).</p>
+  </div>`;
+}
+async function svEscala(){
+  const escala=W._escala.map(e=>({id:e.id,nota:parseInt(v('en-'+e.id)),puntaje_min:parseInt(v('emin-'+e.id)),puntaje_max:parseInt(v('emax-'+e.id)),descripcion:v('edesc-'+e.id)}));
+  await api('PUT','/api/escala',{escala});
+  alert('Escala guardada correctamente');go('escala');
+}
+
+// CARRERAS
+async function pgCarreras(el){
+  const d=await api('GET','/api/carreras');
+  el.innerHTML=`<div class="ph"><h3>Carreras (${d.length})</h3><button class="bn" onclick="mCarrera()">+ Nueva carrera</button></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Turno</th><th>Alumnos</th><th>Mat.</th><th>Cursos</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(c=>`<tr>
+    <td><span class="bx bb">${c.codigo}</span></td><td><strong>${c.nombre}</strong></td><td>${c.turno||'-'}</td>
+    <td>${c.total_alumnos}</td><td>${c.total_materias}</td>
+    <td>${c.cursos.map(cu=>`<span class="cur-tag">${cu.anio}°${cu.division==='U'?'':cu.division}</span>`).join(' ')}</td>
+    <td><span class="bx ${c.activa?'bg':'br'}">${c.activa?'Activa':'Inactiva'}</span></td>
+    <td><div class="abs"><button class="bs i" onclick='mCarrera(${J(c)})'>Editar</button><button class="bs d" onclick="del('${c.id}','carreras')">Eliminar</button></div></td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function mCarrera(c){
+  const e=!!c;
+  modal(`<h4>${e?'Editar':'Nueva'} carrera</h4>
+  <div class="fg">
+    <div class="fr"><div class="f"><label>Nombre</label><input id="cn" value="${e?c.nombre:''}" placeholder="Ej: Enfermería"/></div>
+    <div class="f"><label>Código</label><input id="cc" value="${e?c.codigo:''}" placeholder="Ej: ENF"/></div></div>
+    <div class="fr"><div class="f"><label>Turno</label><select id="ct">${['Mañana','Tarde','Noche'].map(t=>`<option ${e&&c.turno===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="f"><label>Semestres</label><input id="cs" type="number" value="${e?c.semestres:4}" min="1"/></div></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svCarrera('${e?c.id:''}')">Guardar</button></div>`);
+}
+async function svCarrera(id){
+  const o={nombre:v('cn'),codigo:v('cc').toUpperCase(),turno:v('ct'),semestres:parseInt(v('cs'))};
+  if(!o.nombre||!o.codigo)return alert('Completar nombre y código');
+  id?await api('PUT','/api/carreras/'+id,o):await api('POST','/api/carreras',o);
+  cm();go('carreras');
+}
+
+// CURSOS
+async function pgCursos(el){
+  const [cursos,carrs]=await Promise.all([api('GET','/api/cursos'),api('GET','/api/carreras')]);
+  W._carrs=carrs;
+  el.innerHTML=`<div class="ph"><h3>Cursos y grupos</h3><button class="bn" onclick="mCurso()">+ Nuevo curso</button></div>
+  <p class="tip" style="margin-bottom:12px">Cada curso = carrera + año + división (A, B o único sin división)</p>
+  <div class="card"><div class="tw"><table><thead><tr><th>Carrera</th><th>Año</th><th>División</th><th>Turno</th><th>Alumnos</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${cursos.map(cu=>`<tr>
+    <td>${cu.carrera_nombre}</td><td>${cu.anio}° año</td>
+    <td><span class="cur-tag">${cu.division==='U'?'Único':cu.division}</span></td>
+    <td>${cu.turno||'-'}</td><td>${cu.total_alumnos}</td>
+    <td><span class="bx ${cu.activo?'bg':'br'}">${cu.activo?'Activo':'Inactivo'}</span></td>
+    <td><button class="bs d" onclick="del('${cu.id}','cursos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin cursos</td></tr>'}
+  </tbody></table></div></div>`;
+}
+function mCurso(){
+  modal(`<h4>Nuevo curso / grupo</h4>
+  <div class="fg">
+    <div class="f"><label>Carrera</label><select id="cuc">${(W._carrs||[]).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+    <div class="fr">
+      <div class="f"><label>Año</label><select id="cua">${[1,2,3,4].map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select></div>
+      <div class="f"><label>División</label><select id="cud"><option value="U">Único (sin div.)</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></div>
+    </div>
+    <div class="f"><label>Turno</label><select id="cut"><option value="">—</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svCurso()">Crear</button></div>`);
+}
+async function svCurso(){await api('POST','/api/cursos',{carrera_id:v('cuc'),anio:parseInt(v('cua')),division:v('cud'),turno:v('cut')});cm();go('cursos');}
+
+// MATERIAS
+async function pgMaterias(el){
+  const [mats,carrs]=await Promise.all([api('GET','/api/materias'),api('GET','/api/carreras')]);
+  W._mats=mats;W._carrs=carrs;
+  el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva</button></div>
+  <div class="fb"><select onchange="filtM(this.value)"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Hs/sem</th><th>Pesos TP/Parc/Final</th><th></th></tr></thead>
+  <tbody id="mtb">${mats.map(mRow).join('')}</tbody></table></div></div>`;
+}
+function mRow(m){return `<tr>
+  <td><span class="bx ba">${m.codigo||'-'}</span></td><td><strong>${m.nombre}</strong></td>
+  <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales}h</td>
+  <td><span class="tip">${m.peso_tp}% / ${m.peso_parcial}% / ${m.peso_final}%</span></td>
+  <td><div class="abs"><button class="bs i" onclick='mMateria(${J(m)})'>Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td></tr>`;}
+W.filtM=cid=>{const tb=document.getElementById('mtb');if(!tb)return;const l=cid?W._mats.filter(m=>m.carrera_id===cid):W._mats;tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';};
+function mMateria(m){
+  const e=!!m;
+  modal(`<h4>${e?'Editar':'Nueva'} materia</h4>
+  <div class="fg">
+    <div class="fr"><div class="f"><label>Nombre</label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
+    <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="Ej: ENF-101"/></div></div>
+    <div class="fr"><div class="f"><label>Carrera</label><select id="mca">${(W._carrs||[]).map(c=>`<option value="${c.id}" ${e&&m.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}</select></div>
+    <div class="f"><label>Año</label><select id="ma">${[1,2,3,4].map(a=>`<option value="${a}" ${e&&m.anio===a?'selected':''}>${a}° año</option>`).join('')}</select></div></div>
+    <div class="f"><label>Horas semanales</label><input id="mh" type="number" value="${e?m.horas_semanales:4}" min="1"/></div>
+    <div class="peso-box">
+      <div class="titulo">Distribución de puntos (deben sumar 100)</div>
+      <div class="fr3">
+        <div class="f"><label>Trabajo Práctico</label><input id="mtp" type="number" value="${e?m.peso_tp:25}" min="0" max="100" oninput="updPeso()"/></div>
+        <div class="f"><label>Parcial</label><input id="mpar" type="number" value="${e?m.peso_parcial:25}" min="0" max="100" oninput="updPeso()"/></div>
+        <div class="f"><label>Final</label><input id="mfin" type="number" value="${e?m.peso_final:50}" min="0" max="100" oninput="updPeso()"/></div>
+      </div>
+      <div id="peso-sum" style="font-size:12px;font-weight:600;margin-top:4px"></div>
+    </div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svMat('${e?m.id:''}')">Guardar</button></div>`);
+  updPeso();
+}
+W.updPeso=()=>{const s=(parseInt(v('mtp'))||0)+(parseInt(v('mpar'))||0)+(parseInt(v('mfin'))||0);const el=document.getElementById('peso-sum');if(el)el.innerHTML=`Total: <span style="color:${s===100?'var(--green)':'var(--red)'}">${s} / 100</span>${s!==100?' — deben sumar exactamente 100':' ✓'}`;}
+async function svMat(id){
+  const tp=parseInt(v('mtp')),pp=parseInt(v('mpar')),pf=parseInt(v('mfin'));
+  if(tp+pp+pf!==100)return alert('Los pesos deben sumar 100. Actualmente suman '+(tp+pp+pf));
+  const o={carrera_id:v('mca'),nombre:v('mn'),codigo:v('mc2').toUpperCase(),horas_semanales:parseInt(v('mh')),anio:parseInt(v('ma')),peso_tp:tp,peso_parcial:pp,peso_final:pf};
+  if(!o.nombre)return alert('Ingresar nombre');
+  id?await api('PUT','/api/materias/'+id,o):await api('POST','/api/materias',o);
+  cm();go('materias');
+}
+
+// PERÍODOS
+async function pgPeriodos(el){
+  const d=await api('GET','/api/periodos');
+  el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3><button class="bn" onclick="mPer()">+ Nuevo</button></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Año</th><th>Sem.</th><th>Inicio</th><th>Fin</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${d.map(p=>`<tr><td><strong>${p.nombre}</strong></td><td>${p.anio}</td><td>${p.semestre}</td><td>${p.fecha_inicio||'-'}</td><td>${p.fecha_fin||'-'}</td>
+    <td><span class="bx ${p.activo?'bg':'bgr'}">${p.activo?'Activo':'Cerrado'}</span></td>
+    <td><div class="abs"><button class="bs i" onclick="actP(${p.id})">${p.activo?'Cerrar':'Activar'}</button><button class="bs d" onclick="del('${p.id}','periodos')">Eliminar</button></div></td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function mPer(){modal(`<h4>Nuevo período</h4><div class="fg">
+  <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: 2026 — 2do Semestre"/></div>
+  <div class="fr"><div class="f"><label>Año</label><input id="pa" type="number" value="${new Date().getFullYear()}"/></div>
+  <div class="f"><label>Semestre</label><select id="ps"><option>1ro</option><option>2do</option></select></div></div>
+  <div class="fr"><div class="f"><label>Inicio</label><input id="pi" type="date"/></div>
+  <div class="f"><label>Fin</label><input id="pf" type="date"/></div></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svP()">Guardar</button></div>`);}
+async function svP(){await api('POST','/api/periodos',{nombre:v('pn'),anio:parseInt(v('pa')),semestre:v('ps'),fecha_inicio:v('pi'),fecha_fin:v('pf')});cm();go('periodos');}
+async function actP(id){await api('PUT','/api/periodos/'+id+'/activar');go('periodos');}
+
+// DOCENTES
+async function pgDocentes(el){
+  const d=await api('GET','/api/docentes');
+  el.innerHTML=`<div class="ph"><h3>Docentes (${d.length})</h3><button class="bn" onclick="mDoc()">+ Nuevo docente</button></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
+    <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
+    <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
+    <td><div class="abs"><button class="bs i" onclick='mDoc(${J(d2)})'>Editar</button><button class="bs s" onclick="mPass('${d2.id}')">Clave</button><button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button></div></td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function mDoc(d){const e=!!d;modal(`<h4>${e?'Editar':'Nuevo'} docente</h4><div class="fg">
+  <div class="fr"><div class="f"><label>Nombre</label><input id="dn" value="${e?d.nombre:''}" placeholder="Nombre"/></div>
+  <div class="f"><label>Apellido</label><input id="dap" value="${e?d.apellido:''}" placeholder="Apellido"/></div></div>
+  <div class="fr"><div class="f"><label>C.I.</label><input id="dci" value="${e?d.ci||'':''}" placeholder="0.000.000"/></div>
+  <div class="f"><label>Teléfono</label><input id="dtel" value="${e?d.telefono||'':''}" placeholder="0981-000-000"/></div></div>
+  <div class="f"><label>Email (acceso al sistema)</label><input id="dem" value="${e?d.email||'':''}" placeholder="nombre@its.edu.py"/></div>
+  ${!e?`<div class="f"><label>Contraseña inicial</label><input id="dps" type="password" value="123456"/></div>`:''}
+  <div class="fr"><div class="f"><label>Título</label><input id="dtit" value="${e?d.titulo||'':''}" placeholder="Lic. en..."/></div>
+  <div class="f"><label>Especialidad</label><input id="desp" value="${e?d.especialidad||'':''}" placeholder="Área"/></div></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svDoc('${e?d.id:''}')">Guardar</button></div>`);}
+async function svDoc(id){
+  const o={nombre:v('dn'),apellido:v('dap'),ci:v('dci'),email:v('dem'),telefono:v('dtel'),titulo:v('dtit'),especialidad:v('desp')};
+  if(!o.nombre||!o.apellido)return alert('Completar nombre y apellido');
+  if(!id)o.password=v('dps')||'123456';
+  id?await api('PUT','/api/docentes/'+id,o):await api('POST','/api/docentes',o);
+  cm();go('docentes');
+}
+function mPass(id){modal(`<h4>Cambiar contraseña</h4><div class="fg"><div class="f"><label>Nueva contraseña</label><input id="np" type="password" placeholder="Mín. 6 caracteres"/></div></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPass('${id}')">Guardar</button></div>`);}
+async function svPass(id){const p=v('np');if(p.length<6)return alert('Mín. 6 caracteres');await api('PUT','/api/docentes/'+id+'/password',{password:p});cm();alert('Contraseña actualizada');}
+
+// ALUMNOS
+async function pgAlumnos(el){
+  const [als,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  W._als=als;W._carrs=carrs;W._cursos=cursos;
+  el.innerHTML=`<div class="ph"><h3>Alumnos (${als.length})</h3>
+    <div class="ph-right">
+      <button class="bs s" onclick="dPlant()">Descargar plantilla Excel</button>
+      <button class="bs i" onclick="mImp()">Importar Excel</button>
+      <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
+    </div></div>
+  <div class="fb">
+    <select onchange="fAl('c',this.value)"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+    <select id="fcur" onchange="fAl('cu',this.value)"><option value="">Todos los cursos</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Curso</th><th>Est.</th><th></th></tr></thead>
+  <tbody id="altb">${als.map(aR).join('')}</tbody></table></div></div>`;
+}
+function aR(a){return `<tr>
+  <td><span class="bx bp2">${a.matricula}</span></td>
+  <td><strong>${a.display_apellido||''}, ${a.display_nombre||''}</strong></td>
+  <td style="font-size:12px">${a.display_ci||'-'}</td>
+  <td>${a.carrera_nombre}</td>
+  <td>${a.anio?`<span class="cur-tag">${a.anio}°${a.division&&a.division!=='U'?a.division:''}</span>`:'-'}</td>
+  <td><span class="bx ${a.estado==='Activo'?'bg':a.estado==='Egresado'?'bb':'br'}">${a.estado}</span></td>
+  <td><div class="abs"><button class="bs i" onclick='mAl(${J(a)})'>Editar</button><button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button></div></td></tr>`;}
+W.fAl=(t,val)=>{const tb=document.getElementById('altb');if(!tb)return;let l=W._als;if(t==='c'&&val)l=l.filter(a=>a.carrera_id===val);if(t==='cu'&&val)l=l.filter(a=>a.curso_id===val);tb.innerHTML=l.map(aR).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';};
+function mAl(a){
+  const e=!!a;
+  modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
+  <div class="fr"><div class="f"><label>Nombre</label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
+  <div class="f"><label>Apellido</label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div></div>
+  <div class="fr"><div class="f"><label>C.I.</label><input id="aci" value="${e?a.display_ci||'':''}" placeholder="0.000.000"/></div>
+  <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':''}" placeholder="0981-000-000"/></div></div>
+  <div class="fr"><div class="f"><label>Carrera</label><select id="acar">${(W._carrs||[]).map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}</select></div>
+  <div class="f"><label>Curso/Grupo</label><select id="acur"><option value="">Sin asignar</option>${(W._cursos||[]).map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div></div>
+  <div class="fr"><div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':new Date().toISOString().split('T')[0]}"/></div>
+  ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}</div>
+  ${!e?`<div class="f"><label>Email (opcional — para acceso web)</label><input id="aem" type="email" placeholder="alumno@email.com"/></div>`:''}
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);
+}
+async function svAl(id){
+  const o={nombre:v('an'),apellido:v('aap'),ci:v('aci'),telefono:v('atel'),carrera_id:v('acar'),curso_id:v('acur')||null,fecha_ingreso:v('aing')};
+  if(!o.nombre||!o.apellido||!o.ci)return alert('Completar nombre, apellido y CI');
+  if(!id){o.email=v('aem');await api('POST','/api/alumnos',o);}
+  else{o.estado=v('aest');await api('PUT','/api/alumnos/'+id,o);}
+  cm();go('alumnos');
+}
+function mImp(){modal(`<h4>Importar alumnos desde Excel</h4>
+  <p style="font-size:13px;color:var(--t2);margin-bottom:10px">Columnas requeridas: <strong>nombre, apellido, ci, telefono, carrera, anio, division</strong></p>
+  <p class="tip" style="margin-bottom:14px">Carrera: usar código (CRM, FAR) o nombre completo. División: A, B o U.</p>
+  <div class="iz" onclick="document.getElementById('fxl').click()">Clic para seleccionar archivo .xlsx o .xls
+    <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div>
+  <div id="ires"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);}
+async function doImp(inp){
+  const file=inp.files[0];if(!file)return;
+  const fd=new FormData();fd.append('archivo',file);
+  try{
+    const r=await api('POST','/api/alumnos/importar',fd,true);
+    document.getElementById('ires').innerHTML=`<div class="ir ok">✓ ${r.ok} alumnos importados</div>${r.errores.length?`<div class="ir err" style="margin-top:6px">${r.errores.length} errores:<br>${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
+    if(r.ok>0)setTimeout(()=>{cm();go('alumnos');},2000);
+  }catch(e){document.getElementById('ires').innerHTML=`<div class="ir err">Error: ${e.message}</div>`;}
+}
+function dPlant(){window.open('/api/alumnos/plantilla','_blank');}
+
+// ASIGNACIONES
+async function pgAsig(el){
+  const [asigs,docs,mats,cursos,pers]=await Promise.all([api('GET','/api/asignaciones'),api('GET','/api/docentes'),api('GET','/api/materias'),api('GET','/api/cursos'),api('GET','/api/periodos')]);
+  W._adata={docs,mats,cursos,pers};
+  el.innerHTML=`<div class="ph"><h3>Asignaciones</h3><button class="bn" onclick="mAsig()">+ Nueva</button></div>
+  <p class="tip" style="margin-bottom:12px">Cada asignación vincula un docente con una materia, un curso y un período.</p>
+  <div class="card"><div class="tw"><table><thead><tr><th>Docente</th><th>Materia</th><th>Curso</th><th>Pesos</th><th>Período</th><th>Alumnos</th><th></th></tr></thead><tbody>
+  ${asigs.map(a=>`<tr>
+    <td><strong>${a.docente_nombre} ${a.docente_apellido}</strong></td>
+    <td>${a.materia_nombre}</td>
+    <td><span class="cur-tag">${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</span></td>
+    <td><span class="tip">TP:${a.peso_tp} P:${a.peso_parcial} F:${a.peso_final}</span></td>
+    <td>${a.periodo_nombre}</td><td>${a.total_alumnos}</td>
+    <td><button class="bs d" onclick="del('${a.id}','asignaciones')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin asignaciones</td></tr>'}
+  </tbody></table></div></div>`;
+}
+function mAsig(){
+  const {docs,mats,cursos,pers}=W._adata||{};
+  modal(`<h4>Nueva asignación</h4><div class="fg">
+  <div class="f"><label>Docente</label><select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}</option>`).join('')}</select></div>
+  <div class="f"><label>Materia</label><select id="asm">${(mats||[]).map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre} ${m.anio}° año (TP:${m.peso_tp}/P:${m.peso_parcial}/F:${m.peso_final})</option>`).join('')}</select></div>
+  <div class="f"><label>Curso/Grupo</label><select id="asc">${(cursos||[]).map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
+  <div class="f"><label>Período</label><select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAsig()">Guardar</button></div>`);
+}
+async function svAsig(){try{await api('POST','/api/asignaciones',{docente_id:v('asd'),materia_id:v('asm'),curso_id:v('asc'),periodo_id:parseInt(v('asp'))});cm();go('asignaciones');}catch(e){alert(e.message);}}
+
+// NOTAS — con todas las instancias
+async function pgNotas(el){
+  const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
+  const asigs=await api('GET',url);
+  el.innerHTML=`<div class="ph"><h3>Registro de notas</h3></div>
+  <div class="fb"><select onchange="loadNotas(this.value)">
+    <option value="">— Seleccionar materia y grupo —</option>
+    ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} · ${a.periodo_nombre}</option>`).join('')}
+  </select></div>
+  <div id="nc"></div>`;
+}
+
+W.loadNotas=async(asigId)=>{
+  if(!asigId)return;
+  const {alumnos,pesos}=await api('GET','/api/notas/asignacion/'+asigId);
+  const nc=document.getElementById('nc');
+  if(!alumnos.length){nc.innerHTML='<div class="es">Sin alumnos en este curso</div>';return;}
+
+  // Cache de notas por alumno
+  W._nc={};
+  alumnos.forEach(a=>{W._nc[a.id]={
+    tp:a.tp,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,
+    final:a.final,final_extraordinario:a.final_extraordinario
+  };});
+
+  nc.innerHTML=`
+  <div class="info-nota">
+    <strong>Distribución de puntos:</strong>
+    Trabajo Práctico: <strong>${pesos.tp} pts</strong> ·
+    Parcial (o Recuperatorio): <strong>${pesos.parcial} pts</strong> ·
+    Final (o Extraordinario): <strong>${pesos.final} pts</strong>
+    <span style="margin-left:12px">Mínimo aprobatorio: <strong>70 pts → Nota 2</strong></span>
+  </div>
+  <div class="card"><div class="tw">
+  <table><thead>
+    <tr>
+      <th rowspan="2" style="vertical-align:bottom">Alumno</th>
+      <th class="nota-col">TP<br><span class="tip">/${pesos.tp}pts</span></th>
+      <th class="nota-col">Parcial<br><span class="tip">/${pesos.parcial}pts</span></th>
+      <th class="nota-col">Recup.<br><span class="tip" style="color:var(--amb)">reemplaza</span></th>
+      <th class="nota-col">Final<br><span class="tip">/${pesos.final}pts</span></th>
+      <th class="nota-col">F.Extr.<br><span class="tip" style="color:var(--amb)">reemplaza</span></th>
+      <th class="nota-col">Total<br><span class="tip">/100</span></th>
+      <th class="nota-col">Nota<br><span class="tip">1-5</span></th>
+      <th>Estado</th>
+    </tr>
+  </thead><tbody>
+  ${alumnos.map(a=>`<tr id="nr-${a.id}">
+    <td style="white-space:nowrap"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:11px;color:var(--t3)">${a.alumno_ci||''}</span></td>
+    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.tp}" step="0.5" value="${a.tp??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','tp',this.value)"/></td>
+    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.parcial}" step="0.5" value="${a.parcial??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','parcial',this.value)"/></td>
+    <td class="nota-col" style="background:#fffbf5">
+      <input class="nota-inp" type="number" min="0" max="${pesos.parcial}" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"/>
+      ${a.parcial_recuperatorio!=null?`<span class="rec-indicator">reemplaza P</span>`:''}
+    </td>
+    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.final}" step="0.5" value="${a.final??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','final',this.value)"/></td>
+    <td class="nota-col" style="background:#fffbf5">
+      <input class="nota-inp" type="number" min="0" max="${pesos.final}" step="0.5" value="${a.final_extraordinario??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','final_extraordinario',this.value)"/>
+      ${a.final_extraordinario!=null?`<span class="rec-indicator">reemplaza F</span>`:''}
+    </td>
+    <td class="nota-col" id="tot-${a.id}"><span class="prom-tag ${notaCls(a.nota_final)}">${a.puntaje_total??'-'}</span></td>
+    <td class="nota-col" id="nf-${a.id}"><span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'-'}</span></td>
+    <td id="est-${a.id}"><span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':'bgr'}">${a.nota_estado||'Pendiente'}</span></td>
+  </tr>`).join('')}
+  </tbody></table></div></div>
+  <p class="tip" style="margin-top:6px">Recuperatorio y Final Extraordinario (fondo amarillo) reemplazan al parcial/final original respectivamente. El cálculo es automático al cargar cada nota.</p>`;
+};
+
+function notaCls(n){return n?`n${n}`:'n-';}
+
+W.updN=async(aid,asigId,field,val)=>{
+  if(!W._nc)W._nc={};
+  if(!W._nc[aid])W._nc[aid]={};
+  W._nc[aid][field]=val===''?null:val;
+  try{
+    const r=await api('PUT',`/api/notas/${aid}/${asigId}`,W._nc[aid]);
+    const cls=r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':'bgr';
+    const notaCls2=r.nota?`n${r.nota}`:'n-';
+    document.getElementById('tot-'+aid).innerHTML=`<span class="prom-tag ${notaCls2}">${r.puntaje??'-'}</span>`;
+    document.getElementById('nf-'+aid).innerHTML=`<span class="nota-tag ${notaCls2}">${r.nota??'-'}</span>`;
+    document.getElementById('est-'+aid).innerHTML=`<span class="bx ${cls}">${r.estado}</span>`;
+  }catch(e){console.error('Error guardando nota:',e);}
+};
+
+// ASISTENCIA
+async function pgAsist(el){
+  const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
+  const asigs=await api('GET',url);
+  el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3></div>
+  <div class="fb">
+    <select id="asel" onchange="loadAsist(this.value)"><option value="">— Seleccionar materia y grupo —</option>
+    ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
+    </select>
+    <input type="date" id="afecha" value="${new Date().toISOString().split('T')[0]}" onchange="loadAsist(document.getElementById('asel').value)"/>
+  </div>
+  <div id="acon"></div>`;
+}
+
+W.loadAsist=async(asigId)=>{
+  if(!asigId)return;
+  const fecha=document.getElementById('afecha')?.value||new Date().toISOString().split('T')[0];
+  const [data,regs]=await Promise.all([api('GET','/api/notas/asignacion/'+asigId),api('GET','/api/asistencia/asignacion/'+asigId)]);
+  const map={};regs.filter(r=>r.fecha===fecha).forEach(r=>map[r.alumno_id]=r.estado);
+  W._ast={asigId,fecha,est:{...map}};
+  const nc=document.getElementById('acon');
+  if(!data.alumnos.length){nc.innerHTML='<div class="es">Sin alumnos</div>';return;}
+  nc.innerHTML=`<div class="card" style="padding:16px">
+    <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Clase del <strong>${fecha}</strong></p>
+    ${data.alumnos.map(a=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bdr)">
+      <div><span style="font-size:13px;font-weight:500">${a.alumno_apellido||''}, ${a.alumno_nombre||''}</span>
+        <span style="font-size:11px;color:var(--t3);margin-left:6px">${a.alumno_ci||''}</span></div>
+      <div style="display:flex;gap:4px">
+        ${['P','A','T','J'].map(s=>`<button class="asopt ${W._ast.est[a.id]===s?s:''}" id="ao-${a.id}-${s}" onclick="sA('${a.id}','${s}')">${s}</button>`).join('')}
+      </div>
+    </div>`).join('')}
+  </div>
+  <button class="bn" style="margin-top:12px" onclick="grdAsist()">Guardar asistencia del día</button>
+  <div id="amsg"></div>`;
+};
+
+W.sA=(aid,est)=>{
+  if(!W._ast)return;
+  W._ast.est[aid]=est;
+  ['P','A','T','J'].forEach(s=>{const b=document.getElementById(`ao-${aid}-${s}`);if(b)b.className='asopt'+(est===s?' '+s:'');});
+};
+W.grdAsist=async()=>{
+  const {asigId,fecha,est}=W._ast;
+  const registros=Object.entries(est).map(([alumno_id,estado])=>({alumno_id,estado}));
+  if(!registros.length)return alert('Sin registros para guardar');
+  await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
+  document.getElementById('amsg').innerHTML='<span class="bx bg" style="margin-top:8px;display:inline-block">✓ Asistencia guardada</span>';
+  setTimeout(()=>{const m=document.getElementById('amsg');if(m)m.innerHTML='';},3000);
+};
+
+// PAGOS
+async function pgPagos(el){
+  const [pgs,als,pers]=await Promise.all([api('GET','/api/pagos'),api('GET','/api/alumnos'),api('GET','/api/periodos')]);
+  W._pdata={als,pers};
+  el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3><button class="bn" onclick="mPago()">+ Registrar</button></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Concepto</th><th>Monto</th><th>Fecha</th></tr></thead><tbody>
+  ${pgs.map(p=>`<tr><td>${p.nombre} ${p.apellido}</td><td>${p.carrera}</td><td>${p.concepto}</td>
+    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td><td>${p.fecha_pago||'-'}</td></tr>`).join('')||'<tr><td colspan="5" class="es">Sin pagos</td></tr>'}
+  </tbody></table></div></div>`;
+}
+function mPago(){const {als,pers}=W._pdata||{};
+  modal(`<h4>Registrar pago</h4><div class="fg">
+  <div class="f"><label>Alumno</label><select id="pgal">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select></div>
+  <div class="f"><label>Concepto</label><select id="pgco"><option>Matrícula 2026</option><option>Cuota 1</option><option>Cuota 2</option><option>Cuota 3</option><option>Examen</option><option>Certificado</option><option>Otro</option></select></div>
+  <div class="fr"><div class="f"><label>Monto (Gs.)</label><input id="pgmo" type="number" placeholder="0"/></div>
+  <div class="f"><label>Fecha</label><input id="pgfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div></div>
+  <div class="fr"><div class="f"><label>Comprobante</label><input id="pgco2" placeholder="Opcional"/></div>
+  <div class="f"><label>Período</label><select id="pgpe">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
+}
+async function svPago(){await api('POST','/api/pagos',{alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe'))});cm();go('pagos');}
+
+// INSTITUCIÓN
+async function pgInst(el){
+  const d=await api('GET','/api/institucion');
+  el.innerHTML=`<div class="ph"><h3>Datos de la institución</h3><button class="bn" onclick='mInst(${J(d)})'>Editar</button></div>
+  <div class="card" style="padding:16px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    ${[['Nombre',d.nombre],['Email',d.email],['Teléfono',d.telefono],['Dirección',d.direccion]].map(([k,vl])=>`<div><div style="font-size:11px;color:var(--t3)">${k}</div><div style="font-size:13px;font-weight:600">${vl||'-'}</div></div>`).join('')}
+    <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3)">Misión</div><div style="font-size:13px;font-weight:600">${d.mision||'-'}</div></div>
+  </div></div>`;
+}
+W.mInst=d=>{modal(`<h4>Editar institución</h4><div class="fg">
+  <div class="f"><label>Nombre</label><input id="in" value="${d.nombre||''}"/></div>
+  <div class="fr"><div class="f"><label>Teléfono</label><input id="it" value="${d.telefono||''}"/></div>
+  <div class="f"><label>Email</label><input id="ie" value="${d.email||''}"/></div></div>
+  <div class="f"><label>Dirección</label><input id="id2" value="${d.direccion||''}"/></div>
+  <div class="f"><label>Misión</label><textarea id="im">${d.mision||''}</textarea></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svInst()">Guardar</button></div>`);};
+async function svInst(){await api('PUT','/api/institucion',{nombre:v('in'),telefono:v('it'),email:v('ie'),direccion:v('id2'),mision:v('im')});cm();go('institucion');}
+
+// MI ÁREA (docente)
+async function pgMisMat(el){
+  if(!me.docenteId){el.innerHTML='<div class="es">Sin asignaciones</div>';return;}
+  const asigs=await api('GET','/api/asignaciones?docente_id='+me.docenteId);
+  el.innerHTML=`<div class="ph"><h3>Mis materias asignadas</h3></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Materia</th><th>Curso</th><th>Pesos</th><th>Período</th><th>Alumnos</th><th>Acciones</th></tr></thead><tbody>
+  ${asigs.map(a=>`<tr>
+    <td><strong>${a.materia_nombre}</strong></td>
+    <td><span class="cur-tag">${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</span></td>
+    <td><span class="tip">TP:${a.peso_tp} · P:${a.peso_parcial} · F:${a.peso_final}</span></td>
+    <td>${a.periodo_nombre}</td><td>${a.total_alumnos}</td>
+    <td><div class="abs"><button class="bs i" onclick="go('notas')">Notas</button><button class="bs s" onclick="go('asistencia')">Asistencia</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="es">Sin materias asignadas</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+// MIS NOTAS (alumno)
+async function pgMisNotas(el){
+  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos</div>';return;}
+  const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
+  el.innerHTML=`<div class="ph"><h3>Mis notas</h3></div>
+  <div class="card"><div class="tw"><table><thead><tr><th>Materia</th><th>TP</th><th>Parcial</th><th>Recup.</th><th>Final</th><th>F.Extr.</th><th>Total</th><th>Nota</th><th>Estado</th></tr></thead><tbody>
+  ${notas.map?notas.map(n=>`<tr>
+    <td><strong>${n.materia_nombre}</strong></td>
+    <td>${n.tp??'—'}</td><td>${n.parcial??'—'}</td>
+    <td>${n.parcial_recuperatorio!=null?`<strong>${n.parcial_recuperatorio}</strong>`:'—'}</td>
+    <td>${n.final??'—'}</td>
+    <td>${n.final_extraordinario!=null?`<strong>${n.final_extraordinario}</strong>`:'—'}</td>
+    <td><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
+    <td><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
+    <td><span class="bx ${n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr'}">${n.estado||'Pendiente'}</span></td>
+  </tr>`).join(''):''}
+  </tbody></table></div></div>
+  <p class="tip" style="margin-top:8px">Recuperatorio y Final Extraordinario en negrita = instancias que reemplazaron la nota original.</p>`;
+}
+
+// HELPERS
+function modal(h){document.getElementById('mr').innerHTML=`<div class="mb" onclick="if(event.target===this)cm()"><div class="modal">${h}</div></div>`;}
+function cm(){document.getElementById('mr').innerHTML='';}
+function v(id){return document.getElementById(id)?.value||'';}
+function J(o){try{return JSON.stringify(o).replace(/\\/g,'\\\\').replace(/"/g,"'");}catch{return '{}'}}
+function show(id){document.getElementById(id)?.classList.remove('hidden');}
+function hide(id){document.getElementById(id)?.classList.add('hidden');}
+
+async function del(id,tipo){
+  const msgs={carreras:'¿Eliminar carrera?',cursos:'¿Eliminar curso?',materias:'¿Eliminar materia?',docentes:'¿Eliminar docente?',alumnos:'¿Eliminar alumno?',periodos:'¿Eliminar período?',asignaciones:'¿Eliminar asignación?'};
+  if(!confirm(msgs[tipo]||'¿Eliminar?'))return;
+  await api('DELETE','/api/'+tipo+'/'+id);go(cur);
+}
+
+W.cm=cm;W.svCarrera=svCarrera;W.svCurso=svCurso;W.svMat=svMat;W.updPeso=W.updPeso;
+W.svP=svP;W.actP=actP;W.svDoc=svDoc;W.svPass=svPass;W.svAl=svAl;
+W.svAsig=svAsig;W.svPago=svPago;W.svInst=svInst;W.svEscala=svEscala;
+W.doImp=doImp;W.dPlant=dPlant;W.del=del;W.mAsig=mAsig;W.mPass=mPass;
+
+if(tok){
+  try{const p=JSON.parse(atob(tok.split('.')[1]));if(p.exp*1000>Date.now()){me=p;startApp();}else{localStorage.removeItem('its_tk3');tok=null;}}
+  catch{localStorage.removeItem('its_tk3');tok=null;}
+}
+</script>
+</body>
+</html>
