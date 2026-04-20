@@ -193,9 +193,9 @@ function init() {
   const cuentasInit = [
     { id:'u_dir',     nombre:'Roberto', apellido:'Martínez', ci:'1.111.111', email:'director@its.edu.py', pass:'director123', rol:'director' },
     { id:'u_adm',     nombre:'Secretaría', apellido:'Académica', ci:'2.222.222', email:'admin@its.edu.py', pass:'admin123', rol:'director' },
-    { id:'u_gabriel', nombre:'Gabriel', apellido:'', ci:'', email:'gabriel@its.edu.py', pass:'gabriel1234', rol:'director' },
-    { id:'u_delia',   nombre:'Delia',   apellido:'', ci:'', email:'delia@its.edu.py',   pass:'delia1234',   rol:'director' },
-    { id:'u_lujan',   nombre:'Lujan',   apellido:'', ci:'', email:'lujan@its.edu.py',   pass:'lujan1234',   rol:'director' },
+    { id:'u_gabriel', nombre:'Gabriel', apellido:'', ci:null, email:'gabriel@its.edu.py', pass:'gabriel1234', rol:'director' },
+    { id:'u_delia',   nombre:'Delia',   apellido:'', ci:null, email:'delia@its.edu.py',   pass:'delia1234',   rol:'director' },
+    { id:'u_lujan',   nombre:'Lujan',   apellido:'', ci:null, email:'lujan@its.edu.py',   pass:'lujan1234',   rol:'director' },
   ];
   cuentasInit.forEach(c => {
     if (!db.prepare('SELECT id FROM usuarios WHERE email=?').get(c.email)) {
