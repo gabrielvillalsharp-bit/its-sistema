@@ -35,7 +35,7 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(24,9
 .tb h2{font-size:15px;font-weight:600}
 .tr2{margin-left:auto;display:flex;align-items:center;gap:8px}
 .rp{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600}
-.rp-director{background:var(--bl);color:var(--bld)}
+.rp-director,.rp-admin,.rp-secretaria{background:var(--bl);color:var(--bld)}
 .rp-docente{background:var(--gl);color:var(--green)}
 .rp-alumno{background:var(--al);color:var(--amb)}
 .xb{font-size:12px;padding:5px 10px;border:1px solid var(--bdr);border-radius:8px;background:none;color:var(--t2);cursor:pointer}
@@ -191,34 +191,34 @@ function startApp(){
 
 function navFor(r){
   return [
-    {g:'General',i:[{id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','docente','alumno']}]},
+    {g:'General',i:[{id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','admin','secretaria','docente','alumno']}]},
     {g:'Estructura',i:[
-      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
-      {id:'cursos',l:'Cursos / Grupos',c:'#D85A30',r:['director']},
-      {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
-      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director']},
+      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director','admin','secretaria']},
+      {id:'cursos',l:'Cursos / Grupos',c:'#D85A30',r:['director','admin','secretaria']},
+      {id:'materias',l:'Materias',c:'#BA7517',r:['director','admin','secretaria']},
+      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director','admin','secretaria']},
     ]},
     {g:'Personas',i:[
-      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
-      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
-      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
+      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director','admin','secretaria']},
+      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director','admin','secretaria']},
+      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director','admin','secretaria']},
     ]},
     {g:'Académico',i:[
-      {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente']},
-      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
-      {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
+      {id:'notas',l:'Notas',c:'#185FA5',r:['director','admin','docente']},
+      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','admin','docente']},
+      {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director','admin','secretaria']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
       {id:'mis-notas',l:'Mis notas',c:'#185FA5',r:['alumno']},
     ]},
     {g:'Mi área',i:[
-      {id:'perfil',l:'Mi perfil / Contraseña',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'perfil',l:'Mi perfil / Contraseña',c:'#1D9E75',r:['director','admin','secretaria','docente','alumno']},
     ]},
     {g:'Configuración',i:[
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
-      {id:'escala',l:'Escala de notas',c:'#D85A30',r:['director']},
-      {id:'institucion',l:'Institución',c:'#888780',r:['director']},
+      {id:'escala',l:'Escala de notas',c:'#D85A30',r:['director','admin']},
+      {id:'institucion',l:'Institución',c:'#888780',r:['director','admin']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -302,7 +302,7 @@ async function pgCarreras(el){
     <td>${c.total_alumnos}</td><td>${c.total_materias}</td>
     <td>${c.cursos.map(cu=>`<span class="cur-tag">${cu.anio}°${cu.division==='U'?'':cu.division}</span>`).join(' ')}</td>
     <td><span class="bx ${c.activa?'bg':'br'}">${c.activa?'Activa':'Inactiva'}</span></td>
-    <td><div class="abs"><button class="bs i" onclick='mCarrera(${J(c)})'>Editar</button><button class="bs d" onclick="del('${c.id}','carreras')">Eliminar</button></div></td></tr>`).join('')}
+    <td><div class="abs"><button class="bs i" onclick="mCarrera(DJ(this.dataset.j))" data-j="${J(c)}">Editar</button><button class="bs d" onclick="del('${c.id}','carreras')">Eliminar</button></div></td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
 function mCarrera(c){
@@ -365,7 +365,7 @@ function mRow(m){return `<tr>
   <td><span class="bx ba">${m.codigo||'-'}</span></td><td><strong>${m.nombre}</strong></td>
   <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales}h</td>
   <td><span class="tip">${m.peso_tp}% / ${m.peso_parcial}% / ${m.peso_final}%</span></td>
-  <td><div class="abs"><button class="bs i" onclick='mMateria(${J(m)})'>Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td></tr>`;}
+  <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td></tr>`;}
 W.filtM=cid=>{const tb=document.getElementById('mtb');if(!tb)return;const l=cid?W._mats.filter(m=>m.carrera_id===cid):W._mats;tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';};
 function mMateria(m){
   const e=!!m;
@@ -427,7 +427,7 @@ async function pgDocentes(el){
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
     <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
-    <td><div class="abs"><button class="bs i" onclick='mDoc(${J(d2)})'>Editar</button><button class="bs s" onclick="mPass('${d2.id}')">Clave</button><button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button></div></td></tr>`).join('')}
+    <td><div class="abs"><button class="bs i" onclick="mDoc(DJ(this.dataset.j))" data-j="${J(d2)}">Editar</button><button class="bs s" onclick="mPass('${d2.id}')">Clave</button><button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button></div></td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
 function mDoc(d){const e=!!d;modal(`<h4>${e?'Editar':'Nuevo'} docente</h4><div class="fg">
@@ -475,7 +475,7 @@ function aR(a){return `<tr>
   <td>${a.carrera_nombre}</td>
   <td>${a.anio?`<span class="cur-tag">${a.anio}°${a.division&&a.division!=='U'?a.division:''}</span>`:'-'}</td>
   <td><span class="bx ${a.estado==='Activo'?'bg':a.estado==='Egresado'?'bb':'br'}">${a.estado}</span></td>
-  <td><div class="abs"><button class="bs i" onclick='mAl(${J(a)})'>Editar</button><button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button></div></td></tr>`;}
+  <td><div class="abs"><button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button><button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button></div></td></tr>`;}
 W.fAl=(t,val)=>{const tb=document.getElementById('altb');if(!tb)return;let l=W._als;if(t==='c'&&val)l=l.filter(a=>a.carrera_id===val);if(t==='cu'&&val)l=l.filter(a=>a.curso_id===val);tb.innerHTML=l.map(aR).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';};
 function mAl(a){
   const e=!!a;
@@ -703,7 +703,7 @@ async function svPago(){await api('POST','/api/pagos',{alumno_id:v('pgal'),conce
 // INSTITUCIÓN
 async function pgInst(el){
   const d=await api('GET','/api/institucion');
-  el.innerHTML=`<div class="ph"><h3>Datos de la institución</h3><button class="bn" onclick='mInst(${J(d)})'>Editar</button></div>
+  el.innerHTML=`<div class="ph"><h3>Datos de la institución</h3><button class="bn" onclick="mInst(DJ(this.dataset.j))" data-j="${J(d)}">Editar</button></div>
   <div class="card" style="padding:16px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
     ${[['Nombre',d.nombre],['Email',d.email],['Teléfono',d.telefono],['Dirección',d.direccion]].map(([k,vl])=>`<div><div style="font-size:11px;color:var(--t3)">${k}</div><div style="font-size:13px;font-weight:600">${vl||'-'}</div></div>`).join('')}
     <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3)">Misión</div><div style="font-size:13px;font-weight:600">${d.mision||'-'}</div></div>
@@ -757,7 +757,8 @@ async function pgMisNotas(el){
 function modal(h){document.getElementById('mr').innerHTML=`<div class="mb" onclick="if(event.target===this)cm()"><div class="modal">${h}</div></div>`;}
 function cm(){document.getElementById('mr').innerHTML='';}
 function v(id){return document.getElementById(id)?.value||'';}
-function J(o){try{return JSON.stringify(o).replace(/\\/g,'\\\\').replace(/"/g,"'");}catch{return '{}'}}
+function J(o){try{return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}catch{return '';}}
+function DJ(s){try{return JSON.parse(decodeURIComponent(escape(atob(s))));}catch{return {};}}
 function show(id){document.getElementById(id)?.classList.remove('hidden');}
 function hide(id){document.getElementById(id)?.classList.add('hidden');}
 
@@ -768,30 +769,125 @@ async function del(id,tipo){
 }
 
 // USUARIOS CON ACCESO TOTAL
+async function pgUsuarios(el){
+  const data=await api('GET','/api/usuarios/directores');
+  el.innerHTML=`<div class="ph"><h3>Usuarios y accesos</h3><button class="bn" onclick="mUsuario()">+ Nuevo usuario</button></div>
+  <p class="tip" style="margin-bottom:12px">Estos usuarios tienen acceso total al sistema. Podés crear hasta 10 cuentas.</p>
+  <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${data.map(u=>`<tr>
+    <td><strong>${u.nombre} ${u.apellido||''}</strong></td>
+    <td style="font-size:12px">${u.email}</td>
+    <td><span class="bx ${u.rol==='director'?'bb':u.rol==='admin'?'bp2':'bgr'}">${u.rol}</span></td>
+    <td><span class="bx ${u.activo?'bg':'br'}">${u.activo?'Activo':'Inactivo'}</span></td>
+    <td><div class="abs">
+      <button class="bs i" onclick='mUsuario(${JSON.stringify(u).replace(/"/g,"&quot;")})'>Editar</button>
+      <button class="bs s" onclick="mPassU('${u.id}')">Clave</button>
+      <button class="bs d" onclick="delU('${u.id}')">Eliminar</button>
+    </div></td></tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function mUsuario(u){
+  const e=!!u;
+  modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><div class="fg">
+  <div class="fr"><div class="f"><label>Nombre</label><input id="un2" value="${e?u.nombre:''}" placeholder="Nombre"/></div>
+  <div class="f"><label>Apellido</label><input id="uap" value="${e?u.apellido||'':''}" placeholder="Apellido"/></div></div>
+  <div class="f"><label>Email (para ingresar al sistema)</label><input id="uem" value="${e?u.email:''}" placeholder="nombre@its.edu.py"/></div>
+  ${!e?`<div class="f"><label>Contraseña</label><input id="ups" type="password" placeholder="Mín. 4 caracteres"/></div>`:''}
+  <div class="f"><label>Rol</label><select id="urol">
+    <option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option>
+    <option value="admin" ${e&&u.rol==='admin'?'selected':''}>Administrativo — gestión</option>
+    <option value="secretaria" ${e&&u.rol==='secretaria'?'selected':''}>Secretaría</option>
+  </select></div>
+  ${e?`<div class="f"><label>Estado</label><select id="uact"><option value="1" ${u.activo?'selected':''}>Activo</option><option value="0" ${!u.activo?'selected':''}>Inactivo</option></select></div>`:''}
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svUsuario('${e?u.id:''}')">Guardar</button></div>`);
+}
+async function svUsuario(id){
+  const o={nombre:v('un2'),apellido:v('uap'),email:v('uem'),rol:v('urol')};
+  if(!o.nombre||!o.email)return alert('Completar nombre y email');
+  if(!id){o.password=v('ups');if(!o.password)return alert('Ingresar contraseña');}
+  else o.activo=v('uact')==='1';
+  try{
+    id?await api('PUT','/api/usuarios/directores/'+id,o):await api('POST','/api/usuarios/directores',o);
+    cm();go('usuarios');
+  }catch(e){alert(e.message);}
+}
+function mPassU(id){
+  modal(`<h4>Cambiar contraseña</h4><div class="fg">
+  <div class="f"><label>Nueva contraseña</label><input id="npu" type="password" placeholder="Mín. 4 caracteres"/></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPassU('${id}')">Guardar</button></div>`);
+}
+async function svPassU(id){
+  const p=v('npu');if(p.length<4)return alert('Mín. 4 caracteres');
+  await api('PUT','/api/usuarios/directores/'+id+'/password',{password:p});
+  cm();alert('Contraseña actualizada correctamente');
+}
+async function delU(id){
+  if(!confirm('¿Eliminar este usuario?'))return;
+  try{await api('DELETE','/api/usuarios/directores/'+id);go('usuarios');}
+  catch(e){alert(e.message);}
+}
+
+// MI PERFIL
+async function pgPerfil(el){
+  const u=await api('GET','/api/mi-perfil');
+  el.innerHTML=`<div class="ph"><h3>Mi perfil</h3></div>
+  <div class="card" style="padding:16px;max-width:460px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div><div style="font-size:11px;color:var(--t3)">Nombre</div><div style="font-size:15px;font-weight:600">${u.nombre} ${u.apellido||''}</div></div>
+      <div><div style="font-size:11px;color:var(--t3)">Email</div><div style="font-size:13px">${u.email}</div></div>
+      <div><div style="font-size:11px;color:var(--t3)">Rol</div><span class="bx ${u.rol==='director'?'bb':u.rol==='docente'?'bg':'bp2'}">${u.rol}</span></div>
+    </div>
+    <div style="border-top:1px solid var(--bdr);padding-top:16px">
+      <p style="font-size:14px;font-weight:600;margin-bottom:12px">Cambiar contraseña</p>
+      <div class="fg" style="max-width:320px">
+        <div class="f"><label>Contraseña actual</label><input id="pa2" type="password" placeholder="Tu contraseña actual"/></div>
+        <div class="f"><label>Nueva contraseña</label><input id="pn2" type="password" placeholder="Mín. 4 caracteres"/></div>
+        <div class="f"><label>Confirmar nueva contraseña</label><input id="pc2" type="password" placeholder="Repetí la nueva contraseña"/></div>
+        <button class="bn" onclick="svMiPass()">Cambiar contraseña</button>
+        <div id="pmsg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+    </div>
+  </div>`;
+}
+async function svMiPass(){
+  const actual=v('pa2'),nueva=v('pn2'),conf=v('pc2');
+  const msg=document.getElementById('pmsg');
+  if(!actual||!nueva)return msg.innerHTML='<span style="color:var(--red)">Completar todos los campos</span>';
+  if(nueva!==conf)return msg.innerHTML='<span style="color:var(--red)">Las contraseñas no coinciden</span>';
+  if(nueva.length<4)return msg.innerHTML='<span style="color:var(--red)">Mín. 4 caracteres</span>';
+  try{
+    await api('PUT','/api/mi-perfil/password',{actual,nueva});
+    msg.innerHTML='<span style="color:var(--green)">✓ Contraseña cambiada correctamente</span>';
+    document.getElementById('pa2').value='';
+    document.getElementById('pn2').value='';
+    document.getElementById('pc2').value='';
+  }catch(e){msg.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
+}
+
 // GESTIÓN DE USUARIOS
 const ROLES=[
   {v:'director',l:'Director — acceso total'},
-  {v:'admin',l:'Administrativo — gestión general'},
-  {v:'secretaria',l:'Secretaría — alumnos y pagos'},
   {v:'docente',l:'Docente — solo sus materias'},
   {v:'alumno',l:'Alumno — solo sus notas'},
 ];
-function rolBadge(r){return r==='director'?'bb':r==='docente'?'bg':r==='admin'||r==='secretaria'?'bp2':'ba';}
-function rolLabel(r){return ROLES.find(x=>x.v===r)?.l.split('—')[0].trim()||r;}
+function rBadge(r){return r==='director'?'bb':r==='docente'?'bg':'ba';}
+function rLabel(r){return ROLES.find(x=>x.v===r)?.l.split('—')[0].trim()||r;}
 
 async function pgUsuarios(el){
   const data=await api('GET','/api/usuarios');
-  el.innerHTML=`<div class="ph"><h3>Usuarios y accesos (${data.length})</h3><button class="bn" onclick="mUsuario()">+ Nuevo usuario</button></div>
+  W._ustore={};
+  data.forEach(u=>{W._ustore[u.id]=u;});
+  el.innerHTML=`<div class="ph"><h3>Usuarios y accesos (${data.length})</h3><button class="bn" onclick="mUsuario(null)">+ Nuevo usuario</button></div>
   <p class="tip" style="margin-bottom:14px">Creá y gestioná el acceso de todas las personas al sistema.</p>
   <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Email</th><th>C.I.</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
   ${data.map(u=>`<tr>
     <td><strong>${u.nombre} ${u.apellido||''}</strong></td>
     <td style="font-size:12px">${u.email||'-'}</td>
     <td style="font-size:12px">${u.ci||'-'}</td>
-    <td><span class="bx ${rolBadge(u.rol)}">${rolLabel(u.rol)}</span></td>
+    <td><span class="bx ${rBadge(u.rol)}">${rLabel(u.rol)}</span></td>
     <td><span class="bx ${u.activo?'bg':'br'}">${u.activo?'Activo':'Inactivo'}</span></td>
     <td><div class="abs">
-      <button class="bs i" onclick='mUsuario(${J(u)})'>Editar</button>
+      <button class="bs i" onclick="mUsuario(W._ustore['${u.id}'])">Editar</button>
       <button class="bs s" onclick="mPassU('${u.id}')">Clave</button>
       <button class="bs" onclick="toggleU('${u.id}')">${u.activo?'Desactivar':'Activar'}</button>
       <button class="bs d" onclick="delU('${u.id}')">Eliminar</button>
@@ -819,7 +915,7 @@ function mUsuario(u){
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svUsuario('${e?u.id:''}')">Guardar</button></div>`);
 }
 async function svUsuario(id){
-  const o={nombre:v('un2'),apellido:v('uap'),ci:v('uci2'),email:v('uem'),rol:v('urol')};
+  const o={nombre:v('un2'),apellido:v('uap'),ci:v('uci2')||null,email:v('uem'),rol:v('urol')};
   if(!o.nombre||!o.apellido)return alert('Completar nombre y apellido');
   if(!o.email)return alert('El email es obligatorio');
   if(!id){o.password=v('ups');if(!o.password||o.password.length<6)return alert('Contraseña mínimo 6 caracteres');}
@@ -828,10 +924,12 @@ async function svUsuario(id){
   catch(e){alert(e.message);}
 }
 function mPassU(id){
-  modal(`<h4>Cambiar contraseña</h4><div class="fg">
-  <div class="f"><label>Nueva contraseña</label><input id="npu" type="password" placeholder="Mín. 6 caracteres"/></div>
-  <div class="f"><label>Confirmar</label><input id="npu2" type="password" placeholder="Repetir"/></div>
-  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPassU('${id}')">Guardar</button></div>`);
+  modal(`<h4>Cambiar contraseña</h4>
+  <div class="fg">
+    <div class="f"><label>Nueva contraseña</label><input id="npu" type="password" placeholder="Mín. 6 caracteres"/></div>
+    <div class="f"><label>Confirmar</label><input id="npu2" type="password" placeholder="Repetir"/></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPassU('${id}')">Guardar</button></div>`);
 }
 async function svPassU(id){
   const p=v('npu'),p2=v('npu2');
@@ -853,7 +951,7 @@ async function pgPerfil(el){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
       <div><div style="font-size:11px;color:var(--t3)">Nombre</div><div style="font-size:15px;font-weight:600">${me.nombre} ${me.apellido||''}</div></div>
       <div><div style="font-size:11px;color:var(--t3)">Email</div><div style="font-size:13px">${me.email||'-'}</div></div>
-      <div><div style="font-size:11px;color:var(--t3)">Rol</div><span class="bx ${rolBadge(me.rol)}">${rolLabel(me.rol)}</span></div>
+      <div><div style="font-size:11px;color:var(--t3)">Rol</div><span class="bx ${rBadge(me.rol)}">${rLabel(me.rol)}</span></div>
     </div>
     <div style="border-top:1px solid var(--bdr);padding-top:16px">
       <p style="font-size:14px;font-weight:600;margin-bottom:12px">Cambiar mi contraseña</p>
@@ -875,11 +973,13 @@ async function svMiPass(){
   if(nueva.length<6)return msg.innerHTML='<span style="color:var(--red)">Mínimo 6 caracteres</span>';
   try{
     await api('PUT','/api/mi-password',{actual,nueva});
-    msg.innerHTML='<span style="color:var(--green)">✓ Contraseña cambiada correctamente</span>';
+    msg.innerHTML='<span style="color:var(--green)">✓ Contraseña cambiada</span>';
     ['pa2','pn2','pc2'].forEach(id=>document.getElementById(id).value='');
   }catch(e){msg.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
 
+W.mUsuario=mUsuario;W.svUsuario=svUsuario;W.mPassU=mPassU;W.svPassU=svPassU;
+W.toggleU=toggleU;W.delU=delU;W.svMiPass=svMiPass;
 W.cm=cm;W.svCarrera=svCarrera;W.svCurso=svCurso;W.svMat=svMat;W.updPeso=W.updPeso;
 W.svP=svP;W.actP=actP;W.svDoc=svDoc;W.svPass=svPass;W.svAl=svAl;
 W.svAsig=svAsig;W.svPago=svPago;W.svInst=svInst;W.svEscala=svEscala;
