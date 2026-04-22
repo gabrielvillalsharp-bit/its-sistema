@@ -563,8 +563,8 @@ app.get('/api/pagos', auth(ADM), (req, res) => {
     ${where} ORDER BY p.fecha_pago DESC LIMIT 500`).all(...(alumno_id?[alumno_id]:[])));
 });
 app.post('/api/pagos', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca } = req.body;
-  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca) VALUES (?,?,?,?,?,?,?,?,?,?)').run('pg_'+Date.now(),alumno_id,periodo_id,concepto,monto,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null);
+  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago } = req.body;
+  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run('pg_'+Date.now(),alumno_id,periodo_id,concepto,monto,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
   res.json({ ok: true });
 });
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
@@ -678,6 +678,62 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Plantilla Excel para importar exámenes
+app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
+  const asigs = db.prepare(`
+    SELECT a.id as asignacion_id, m.nombre as materia, m.codigo,
+      ca.nombre as carrera, cu.anio, cu.division
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    ORDER BY ca.nombre, cu.anio, m.nombre LIMIT 5`).all();
+  const wb = XLSX.utils.book_new();
+  const rows = asigs.map(a => ({
+    asignacion_id: a.asignacion_id,
+    materia: a.materia,
+    carrera: a.carrera,
+    anio: a.anio,
+    division: a.division,
+    tipo: 'Parcial',
+    fecha: new Date().toISOString().split('T')[0],
+    hora: '19:00',
+    aula: '',
+    observacion: ''
+  }));
+  if (!rows.length) rows.push({ asignacion_id:'PEGAR_ID_ASIGNACION', materia:'Ejemplo', carrera:'', anio:1, division:'U', tipo:'Parcial', fecha:'2026-05-10', hora:'19:00', aula:'Aula 1', observacion:'' });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Examenes');
+  const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+  res.setHeader('Content-Disposition','attachment; filename="plantilla_examenes_ITS.xlsx"');
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+});
+
+// Importar exámenes desde Excel
+app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    const wb = XLSX.read(req.file.buffer, { type:'buffer' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:'' });
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const results = { ok:0, errores:[] };
+    rows.forEach((row, i) => {
+      try {
+        const asig_id = String(row.asignacion_id||'').trim();
+        const tipo = String(row.tipo||'Parcial').trim();
+        const fecha = String(row.fecha||'').trim();
+        if (!asig_id || !fecha) { results.errores.push(`Fila ${i+2}: asignacion_id y fecha son obligatorios`); return; }
+        const asig = db.prepare('SELECT id FROM asignaciones WHERE id=?').get(asig_id);
+        if (!asig) { results.errores.push(`Fila ${i+2}: asignacion_id no encontrado "${asig_id}"`); return; }
+        if (!['Parcial','Final','Recuperatorio','Extraordinario'].includes(tipo)) { results.errores.push(`Fila ${i+2}: tipo inválido "${tipo}"`); return; }
+        const pid = periodo?.id || null;
+        db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion) VALUES (?,?,?,?,?,?,?,?)').run('ex_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),asig_id,tipo,fecha,row.hora||null,row.aula||null,pid,row.observacion||null);
+        results.ok++;
+      } catch(e) { results.errores.push(`Fila ${i+2}: ${e.message}`); }
+    });
+    res.json(results);
+  } catch(e) { res.status(400).json({ error:'Error procesando archivo: '+e.message }); }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));

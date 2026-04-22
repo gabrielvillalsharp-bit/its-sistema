@@ -535,9 +535,11 @@ async function actP(id){await api('PUT','/api/periodos/'+id+'/activar');go('peri
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 async function pgDocentes(el){
   const d=await api('GET','/api/docentes');
+  W._docsAll=d;
   el.innerHTML=`<div class="ph"><h3>Docentes (${d.length})</h3>
     <div class="ph-right"><button class="bs s" onclick="exportXls('docentes')">⬇ Excel</button><button class="bn" onclick="mDoc()">+ Nuevo docente</button></div></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  <div style="margin-bottom:12px"><input id="filtDocs" placeholder="🔍 Buscar por nombre, CI o especialidad..." oninput="renderDocentes()" style="max-width:380px"/></div>
+  <div id="tablaDocentes"><div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
     <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
@@ -547,7 +549,27 @@ async function pgDocentes(el){
       <button class="bs o" onclick="go('supervisar');setTimeout(()=>verDocente('${d2.docente_id}','${d2.nombre} ${d2.apellido}'),400)">Ver materias</button>
       <button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button>
     </div></td></tr>`).join('')}
+  </tbody></table></div></div></div>`;
+}
+function renderDocentes(){
+  const q=(document.getElementById('filtDocs')?.value||'').toLowerCase().trim();
+  const d=q?(W._docsAll||[]).filter(x=>{
+    return (x.nombre+' '+x.apellido).toLowerCase().includes(q)||(x.ci||'').toLowerCase().includes(q)||(x.especialidad||'').toLowerCase().includes(q);
+  }):W._docsAll||[];
+  const el=document.getElementById('tablaDocentes');
+  if(!el)return;
+  el.innerHTML=`<div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
+    <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
+    <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
+    <td><div class="abs">
+      <button class="bs i" onclick="mDoc(DJ(this.dataset.j))" data-j="${J(d2)}">Editar</button>
+      <button class="bs s" onclick="mPass('${d2.id}')">Clave</button>
+      <button class="bs o" onclick="go('supervisar');setTimeout(()=>verDocente('${d2.docente_id}','${d2.nombre} ${d2.apellido}'),400)">Ver materias</button>
+      <button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button>
+    </div></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin resultados</td></tr>'}
   </tbody></table></div></div>`;
+}
 }
 function mDoc(d){const e=!!d;modal(`<h4>${e?'Editar':'Nuevo'} docente</h4><div class="fg">
   <div class="fr"><div class="f"><label>Nombre</label><input id="dn" value="${e?d.nombre:''}" placeholder="Nombre"/></div>
@@ -728,6 +750,8 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
+      <button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla Excel</button>
+      <label class="bs" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>
       <button class="bn" onclick="mExamen()">+ Programar examen</button>
     </div></div>
   <div class="fb">
@@ -740,6 +764,24 @@ async function pgExamenes(el){
   ${exs.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin exámenes programados</td></tr>'}
   </tbody></table></div></div>`;
   W._exs=exs;
+}
+async function descargarPlantillaExamenes(){
+  const asigs=await api('GET','/api/asignaciones');
+  const a=document.createElement('a');
+  a.href='/api/examenes/plantilla';a.download='plantilla_examenes.xlsx';a.click();
+}
+async function importarExamenes(input){
+  const file=input.files[0];if(!file)return;
+  const fd=new FormData();fd.append('archivo',file);
+  input.value='';
+  try{
+    const r=await fetch('/api/examenes/importar',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd});
+    const d=await r.json();
+    if(d.error)return alert('Error: '+d.error);
+    let msg=`✓ ${d.ok} exámenes importados`;
+    if(d.errores?.length)msg+=`\n\n⚠ ${d.errores.length} errores:\n${d.errores.slice(0,5).join('\n')}`;
+    alert(msg);go('examenes');
+  }catch(e){alert('Error al importar: '+e.message);}
 }
 function exRow(e){
   const pct=e.total_alumnos?Math.round(e.notas_cargadas/e.total_alumnos*100):0;
@@ -1093,24 +1135,41 @@ async function pgPagos(el){
       <button class="bs s" onclick="exportXls('pagos')">⬇ Excel</button>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Comprobante</th><th></th></tr></thead><tbody>
+  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Comprobante</th><th></th></tr></thead><tbody>
   ${pgs.map(p=>`<tr><td><strong>${p.apellido||''}, ${p.nombre||''}</strong></td><td>${p.carrera}</td>
     <td>${p.concepto}</td><td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
-    <td>${fmtFecha(p.fecha_pago)}</td><td style="font-size:12px">${p.comprobante||'-'}</td>
-    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin pagos registrados</td></tr>'}
+    <td>${fmtFecha(p.fecha_pago)}</td><td style="font-size:12px">${p.medio_pago||'Efectivo'}</td><td style="font-size:12px">${p.comprobante||'-'}</td>
+    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="8" class="es">Sin pagos registrados</td></tr>'}
   </tbody></table></div></div>`;
 }
 function mPago(){const {als,pers}=W._pdata||{};
   modal(`<h4>Registrar pago</h4><div class="fg">
-  <div class="f"><label>Alumno</label><select id="pgal">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select></div>
+  <div class="f"><label>Buscar alumno</label><input id="pgbus" placeholder="Nombre, apellido o CI..." oninput="filtrarAlPago()" autocomplete="off"/></div>
+  <div class="f"><label>Alumno</label><select id="pgal" size="1">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select></div>
   <div class="f"><label>Concepto</label><select id="pgco"><option>Matrícula 2025</option><option>Matrícula 2026</option><option>Cuota 1</option><option>Cuota 2</option><option>Cuota 3</option><option>Cuota 4</option><option>Examen</option><option>Certificado</option><option>Otro</option></select></div>
   <div class="fr"><div class="f"><label>Monto (Gs.)</label><input id="pgmo" type="number" placeholder="0"/></div>
   <div class="f"><label>Fecha</label><input id="pgfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div></div>
   <div class="fr"><div class="f"><label>Comprobante N°</label><input id="pgco2" placeholder="Opcional"/></div>
   <div class="f"><label>Período</label><select id="pgpe">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div></div>
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);}
+  <div class="f"><label>Medio de pago</label><select id="pgmed"><option value="Efectivo">Efectivo</option><option value="Transferencia">Transferencia bancaria</option><option value="Cheque">Cheque</option><option value="Tarjeta">Tarjeta</option></select></div>
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
+  setTimeout(()=>{const el=document.getElementById('pgbus');if(el)el.focus();},100);
+}
+function filtrarAlPago(){
+  const q=(v('pgbus')||'').toLowerCase().trim();
+  const sel=document.getElementById('pgal');
+  if(!sel||!W._pdata)return;
+  const als=W._pdata.als||[];
+  const filtrados=q?als.filter(a=>{
+    const n=(a.display_nombre||'').toLowerCase();
+    const ap=(a.display_apellido||'').toLowerCase();
+    const ci=(a.display_ci||'').toLowerCase();
+    return n.includes(q)||ap.includes(q)||(ap+', '+n).includes(q)||ci.includes(q);
+  }):als;
+  sel.innerHTML=filtrados.map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('');
+}
 async function svPago(){
-  const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe'))};
+  const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   await api('POST','/api/pagos',o);cm();go('pagos');
 }

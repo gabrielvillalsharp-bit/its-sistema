@@ -134,7 +134,8 @@ function crearTablas() {
       periodo_id INTEGER REFERENCES periodos(id),
       concepto TEXT NOT NULL, monto REAL NOT NULL,
       fecha_pago TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'Pagado',
-      comprobante TEXT, descuento REAL DEFAULT 0, beca TEXT
+      comprobante TEXT, descuento REAL DEFAULT 0, beca TEXT,
+      medio_pago TEXT DEFAULT 'Efectivo'
     );
     CREATE TABLE IF NOT EXISTS examenes (
       id TEXT PRIMARY KEY,
@@ -486,6 +487,8 @@ function seedDatos() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
   crearTablas();
+  // Migraciones para bases de datos existentes
+  try { db.prepare("ALTER TABLE pagos ADD COLUMN medio_pago TEXT DEFAULT 'Efectivo'").run(); } catch {}
   seedDatos();
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
