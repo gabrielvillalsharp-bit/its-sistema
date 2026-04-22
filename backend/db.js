@@ -133,7 +133,34 @@ function crearTablas() {
       id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL REFERENCES alumnos(id),
       periodo_id INTEGER REFERENCES periodos(id),
       concepto TEXT NOT NULL, monto REAL NOT NULL,
-      fecha_pago TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'Pagado', comprobante TEXT
+      fecha_pago TEXT NOT NULL, estado TEXT NOT NULL DEFAULT 'Pagado',
+      comprobante TEXT, descuento REAL DEFAULT 0, beca TEXT
+    );
+    CREATE TABLE IF NOT EXISTS examenes (
+      id TEXT PRIMARY KEY,
+      asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+      tipo TEXT NOT NULL CHECK(tipo IN ('Parcial','Final','Recuperatorio','Extraordinario')),
+      fecha TEXT NOT NULL, hora TEXT, aula TEXT,
+      periodo_id INTEGER NOT NULL REFERENCES periodos(id),
+      observacion TEXT
+    );
+    CREATE TABLE IF NOT EXISTS avisos (
+      id TEXT PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      contenido TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'info' CHECK(tipo IN ('info','urgente','examen','administrativo')),
+      fijado INTEGER NOT NULL DEFAULT 0,
+      activo INTEGER NOT NULL DEFAULT 1,
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id),
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS becas (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      tipo TEXT NOT NULL CHECK(tipo IN ('Beca Total','Beca Parcial','Descuento','Convenio')),
+      porcentaje REAL, monto_fijo REAL, descripcion TEXT,
+      fecha_inicio TEXT NOT NULL, fecha_fin TEXT,
+      activa INTEGER NOT NULL DEFAULT 1
     );
   `);
 }
