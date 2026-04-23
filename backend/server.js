@@ -399,7 +399,7 @@ app.get('/api/asignaciones/docente/:docente_id', auth(ADM), (req, res) => {
       (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos,
       (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND n.puntaje_total IS NOT NULL) as notas_cargadas,
       (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND n.parcial IS NOT NULL) as parciales_cargados,
-      (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND n.final IS NOT NULL) as finales_cargados
+      (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND n.final_ord IS NOT NULL) as finales_cargados
     FROM asignaciones a
     JOIN materias m ON a.materia_id=m.id
     JOIN cursos cu ON a.curso_id=cu.id
@@ -485,8 +485,10 @@ app.get('/api/notas/acta/:asig_id', auth(), (req, res) => {
       COALESCE(al.ci,u.ci) as ci,
       COALESCE(al.nombre,u.nombre) as nombre,
       COALESCE(al.apellido,u.apellido) as apellido,
-      n.tp,n.parcial,n.parcial_recuperatorio,n.final,n.final_extraordinario,
-      n.parcial_efectivo,n.final_efectivo,n.puntaje_total,n.nota_final,n.estado
+      n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.tp_total,
+      n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
+      n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
+      n.extraordinario,n.ausente,n.puntaje_total,n.nota_final,n.estado
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
@@ -528,7 +530,7 @@ app.get('/api/examenes', auth(), (req, res) => {
       p.nombre as periodo_nombre,
       a.id as asignacion_id,
       (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND
-        CASE e.tipo WHEN 'Parcial' THEN n.parcial IS NOT NULL WHEN 'Final' THEN n.final IS NOT NULL ELSE 0 END
+        CASE e.tipo WHEN 'Parcial' THEN n.parcial IS NOT NULL WHEN 'Final' THEN n.final_ord IS NOT NULL ELSE 0 END
       ) as notas_cargadas,
       (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
     FROM examenes e
@@ -576,7 +578,7 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
       a.id as asignacion_id,
       (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND
         CASE e.tipo WHEN 'Parcial' THEN n.parcial IS NOT NULL
-                    WHEN 'Final' THEN n.final IS NOT NULL
+                    WHEN 'Final' THEN n.final_ord IS NOT NULL
                     ELSE 0 END) as notas_cargadas,
       (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
     FROM examenes e
@@ -712,8 +714,11 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
       FROM pagos p JOIN alumnos al ON p.alumno_id=al.id JOIN carreras c ON al.carrera_id=c.id
       LEFT JOIN usuarios u ON al.usuario_id=u.id ORDER BY p.fecha_pago DESC`,
     notas: `SELECT COALESCE(al.apellido,u.apellido) as Apellido,COALESCE(al.nombre,u.nombre) as Nombre,
-      ca.nombre as Carrera,m.nombre as Materia,n.tp as TP,n.parcial as Parcial,
-      n.parcial_recuperatorio as Recuperatorio,n.final as Final,n.final_extraordinario as FinalExtr,
+      ca.nombre as Carrera,m.nombre as Materia,
+      n.tp1 as TP1,n.tp2 as TP2,n.tp3 as TP3,n.tp4 as TP4,n.tp5 as TP5,n.tp_total as TotalTPs,
+      n.parcial as Parcial,n.parcial_recuperatorio as ParcialRecup,
+      n.final_ord as FinalOrd,n.final_recuperatorio as FinalRecup,n.complementario as Complementario,
+      n.extraordinario as Extraordinario,
       n.puntaje_total as Puntaje,n.nota_final as Nota,n.estado as Estado
       FROM notas n JOIN alumnos al ON n.alumno_id=al.id JOIN asignaciones a ON n.asignacion_id=a.id
       JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
