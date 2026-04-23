@@ -11,42 +11,55 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// ── CÁLCULO DE PUNTAJE ────────────────────────────────────────────────────────
-function calcularPuntaje(tp, parcial, parcial_recuperatorio, final, final_extraordinario, peso_tp, peso_parcial, peso_final) {
-  let parcial_ef = null;
-  if (parcial !== null && parcial !== undefined) {
-    parcial_ef = parcial;
-    if (parcial_recuperatorio !== null && parcial_recuperatorio !== undefined && parcial_recuperatorio > parcial)
-      parcial_ef = parcial_recuperatorio;
-  } else if (parcial_recuperatorio !== null && parcial_recuperatorio !== undefined) {
-    parcial_ef = parcial_recuperatorio;
+// ── CÁLCULO DE PUNTAJE (lógica ITS) ──────────────────────────────────────────
+// Parcial: si hay recuperatorio, REEMPLAZA al ordinario (no importa cuál es mayor)
+// TPs: 5 campos independientes, suma simple (max 5 cada uno, max 25 total)
+// Final: última instancia cargada reemplaza las anteriores (ord → recup → complementario)
+// Extraordinario: RESET total — ignora todo y usa solo ese valor (escala sobre 100)
+function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio, final_ord, final_recuperatorio, complementario, extraordinario) {
+  // Ausente o sin datos
+  const hayDatos = [tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario]
+    .some(v => v !== null && v !== undefined && v !== '');
+  if (!hayDatos) return { puntaje: null, nota: null, estado: 'Pendiente' };
+
+  const n = v => (v !== null && v !== undefined && v !== '') ? parseFloat(v) : null;
+
+  // EXTRAORDINARIO: reset total
+  const extr = n(extraordinario);
+  if (extr !== null) {
+    const puntaje = Math.round(extr * 100) / 100;
+    const nota = puntaje >= 94 ? 5 : puntaje >= 86 ? 4 : puntaje >= 78 ? 3 : puntaje >= 70 ? 2 : 1;
+    const estado = nota >= 2 ? 'Aprobado' : 'Reprobado';
+    return { puntaje, nota, estado, parcial_ef: null, final_ef: null, tp_total: null };
   }
 
+  // BLOQUE PARCIAL: recuperatorio reemplaza ordinario si está cargado
+  const parOrd = n(parcial);
+  const parRec = n(parcial_recuperatorio);
+  const parcial_ef = parRec !== null ? parRec : parOrd;
+
+  // BLOQUE TPs: suma simple
+  const tps = [n(tp1), n(tp2), n(tp3), n(tp4), n(tp5)];
+  const tp_total = tps.every(t => t === null) ? null : tps.reduce((acc, t) => acc + (t || 0), 0);
+
+  // BLOQUE FINAL: última instancia cargada (complementario > recuperatorio > ordinario)
+  const finOrd = n(final_ord);
+  const finRec = n(final_recuperatorio);
+  const finCom = n(complementario);
   let final_ef = null;
-  if (final !== null && final !== undefined) {
-    final_ef = final;
-    if (final_extraordinario !== null && final_extraordinario !== undefined && final_extraordinario > final)
-      final_ef = final_extraordinario;
-  } else if (final_extraordinario !== null && final_extraordinario !== undefined) {
-    final_ef = final_extraordinario;
-  }
+  if (finCom !== null) final_ef = finCom;
+  else if (finRec !== null) final_ef = finRec;
+  else if (finOrd !== null) final_ef = finOrd;
 
-  if (tp === null && parcial_ef === null && final_ef === null)
-    return { puntaje: null, nota: null, parcial_ef, final_ef };
+  // Sin ningún dato válido
+  if (parcial_ef === null && tp_total === null && final_ef === null)
+    return { puntaje: null, nota: null, estado: 'Pendiente', parcial_ef, final_ef, tp_total };
 
-  const pt = (peso_tp || 25) / 100;
-  const pp = (peso_parcial || 25) / 100;
-  const pf = (peso_final || 50) / 100;
-
-  let puntaje = 0, pesoUsado = 0;
-  if (tp !== null)         { puntaje += tp * pt;         pesoUsado += pt; }
-  if (parcial_ef !== null) { puntaje += parcial_ef * pp; pesoUsado += pp; }
-  if (final_ef !== null)   { puntaje += final_ef * pf;   pesoUsado += pf; }
-  if (pesoUsado > 0 && pesoUsado < 1) puntaje = puntaje / pesoUsado;
-
-  puntaje = Math.round(puntaje * 100) / 100;
-  const escala = db.prepare('SELECT nota FROM escala_notas WHERE puntaje_min<=? AND puntaje_max>=? LIMIT 1').get(puntaje, puntaje);
-  return { puntaje, nota: escala ? escala.nota : null, parcial_ef, final_ef };
+  // SUMA TOTAL (sobre 100)
+  const puntaje = Math.round(((parcial_ef || 0) + (tp_total || 0) + (final_ef || 0)) * 100) / 100;
+  const nota = puntaje >= 94 ? 5 : puntaje >= 86 ? 4 : puntaje >= 78 ? 3 : puntaje >= 70 ? 2 : 1;
+  const estado = nota >= 2 ? 'Aprobado' : 'Reprobado';
+  return { puntaje, nota, estado, parcial_ef, final_ef, tp_total };
 }
 
 // ── TABLAS ────────────────────────────────────────────────────────────────────
@@ -114,11 +127,14 @@ function crearTablas() {
       id TEXT PRIMARY KEY,
       alumno_id TEXT NOT NULL REFERENCES alumnos(id),
       asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
-      tp REAL, parcial REAL, parcial_recuperatorio REAL,
-      final REAL, final_extraordinario REAL,
-      parcial_efectivo REAL, final_efectivo REAL,
+      tp1 REAL, tp2 REAL, tp3 REAL, tp4 REAL, tp5 REAL,
+      tp_total REAL,
+      parcial REAL, parcial_recuperatorio REAL, parcial_efectivo REAL,
+      final_ord REAL, final_recuperatorio REAL, complementario REAL, final_efectivo REAL,
+      extraordinario REAL,
+      ausente INTEGER DEFAULT 0,
       puntaje_total REAL, nota_final INTEGER,
-      estado TEXT DEFAULT 'Pendiente' CHECK(estado IN ('Pendiente','Aprobado','Reprobado')),
+      estado TEXT DEFAULT 'Pendiente' CHECK(estado IN ('Pendiente','Aprobado','Reprobado','Ausente')),
       UNIQUE(alumno_id, asignacion_id)
     );
     CREATE TABLE IF NOT EXISTS asistencia (
@@ -489,6 +505,10 @@ function init() {
   crearTablas();
   // Migraciones para bases de datos existentes
   try { db.prepare("ALTER TABLE pagos ADD COLUMN medio_pago TEXT DEFAULT 'Efectivo'").run(); } catch {}
+  const colsNotas = ['tp1','tp2','tp3','tp4','tp5','tp_total','final_ord','final_recuperatorio','complementario','extraordinario','ausente'];
+  colsNotas.forEach(col => {
+    try { db.prepare(`ALTER TABLE notas ADD COLUMN ${col} ${col==='ausente'?'INTEGER DEFAULT 0':'REAL'}`).run(); } catch {}
+  });
   seedDatos();
   console.log('✓ Base de datos lista en:', DB_PATH);
 }

@@ -257,28 +257,89 @@ app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
 app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
-    const results = { ok: 0, errores: [] };
-    rows.forEach(row => {
-      try {
-        const carrera = db.prepare('SELECT id,codigo FROM carreras WHERE codigo=? OR nombre=?').get(String(row.carrera||'').trim(), String(row.carrera||'').trim());
-        if (!carrera) { results.errores.push(`${row.nombre||'?'}: carrera no encontrada "${row.carrera}"`); return; }
-        const nombre = String(row.nombre||'').trim(), apellido = String(row.apellido||'').trim(), ci = String(row.ci||'').trim();
-        if (!nombre || !ci) { results.errores.push(`Fila incompleta`); return; }
-        if (db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci)) { results.errores.push(`CI duplicada: ${ci}`); return; }
-        let cursoId = null;
-        if (row.anio) {
-          const div = String(row.division||'U').trim().toUpperCase();
-          cursoId = db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(carrera.id, parseInt(row.anio), div)?.id || null;
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+
+    // Detectar fila de encabezados buscando "NOMBRE COMPLETO" o "nombre"
+    let headerRow = -1, nameCol = -1, ciCol = -1;
+    for (let i = 0; i < Math.min(15, rows.length); i++) {
+      const r = rows[i];
+      for (let j = 0; j < r.length; j++) {
+        const v = String(r[j] || '').toUpperCase().trim();
+        if (v.includes('NOMBRE COMPLETO') || v === 'NOMBRE') { nameCol = j; headerRow = i; }
+        if (v.includes('CÉDULA') || v.includes('CEDULA') || v === 'CI') { ciCol = j; headerRow = i; }
+      }
+      if (nameCol >= 0 && ciCol >= 0) break;
+    }
+
+    // Fallback a estructura nombre/apellido/ci separados
+    let modoSeparado = false;
+    let apellidoCol = -1;
+    if (nameCol < 0) {
+      for (let i = 0; i < Math.min(15, rows.length); i++) {
+        const r = rows[i];
+        for (let j = 0; j < r.length; j++) {
+          const v = String(r[j] || '').toLowerCase().trim();
+          if (v === 'nombre') { nameCol = j; headerRow = i; }
+          if (v === 'apellido') { apellidoCol = j; headerRow = i; }
+          if (v === 'ci' || v === 'cédula' || v === 'cedula') { ciCol = j; headerRow = i; }
         }
-        const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera.id).n;
-        const matricula = `${carrera.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
-        db.prepare('INSERT INTO alumnos (id,matricula,carrera_id,curso_id,fecha_ingreso,estado,telefono,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run('a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),matricula,carrera.id,cursoId,new Date().toISOString().split('T')[0],'Activo',String(row.telefono||'').trim(),ci,nombre,apellido);
-        results.ok++;
-      } catch(e) { results.errores.push(`Error: ${e.message}`); }
-    });
+        if (nameCol >= 0 && ciCol >= 0) break;
+      }
+      if (apellidoCol >= 0) modoSeparado = true;
+    }
+
+    if (headerRow < 0 || ciCol < 0) return res.status(400).json({ error: 'No se encontraron las columnas NOMBRE COMPLETO y N° CÉDULA. Verificar el formato del archivo.' });
+
+    const { carrera_id, curso_id } = req.body;
+    if (!carrera_id) return res.status(400).json({ error: 'Seleccionar carrera antes de importar' });
+    const carr = db.prepare('SELECT id,codigo,nombre FROM carreras WHERE id=?').get(carrera_id);
+    if (!carr) return res.status(400).json({ error: 'Carrera no encontrada' });
+
+    const results = { ok: 0, actualizados: 0, errores: [], carrera: carr.nombre, curso: curso_id || '' };
+    const dataRows = rows.slice(headerRow + 1);
+
+    db.transaction(() => {
+      dataRows.forEach((row, idx) => {
+        const ciRaw = String(row[ciCol] || '').trim().replace(/[^0-9]/g, '');
+        let nombreCompleto = String(row[nameCol] || '').trim();
+        if (!nombreCompleto || !ciRaw || ciRaw.length < 5) return; // fila vacía o sin CI válida
+
+        // Si es modo separado, construir nombre completo
+        if (modoSeparado && apellidoCol >= 0) {
+          const ap = String(row[apellidoCol] || '').trim();
+          nombreCompleto = (ap ? ap + ' ' : '') + nombreCompleto;
+        }
+
+        // Parsear nombre: último word = apellido o usar todo como nombre
+        const partes = nombreCompleto.split(/\s+/).filter(Boolean);
+        let nombre = nombreCompleto, apellido = '';
+        if (partes.length >= 3) {
+          // Convención: primeras dos palabras = nombre, resto = apellido (o según el Excel)
+          nombre = partes.slice(0, Math.ceil(partes.length / 2)).join(' ');
+          apellido = partes.slice(Math.ceil(partes.length / 2)).join(' ');
+        } else if (partes.length === 2) {
+          nombre = partes[0]; apellido = partes[1];
+        }
+
+        try {
+          const existente = db.prepare('SELECT id,carrera_id,curso_id FROM alumnos WHERE ci=?').get(ciRaw);
+          if (existente) {
+            // Actualizar carrera/curso si cambió
+            db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=?,nombre=?,apellido=? WHERE ci=?').run(carrera_id, curso_id||null, nombre, apellido, ciRaw);
+            results.actualizados++;
+          } else {
+            const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
+            const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            db.prepare('INSERT INTO alumnos (id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?)').run('a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), matricula, carrera_id, curso_id || null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
+            results.ok++;
+          }
+        } catch(e) { results.errores.push(`Fila ${idx + 2}: ${e.message}`); }
+      });
+    })();
+
     res.json(results);
-  } catch(e) { res.status(400).json({ error: 'Error procesando archivo: '+e.message }); }
+  } catch(e) { res.status(400).json({ error: 'Error procesando archivo: ' + e.message }); }
 });
 app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
   const wb = XLSX.utils.book_new();
@@ -349,51 +410,47 @@ app.get('/api/asignaciones/docente/:docente_id', auth(ADM), (req, res) => {
 
 // ── NOTAS ─────────────────────────────────────────────────────────────────────
 app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
-  const asig = db.prepare('SELECT a.*,m.peso_tp,m.peso_parcial,m.peso_final FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
+  const asig = db.prepare('SELECT a.*,m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
   if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
   const alumnos = db.prepare(`
     SELECT al.id,al.matricula,COALESCE(al.ci,u.ci) as alumno_ci,
       COALESCE(al.nombre,u.nombre) as alumno_nombre,
       COALESCE(al.apellido,u.apellido) as alumno_apellido,
-      n.id as nota_id,n.tp,n.parcial,n.parcial_recuperatorio,n.final,n.final_extraordinario,
-      n.parcial_efectivo,n.final_efectivo,n.puntaje_total,n.nota_final,n.estado as nota_estado
+      n.id as nota_id,
+      n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.tp_total,
+      n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
+      n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
+      n.extraordinario,n.ausente,
+      n.puntaje_total,n.nota_final,n.estado as nota_estado
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
     WHERE al.curso_id=? AND al.estado='Activo'
     ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id);
-  res.json({ alumnos, pesos: { tp: asig.peso_tp, parcial: asig.peso_parcial, final: asig.peso_final } });
+  res.json({ alumnos });
 });
 
 app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, res) => {
-  const { tp, parcial, parcial_recuperatorio, final, final_extraordinario } = req.body;
-  const asig = db.prepare('SELECT a.*,m.peso_tp,m.peso_parcial,m.peso_final FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
-  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
-  const calc = calcularPuntaje(
-    tp !== '' ? parseFloat(tp) : null,
-    parcial !== '' ? parseFloat(parcial) : null,
-    parcial_recuperatorio !== '' && parcial_recuperatorio != null ? parseFloat(parcial_recuperatorio) : null,
-    final !== '' ? parseFloat(final) : null,
-    final_extraordinario !== '' && final_extraordinario != null ? parseFloat(final_extraordinario) : null,
-    asig.peso_tp, asig.peso_parcial, asig.peso_final
-  );
-  const estado = calc.puntaje === null ? 'Pendiente' : (calc.nota >= 2 ? 'Aprobado' : 'Reprobado');
-  const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
-  const vals = [
-    tp !== '' ? parseFloat(tp) : null,
-    parcial !== '' ? parseFloat(parcial) : null,
-    parcial_recuperatorio !== '' && parcial_recuperatorio != null ? parseFloat(parcial_recuperatorio) : null,
-    final !== '' ? parseFloat(final) : null,
-    final_extraordinario !== '' && final_extraordinario != null ? parseFloat(final_extraordinario) : null,
-    calc.parcial_ef ?? null, calc.final_ef ?? null,
-    calc.puntaje, calc.nota, estado
-  ];
-  if (existe) {
-    db.prepare('UPDATE notas SET tp=?,parcial=?,parcial_recuperatorio=?,final=?,final_extraordinario=?,parcial_efectivo=?,final_efectivo=?,puntaje_total=?,nota_final=?,estado=? WHERE alumno_id=? AND asignacion_id=?').run(...vals, req.params.alumno_id, req.params.asig_id);
-  } else {
-    db.prepare('INSERT INTO notas (id,alumno_id,asignacion_id,tp,parcial,parcial_recuperatorio,final,final_extraordinario,parcial_efectivo,final_efectivo,puntaje_total,nota_final,estado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run('n_'+Date.now(), req.params.alumno_id, req.params.asig_id, ...vals);
+  const { tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,ausente } = req.body;
+  const n = f => (f !== '' && f != null) ? parseFloat(f) : null;
+  if (ausente) {
+    const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
+    if (existe) db.prepare('UPDATE notas SET ausente=1,puntaje_total=NULL,nota_final=NULL,estado=? WHERE alumno_id=? AND asignacion_id=?').run('Ausente',req.params.alumno_id,req.params.asig_id);
+    else db.prepare('INSERT INTO notas (id,alumno_id,asignacion_id,ausente,estado) VALUES (?,?,?,1,?)').run('n_'+Date.now(),req.params.alumno_id,req.params.asig_id,'Ausente');
+    return res.json({ puntaje: null, nota: null, estado: 'Ausente' });
   }
-  res.json({ puntaje: calc.puntaje, nota: calc.nota, parcial_ef: calc.parcial_ef, final_ef: calc.final_ef, estado });
+  const calc = calcularPuntaje(n(tp1),n(tp2),n(tp3),n(tp4),n(tp5),n(parcial),n(parcial_recuperatorio),n(final_ord),n(final_recuperatorio),n(complementario),n(extraordinario));
+  const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
+  const fields = { tp1:n(tp1),tp2:n(tp2),tp3:n(tp3),tp4:n(tp4),tp5:n(tp5),tp_total:calc.tp_total??null,
+    parcial:n(parcial),parcial_recuperatorio:n(parcial_recuperatorio),parcial_efectivo:calc.parcial_ef??null,
+    final_ord:n(final_ord),final_recuperatorio:n(final_recuperatorio),complementario:n(complementario),final_efectivo:calc.final_ef??null,
+    extraordinario:n(extraordinario),ausente:0,puntaje_total:calc.puntaje??null,nota_final:calc.nota??null,estado:calc.estado };
+  if (existe) {
+    db.prepare(`UPDATE notas SET tp1=?,tp2=?,tp3=?,tp4=?,tp5=?,tp_total=?,parcial=?,parcial_recuperatorio=?,parcial_efectivo=?,final_ord=?,final_recuperatorio=?,complementario=?,final_efectivo=?,extraordinario=?,ausente=0,puntaje_total=?,nota_final=?,estado=? WHERE alumno_id=? AND asignacion_id=?`).run(fields.tp1,fields.tp2,fields.tp3,fields.tp4,fields.tp5,fields.tp_total,fields.parcial,fields.parcial_recuperatorio,fields.parcial_efectivo,fields.final_ord,fields.final_recuperatorio,fields.complementario,fields.final_efectivo,fields.extraordinario,fields.puntaje_total,fields.nota_final,fields.estado,req.params.alumno_id,req.params.asig_id);
+  } else {
+    db.prepare(`INSERT INTO notas (id,alumno_id,asignacion_id,tp1,tp2,tp3,tp4,tp5,tp_total,parcial,parcial_recuperatorio,parcial_efectivo,final_ord,final_recuperatorio,complementario,final_efectivo,extraordinario,ausente,puntaje_total,nota_final,estado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`).run('n_'+Date.now(),req.params.alumno_id,req.params.asig_id,fields.tp1,fields.tp2,fields.tp3,fields.tp4,fields.tp5,fields.tp_total,fields.parcial,fields.parcial_recuperatorio,fields.parcial_efectivo,fields.final_ord,fields.final_recuperatorio,fields.complementario,fields.final_efectivo,fields.extraordinario,fields.puntaje_total,fields.nota_final,fields.estado);
+  }
+  res.json({ puntaje: calc.puntaje, nota: calc.nota, tp_total: calc.tp_total, parcial_ef: calc.parcial_ef, final_ef: calc.final_ef, estado: calc.estado });
 });
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {

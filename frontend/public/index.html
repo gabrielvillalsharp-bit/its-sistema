@@ -695,19 +695,45 @@ async function svAl(id){
   else{o.estado=v('aest');await api('PUT','/api/alumnos/'+id,o);}
   cm();go('alumnos');
 }
-function mImp(){modal(`<h4>Importar alumnos desde Excel</h4>
-  <p style="font-size:13px;color:var(--t2);margin-bottom:10px">Columnas: <strong>nombre, apellido, ci, telefono, carrera, anio, division</strong></p>
-  <div class="iz" onclick="document.getElementById('fxl').click()">Clic para seleccionar .xlsx
-    <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div>
+function mImp(){
+  const carrs=W._carrs||[];
+  const cursos=W._cursos||[];
+  modal(`<h4>Importar alumnos desde Excel</h4>
+  <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Compatible con el formato institucional del ITS (columnas <strong>NOMBRE COMPLETO</strong> y <strong>N° CÉDULA</strong>).</p>
+  <div class="fg">
+    <div class="f"><label>1. Seleccionar Carrera <span style="color:var(--red)">*</span></label>
+      <select id="impCarr" onchange="filtCursosImp()"><option value="">— Seleccionar carrera —</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+    <div class="f"><label>2. Seleccionar Curso/Sección</label>
+      <select id="impCurs"><option value="">Sin asignar curso</option></select></div>
+    <div class="f"><label>3. Seleccionar archivo Excel</label>
+      <div class="iz" onclick="document.getElementById('fxl').click()" style="margin-top:4px">Clic para seleccionar .xlsx
+        <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div></div>
+  </div>
   <div id="ires"></div>
-  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);}
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+}
+function filtCursosImp(){
+  const carrId=v('impCarr');
+  const sel=document.getElementById('impCurs');
+  if(!sel)return;
+  const cursos=(W._cursos||[]).filter(cu=>cu.carrera_id===carrId);
+  sel.innerHTML='<option value="">Sin asignar curso</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+}
 async function doImp(inp){
   const file=inp.files[0];if(!file)return;
-  const fd=new FormData();fd.append('archivo',file);
+  const carrId=v('impCarr');
+  if(!carrId){document.getElementById('ires').innerHTML='<div class="ir err">Seleccionar una carrera primero</div>';return;}
+  const fd=new FormData();
+  fd.append('archivo',file);
+  fd.append('carrera_id',carrId);
+  fd.append('curso_id',v('impCurs')||'');
+  document.getElementById('ires').innerHTML='<div class="ir" style="background:#f0f7ff">Procesando...</div>';
   try{
     const r=await api('POST','/api/alumnos/importar',fd,true);
-    document.getElementById('ires').innerHTML=`<div class="ir ok">✓ ${r.ok} alumnos importados</div>${r.errores.length?`<div class="ir err" style="margin-top:6px">${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
-    if(r.ok>0)setTimeout(()=>{cm();go('alumnos');},2000);
+    const carr=r.carrera||'';
+    const msg=`✓ ${r.ok} nuevos · ${r.actualizados||0} actualizados en <strong>${carr}</strong>`;
+    document.getElementById('ires').innerHTML=`<div class="ir ok">${msg}</div>${r.errores?.length?`<div class="ir err" style="margin-top:6px;font-size:12px">${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
+    if((r.ok+r.actualizados)>0)setTimeout(()=>{cm();go('alumnos');},2200);
   }catch(e){document.getElementById('ires').innerHTML=`<div class="ir err">${e.message}</div>`;}
 }
 function dPlant(){window.open('/api/alumnos/plantilla','_blank');}
@@ -1015,48 +1041,116 @@ async function pgNotas(el){
 
 W.loadNotas=async(asigId,_tipo)=>{
   if(!asigId)return;
-  // Actualizar el select si existe
   const sel=document.getElementById('selAsigNotas');
   if(sel)sel.value=asigId;
-  const {alumnos,pesos}=await api('GET','/api/notas/asignacion/'+asigId);
+  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
   const nc=document.getElementById('nc');
   if(!nc){go('notas');setTimeout(()=>W.loadNotas(asigId),600);return;}
   if(!alumnos.length){nc.innerHTML='<div class="es">Sin alumnos en este curso</div>';return;}
-  W._nc={};
-  alumnos.forEach(a=>{W._nc[a.id]={tp:a.tp,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final:a.final,final_extraordinario:a.final_extraordinario};});
+  W._nc={};W._asigId=asigId;
+  alumnos.forEach(a=>{W._nc[a.id]={tp1:a.tp1,tp2:a.tp2,tp3:a.tp3,tp4:a.tp4,tp5:a.tp5,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final_ord:a.final_ord,final_recuperatorio:a.final_recuperatorio,complementario:a.complementario,extraordinario:a.extraordinario};});
+  const aprobados=alumnos.filter(a=>a.nota_estado==='Aprobado').length;
+  const reprobados=alumnos.filter(a=>a.nota_estado==='Reprobado').length;
+  const pendientes=alumnos.filter(a=>!a.nota_estado||a.nota_estado==='Pendiente').length;
   nc.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:12px;color:var(--t2)">TP: <strong>${pesos.tp} pts</strong> · Parcial: <strong>${pesos.parcial} pts</strong> · Final: <strong>${pesos.final} pts</strong> · Mínimo aprobatorio: <strong>Nota 2</strong></div>
+    <div style="display:flex;gap:10px;font-size:12px">
+      <span class="bx bg">✓ ${aprobados} aprobados</span>
+      <span class="bx br">✗ ${reprobados} reprobados</span>
+      <span class="bx bgr">⏳ ${pendientes} pendientes</span>
+    </div>
     <div class="abs">
       <button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>
     </div>
   </div>
-  <div class="card"><div class="tw">
-  <table><thead>
-    <tr>
-      <th rowspan="2" style="vertical-align:bottom">Alumno</th>
-      <th class="nota-col">TP<br><span class="tip">/${pesos.tp}pts</span></th>
-      <th class="nota-col">Parcial<br><span class="tip">/${pesos.parcial}pts</span></th>
-      <th class="nota-col">Recup.<br><span class="tip" style="color:var(--amb)">reemplaza</span></th>
-      <th class="nota-col">Final<br><span class="tip">/${pesos.final}pts</span></th>
-      <th class="nota-col">F.Extr.<br><span class="tip" style="color:var(--amb)">reemplaza</span></th>
-      <th class="nota-col">Total</th>
-      <th class="nota-col">Nota</th>
-      <th>Estado</th>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
+    ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial ordinario · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
+  </div>
+  <div style="overflow-x:auto"><table style="min-width:900px;font-size:12px;border-collapse:collapse;width:100%">
+  <thead>
+    <tr style="background:#f0f4f8">
+      <th rowspan="2" style="padding:6px 10px;text-align:left;border:1px solid var(--bdr);min-width:160px">Alumno</th>
+      <th colspan="5" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#e8f5e9;color:#2e7d32">TRABAJOS PRÁCTICOS (5 pts c/u = 25 pts)</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#c8e6c9;color:#1b5e20;font-size:11px">Total<br>TPs</th>
+      <th colspan="2" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#e3f2fd;color:#1565c0">PARCIAL (25 pts)</th>
+      <th colspan="3" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#fff3e0;color:#e65100">FINAL (50 pts)</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fce4ec;color:#880e4f;font-size:11px">EXTRA-<br>ORDINARIO<br>(100 pts)</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#f3e5f5;color:#4a148c;font-size:11px">TOTAL<br>PUNTOS</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Calif.</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Estado</th>
     </tr>
-  </thead><tbody>
-  ${alumnos.map(a=>`<tr id="nr-${a.id}">
-    <td style="white-space:nowrap"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:11px;color:var(--t3)">${a.alumno_ci||''}</span></td>
-    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.tp}" step="0.5" value="${a.tp??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','tp',this.value)"/></td>
-    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.parcial}" step="0.5" value="${a.parcial??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','parcial',this.value)"/></td>
-    <td class="nota-col" style="background:#fffbf5"><input class="nota-inp" type="number" min="0" max="${pesos.parcial}" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"/>${a.parcial_recuperatorio!=null?`<span class="rec-indicator">reemplaza P</span>`:''}</td>
-    <td class="nota-col"><input class="nota-inp" type="number" min="0" max="${pesos.final}" step="0.5" value="${a.final??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','final',this.value)"/></td>
-    <td class="nota-col" style="background:#fffbf5"><input class="nota-inp" type="number" min="0" max="${pesos.final}" step="0.5" value="${a.final_extraordinario??''}" placeholder="—" onchange="updN('${a.id}','${asigId}','final_extraordinario',this.value)"/>${a.final_extraordinario!=null?`<span class="rec-indicator">reemplaza F</span>`:''}</td>
-    <td class="nota-col" id="tot-${a.id}"><span class="prom-tag ${notaCls(a.nota_final)}">${a.puntaje_total??'-'}</span></td>
-    <td class="nota-col" id="nf-${a.id}"><span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'-'}</span></td>
-    <td id="est-${a.id}"><span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':'bgr'}">${a.nota_estado||'Pendiente'}</span></td>
-  </tr>`).join('')}
-  </tbody></table></div></div>`;
+    <tr style="background:#f5f5f5;font-size:11px">
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 1</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 2</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 3</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 4</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 5</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#e3f2fd">Ordinario</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff8e1;color:#e65100">Recuper.</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3e0">Ordinario</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff8e1;color:#e65100">Recuper.</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fce4ec;color:#880e4f">Complem.</th>
+    </tr>
+  </thead>
+  <tbody>
+  ${alumnos.map(a=>{
+    const ausente=a.nota_estado==='Ausente';
+    const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${ausente?'opacity:0.4':''}">`+
+      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${ausente?'disabled':''}`+
+      ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
+    return `<tr id="nr-${a.id}" ${ausente?'style="background:#fff8f8"':''}>
+      <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
+        <strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br>
+        <span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span>
+        <button title="Marcar ausente" onclick="marcarAusente('${a.id}','${asigId}',${ausente?'false':'true'})" style="float:right;font-size:10px;padding:1px 5px;border:1px solid ${ausente?'#e57373':'var(--bdr)'};border-radius:4px;background:${ausente?'#ffebee':'transparent'};color:${ausente?'#c62828':'var(--t2)'};cursor:pointer">${ausente?'↩ Asistió':'Ausente'}</button>
+      </td>
+      ${ni('tp1',5,a.tp1,'#f1f8e9')}${ni('tp2',5,a.tp2,'#f1f8e9')}${ni('tp3',5,a.tp3,'#f1f8e9')}${ni('tp4',5,a.tp4,'#f1f8e9')}${ni('tp5',5,a.tp5,'#f1f8e9')}
+      <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
+      ${ni('parcial',25,a.parcial,'#e3f2fd')}
+      <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
+        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${ausente?'disabled':''}
+          onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+        ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
+      </td>
+      ${ni('final_ord',50,a.final_ord,'#fff3e0')}
+      <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="—" ${ausente?'disabled':''}
+          onchange="updN('${a.id}','${asigId}','final_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+        ${a.final_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
+      </td>
+      <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fce4ec;position:relative">
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="—" ${ausente?'disabled':''}
+          onchange="updN('${a.id}','${asigId}','complementario',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+        ${a.complementario!=null?'<div style="font-size:9px;color:#880e4f;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
+      </td>
+      <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#f8e8ff;position:relative">
+        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="—" ${ausente?'disabled':''}
+          onchange="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
+        ${a.extraordinario!=null?'<div style="font-size:9px;color:#4a148c;position:absolute;bottom:1px;right:2px">RESET</div>':''}
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700;background:#f3e5f5" id="tot-${a.id}">
+        <span class="prom-tag ${notaCls(a.nota_final)}">${a.puntaje_total??'-'}</span>
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center" id="nf-${a.id}">
+        <span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'-'}</span>
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center" id="est-${a.id}">
+        <span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':a.nota_estado==='Ausente'?'ba':'bgr'}">${a.nota_estado||'Pendiente'}</span>
+      </td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+};
+
+W.marcarAusente=async(aId,asigId,ausente)=>{
+  try{
+    const r=await api('PUT',`/api/notas/${aId}/${asigId}`,{ausente:ausente?1:0});
+    const row=document.getElementById('nr-'+aId);
+    if(row)row.style.background=ausente?'#fff8f8':'';
+    const est=document.getElementById('est-'+aId);
+    if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}">${r.estado}</span>`;
+    W.loadNotas(asigId);
+  }catch(e){console.error(e);}
 };
 
 W.updN=async(aId,asigId,campo,val)=>{
@@ -1065,15 +1159,19 @@ W.updN=async(aId,asigId,campo,val)=>{
   const n=W._nc[aId];
   try{
     const r=await api('PUT',`/api/notas/${aId}/${asigId}`,{
-      tp:n.tp??'',parcial:n.parcial??'',parcial_recuperatorio:n.parcial_recuperatorio??'',
-      final:n.final??'',final_extraordinario:n.final_extraordinario??''
+      tp1:n.tp1??'',tp2:n.tp2??'',tp3:n.tp3??'',tp4:n.tp4??'',tp5:n.tp5??'',
+      parcial:n.parcial??'',parcial_recuperatorio:n.parcial_recuperatorio??'',
+      final_ord:n.final_ord??'',final_recuperatorio:n.final_recuperatorio??'',
+      complementario:n.complementario??'',extraordinario:n.extraordinario??''
     });
+    const tptot=document.getElementById('tptot-'+aId);
     const tot=document.getElementById('tot-'+aId);
     const nf=document.getElementById('nf-'+aId);
     const est=document.getElementById('est-'+aId);
+    if(tptot)tptot.textContent=r.tp_total??'-';
     if(tot)tot.innerHTML=`<span class="prom-tag ${notaCls(r.nota)}">${r.puntaje??'-'}</span>`;
     if(nf)nf.innerHTML=`<span class="nota-tag ${notaCls(r.nota)}">${r.nota??'-'}</span>`;
-    if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':'bgr'}">${r.estado}</span>`;
+    if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}">${r.estado}</span>`;
   }catch(e){console.error(e);}
 };
 
