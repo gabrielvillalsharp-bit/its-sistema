@@ -570,7 +570,6 @@ function renderDocentes(){
     </div></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin resultados</td></tr>'}
   </tbody></table></div></div>`;
 }
-}
 function mDoc(d){const e=!!d;modal(`<h4>${e?'Editar':'Nuevo'} docente</h4><div class="fg">
   <div class="fr"><div class="f"><label>Nombre</label><input id="dn" value="${e?d.nombre:''}" placeholder="Nombre"/></div>
   <div class="f"><label>Apellido</label><input id="dap" value="${e?d.apellido:''}" placeholder="Apellido"/></div></div>
