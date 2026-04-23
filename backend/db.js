@@ -179,6 +179,15 @@ function crearTablas() {
       fecha_inicio TEXT NOT NULL, fecha_fin TEXT,
       activa INTEGER NOT NULL DEFAULT 1
     );
+    CREATE TABLE IF NOT EXISTS horarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asignacion_id TEXT REFERENCES asignaciones(id),
+      dia TEXT NOT NULL CHECK(dia IN ('Lunes','Martes','Miércoles','Jueves','Viernes')),
+      turno INTEGER NOT NULL DEFAULT 1 CHECK(turno IN (1,2)),
+      hora_inicio TEXT NOT NULL DEFAULT '19:00',
+      hora_fin TEXT NOT NULL DEFAULT '20:20',
+      aula TEXT
+    );
   `);
 }
 
@@ -505,12 +514,124 @@ function init() {
   crearTablas();
   // Migraciones para bases de datos existentes
   try { db.prepare("ALTER TABLE pagos ADD COLUMN medio_pago TEXT DEFAULT 'Efectivo'").run(); } catch {}
+  try { db.prepare("ALTER TABLE usuarios ADD COLUMN ci_raw TEXT").run(); } catch {}
+  // Permitir rol 'estudiante' — recrear check si es necesario
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS horarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asignacion_id TEXT REFERENCES asignaciones(id),
+      dia TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1,
+      hora_inicio TEXT NOT NULL DEFAULT '19:00',
+      hora_fin TEXT NOT NULL DEFAULT '20:20', aula TEXT
+    )`);
+  } catch {}
   const colsNotas = ['tp1','tp2','tp3','tp4','tp5','tp_total','final_ord','final_recuperatorio','complementario','extraordinario','ausente'];
   colsNotas.forEach(col => {
     try { db.prepare(`ALTER TABLE notas ADD COLUMN ${col} ${col==='ausente'?'INTEGER DEFAULT 0':'REAL'}`).run(); } catch {}
   });
   seedDatos();
+  seedHorarios();
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 
-module.exports = { db, init, calcularPuntaje };
+module.exports = { db, init, calcularPuntaje, seedHorarios };
+
+// ── SEED HORARIOS ─────────────────────────────────────────────────────────────
+function seedHorarios() {
+  if (db.prepare('SELECT COUNT(*) as n FROM horarios').get().n > 0) return;
+  const mapa = [
+    ['Lunes',1,'19:00','20:20','Contabilidad',1,'Inglés','Jiménez'],
+    ['Lunes',1,'19:00','20:20','Enfermería',1,'Salud Pública','Ayala'],
+    ['Lunes',1,'19:00','20:20','Enfermería',2,'Enfermería Materno Infantil','Romero'],
+    ['Lunes',1,'19:00','20:20','Farmacia',1,'Salud Pública','Aranda'],
+    ['Lunes',1,'19:00','20:20','Farmacia',2,'Inglés','Jiménez'],
+    ['Lunes',1,'19:00','20:20','Instrumentación',1,'Salud Pública','Aranda'],
+    ['Lunes',1,'19:00','20:20','Instrumentación',2,'Patología Quirúrgica','Rojas'],
+    ['Lunes',1,'19:00','20:20','Radiología',1,'Salud Pública','Ayala'],
+    ['Lunes',1,'19:00','20:20','Radiología',2,'Física Radiológica','Higuchi'],
+    ['Lunes',2,'20:40','22:00','Enfermería',1,'Anatomía','Higuchi'],
+    ['Lunes',2,'20:40','22:00','Enfermería',2,'Enfermería en Salud del Adulto','Ayala'],
+    ['Lunes',2,'20:40','22:00','Farmacia',1,'Anatomía','Rojas'],
+    ['Lunes',2,'20:40','22:00','Farmacia',2,'Química Inorgánica','Aranda'],
+    ['Lunes',2,'20:40','22:00','Instrumentación',1,'Anatomía','Rojas'],
+    ['Lunes',2,'20:40','22:00','Instrumentación',2,'Medicina Legal','Alum'],
+    ['Lunes',2,'20:40','22:00','Radiología',1,'Anatomía','Higuchi'],
+    ['Lunes',2,'20:40','22:00','Radiología',2,'Técnicas Radiológicas','Palacios'],
+    ['Martes',1,'19:00','20:20','Agropecuaria',1,'Apicultura','Carmona'],
+    ['Martes',1,'19:00','20:20','Agropecuaria',2,'Equipos y Maquinarias','Giménez'],
+    ['Martes',1,'19:00','20:20','Cosmiatría',1,'Dermatología Básica','Carballo'],
+    ['Martes',1,'19:00','20:20','Cosmiatría',2,'Química Cosmética','Ayala'],
+    ['Martes',1,'19:00','20:20','Criminalística',1,'Aspectos Legales','Ocampos'],
+    ['Martes',1,'19:00','20:20','Criminalística',2,'Dibujo Técnico','Domínguez'],
+    ['Martes',1,'19:00','20:20','Electricidad',2,'Electrónica Analógica','Mareco'],
+    ['Martes',2,'20:40','22:00','Agropecuaria',1,'Deontología','Alum'],
+    ['Martes',2,'20:40','22:00','Agropecuaria',2,'Cultivos','Giménez'],
+    ['Martes',2,'20:40','22:00','Cosmiatría',1,'Biología de la Piel','Ayala'],
+    ['Martes',2,'20:40','22:00','Cosmiatría',2,'Semiología de la Piel','Rojas'],
+    ['Martes',2,'20:40','22:00','Criminalística',1,'Deontología y Ética','Alum'],
+    ['Martes',2,'20:40','22:00','Criminalística',2,'Criminología','Domínguez'],
+    ['Martes',2,'20:40','22:00','Electricidad',2,'Electrotecnia','Mareco'],
+    ['Miércoles',1,'19:00','20:20','Agropecuaria',1,'Inglés','Jiménez'],
+    ['Miércoles',1,'19:00','20:20','Agropecuaria',2,'Inglés','Jiménez'],
+    ['Miércoles',1,'19:00','20:20','Contabilidad',1,'Castellano','Perez'],
+    ['Miércoles',1,'19:00','20:20','Cosmiatría',1,'Farmacología','Espínola'],
+    ['Miércoles',1,'19:00','20:20','Cosmiatría',2,'Competencias Socioemocionales','Torales'],
+    ['Miércoles',1,'19:00','20:20','Criminalística',1,'Comunicación Escrita','Perez'],
+    ['Miércoles',1,'19:00','20:20','Criminalística',2,'Química Aplicada','Aranda'],
+    ['Miércoles',1,'19:00','20:20','Electricidad',2,'Inglés','Jiménez'],
+    ['Miércoles',2,'20:40','22:00','Contabilidad',1,'Contabilidad Básica','Giménez'],
+    ['Miércoles',2,'20:40','22:00','Enfermería',1,'Primeros Auxilios','Romero'],
+    ['Miércoles',2,'20:40','22:00','Enfermería',2,'Ética y Legislación','Carrillo'],
+    ['Miércoles',2,'20:40','22:00','Farmacia',1,'Calidad en Salud','Villar'],
+    ['Miércoles',2,'20:40','22:00','Farmacia',2,'Ética y Legislación','Carrillo'],
+    ['Miércoles',2,'20:40','22:00','Instrumentación',1,'Calidad en Salud','Villar'],
+    ['Miércoles',2,'20:40','22:00','Instrumentación',2,'Técnicas Quirúrgicas','González'],
+    ['Miércoles',2,'20:40','22:00','Radiología',1,'Primeros Auxilios','Romero'],
+    ['Miércoles',2,'20:40','22:00','Radiología',2,'Administración Hospitalaria','Aranda'],
+    ['Jueves',1,'19:00','20:20','Agropecuaria',1,'Productividad','Giménez'],
+    ['Jueves',1,'19:00','20:20','Agropecuaria',2,'Zootecnia','Carmona'],
+    ['Jueves',1,'19:00','20:20','Cosmiatría',1,'Anatomía','Rojas'],
+    ['Jueves',1,'19:00','20:20','Cosmiatría',2,'Técnicas de Masajes','Carballo'],
+    ['Jueves',1,'19:00','20:20','Criminalística',1,'Introducción a la Criminalística','Domínguez'],
+    ['Jueves',1,'19:00','20:20','Electricidad',2,'Maquinarias Eléctricas','Mareco'],
+    ['Jueves',2,'20:40','22:00','Agropecuaria',1,'Producción Porcina','Giménez'],
+    ['Jueves',2,'20:40','22:00','Agropecuaria',2,'Producción Porcina','Giménez'],
+    ['Jueves',2,'20:40','22:00','Cosmiatría',1,'Salud Pública','Rojas'],
+    ['Jueves',2,'20:40','22:00','Cosmiatría',2,'Técnicas Cosméticas','Carballo'],
+    ['Jueves',2,'20:40','22:00','Criminalística',1,'Introducción al Derecho','Sharp'],
+    ['Jueves',2,'20:40','22:00','Criminalística',2,'Accidentología Vial','Domínguez'],
+    ['Jueves',2,'20:40','22:00','Electricidad',2,'Sistema de Potencia','Mareco'],
+    ['Viernes',1,'19:00','20:20','Enfermería',1,'Ética Profesional','Carrillo'],
+    ['Viernes',1,'19:00','20:20','Farmacia',1,'Farmacología','Agüero'],
+    ['Viernes',1,'19:00','20:20','Farmacia',2,'Cosmetología Básica','Ayala'],
+    ['Viernes',1,'19:00','20:20','Instrumentación',1,'Farmacología','Agüero'],
+    ['Viernes',1,'19:00','20:20','Instrumentación',2,'Psicología','Martínez'],
+    ['Viernes',1,'19:00','20:20','Radiología',1,'Ética Profesional','Carrillo'],
+    ['Viernes',1,'19:00','20:20','Radiología',2,'Psicología','Martínez'],
+    ['Viernes',1,'19:00','20:20','Contabilidad',1,'Matemática','Sharp'],
+    ['Viernes',2,'20:40','22:00','Contabilidad',1,'Introducción a la Administración','Giménez'],
+    ['Viernes',2,'20:40','22:00','Enfermería',1,'Farmacología','Rojas'],
+    ['Viernes',2,'20:40','22:00','Farmacia',1,'Ética Profesional','Carrillo'],
+    ['Viernes',2,'20:40','22:00','Farmacia',2,'Farmacotécnia','Agüero'],
+    ['Viernes',2,'20:40','22:00','Instrumentación',1,'Ética Profesional','Carrillo'],
+    ['Viernes',2,'20:40','22:00','Instrumentación',2,'Psicología General','Martínez'],
+    ['Viernes',2,'20:40','22:00','Radiología',1,'Farmacología','Rojas'],
+    ['Viernes',2,'20:40','22:00','Radiología',2,'Prácticas Radiológicas','Palacios'],
+  ];
+  const ins = db.prepare('INSERT OR IGNORE INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?)');
+  db.transaction(() => {
+    mapa.forEach(([dia,turno,hi,hf,carr,anio,mat,doc]) => {
+      const asig = db.prepare(`
+        SELECT a.id FROM asignaciones a
+        JOIN materias m ON a.materia_id=m.id
+        JOIN cursos cu ON a.curso_id=cu.id
+        JOIN carreras ca ON cu.carrera_id=ca.id
+        JOIN docentes d ON a.docente_id=d.id
+        JOIN usuarios u ON d.usuario_id=u.id
+        WHERE ca.nombre LIKE ? AND cu.anio=? AND m.nombre LIKE ? AND (u.apellido LIKE ? OR u.nombre LIKE ?)
+        LIMIT 1`).get('%'+carr+'%', anio, '%'+mat+'%', '%'+doc+'%', '%'+doc+'%');
+      ins.run(asig ? asig.id : null, dia, turno, hi, hf);
+    });
+  })();
+  console.log('Horarios cargados: ' + mapa.length + ' entradas');
+}

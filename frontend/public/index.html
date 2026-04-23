@@ -514,23 +514,69 @@ async function svMat(id){
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────
 async function pgPeriodos(el){
   const d=await api('GET','/api/periodos');
-  el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3><button class="bn" onclick="mPer()">+ Nuevo</button></div>
+  el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3><button class="bn" onclick="mPer()">+ Nuevo período</button></div>
   <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Año</th><th>Sem.</th><th>Inicio</th><th>Fin</th><th>Estado</th><th></th></tr></thead><tbody>
   ${d.map(p=>`<tr><td><strong>${p.nombre}</strong></td><td>${p.anio}</td><td>${p.semestre||'-'}</td>
     <td>${fmtFecha(p.fecha_inicio)}</td><td>${fmtFecha(p.fecha_fin)}</td>
     <td><span class="bx ${p.activo?'bg':'bgr'}">${p.activo?'Activo':'Cerrado'}</span></td>
-    <td><div class="abs"><button class="bs i" onclick="actP(${p.id})">${p.activo?'Cerrar':'Activar'}</button><button class="bs d" onclick="del('${p.id}','periodos')">Eliminar</button></div></td></tr>`).join('')}
+    <td><div class="abs">
+      <button class="bs i" onclick="actP(${p.id})">${p.activo?'Cerrar':'Activar'}</button>
+      <button class="bs o" onclick="mPromover(${p.id},'${p.nombre}')">⚡ Promover</button>
+      <button class="bs d" onclick="del('${p.id}','periodos')">Eliminar</button>
+    </div></td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
-function mPer(){modal(`<h4>Nuevo período</h4><div class="fg">
-  <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: Año Lectivo 2026"/></div>
-  <div class="fr"><div class="f"><label>Año</label><input id="pa" type="number" value="${new Date().getFullYear()}"/></div>
-  <div class="f"><label>Semestre</label><select id="ps"><option>1ro</option><option>2do</option></select></div></div>
+function mPer(){modal(`<h4>Nuevo período académico</h4><div class="fg">
+  <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: Año Lectivo 2027"/></div>
+  <div class="fr"><div class="f"><label>Año</label><input id="pa" type="number" value="${new Date().getFullYear()+1}"/></div>
+  <div class="f"><label>Semestre</label><select id="ps"><option>1ro</option><option>2do</option><option>Anual</option></select></div></div>
   <div class="fr"><div class="f"><label>Inicio</label><input id="pi" type="date"/></div>
   <div class="f"><label>Fin</label><input id="pf" type="date"/></div></div>
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svP()">Guardar</button></div>`);}
 async function svP(){await api('POST','/api/periodos',{nombre:v('pn'),anio:parseInt(v('pa')),semestre:v('ps'),fecha_inicio:v('pi'),fecha_fin:v('pf')});cm();go('periodos');}
 async function actP(id){await api('PUT','/api/periodos/'+id+'/activar');go('periodos');}
+async function mPromover(periodoId, periodoNombre){
+  const [carrs,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  modal(`<h4>⚡ Asistente de Promoción — ${periodoNombre}</h4>
+  <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Selecciona cómo incorporar datos al nuevo período.</p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px">
+      <p style="font-weight:700;margin-bottom:6px">📋 Opción 1 — Continuidad</p>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Copia todas las asignaciones del período anterior. Ideal para semestres sin cambios.</p>
+      <button class="bn" onclick="ejecutarContinuidad(${periodoId})" style="width:100%">Importar datos del período anterior</button>
+    </div>
+    <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px">
+      <p style="font-weight:700;margin-bottom:6px">🎓 Opción 2 — Promoción masiva</p>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Mueve alumnos de un curso a otro (ej: 1er año → 2do año).</p>
+      <div class="fg">
+        <div class="fr">
+          <div class="f"><label>Curso origen (año actual)</label>
+            <select id="prom_orig"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
+          <div class="f"><label>Curso destino (próximo año)</label>
+            <select id="prom_dest"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
+        </div>
+      </div>
+      <button class="bs i" onclick="ejecutarPromocion(${periodoId})" style="width:100%;margin-top:6px">Promover alumnos →</button>
+    </div>
+  </div>
+  <div id="promMsg" style="margin-top:10px"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+}
+async function ejecutarContinuidad(pid){
+  try{
+    const r=await api('POST','/api/periodos/'+pid+'/promover',{modo:'continuidad'});
+    document.getElementById('promMsg').innerHTML=`<div class="ir ok">✓ ${r.copiadas} asignaciones copiadas del período anterior</div>`;
+  }catch(e){document.getElementById('promMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
+}
+async function ejecutarPromocion(pid){
+  const orig=v('prom_orig'), dest=v('prom_dest');
+  if(!orig||!dest)return alert('Seleccionar curso origen y destino');
+  if(!confirm('¿Confirmar promoción masiva? Los alumnos cambiarán de curso.'))return;
+  try{
+    const r=await api('POST','/api/periodos/'+pid+'/promover',{modo:'promocion',curso_origen_id:orig,curso_destino_id:dest});
+    document.getElementById('promMsg').innerHTML=`<div class="ir ok">✓ ${r.promovidos} alumnos promovidos al nuevo curso</div>`;
+  }catch(e){document.getElementById('promMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
+}
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 async function pgDocentes(el){
@@ -1030,13 +1076,43 @@ W.verDia=(fecha)=>{
 // ── NOTAS ─────────────────────────────────────────────────────────────────────
 async function pgNotas(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const asigs=await api('GET',url);
+  const [asigs,carrs,cursos]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
   el.innerHTML=`<div class="ph"><h3>Registro de notas</h3></div>
-  <div class="fb"><select id="selAsigNotas" onchange="W.loadNotas(this.value)">
-    <option value="">— Seleccionar materia y grupo —</option>
-    ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} · ${a.periodo_nombre}</option>`).join('')}
-  </select></div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtNotaCurso" onchange="filtNotasAsigs()" style="min-width:160px">
+      <option value="">Todos los cursos</option>
+      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+    </select>
+    <select id="selAsigNotas" onchange="W.loadNotas(this.value)" style="min-width:220px;flex:1">
+      <option value="">— Seleccionar materia —</option>
+      ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} · ${a.periodo_nombre}</option>`).join('')}
+    </select>
+  </div>
   <div id="nc"></div>`;
+}
+function filtNotasCursos(){
+  const carrId=v('filtNotaCarr');
+  const selCurso=document.getElementById('filtNotaCurso');
+  if(!selCurso)return;
+  const cursos=(W._notasCursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
+  selCurso.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  filtNotasAsigs();
+}
+function filtNotasAsigs(){
+  const carrId=v('filtNotaCarr');
+  const cursoId=v('filtNotaCurso');
+  const sel=document.getElementById('selAsigNotas');
+  if(!sel)return;
+  let asigs=W._notasAsigs||[];
+  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId||(a.carrera_nombre||'').toLowerCase().includes((W._notasCarrs||[]).find(c=>c.id===carrId)?.nombre?.toLowerCase()||''));
+  if(cursoId) asigs=asigs.filter(a=>a.curso_id===cursoId);
+  sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
+  const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
 }
 
 W.loadNotas=async(asigId,_tipo)=>{
@@ -1178,20 +1254,60 @@ W.updN=async(aId,asigId,campo,val)=>{
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
 async function pgAsist(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const asigs=await api('GET',url);
-  el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3></div>
-  <div class="fb">
-    <select onchange="loadAsist(this.value)">
+  const [asigs,carrs]=await Promise.all([api('GET',url),api('GET','/api/carreras')]);
+  W._asistAsigs=asigs;
+  el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
+    ${me.rol==='director'?`<button class="bs o" onclick="mGenAsist()">📅 Generar calendario automático</button>`:''}
+  </div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px">
+    <select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="selAsistAsig" onchange="loadAsist(this.value)" style="min-width:220px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
     </select>
-    <input type="date" id="fecAsist" value="${new Date().toISOString().split('T')[0]}" style="width:auto"/>
+    <input type="date" id="fecAsist" value="${new Date().toISOString().split('T')[0]}" style="width:auto" onchange="if(W._asistId)loadAsist(W._asistId)"/>
   </div>
   <div id="ac"></div>`;
+}
+function filtAsistAsigs(){
+  const carrId=v('filtAsistCarr');
+  const sel=document.getElementById('selAsistAsig');
+  if(!sel)return;
+  let asigs=W._asistAsigs||[];
+  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
+  sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
+  const ac=document.getElementById('ac');if(ac)ac.innerHTML='';
+}
+function mGenAsist(){
+  modal(`<h4>📅 Generar calendario de asistencia</h4>
+  <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Pre-genera los días de clase (Lun–Vie) para todas las materias del horario. Los docentes solo marcarán P/A/T/J en cada fecha.</p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Fecha de inicio</label><input id="genFecIni" type="date" value="2026-05-01"/></div>
+      <div class="f"><label>Fecha de fin</label><input id="genFecFin" type="date" value="${new Date().getFullYear()}-12-20"/></div>
+    </div>
+  </div>
+  <div id="genMsg"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="ejecutarGenAsist()">Generar</button></div>`);
+}
+async function ejecutarGenAsist(){
+  const fi=v('genFecIni'),ff=v('genFecFin');
+  if(!fi)return alert('Ingresar fecha de inicio');
+  document.getElementById('genMsg').innerHTML='<div class="ir" style="background:#f0f7ff">Generando... puede tomar unos segundos.</div>';
+  try{
+    const r=await api('POST','/api/asistencia/generar',{fecha_inicio:fi,fecha_fin:ff});
+    document.getElementById('genMsg').innerHTML=`<div class="ir ok">✓ ${r.generadas.toLocaleString()} registros de asistencia pre-generados desde ${fi}</div>`;
+  }catch(e){document.getElementById('genMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
 }
 
 W.loadAsist=async(asigId)=>{
   if(!asigId)return;
+  W._asistId=asigId;
+  const sel=document.getElementById('selAsistAsig');
+  if(sel)sel.value=asigId;
   const fecha=v('fecAsist')||new Date().toISOString().split('T')[0];
   const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
   const asist=await api('GET','/api/asistencia/asignacion/'+asigId);
@@ -1201,13 +1317,19 @@ W.loadAsist=async(asigId)=>{
   alumnos.forEach(a=>{if(!W._ast.est[a.id])W._ast.est[a.id]='P';});
   const ac=document.getElementById('ac');
   if(!ac)return;
-  ac.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <p style="font-size:13px;font-weight:600">Fecha: ${fmtFecha(fecha)} · ${alumnos.length} alumnos</p>
+  const presentes=Object.values(estMap).filter(e=>e==='P').length;
+  const ausentes=Object.values(estMap).filter(e=>e==='A').length;
+  ac.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;gap:8px;font-size:12px;align-items:center">
+      <span style="font-weight:600">${fmtFecha(fecha)}</span>
+      <span class="bx bg">✓ ${presentes} presentes</span>
+      <span class="bx br">✗ ${ausentes} ausentes</span>
+    </div>
     <button class="bn" onclick="W.grdAsist()">Guardar asistencia</button>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Presente</th><th>Ausente</th><th>Tardanza</th><th>Justificado</th></tr></thead><tbody>
+  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th style="text-align:center">Presente</th><th style="text-align:center">Ausente</th><th style="text-align:center">Tardanza</th><th style="text-align:center">Justificado</th></tr></thead><tbody>
   ${alumnos.map(a=>`<tr>
-    <td><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}</td>
+    <td><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
     ${['P','A','T','J'].map(s=>`<td style="text-align:center"><button class="asopt ${estMap[a.id]===s||(!estMap[a.id]&&s==='P')?s:''}" id="ao-${a.id}-${s}" onclick="W.sA('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button></td>`).join('')}
   </tr>`).join('')}
   </tbody></table></div></div>

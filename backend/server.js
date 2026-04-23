@@ -323,15 +323,26 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
         }
 
         try {
-          const existente = db.prepare('SELECT id,carrera_id,curso_id FROM alumnos WHERE ci=?').get(ciRaw);
+          const existente = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE ci=?').get(ciRaw);
           if (existente) {
-            // Actualizar carrera/curso si cambió
             db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=?,nombre=?,apellido=? WHERE ci=?').run(carrera_id, curso_id||null, nombre, apellido, ciRaw);
             results.actualizados++;
           } else {
             const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
             const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
-            db.prepare('INSERT INTO alumnos (id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?)').run('a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), matricula, carrera_id, curso_id || null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
+            const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+            // Generar credenciales automáticas: usuario=CI, contraseña=últimos 3 dígitos CI
+            let uid = null;
+            const passRaw = ciRaw.slice(-3);
+            const emailAuto = `${ciRaw}@its.edu.py`;
+            const usuExiste = db.prepare('SELECT id FROM usuarios WHERE ci=? OR email=?').get(ciRaw, emailAuto);
+            if (!usuExiste) {
+              uid = 'u_e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
+              try {
+                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(passRaw, 10), 'alumno');
+              } catch { uid = null; }
+            } else { uid = usuExiste.id; }
+            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
             results.ok++;
           }
         } catch(e) { results.errores.push(`Fila ${idx + 2}: ${e.message}`); }
@@ -796,6 +807,128 @@ app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, re
     });
     res.json(results);
   } catch(e) { res.status(400).json({ error:'Error procesando archivo: '+e.message }); }
+});
+
+// ── HORARIOS ──────────────────────────────────────────────────────────────────
+app.get('/api/horarios', auth(), (req, res) => {
+  const { asignacion_id, dia } = req.query;
+  let where = 'WHERE 1=1'; const params = [];
+  if (asignacion_id) { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
+  if (dia) { where += ' AND h.dia=?'; params.push(dia); }
+  res.json(db.prepare(`
+    SELECT h.*,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division,
+      u.nombre as docente_nombre, u.apellido as docente_apellido
+    FROM horarios h
+    LEFT JOIN asignaciones a ON h.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    ${where} ORDER BY h.dia, h.turno, ca.nombre`).all(...params));
+});
+
+// ── NOTAS FILTRADAS POR CARRERA/CURSO ─────────────────────────────────────────
+app.get('/api/notas/carrera/:carrera_id/curso/:curso_id', auth(), (req, res) => {
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) return res.json([]);
+  const asigs = db.prepare(`
+    SELECT a.id,m.nombre as materia_nombre
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    WHERE a.curso_id=? AND a.periodo_id=?
+    ORDER BY m.nombre`).all(req.params.curso_id, periodo.id);
+  const alumnos = db.prepare(`
+    SELECT al.id, COALESCE(al.nombre,u.nombre) as nombre, COALESCE(al.apellido,u.apellido) as apellido,
+      COALESCE(al.ci,u.ci) as ci, al.matricula
+    FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id
+    WHERE al.curso_id=? AND al.estado='Activo'
+    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.curso_id);
+  const notasMap = {};
+  asigs.forEach(asig => {
+    const notas = db.prepare('SELECT * FROM notas WHERE asignacion_id=?').all(asig.id);
+    notas.forEach(n => {
+      if (!notasMap[n.alumno_id]) notasMap[n.alumno_id] = {};
+      notasMap[n.alumno_id][asig.id] = n;
+    });
+  });
+  res.json({ asignaciones: asigs, alumnos, notas: notasMap });
+});
+
+// ── GENERACIÓN AUTOMÁTICA DE ASISTENCIAS (desde horarios, desde fecha_inicio) ─
+app.post('/api/asistencia/generar', auth(ADM), (req, res) => {
+  const { fecha_inicio, fecha_fin } = req.body;
+  if (!fecha_inicio) return res.status(400).json({ error: 'fecha_inicio requerida' });
+  const diasSemana = { 'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5 };
+  const horarios = db.prepare('SELECT * FROM horarios WHERE asignacion_id IS NOT NULL').all();
+  if (!horarios.length) return res.status(400).json({ error: 'No hay horarios configurados' });
+
+  const inicio = new Date(fecha_inicio + 'T12:00:00');
+  const fin = fecha_fin ? new Date(fecha_fin + 'T12:00:00') : new Date(inicio.getFullYear(), 11, 31, 12);
+
+  let totalGeneradas = 0;
+  const insAs = db.prepare('INSERT OR IGNORE INTO asistencia (id,alumno_id,asignacion_id,fecha,estado) VALUES (?,?,?,?,?)');
+
+  db.transaction(() => {
+    const cur = new Date(inicio);
+    while (cur <= fin) {
+      const diaN = cur.getDay(); // 0=Dom,1=Lun,...,5=Vie
+      if (diaN >= 1 && diaN <= 5) {
+        const diaName = ['','Lunes','Martes','Miércoles','Jueves','Viernes'][diaN];
+        const fechaStr = cur.toISOString().split('T')[0];
+        const horariosDelDia = horarios.filter(h => h.dia === diaName);
+        horariosDelDia.forEach(h => {
+          const alumnos = db.prepare(`SELECT id FROM alumnos WHERE curso_id=(SELECT curso_id FROM asignaciones WHERE id=?) AND estado='Activo'`).all(h.asignacion_id);
+          alumnos.forEach(al => {
+            const id = 'as_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+            insAs.run(id, al.id, h.asignacion_id, fechaStr, 'P');
+            totalGeneradas++;
+          });
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  })();
+  res.json({ ok: true, generadas: totalGeneradas });
+});
+
+// ── PROMOCIÓN DE ALUMNOS A NUEVO PERIODO ──────────────────────────────────────
+app.post('/api/periodos/:id/promover', auth(ADM), (req, res) => {
+  const { modo, carrera_id, curso_origen_id, curso_destino_id } = req.body;
+  const nuevoPeriodo = db.prepare('SELECT * FROM periodos WHERE id=?').get(req.params.id);
+  if (!nuevoPeriodo) return res.status(404).json({ error: 'Período no encontrado' });
+
+  if (modo === 'continuidad') {
+    // Copiar todas las asignaciones del período anterior activo al nuevo
+    const periodoAnterior = db.prepare('SELECT id FROM periodos WHERE id != ? ORDER BY id DESC LIMIT 1').get(req.params.id);
+    if (!periodoAnterior) return res.status(400).json({ error: 'No hay período anterior' });
+    const asigs = db.prepare('SELECT * FROM asignaciones WHERE periodo_id=?').all(periodoAnterior.id);
+    let copiadas = 0;
+    const ins = db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id) VALUES (?,?,?,?,?)');
+    db.transaction(() => {
+      asigs.forEach(a => {
+        ins.run('asig_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), a.docente_id, a.materia_id, a.curso_id, req.params.id);
+        copiadas++;
+      });
+    })();
+    return res.json({ ok: true, copiadas, modo: 'continuidad' });
+  }
+
+  if (modo === 'promocion') {
+    // Mover alumnos del curso origen al curso destino
+    if (!curso_origen_id || !curso_destino_id) return res.status(400).json({ error: 'Indicar curso origen y destino' });
+    const alumnos = db.prepare("SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'").all(curso_origen_id);
+    db.transaction(() => {
+      alumnos.forEach(al => {
+        db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_destino_id, al.id);
+      });
+    })();
+    return res.json({ ok: true, promovidos: alumnos.length, modo: 'promocion' });
+  }
+
+  res.status(400).json({ error: 'Modo no reconocido (continuidad|promocion)' });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
