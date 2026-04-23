@@ -814,9 +814,29 @@ function mAsig(){
   modal(`<h4>Nueva asignación</h4>
   <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Al guardar se creará automáticamente el espacio de notas y el registro en el horario semanal.</p>
   <div class="fg">
-    <div class="fr">
-      <div class="f"><label>Docente <span style="color:var(--red)">*</span></label>
+    <div class="fr" style="align-items:flex-end">
+      <div class="f" style="flex:1"><label>Docente <span style="color:var(--red)">*</span></label>
         <select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('')}</select></div>
+      <button class="bs i" onclick="toggleNuevoDoc()" style="margin-bottom:0;white-space:nowrap;height:36px">+ Nuevo docente</button>
+    </div>
+    <div id="nuevoDocPanel" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-top:-4px">
+      <p style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:8px">👤 Registrar nuevo docente</p>
+      <div class="fr">
+        <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="nd_nom" placeholder="Nombre"/></div>
+        <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="nd_ape" placeholder="Apellido"/></div>
+      </div>
+      <div class="fr">
+        <div class="f"><label>C.I. <span style="color:var(--red)">*</span></label><input id="nd_ci" placeholder="0.000.000"/></div>
+        <div class="f"><label>Email</label><input id="nd_em" placeholder="nombre@its.edu.py"/></div>
+      </div>
+      <div class="fr">
+        <div class="f"><label>Título</label><input id="nd_tit" placeholder="Lic., Dr., Abg..."/></div>
+        <div class="f"><label>Especialidad</label><input id="nd_esp" placeholder="Área de conocimiento"/></div>
+      </div>
+      <div class="f"><label>Contraseña inicial</label><input id="nd_pw" type="password" value="docente123"/></div>
+      <button class="bn" onclick="crearDocInline()" style="width:100%;margin-top:6px">Crear docente y continuar</button>
+    </div>
+    <div class="fr">
       <div class="f"><label>Período <span style="color:var(--red)">*</span></label>
         <select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
     </div>
@@ -834,12 +854,43 @@ function mAsig(){
         <div class="f"><label>Día de clase</label>
           <select id="asdia"><option value="">Sin asignar</option><option>Lunes</option><option>Martes</option><option>Miércoles</option><option>Jueves</option><option>Viernes</option></select></div>
         <div class="f"><label>Turno</label>
-          <select id="asturno" onchange="updHorarioLabel()"><option value="1">1er Turno (19:00–20:20)</option><option value="2">2do Turno (20:40–22:00)</option></select></div>
+          <select id="asturno"><option value="1">1er Turno (19:00–20:20)</option><option value="2">2do Turno (20:40–22:00)</option></select></div>
       </div>
       <div class="f"><label>Aula (opcional)</label><input id="asaula" placeholder="Ej: Aula 3"/></div>
     </div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAsig()">Guardar y crear espacio de notas</button></div>`);
+}
+function toggleNuevoDoc(){
+  const p=document.getElementById('nuevoDocPanel');
+  if(p)p.style.display=p.style.display==='none'?'block':'none';
+}
+async function crearDocInline(){
+  const o={nombre:v('nd_nom'),apellido:v('nd_ape'),ci:v('nd_ci'),email:v('nd_em'),titulo:v('nd_tit'),especialidad:v('nd_esp'),password:v('nd_pw')||'docente123'};
+  if(!o.nombre||!o.apellido)return alert('Nombre y apellido son obligatorios');
+  if(!o.ci)return alert('La CI es obligatoria para crear el docente');
+  try{
+    const r=await api('POST','/api/docentes',o);
+    // Recargar lista de docentes y actualizar el select
+    const docs=await api('GET','/api/docentes');
+    W._adata.docs=docs;
+    const sel=document.getElementById('asd');
+    if(sel){
+      sel.innerHTML=docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('');
+      // Seleccionar el docente recién creado
+      if(r.docente_id)sel.value=r.docente_id;
+    }
+    // Cerrar panel
+    const p=document.getElementById('nuevoDocPanel');
+    if(p)p.style.display='none';
+    // Feedback
+    const lbl=document.querySelector('label[for="asd"]')||document.getElementById('asd')?.previousElementSibling;
+    const fb=document.createElement('span');
+    fb.style.cssText='color:#2e7d32;font-size:11px;margin-left:8px';
+    fb.textContent=`✓ ${o.nombre} ${o.apellido} creado`;
+    document.getElementById('asd')?.parentNode?.appendChild(fb);
+    setTimeout(()=>fb.remove(),3000);
+  }catch(e){alert('Error al crear docente: '+e.message);}
 }
 function filtCursosAsig(){
   const carrId=v('asc_carr');
@@ -1128,6 +1179,7 @@ function renderHorario(){
 async function pgCalendario(el){
   const hoy=new Date();
   W._calFecha={anio:hoy.getFullYear(),mes:hoy.getMonth()};
+  W._calEl=el;
   await renderCalendario(el);
 }
 async function renderCalendario(el){
@@ -1136,17 +1188,16 @@ async function renderCalendario(el){
   const ultimo=new Date(anio,mes+1,0);
   const hasta=`${anio}-${String(mes+1).padStart(2,'0')}-${String(ultimo.getDate()).padStart(2,'0')}`;
   const filtDoc=me.rol==='docente'&&me.docenteId?'&docente_id='+me.docenteId:'';
-  const exs=await api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`);
-
-  // Agrupar por fecha
+  const [exs,acts]=await Promise.all([
+    api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
+    api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[])
+  ]);
   const porFecha={};
-  exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push(e);});
-
+  exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push({...e,_tipo:'examen'});});
+  (acts||[]).forEach(a=>{if(!porFecha[a.fecha])porFecha[a.fecha]=[];porFecha[a.fecha].push({...a,_tipo:'actividad'});});
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const hoyStr=new Date().toISOString().split('T')[0];
-
-  // Construir grilla del mes
   const primerDia=new Date(anio,mes,1).getDay();
   const totalDias=ultimo.getDate();
   let celdas='';
@@ -1155,48 +1206,65 @@ async function renderCalendario(el){
     const fStr=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=porFecha[fStr]||[];
     const isHoy=fStr===hoyStr;
-    celdas+=`<div class="cal-day${isHoy?' today':''}${evs.length?' has-exam':''}" onclick="${evs.length?`verDia('${fStr}')`:''}" title="${evs.length?evs.length+' examen(es)':''}">
+    celdas+=`<div class="cal-day${isHoy?' today':''}${evs.length?' has-exam':''}" onclick="verDia('${fStr}')" title="${evs.length?evs.length+' evento(s)':''}${me&&me.rol==='director'?' · Clic para ver/agregar':''}">
       <div class="cal-day-num">${d}</div>
-      ${evs.slice(0,2).map(e=>`<div class="cal-event ${e.tipo}">${e.tipo[0]} · ${e.materia_nombre.substring(0,12)}</div>`).join('')}
+      ${evs.slice(0,2).map(e=>e._tipo==='actividad'
+        ?`<div class="cal-event" style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:1px 4px;margin-bottom:1px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📌 ${(e.titulo||'').substring(0,13)}</div>`
+        :`<div class="cal-event ${e.tipo}">${e.tipo[0]} · ${(e.materia_nombre||'').substring(0,11)}</div>`
+      ).join('')}
       ${evs.length>2?`<div style="font-size:9px;color:var(--t3)">+${evs.length-2} más</div>`:''}
     </div>`;
   }
-
   el.innerHTML=`<div class="ph"><h3>Calendario Académico — ${meses[mes]} ${anio}</h3>
     <div class="ph-right">
-      ${me.rol==='director'?`<button class="bn" onclick="go('examenes')">Gestionar exámenes</button>`:''}
+      ${me.rol==='director'?`<button class="bs i" onclick="mActividad()">+ Actividad</button>
+      <button class="bn" onclick="go('examenes')">Gestionar exámenes</button>`:''}
     </div></div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
     <button class="bs" onclick="cambiarMes(-1)">← Anterior</button>
     <strong style="font-size:15px">${meses[mes]} ${anio}</strong>
     <button class="bs" onclick="cambiarMes(1)">Siguiente →</button>
   </div>
+  <div style="display:flex;gap:10px;margin-bottom:10px;font-size:11px;flex-wrap:wrap">
+    <span><span class="cal-event Parcial" style="display:inline-block">P</span> Parcial</span>
+    <span><span class="cal-event Final" style="display:inline-block">F</span> Final</span>
+    <span class="bx bg" style="font-size:10px">📌 Actividad</span>
+  </div>
   <div class="card card-p">
     <div class="cal-grid">${dias.map(d=>`<div class="cal-hdr">${d}</div>`).join('')}${celdas}</div>
-    <div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">
-      <span><span class="cal-event Parcial" style="display:inline-block">P</span> Parcial</span>
-      <span><span class="cal-event Final" style="display:inline-block">F</span> Final</span>
-      <span><span class="cal-event Recuperatorio" style="display:inline-block">R</span> Recuperatorio</span>
-    </div>
   </div>
+  ${(acts||[]).length?`<div class="card" style="margin-top:12px"><div class="card-p">
+    <p style="font-weight:700;margin-bottom:8px;font-size:13px">📌 Actividades de ${meses[mes]}</p>
+    ${(acts||[]).map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
+      <div>
+        <span style="font-weight:600;font-size:13px">${a.titulo}</span>
+        <span style="font-size:11px;color:var(--t2);margin-left:8px">${fmtFecha(a.fecha)}</span>
+        ${a.carrera_nombre?`<span class="cur-tag" style="margin-left:6px">${a.carrera_nombre}</span>`:''}
+        ${a.descripcion?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${a.descripcion}</div>`:''}
+      </div>
+      ${me.rol==='director'?`<div class="abs">
+        <button class="bs d" onclick="delAct('${a.id}')">Eliminar</button>
+      </div>`:''}
+    </div>`).join('')}
+  </div></div>`:''}
   <div id="diaDetalle"></div>`;
-
-  W._calExs=exs;W._calEl=el;
+  W._calExs=exs; W._calActs=acts||[];
 }
-W.cambiarMes=(d)=>{W._calFecha.mes+=d;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl);};
-W.verDia=(fecha)=>{
+W.cambiarMes=(d)=>{W._calFecha.mes+=d;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl||document.getElementById('mc'));};
+function verDia(fecha){
   const exs=(W._calExs||[]).filter(e=>e.fecha===fecha);
+  const acts=(W._calActs||[]).filter(a=>a.fecha===fecha);
   const el=document.getElementById('diaDetalle');
   if(!el)return;
-  el.innerHTML=`<div class="ph" style="margin-top:16px"><h3 style="font-size:15px">Exámenes del ${fmtFecha(fecha)}</h3></div>
-  ${exs.map(e=>{
+  let html=`<div class="ph" style="margin-top:16px"><h3 style="font-size:15px">Eventos del ${fmtFecha(fecha)}</h3>
+    ${me.rol==='director'?`<button class="bs i" onclick="mActividadFecha('${fecha}')">+ Actividad</button>`:''}
+  </div>`;
+  acts.forEach(a=>{html+=`<div class="card card-p" style="margin-bottom:8px;border-left:3px solid #4caf50"><p style="font-weight:700">📌 ${a.titulo}</p><p style="font-size:12px;color:var(--t2)">${a.descripcion||''}</p></div>`;});
+  exs.forEach(e=>{
     const pct=e.total_alumnos?Math.round(e.notas_cargadas/e.total_alumnos*100):0;
-    return `<div class="card card-p" style="margin-bottom:12px">
+    html+=`<div class="card card-p" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-        <div>
-          <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span>
-          <strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong>
-        </div>
+        <div><span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span><strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong></div>
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           <button class="bs o" onclick="imprimirActa('${e.asignacion_id}')">Acta</button>
@@ -1206,15 +1274,52 @@ W.verDia=(fecha)=>{
         <div><span style="color:var(--t3)">Carrera</span><br><strong>${e.carrera_nombre} ${e.curso_anio}°${e.curso_division==='U'?'':e.curso_division}</strong></div>
         <div><span style="color:var(--t3)">Docente</span><br><strong>${e.docente_nombre} ${e.docente_apellido}</strong></div>
         <div><span style="color:var(--t3)">Hora</span><br><strong>${e.hora||'Sin especificar'}</strong></div>
-        <div><span style="color:var(--t3)">Notas cargadas</span><br>
-          <strong>${e.notas_cargadas}/${e.total_alumnos} (${pct}%)</strong>
-          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
-        </div>
+        <div><span style="color:var(--t3)">Notas</span><br><strong>${e.notas_cargadas}/${e.total_alumnos} (${pct}%)</strong><div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></div>
       </div>
     </div>`;
-  }).join('')}`;
-};
-
+  });
+  if(!exs.length&&!acts.length)html+=`<div class="es">Sin eventos este día${me.rol==='director'?' — podés agregar una actividad':''}</div>`;
+  el.innerHTML=html;
+}
+async function mActividad(act){
+  const isEdit=!!act;
+  const [carrs,mats]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias')]);
+  modal(`<h4>${isEdit?'Editar':'Nueva'} actividad académica</h4><div class="fg">
+    <div class="f"><label>Título <span style="color:var(--red)">*</span></label><input id="actTit" value="${isEdit&&act.titulo?act.titulo:''}" placeholder="Ej: Entrega de trabajos finales"/></div>
+    <div class="fr">
+      <div class="f"><label>Fecha <span style="color:var(--red)">*</span></label><input id="actFec" type="date" value="${isEdit&&act.fecha?act.fecha:new Date().toISOString().split('T')[0]}"/></div>
+      <div class="f"><label>Tipo</label><select id="actTipo">
+        <option value="academico" ${isEdit&&act.tipo==='academico'?'selected':''}>Académico</option>
+        <option value="examen" ${isEdit&&act.tipo==='examen'?'selected':''}>Examen</option>
+        <option value="administrativo" ${isEdit&&act.tipo==='administrativo'?'selected':''}>Administrativo</option>
+        <option value="otros" ${!isEdit||act.tipo==='otros'?'selected':''}>Otros</option>
+      </select></div>
+    </div>
+    <div class="f"><label>Descripción</label><textarea id="actDesc" rows="2" placeholder="Opcional">${isEdit&&act.descripcion?act.descripcion:''}</textarea></div>
+    <div class="fr">
+      <div class="f"><label>Carrera (opcional)</label><select id="actCarr">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.id}" ${isEdit&&act.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
+      </select></div>
+      <div class="f"><label>Materia (opcional)</label><select id="actMat">
+        <option value="">Sin materia específica</option>
+        ${mats.map(m=>`<option value="${m.id}" ${isEdit&&act.materia_id===m.id?'selected':''}>${m.nombre}</option>`).join('')}
+      </select></div>
+    </div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svActividad('${isEdit&&act.id?act.id:''}')">Guardar</button></div>`);
+}
+async function svActividad(id){
+  const o={titulo:v('actTit'),fecha:v('actFec'),tipo:v('actTipo'),descripcion:v('actDesc'),carrera_id:v('actCarr')||null,materia_id:v('actMat')||null};
+  if(!o.titulo||!o.fecha)return alert('Título y fecha son obligatorios');
+  id?await api('PUT','/api/actividades/'+id,o):await api('POST','/api/actividades',o);
+  cm();await renderCalendario(W._calEl||document.getElementById('mc'));
+}
+async function delAct(id){
+  if(!confirm('¿Eliminar esta actividad?'))return;
+  await api('DELETE','/api/actividades/'+id);
+  await renderCalendario(W._calEl||document.getElementById('mc'));
+}
+function mActividadFecha(fecha){mActividad();setTimeout(()=>{const f=document.getElementById('actFec');if(f)f.value=fecha;},100);}
 // ── NOTAS ─────────────────────────────────────────────────────────────────────
 async function pgNotas(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
@@ -1251,7 +1356,8 @@ function filtNotasAsigs(){
   const sel=document.getElementById('selAsigNotas');
   if(!sel)return;
   let asigs=W._notasAsigs||[];
-  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId||(a.carrera_nombre||'').toLowerCase().includes((W._notasCarrs||[]).find(c=>c.id===carrId)?.nombre?.toLowerCase()||''));
+  // carrera_id ahora viene directo del backend — filtro simple y confiable
+  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(cursoId) asigs=asigs.filter(a=>a.curso_id===cursoId);
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
   const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
@@ -1439,31 +1545,30 @@ async function pgAsist(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
   const [asigs,carrs,horarios]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/horarios')]);
   W._asistAsigs=asigs; W._asistHorarios=horarios;
-
-  // Calcular el día de la semana de hoy para mostrar solo las materias del día
-  const hoyDate=new Date();
   const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const diaHoy=diasN[hoyDate.getDay()];
-  const hoyStr=hoyDate.toISOString().split('T')[0];
-
-  // Para docentes: pre-filtrar solo sus materias del día
+  const diaHoy=diasN[new Date().getDay()];
+  const hoyStr=new Date().toISOString().split('T')[0];
   let asigsFiltradas=asigs;
   if(me.rol==='docente'){
     const asigIdsHoy=new Set(horarios.filter(h=>h.dia===diaHoy&&h.asignacion_id).map(h=>h.asignacion_id));
     asigsFiltradas=asigs.filter(a=>asigIdsHoy.has(a.id));
   }
-
+  // Carreras desde asignaciones reales — paridad total con notas
+  const carrsEnAsigs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
   el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
-    ${me.rol==='director'?`<button class="bs o" onclick="mGenAsist()">📅 Generar calendario</button>
-    <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Generar Calendario 2026 (May–Jul)</button>`:''}
+    ${me.rol==='director'?`<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="bs o" onclick="mGenAsist()">📅 Generar calendario</button>
+      <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Calendario 2026 (May–Jul)</button>
+      <button class="bs" onclick="verCalSemestral()" style="background:#e3f2fd;color:#1565c0;border-color:#bbdefb">📊 Vista semestral</button>
+    </div>`:''}
   </div>
   ${me.rol==='docente'?`<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
-    📅 Hoy es <strong>${diaHoy}</strong> — mostrando solo las materias que te corresponden hoy
+    📅 Hoy es <strong>${diaHoy}</strong> — mostrando tus materias de hoy (${asigsFiltradas.length} materia${asigsFiltradas.length!==1?'s':''})
   </div>`:''}
   <div class="fb" style="flex-wrap:wrap;gap:8px">
     ${me.rol==='director'?`<select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
       <option value="">Todas las carreras</option>
-      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      ${carrsEnAsigs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>`:''}
     <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:140px">
       <option value="">Ambos turnos</option>
@@ -1474,8 +1579,8 @@ async function pgAsist(el){
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
-        const turnoLabel=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
-        return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${turnoLabel}</option>`;
+        const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
+        return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
       }).join('')}
     </select>
     <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)loadAsist(W._asistId)"/>
@@ -1500,6 +1605,44 @@ function filtAsistAsigs(){
     return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
   }).join('');
   const ac=document.getElementById('ac');if(ac)ac.innerHTML='';
+}
+async function verCalSemestral(){
+  const asigs=W._asistAsigs||[];
+  const horarios=W._asistHorarios||[];
+  const meses=[{n:'Mayo',m:'2026-05'},{n:'Junio',m:'2026-06'},{n:'Julio',m:'2026-07'}];
+  const diasSem=['Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const colores={'1':'#e3f2fd','2':'#fff3e0'};
+  let html=`<h4>📊 Calendario Semestral 2026 — Mayo a Julio</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Vista por mes · Carrera · Materia · Docente · Horario</p>`;
+  meses.forEach(({n,m})=>{
+    html+=`<div style="margin-bottom:20px"><p style="font-weight:700;font-size:14px;margin-bottom:8px">📅 ${n} 2026</p>`;
+    html+=`<table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:6px 8px;border:1px solid var(--bdr);min-width:90px">Turno</th>
+      ${diasSem.map(d=>`<th style="padding:6px 8px;border:1px solid var(--bdr);text-align:center">${d}</th>`).join('')}
+    </tr></thead><tbody>`;
+    [1,2].forEach(turno=>{
+      const lbl=turno===1?'T1 19:00–20:20':'T2 20:40–22:00';
+      html+=`<tr><td style="border:1px solid var(--bdr);padding:6px 8px;font-weight:700;background:${colores[turno]}">${lbl}</td>`;
+      diasSem.forEach(dia=>{
+        const hs=horarios.filter(h=>h.dia===dia&&h.turno===turno&&h.asignacion_id);
+        const asigsDia=hs.map(h=>asigs.find(a=>a.id===h.asignacion_id)).filter(Boolean);
+        if(!asigsDia.length){html+=`<td style="border:1px solid var(--bdr);padding:4px;background:#fafaf8"><span style="color:var(--t3);font-size:10px">—</span></td>`;return;}
+        html+=`<td style="border:1px solid var(--bdr);padding:4px;vertical-align:top">`;
+        asigsDia.forEach(a=>{
+          html+=`<div style="background:${colores[turno]};border-radius:4px;padding:3px 5px;margin-bottom:2px;font-size:10px">
+            <div style="font-weight:700">${a.materia_nombre}</div>
+            <div style="color:var(--t2)">${a.carrera_nombre} ${a.curso_anio}°</div>
+            <div style="color:#555">${a.docente_nombre} ${a.docente_apellido}</div>
+          </div>`;
+        });
+        html+=`</td>`;
+      });
+      html+=`</tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  });
+  modal(html+'<div class="mf"><button class="bn" onclick="cm()">Cerrar</button></div>',true);
 }
 function mGenAsist(){
   modal(`<h4>📅 Generar calendario de asistencia</h4>
@@ -1787,23 +1930,31 @@ async function pgMisMat(el){
 
 // ── MIS NOTAS ALUMNO ──────────────────────────────────────────────────────────
 async function pgMisNotas(el){
-  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos</div>';return;}
+  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
   el.innerHTML=`<div class="ph"><h3>Mis calificaciones</h3></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Materia</th><th>TP</th><th>Parcial</th><th>Recup.</th><th>Final</th><th>F.Extr.</th><th>Total</th><th>Nota</th><th>Estado</th></tr></thead><tbody>
-  ${notas.map?notas.map(n=>`<tr>
-    <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
-    <td style="text-align:center">${n.tp??'—'}</td>
-    <td style="text-align:center">${n.parcial??'—'}</td>
-    <td style="text-align:center">${n.parcial_recuperatorio!=null?`<strong>${n.parcial_recuperatorio}</strong>`:'—'}</td>
-    <td style="text-align:center">${n.final??'—'}</td>
-    <td style="text-align:center">${n.final_extraordinario!=null?`<strong>${n.final_extraordinario}</strong>`:'—'}</td>
-    <td style="text-align:center"><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
-    <td style="text-align:center"><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
-    <td><span class="bx ${n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr'}">${n.estado||'Pendiente'}</span></td>
-  </tr>`).join(''):''}
+  <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
+    <th>Materia</th><th style="text-align:center">TPs</th><th style="text-align:center">Parcial</th>
+    <th style="text-align:center">Final</th><th style="text-align:center">Total</th>
+    <th style="text-align:center">Nota</th><th style="text-align:center">Estado</th>
+  </tr></thead><tbody>
+  ${(notas||[]).map(n=>{
+    const est=n.estado||'Pendiente';
+    // Para el alumno: si está bloqueado por mora, mostrar "Restringido" sin revelar la causa
+    // El estado real solo lo ve director y docente
+    const estVis=(est==='Pendiente'&&!n.puntaje_total)?'Pendiente':est;
+    return `<tr>
+      <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
+      <td style="text-align:center">${n.tp_total??'—'}</td>
+      <td style="text-align:center">${n.parcial_efectivo??n.parcial??'—'}</td>
+      <td style="text-align:center">${n.final_efectivo??n.final_ord??'—'}</td>
+      <td style="text-align:center"><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
+      <td style="text-align:center"><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
+      <td style="text-align:center"><span class="bx ${estVis==='Aprobado'?'bg':estVis==='Reprobado'?'br':'bgr'}">${estVis}</span></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="es">Sin calificaciones registradas</td></tr>'}
   </tbody></table></div></div>
-  <p class="tip" style="margin-top:8px">Recuperatorio y Final Extraordinario en negrita reemplazaron la nota original.</p>`;
+  <p class="tip" style="margin-top:8px">Para consultas sobre el estado de tu inscripción, contactá con administración.</p>`;
 }
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────

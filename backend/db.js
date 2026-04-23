@@ -188,6 +188,18 @@ function crearTablas() {
       hora_fin TEXT NOT NULL DEFAULT '20:20',
       aula TEXT
     );
+    CREATE TABLE IF NOT EXISTS actividades (
+      id TEXT PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      descripcion TEXT,
+      fecha TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'otros' CHECK(tipo IN ('examen','academico','administrativo','otros')),
+      carrera_id TEXT REFERENCES carreras(id),
+      materia_id TEXT REFERENCES materias(id),
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id),
+      activo INTEGER NOT NULL DEFAULT 1,
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Índices para consultas frecuentes
@@ -557,6 +569,16 @@ function init() {
   });
   // Alumnos: habilitación especial de pago y bloqueo de notas
   try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
+  // Tabla actividades para calendario académico
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS actividades (
+      id TEXT PRIMARY KEY, titulo TEXT NOT NULL, descripcion TEXT,
+      fecha TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'otros',
+      carrera_id TEXT, materia_id TEXT, usuario_id TEXT NOT NULL,
+      activo INTEGER NOT NULL DEFAULT 1,
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
   // Asignaciones: horario embebido (día y turno para el horario semanal)
   try { db.prepare("ALTER TABLE asignaciones ADD COLUMN dia TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE asignaciones ADD COLUMN turno INTEGER DEFAULT 1").run(); } catch {}

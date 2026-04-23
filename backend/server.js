@@ -402,6 +402,7 @@ app.get('/api/asignaciones', auth(), (req, res) => {
       m.nombre as materia_nombre,m.codigo as materia_codigo,m.anio as materia_anio,
       m.peso_tp,m.peso_parcial,m.peso_final,
       cu.anio as curso_anio,cu.division as curso_division,
+      ca.id as carrera_id,
       ca.nombre as carrera_nombre,
       u.nombre as docente_nombre,u.apellido as docente_apellido,
       p.nombre as periodo_nombre,
@@ -1147,6 +1148,41 @@ app.post('/api/asistencia/generar-2026', auth(ADM), (req, res) => {
     }
   })();
   res.json({ ok: true, generadas: totalGeneradas, desde: '2026-05-01', hasta: '2026-07-31' });
+});
+
+// ── ACTIVIDADES DEL CALENDARIO ACADÉMICO ─────────────────────────────────────
+app.get('/api/actividades', auth(), (req, res) => {
+  const { desde, hasta, carrera_id } = req.query;
+  let where = 'WHERE a.activo=1'; const params = [];
+  if (desde) { where += ' AND a.fecha>=?'; params.push(desde); }
+  if (hasta) { where += ' AND a.fecha<=?'; params.push(hasta); }
+  if (carrera_id) { where += ' AND (a.carrera_id=? OR a.carrera_id IS NULL)'; params.push(carrera_id); }
+  res.json(db.prepare(`
+    SELECT a.*,
+      c.nombre as carrera_nombre,
+      m.nombre as materia_nombre,
+      u.nombre as autor_nombre, u.apellido as autor_apellido
+    FROM actividades a
+    LEFT JOIN carreras c ON a.carrera_id=c.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    JOIN usuarios u ON a.usuario_id=u.id
+    ${where} ORDER BY a.fecha DESC`).all(...params));
+});
+app.post('/api/actividades', auth(ADM), (req, res) => {
+  const { titulo, descripcion, fecha, tipo, carrera_id, materia_id } = req.body;
+  if (!titulo || !fecha) return res.status(400).json({ error: 'Título y fecha son obligatorios' });
+  const id = 'act_' + Date.now();
+  db.prepare('INSERT INTO actividades (id,titulo,descripcion,fecha,tipo,carrera_id,materia_id,usuario_id) VALUES (?,?,?,?,?,?,?,?)').run(id, titulo, descripcion||null, fecha, tipo||'otros', carrera_id||null, materia_id||null, req.user.id);
+  res.json({ id });
+});
+app.put('/api/actividades/:id', auth(ADM), (req, res) => {
+  const { titulo, descripcion, fecha, tipo, carrera_id, materia_id } = req.body;
+  db.prepare('UPDATE actividades SET titulo=?,descripcion=?,fecha=?,tipo=?,carrera_id=?,materia_id=? WHERE id=?').run(titulo,descripcion||null,fecha,tipo||'otros',carrera_id||null,materia_id||null,req.params.id);
+  res.json({ ok: true });
+});
+app.delete('/api/actividades/:id', auth(ADM), (req, res) => {
+  db.prepare('UPDATE actividades SET activo=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
