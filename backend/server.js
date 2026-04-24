@@ -1060,22 +1060,41 @@ app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
 app.get('/api/alumnos/:id/habilitacion', auth(), (req, res) => {
   const al = db.prepare('SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id=?').get(req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
-  if (al.habilitado_pago_pendiente) return res.json({ habilitado: true, razon: 'habilitacion_especial' });
-  // Regla: debe tener pago registrado con concepto que incluya cuota hasta Julio (mes 7)
+
+  // Habilitación especial del director — sobreescribe todo
+  if (al.habilitado_pago_pendiente) {
+    return res.json({ habilitado: true, razon: 'habilitacion_especial', cuotas_faltantes: [] });
+  }
+
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-  if (!periodo) return res.json({ habilitado: true, razon: 'sin_periodo_activo' });
-  // Buscar cuota de Julio o anterior pagada
-  const pagoJulio = db.prepare(`
-    SELECT id FROM pagos
-    WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'
-      AND (concepto LIKE '%Julio%' OR concepto LIKE '%Cuota%' OR concepto LIKE '%Matrícula%')
-      AND strftime('%m', fecha_pago) <= '07'
-    LIMIT 1`).get(req.params.id, periodo.id);
-  if (pagoJulio) return res.json({ habilitado: true, razon: 'pago_al_dia' });
-  // Verificar si tiene pago de matrícula al menos
-  const pagoMatricula = db.prepare(`SELECT id FROM pagos WHERE alumno_id=? AND periodo_id=? AND concepto LIKE '%Matrícula%' AND estado='Pagado' LIMIT 1`).get(req.params.id, periodo.id);
-  if (pagoMatricula) return res.json({ habilitado: true, razon: 'matricula_pagada' });
-  return res.json({ habilitado: false, razon: 'mora_de_pago', alumno: `${al.apellido}, ${al.nombre}` });
+  if (!periodo) return res.json({ habilitado: true, razon: 'sin_periodo_activo', cuotas_faltantes: [] });
+
+  // Regla exacta: cuotas 1, 2, 3, 4 y 5 deben estar pagadas
+  // Cuota 1 = marzo, Cuota 2 = abril, Cuota 3 = mayo, Cuota 4 = junio, Cuota 5 = julio
+  const cuotasRequeridas = ['Cuota 1', 'Cuota 2', 'Cuota 3', 'Cuota 4', 'Cuota 5'];
+  const pagosPeriodo = db.prepare(`
+    SELECT concepto FROM pagos
+    WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'`).all(req.params.id, periodo.id);
+
+  const conceptosPagados = pagosPeriodo.map(p => p.concepto);
+
+  // Verificar cada cuota requerida
+  const cuotasFaltantes = cuotasRequeridas.filter(cuota =>
+    !conceptosPagados.some(c => c === cuota || c.includes(cuota))
+  );
+
+  if (cuotasFaltantes.length === 0) {
+    return res.json({ habilitado: true, razon: 'pago_al_dia', cuotas_faltantes: [] });
+  }
+
+  // Sin ninguna cuota ni matrícula → mora total
+  return res.json({
+    habilitado: false,
+    razon: 'mora_de_pago',
+    alumno: `${al.apellido}, ${al.nombre}`,
+    cuotas_faltantes: cuotasFaltantes,
+    detalle: `Faltan: ${cuotasFaltantes.join(', ')}`
+  });
 });
 
 // ── IMPORTACIÓN MASIVA DE PAGOS DESDE EXCEL ───────────────────────────────────
