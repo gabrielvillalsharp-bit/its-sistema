@@ -225,7 +225,7 @@ function navFor(r){
     {g:'General',i:[
       {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','docente','alumno']},
       {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','alumno']},
       {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
     {g:'Estructura',i:[
@@ -241,7 +241,7 @@ function navFor(r){
     ]},
     {g:'Académico',i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director']},
-      {id:'notas',l:'Notas',c:'#185FA5',r:['director']},
+      {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente']},
       {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
     ]},
     {g:'Finanzas',i:[
@@ -251,7 +251,9 @@ function navFor(r){
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
-      {id:'mis-notas',l:'Mis notas',c:'#185FA5',r:['alumno']},
+      {id:'mis-notas',l:'Mis calificaciones',c:'#185FA5',r:['alumno']},
+      {id:'mi-asistencia',l:'Mi asistencia',c:'#1D9E75',r:['alumno']},
+      {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
     ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1D9E75',r:['director','docente','alumno']},
@@ -282,7 +284,8 @@ function go(p){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,
-    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas};
+    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
+    'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
   pages[p]?.(el);
 }
 
@@ -360,14 +363,16 @@ async function pgDash(el){
 async function pgAvisos(el){
   const avs=await api('GET','/api/avisos');
   const puedeEditar=me.rol==='director';
+  const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos'};
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
   </div>
   ${!avs.length?`<div class="es">No hay avisos activos</div>`:''}
   ${avs.map(a=>`<div class="aviso-card ${a.tipo}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${a.titulo}</span>
-      <div style="display:flex;gap:4px">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+        ${puedeEditar?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
         <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
         ${puedeEditar?`<button class="bs d" onclick="del('${a.id}','avisos')">✕</button>`:''}
       </div>
@@ -388,11 +393,19 @@ function mAviso(){modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
     </select></div>
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí — fijar</option></select></div>
   </div>
+  <div class="f"><label>👥 Público objetivo</label>
+    <select id="avdest">
+      <option value="todos">Todos (docentes y alumnos)</option>
+      <option value="docentes">Solo docentes</option>
+      <option value="alumnos">Solo alumnos</option>
+    </select>
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">Los avisos "Solo docentes" no serán visibles para los alumnos.</p>
+  </div>
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);}
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
-  await api('POST','/api/avisos',{titulo:t,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1'});
+  await api('POST','/api/avisos',{titulo:t,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1',destinatario:v('avdest')||'todos'});
   cm();go('avisos');
 }
 
@@ -1416,6 +1429,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#f3e5f5;color:#4a148c;font-size:11px">TOTAL<br>PUNTOS</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Calif.</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Estado</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3f3;color:#c62828;font-size:10px">🔒 Mora</th>
     </tr>
     <tr style="background:#f5f5f5;font-size:11px">
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 1</th>
@@ -1495,6 +1509,11 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center" id="est-${a.id}">
         <span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':a.nota_estado==='Ausente'?'ba':'bgr'}">${a.nota_estado||'Pendiente'}</span>
       </td>
+      <td style="border:1px solid var(--bdr);text-align:center;background:#fff3f3;padding:4px" id="mora-${a.id}">
+        ${(habMap[a.id]&&!habMap[a.id].habilitado)
+          ? `<span style="color:#c62828;font-size:10px;font-weight:700">🔒</span>${me.rol==='director'?`<br><button onclick="habilitarAlumno('${a.id}','${W._asigId||''}')" style="font-size:9px;padding:1px 4px;border:1px solid #1976d2;border-radius:3px;background:#e3f2fd;color:#1565c0;cursor:pointer;margin-top:2px">Habilitar</button>`:''}`
+          : '<span style="color:#2e7d32;font-size:11px">✓</span>'}
+      </td>
     </tr>`;
   }).join('')}
   </tbody></table></div>`;
@@ -1517,6 +1536,9 @@ W.marcarAusente=async(aId,asigId,ausente)=>{
     W.loadNotas(asigId);
   }catch(e){console.error(e);}
 };
+// Alias global para acceso desde onclick en innerHTML
+function marcarAusente(aId,asigId,ausente){W.marcarAusente(aId,asigId,ausente);}
+function loadAsist(asigId){W.loadAsist(asigId);}
 
 W.updN=async(aId,asigId,campo,val)=>{
   if(!W._nc[aId])W._nc[aId]={};
@@ -1543,7 +1565,7 @@ W.updN=async(aId,asigId,campo,val)=>{
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
 async function pgAsist(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const [asigs,carrs,horarios]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/horarios')]);
+  const [asigs,horarios]=await Promise.all([api('GET',url),api('GET','/api/horarios')]);
   W._asistAsigs=asigs; W._asistHorarios=horarios;
   const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const diaHoy=diasN[new Date().getDay()];
@@ -1553,29 +1575,36 @@ async function pgAsist(el){
     const asigIdsHoy=new Set(horarios.filter(h=>h.dia===diaHoy&&h.asignacion_id).map(h=>h.asignacion_id));
     asigsFiltradas=asigs.filter(a=>asigIdsHoy.has(a.id));
   }
-  // Carreras desde asignaciones reales — paridad total con notas
+  // Carreras y años únicos desde asignaciones reales
   const carrsEnAsigs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  const aniosEnAsigs=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
+
   el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
-    ${me.rol==='director'?`<div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${me.rol==='director'?`<div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="bs o" onclick="mResumenAsist()">📊 Resumen detallado</button>
       <button class="bs o" onclick="mGenAsist()">📅 Generar calendario</button>
-      <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Calendario 2026 (May–Jul)</button>
-      <button class="bs" onclick="verCalSemestral()" style="background:#e3f2fd;color:#1565c0;border-color:#bbdefb">📊 Vista semestral</button>
+      <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Calendario 2026</button>
+      <button class="bs d" onclick="limpiarCalMayoJul()" style="font-size:11px">🗑 Limpiar May–Jul</button>
     </div>`:''}
   </div>
   ${me.rol==='docente'?`<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
     📅 Hoy es <strong>${diaHoy}</strong> — mostrando tus materias de hoy (${asigsFiltradas.length} materia${asigsFiltradas.length!==1?'s':''})
   </div>`:''}
-  <div class="fb" style="flex-wrap:wrap;gap:8px">
-    ${me.rol==='director'?`<select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:4px">
+    <select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carrsEnAsigs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>`:''}
-    <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:140px">
-      <option value="">Ambos turnos</option>
-      <option value="1">1er Turno (19:00–20:20)</option>
-      <option value="2">2do Turno (20:40–22:00)</option>
     </select>
-    <select id="selAsistAsig" onchange="loadAsist(this.value)" style="min-width:240px;flex:1">
+    <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:130px">
+      <option value="">Ambos turnos</option>
+      <option value="1">T1 (19:00–20:20)</option>
+      <option value="2">T2 (20:40–22:00)</option>
+    </select>
+    <select id="filtAsistAnio" onchange="filtAsistAsigs()" style="min-width:100px">
+      <option value="">Todos los años</option>
+      ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="selAsistAsig" onchange="W.loadAsist(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
@@ -1583,21 +1612,23 @@ async function pgAsist(el){
         return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
       }).join('')}
     </select>
-    <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)loadAsist(W._asistId)"/>
+    <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)W.loadAsist(W._asistId)"/>
   </div>
   <div id="ac"></div>`;
 }
 function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
   const turno=v('filtAsistTurno');
+  const anio=v('filtAsistAnio');
   const sel=document.getElementById('selAsistAsig');
   if(!sel)return;
   let asigs=W._asistAsigs||[];
   const horarios=W._asistHorarios||[];
   if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(anio)   asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   if(turno){
-    const asigIdsTurno=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
-    asigs=asigs.filter(a=>asigIdsTurno.has(a.id));
+    const ids=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
+    asigs=asigs.filter(a=>ids.has(a.id));
   }
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>{
     const h=horarios.find(x=>x.asignacion_id===a.id);
@@ -1678,7 +1709,6 @@ W.loadAsist=async(asigId)=>{
   if(sel)sel.value=asigId;
   const fecha=v('fecAsist')||new Date().toISOString().split('T')[0];
 
-  // Validar que el docente registre solo en el día que le corresponde
   if(me.rol==='docente'){
     const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const diaFecha=diasN[new Date(fecha+'T12:00:00').getDay()];
@@ -1692,56 +1722,158 @@ W.loadAsist=async(asigId)=>{
     }
   }
 
-  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
-  const asist=await api('GET','/api/asistencia/asignacion/'+asigId);
+  const [{alumnos},asist]=await Promise.all([
+    api('GET','/api/notas/asignacion/'+asigId),
+    api('GET','/api/asistencia/asignacion/'+asigId)
+  ]);
   const hoy=asist.filter(a=>a.fecha===fecha);
-  const estMap={};hoy.forEach(a=>{estMap[a.alumno_id]=a.estado;});
+  const estMap={};
+  hoy.forEach(a=>{estMap[a.alumno_id]=a.estado;});
+  // Estado por defecto: Presente
+  alumnos.forEach(a=>{if(!estMap[a.id])estMap[a.id]='P';});
   W._ast={asigId,fecha,est:{...estMap}};
-  alumnos.forEach(a=>{if(!W._ast.est[a.id])W._ast.est[a.id]='P';});
 
-  // Info del horario de la materia
   const hor=W._asistHorarios?.find(h=>h.asignacion_id===asigId);
   const horInfo=hor?`${hor.dia} · Turno ${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'';
-
   const ac=document.getElementById('ac');
   if(!ac)return;
-  const presentes=hoy.filter(e=>e.estado==='P').length;
-  const ausentes=hoy.filter(e=>e.estado==='A').length;
+  const presentes=Object.values(estMap).filter(e=>e==='P').length;
+  const ausentes=Object.values(estMap).filter(e=>e==='A').length;
+
   ac.innerHTML=`
   <div style="background:#f0f7ff;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div>
       <span style="font-weight:700;font-size:14px">${fmtFecha(fecha)}</span>
       ${horInfo?`<span style="font-size:12px;color:var(--t2);margin-left:8px">📅 ${horInfo}</span>`:''}
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
-      <button class="bn" onclick="W.grdAsist()">Guardar</button>
+      <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
   <div class="card"><div class="tw"><table><thead>
-    <tr><th>Alumno</th><th style="text-align:center;width:80px">Presente</th><th style="text-align:center;width:80px">Ausente</th><th style="text-align:center;width:80px">Tardanza</th><th style="text-align:center;width:80px">Justificado</th></tr>
+    <tr>
+      <th>Alumno</th>
+      <th style="text-align:center;width:90px;background:#d4edda">✓ Presente</th>
+      <th style="text-align:center;width:90px;background:#f8d7da">✗ Ausente</th>
+      <th style="text-align:center;width:90px;background:#fff3cd">⏰ Tardanza</th>
+      <th style="text-align:center;width:90px;background:#d1ecf1">📋 Justificado</th>
+    </tr>
   </thead><tbody>
-  ${alumnos.map(a=>`<tr>
-    <td><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
-    ${['P','A','T','J'].map(s=>`<td style="text-align:center"><button class="asopt ${estMap[a.id]===s||(!estMap[a.id]&&s==='P')?s:''}" id="ao-${a.id}-${s}" onclick="W.sA('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button></td>`).join('')}
-  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
+  ${alumnos.map(a=>{
+    const est=estMap[a.id]||'P';
+    return `<tr id="arow-${a.id}">
+      <td style="padding:8px"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
+      ${['P','A','T','J'].map(s=>`<td style="text-align:center;padding:4px">
+        <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button>
+      </td>`).join('')}
+    </tr>`;
+  }).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
   </tbody></table></div></div>
-  <div id="amsg"></div>`;
+  <div id="amsg" style="margin-top:8px"></div>`;
 };
-W.sA=(aid,est)=>{if(!W._ast)return;W._ast.est[aid]=est;['P','A','T','J'].forEach(s=>{const b=document.getElementById(`ao-${aid}-${s}`);if(b)b.className='asopt'+(est===s?' '+s:'');});};
-W.grdAsist=async()=>{
+
+// Funciones globales — no en W.* para que funcionen desde onclick en innerHTML
+function setAsist(aid,est){
+  if(!W._ast)return;
+  W._ast.est[aid]=est;
+  ['P','A','T','J'].forEach(s=>{
+    const b=document.getElementById('ao-'+aid+'-'+s);
+    if(b)b.className='asopt'+(est===s?' '+s:'');
+  });
+}
+async function grdAsist(){
+  if(!W._ast){alert('Cargá una materia primero');return;}
   const {asigId,fecha,est}=W._ast;
   const registros=Object.entries(est).map(([alumno_id,estado])=>({alumno_id,estado}));
-  if(!registros.length)return;
-  await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
-  document.getElementById('amsg').innerHTML='<span class="bx bg" style="margin-top:8px;display:inline-block">✓ Asistencia guardada</span>';
-  setTimeout(()=>{const m=document.getElementById('amsg');if(m)m.innerHTML='';},3000);
-};
+  if(!registros.length){alert('No hay alumnos para guardar');return;}
+  try{
+    await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
+    const msg=document.getElementById('amsg');
+    if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada correctamente</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
+  }catch(e){alert('Error al guardar: '+e.message);}
+}
+async function mResumenAsist(){
+  const asigs=W._asistAsigs||[];
+  const horarios=W._asistHorarios||[];
+  const carrs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()];
+  const hoy=new Date();
+  modal(`<h4>📊 Resumen Detallado de Asistencia</h4>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Carrera</label><select id="rsCarr" onchange="filtRsAsigs()"><option value="">Todas</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+      <div class="f"><label>Turno</label><select id="rsTurno" onchange="filtRsAsigs()"><option value="">Ambos</option><option value="1">T1 (19:00)</option><option value="2">T2 (20:40)</option></select></div>
+    </div>
+    <div class="f"><label>Materia</label><select id="rsAsig"><option value="">— Seleccionar materia —</option>${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°</option>`).join('')}</select></div>
+    <div class="fr">
+      <div class="f"><label>Año / Mes</label><input id="rsAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/></div>
+      <div class="f"><label>Mes</label><select id="rsMes">${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select></div>
+    </div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="generarResumen()">Ver resumen</button></div>`,true);
+}
+function filtRsAsigs(){
+  const carrId=v('rsCarr'),turno=v('rsTurno');
+  const sel=document.getElementById('rsAsig');
+  if(!sel)return;
+  let asigs=W._asistAsigs||[];
+  if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(turno){
+    const hs=new Set((W._asistHorarios||[]).filter(h=>String(h.turno)===turno).map(h=>h.asignacion_id));
+    asigs=asigs.filter(a=>hs.has(a.id));
+  }
+  sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°</option>`).join('');
+}
+async function generarResumen(){
+  const asigId=v('rsAsig'),anio=v('rsAnio'),mes=v('rsMes');
+  if(!asigId)return alert('Seleccionar una materia');
+  try{
+    const r=await api('GET',`/api/asistencia/resumen?asignacion_id=${asigId}&anio=${anio}&mes=${mes}`);
+    const {alumnos,fechas,desde,hasta}=r;
+    const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const estColor={P:'#d4edda',A:'#f8d7da',T:'#fff3cd',J:'#d1ecf1'};
+    // Agrupar fechas por semana
+    const semanas=[];let sem=[];
+    fechas.forEach((f,i)=>{sem.push(f);if(sem.length===5||i===fechas.length-1){semanas.push([...sem]);sem=[];}});
+    let html=`<h4>📊 Resumen — ${meses[parseInt(mes)-1]} ${anio}</h4>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">${desde} → ${hasta} · ${alumnos.length} alumnos</p>`;
+    semanas.forEach((sem,si)=>{
+      html+=`<p style="font-weight:700;font-size:12px;margin:12px 0 6px">Semana ${si+1}</p>
+      <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">
+      <thead><tr style="background:#f5f5f5">
+        <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left;min-width:130px">Alumno</th>
+        ${sem.map(f=>`<th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center;white-space:nowrap">${f.slice(5)}</th>`).join('')}
+        <th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center">P</th>
+        <th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center">A</th>
+      </tr></thead><tbody>
+      ${alumnos.map(al=>{
+        const presM=Object.values(al.dias||{}).filter(e=>e==='P').length;
+        const ausM=Object.values(al.dias||{}).filter(e=>e==='A').length;
+        return `<tr>
+          <td style="padding:5px 8px;border:1px solid var(--bdr)"><strong>${al.apellido||''}</strong>, ${al.nombre||''}</td>
+          ${sem.map(f=>{const e=al.dias?.[f]||'';return `<td style="border:1px solid var(--bdr);text-align:center;background:${estColor[e]||'#fff'};padding:3px">${e||'—'}</td>`;}).join('')}
+          <td style="border:1px solid var(--bdr);text-align:center;background:#d4edda;font-weight:700">${presM}</td>
+          <td style="border:1px solid var(--bdr);text-align:center;background:#f8d7da;font-weight:700">${ausM}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table></div>`;
+    });
+    cm();
+    modal(`${html}<div class="mf"><button class="bn" onclick="cm()">Cerrar</button></div>`,true);
+  }catch(e){alert('Error: '+e.message);}
+}
+async function limpiarCalMayoJul(){
+  if(!confirm('¿Eliminar todos los registros de asistencia del 01 de mayo al 31 de julio de 2026? Esta acción no se puede deshacer.'))return;
+  try{
+    const r=await api('DELETE','/api/asistencia/rango',{desde:'2026-05-01',hasta:'2026-07-31'});
+    alert(`✓ ${r.eliminados} registros eliminados.`);
+  }catch(e){alert('Error: '+e.message);}
+}
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 async function pgPagos(el){
-  const [pgs,als,pers]=await Promise.all([api('GET','/api/pagos'),api('GET','/api/alumnos'),api('GET','/api/periodos')]);
+  const [als,pers,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._pdata={als,pers};
   el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
@@ -1749,11 +1881,56 @@ async function pgPagos(el){
       <label class="bs i" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarPagos(this)"/></label>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Comprobante</th><th></th></tr></thead><tbody>
-  ${pgs.map(p=>`<tr><td><strong>${p.apellido||''}, ${p.nombre||''}</strong></td><td>${p.carrera}</td>
-    <td>${p.concepto}</td><td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
-    <td>${fmtFecha(p.fecha_pago)}</td><td style="font-size:12px">${p.medio_pago||'Efectivo'}</td><td style="font-size:12px">${p.comprobante||'-'}</td>
-    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="8" class="es">Sin pagos registrados</td></tr>'}
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <select id="filtPagoCarr" onchange="filtPagoCursos();cargarPagos()" style="min-width:160px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtPagoCurso" onchange="cargarPagos()" style="min-width:160px">
+      <option value="">Todos los cursos</option>
+      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+    </select>
+  </div>
+  <div id="tblPagos"><div class="es">Cargando pagos...</div></div>`;
+  W._pagosCarrs=carrs; W._pagosCursos=cursos;
+  await cargarPagos();
+}
+function filtPagoCursos(){
+  const carrId=v('filtPagoCarr');
+  const sel=document.getElementById('filtPagoCurso');
+  if(!sel)return;
+  const cursos=(W._pagosCursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
+  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+}
+async function cargarPagos(){
+  const carrId=v('filtPagoCarr')||'';
+  const cursoId=v('filtPagoCurso')||'';
+  let url='/api/pagos?_=1';
+  if(carrId)url+=`&carrera_id=${carrId}`;
+  if(cursoId)url+=`&curso_id=${cursoId}`;
+  const pgs=await api('GET',url).catch(()=>[]);
+  const el=document.getElementById('tblPagos');
+  if(!el)return;
+  const total=pgs.reduce((s,p)=>s+Number(p.monto||0),0);
+  el.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+    <span style="font-size:13px;color:var(--t2)">${pgs.length} registro${pgs.length!==1?'s':''}</span>
+    <span style="font-weight:700;color:var(--green)">Total: Gs. ${total.toLocaleString()}</span>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Alumno</th><th>Carrera</th><th>Curso</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Comprobante</th><th></th>
+  </tr></thead><tbody>
+  ${pgs.map(p=>`<tr>
+    <td><strong>${p.apellido||''}, ${p.nombre||''}</strong><br><span style="font-size:10px;color:var(--t3)">${p.ci||''}</span></td>
+    <td style="font-size:12px">${p.carrera}</td>
+    <td style="font-size:12px">${p.curso_anio?p.curso_anio+'°'+(p.curso_division==='U'?'':p.curso_division):'-'}</td>
+    <td>${p.concepto}</td>
+    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
+    <td>${fmtFecha(p.fecha_pago)}</td>
+    <td style="font-size:12px">${p.medio_pago||'Efectivo'}</td>
+    <td style="font-size:12px">${p.comprobante||'-'}</td>
+    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td>
+  </tr>`).join('')||'<tr><td colspan="9" class="es">Sin pagos registrados</td></tr>'}
   </tbody></table></div></div>`;
 }
 function mPago(){const {als,pers}=W._pdata||{};
@@ -1940,8 +2117,6 @@ async function pgMisNotas(el){
   </tr></thead><tbody>
   ${(notas||[]).map(n=>{
     const est=n.estado||'Pendiente';
-    // Para el alumno: si está bloqueado por mora, mostrar "Restringido" sin revelar la causa
-    // El estado real solo lo ve director y docente
     const estVis=(est==='Pendiente'&&!n.puntaje_total)?'Pendiente':est;
     return `<tr>
       <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
@@ -1955,6 +2130,91 @@ async function pgMisNotas(el){
   }).join('')||'<tr><td colspan="7" class="es">Sin calificaciones registradas</td></tr>'}
   </tbody></table></div></div>
   <p class="tip" style="margin-top:8px">Para consultas sobre el estado de tu inscripción, contactá con administración.</p>`;
+}
+
+// ── MI ASISTENCIA (alumno) ─────────────────────────────────────────────────────
+async function pgMiAsistencia(el){
+  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
+  const registros=await api('GET','/api/asistencia/alumno/'+me.alumnoId).catch(()=>[]);
+  // Agrupar por materia
+  const porAsig={};
+  (registros||[]).forEach(r=>{
+    if(!porAsig[r.asignacion_id])porAsig[r.asignacion_id]={materia:r.materia_nombre||'Materia',dias:{}};
+    porAsig[r.asignacion_id].dias[r.fecha]=r.estado;
+  });
+  el.innerHTML=`<div class="ph"><h3>Mi asistencia</h3></div>
+  ${Object.keys(porAsig).length?Object.entries(porAsig).map(([asigId,data])=>{
+    const dias=Object.entries(data.dias).sort(([a],[b])=>a.localeCompare(b));
+    const p=dias.filter(([,e])=>e==='P').length;
+    const a=dias.filter(([,e])=>e==='A').length;
+    const t=dias.length;
+    const pct=t?Math.round(p/t*100):0;
+    return `<div class="card card-p" style="margin-bottom:12px">
+      <p style="font-weight:700;font-size:14px;margin-bottom:8px">${data.materia}</p>
+      <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
+        <span class="bx bg">✓ ${p} presentes</span>
+        <span class="bx br">✗ ${a} ausentes</span>
+        <span class="bx bgr">${pct}% asistencia</span>
+      </div>
+      <div class="prog-bar" style="margin-bottom:10px"><div class="prog-fill" style="width:${pct}%;background:${pct>=75?'var(--green)':'var(--red)'}"></div></div>
+    </div>`;
+  }).join(''):'<div class="es">Sin registros de asistencia</div>'}`;
+}
+
+// ── MI ESTADO DE CUENTA (alumno) ───────────────────────────────────────────────
+async function pgMiEstadoCuenta(el){
+  if(!me.alumnoId){
+    // Si no hay alumnoId, mostrar búsqueda por CI
+    el.innerHTML=`<div class="ph"><h3>Estado de cuenta</h3></div>
+    <div class="card card-p" style="max-width:420px;margin:0 auto">
+      <p style="font-size:13px;margin-bottom:12px">Consultá tu estado de cuenta ingresando tu C.I.:</p>
+      <div class="fg">
+        <div class="f"><label>N° Cédula de Identidad</label><input id="busci" placeholder="Ej: 1234567" type="number"/></div>
+      </div>
+      <button class="bn" style="width:100%" onclick="buscarEstadoCuenta()">Consultar</button>
+      <div id="resEstCuenta" style="margin-top:12px"></div>
+    </div>`;
+    return;
+  }
+  const r=await api('GET','/api/pagos/alumno/'+me.alumnoId).catch(()=>({pagos:[],totalPagado:0}));
+  const {pagos,totalPagado}=r;
+  el.innerHTML=`<div class="ph"><h3>Mi estado de cuenta</h3></div>
+  <div class="card card-p" style="margin-bottom:12px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:4px">Total pagado en el período</div>
+    <div style="font-size:24px;font-weight:900;color:var(--green)">Gs. ${Number(totalPagado).toLocaleString()}</div>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Estado</th>
+  </tr></thead><tbody>
+  ${(pagos||[]).map(p=>`<tr>
+    <td>${p.concepto}</td>
+    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
+    <td>${fmtFecha(p.fecha_pago)}</td>
+    <td style="font-size:12px">${p.medio_pago||'Efectivo'}</td>
+    <td><span class="bx bg">${p.estado||'Pagado'}</span></td>
+  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin pagos registrados</td></tr>'}
+  </tbody></table></div></div>
+  <p class="tip" style="margin-top:8px">Para realizar pagos o consultas administrativas, acercate a secretaría.</p>`;
+}
+async function buscarEstadoCuenta(){
+  const ci=(v('busci')||'').trim();
+  if(!ci)return alert('Ingresá tu número de cédula');
+  const el=document.getElementById('resEstCuenta');
+  if(el)el.innerHTML='<div class="es">Buscando...</div>';
+  try{
+    const al=await api('GET','/api/alumnos?ci='+ci).catch(()=>null);
+    if(!al||!al.length){if(el)el.innerHTML='<div class="es">No se encontraron datos para esa cédula</div>';return;}
+    const r=await api('GET','/api/pagos/alumno/'+al[0].id);
+    const {pagos,totalPagado}=r;
+    if(el)el.innerHTML=`<div style="margin-top:8px">
+      <p style="font-weight:700">${al[0].display_apellido||al[0].apellido||''}, ${al[0].display_nombre||al[0].nombre||''}</p>
+      <p style="color:var(--t2);font-size:12px">${al[0].carrera_nombre||''}</p>
+      <p style="font-size:20px;font-weight:900;color:var(--green);margin:8px 0">Gs. ${Number(totalPagado).toLocaleString()} pagado</p>
+      ${pagos.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);font-size:13px">
+        <span>${p.concepto}</span><strong>Gs. ${Number(p.monto).toLocaleString()}</strong>
+      </div>`).join('')}
+    </div>`;
+  }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
 }
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────

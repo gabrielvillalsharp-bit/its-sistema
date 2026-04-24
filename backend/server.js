@@ -220,20 +220,26 @@ app.delete('/api/docentes/:uid', auth(ADM), (req, res) => {
 
 // ── ALUMNOS ───────────────────────────────────────────────────────────────────
 app.get('/api/alumnos', auth(), (req, res) => {
-  const { carrera_id, curso_id } = req.query;
-  let where = 'WHERE 1=1'; const params = [];
-  if (carrera_id) { where += ' AND a.carrera_id=?'; params.push(carrera_id); }
-  if (curso_id)   { where += ' AND a.curso_id=?';   params.push(curso_id); }
+  const { ci, carrera_id, curso_id } = req.query;
+  // Alumnos solo pueden buscar por CI (su propio estado de cuenta)
+  if (req.user.rol === 'alumno' && !ci) return res.status(403).json({ error: 'Sin acceso' });
+  let where = "WHERE al.estado='Activo'"; const params = [];
+  if (ci)         { where += ' AND (al.ci LIKE ? OR u.ci LIKE ?)'; params.push('%'+ci+'%','%'+ci+'%'); }
+  if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
+  if (curso_id)   { where += ' AND al.curso_id=?';   params.push(curso_id); }
   res.json(db.prepare(`
-    SELECT a.*,c.nombre as carrera_nombre,c.codigo as carrera_codigo,
-      cu.anio,cu.division,
-      COALESCE(a.nombre,u.nombre) as display_nombre,
-      COALESCE(a.apellido,u.apellido) as display_apellido,
-      COALESCE(a.ci,u.ci) as display_ci, u.email
-    FROM alumnos a JOIN carreras c ON a.carrera_id=c.id
-    LEFT JOIN cursos cu ON a.curso_id=cu.id
-    LEFT JOIN usuarios u ON a.usuario_id=u.id
-    ${where} ORDER BY COALESCE(a.apellido,u.apellido)`).all(...params));
+    SELECT al.*,
+      c.nombre as carrera_nombre, c.codigo as carrera_codigo,
+      cu.anio as curso_anio, cu.division as curso_division,
+      COALESCE(al.nombre,u.nombre) as display_nombre,
+      COALESCE(al.apellido,u.apellido) as display_apellido,
+      COALESCE(al.ci,u.ci) as display_ci,
+      u.email
+    FROM alumnos al
+    JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 500`).all(...params));
 });
 app.post('/api/alumnos', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, password, carrera_id, curso_id, telefono, direccion, fecha_ingreso } = req.body;
@@ -672,19 +678,25 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 app.get('/api/avisos', auth(), (req, res) => {
+  // Filtrar por destinatario según rol
+  const rol = req.user.rol;
+  let whereDestino = '';
+  if (rol === 'alumno') whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos')";
+  else if (rol === 'docente') whereDestino = "AND (av.destinatario='todos' OR av.destinatario='docentes')";
+  // director ve todos
   res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
-    WHERE av.activo=1 ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 50`).all());
+    WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 50`).all());
 });
 app.post('/api/avisos', auth(ADM), (req, res) => {
-  const { titulo, contenido, tipo, fijado } = req.body;
+  const { titulo, contenido, tipo, fijado, destinatario } = req.body;
   const id = 'av_' + Date.now();
-  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,req.user.id);
+  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destinatario||'todos',req.user.id);
   res.json({ id });
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
-  const { titulo, contenido, tipo, fijado, activo } = req.body;
-  db.prepare('UPDATE avisos SET titulo=?,contenido=?,tipo=?,fijado=?,activo=? WHERE id=?').run(titulo,contenido,tipo||'info',fijado?1:0,activo?1:0,req.params.id);
+  const { titulo, contenido, tipo, fijado, activo, destinatario } = req.body;
+  db.prepare('UPDATE avisos SET titulo=?,contenido=?,tipo=?,fijado=?,activo=?,destinatario=? WHERE id=?').run(titulo,contenido,tipo||'info',fijado?1:0,activo?1:0,destinatario||'todos',req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/avisos/:id', auth(ADM), (req, res) => {
@@ -694,11 +706,34 @@ app.delete('/api/avisos/:id', auth(ADM), (req, res) => {
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 app.get('/api/pagos', auth(ADM), (req, res) => {
-  const { alumno_id } = req.query;
-  const where = alumno_id ? 'WHERE p.alumno_id=?' : '';
-  res.json(db.prepare(`SELECT p.*,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,c.nombre as carrera
-    FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN usuarios u ON al.usuario_id=u.id JOIN carreras c ON al.carrera_id=c.id
-    ${where} ORDER BY p.fecha_pago DESC LIMIT 500`).all(...(alumno_id?[alumno_id]:[])));
+  const { alumno_id, carrera_id, curso_id } = req.query;
+  let where = 'WHERE 1=1'; const params = [];
+  if (alumno_id)  { where += ' AND p.alumno_id=?';    params.push(alumno_id); }
+  if (carrera_id) { where += ' AND al.carrera_id=?';  params.push(carrera_id); }
+  if (curso_id)   { where += ' AND al.curso_id=?';    params.push(curso_id); }
+  res.json(db.prepare(`
+    SELECT p.*,
+      COALESCE(al.nombre,u.nombre) as nombre,
+      COALESCE(al.apellido,u.apellido) as apellido,
+      COALESCE(al.ci,u.ci) as ci,
+      c.nombre as carrera,
+      cu.anio as curso_anio,
+      cu.division as curso_division
+    FROM pagos p
+    JOIN alumnos al ON p.alumno_id=al.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id
+    ${where} ORDER BY p.fecha_pago DESC LIMIT 500`).all(...params));
+});
+// Perfil financiero de un alumno (consulta para rol alumno)
+app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
+  const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.alumno_id);
+  // Alumno solo puede ver su propio perfil
+  if (req.user.rol === 'alumno' && al?.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
+  const pagos = db.prepare(`SELECT p.*,c.nombre as carrera FROM pagos p JOIN alumnos al ON p.alumno_id=al.id JOIN carreras c ON al.carrera_id=c.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);
+  const totalPagado = pagos.reduce((s,p)=>s+p.monto,0);
+  res.json({ pagos, totalPagado, alumno: al });
 });
 app.post('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago } = req.body;
@@ -1148,6 +1183,54 @@ app.post('/api/asistencia/generar-2026', auth(ADM), (req, res) => {
     }
   })();
   res.json({ ok: true, generadas: totalGeneradas, desde: '2026-05-01', hasta: '2026-07-31' });
+});
+
+// ── ASISTENCIA POR ALUMNO (para vista personal del alumno) ─────────────────────
+app.get('/api/asistencia/alumno/:alumno_id', auth(), (req, res) => {
+  const al = db.prepare('SELECT id,usuario_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  if (req.user.rol === 'alumno' && al.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
+  res.json(db.prepare(`
+    SELECT a.*, m.nombre as materia_nombre
+    FROM asistencia a
+    JOIN asignaciones asig ON a.asignacion_id=asig.id
+    JOIN materias m ON asig.materia_id=m.id
+    WHERE a.alumno_id=?
+    ORDER BY a.fecha DESC LIMIT 500`).all(req.params.alumno_id));
+});
+// ── RESUMEN MENSUAL DE ASISTENCIA ─────────────────────────────────────────────
+app.get('/api/asistencia/resumen', auth(['director','docente']), (req, res) => {
+  const { asignacion_id, anio, mes } = req.query;
+  if (!asignacion_id || !anio || !mes) return res.status(400).json({ error: 'asignacion_id, anio y mes son requeridos' });
+  const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
+  const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio), parseInt(mes), 0).getDate()}`;
+  const registros = db.prepare(`
+    SELECT a.fecha, a.estado, a.alumno_id,
+      COALESCE(al.nombre, u.nombre) as nombre,
+      COALESCE(al.apellido, u.apellido) as apellido
+    FROM asistencia a
+    JOIN alumnos al ON a.alumno_id=al.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    WHERE a.asignacion_id=? AND a.fecha>=? AND a.fecha<=?
+    ORDER BY COALESCE(al.apellido,u.apellido), a.fecha`).all(asignacion_id, desde, hasta);
+  // Construir estructura: alumno → fecha → estado
+  const alumnos = {};
+  const fechas = new Set();
+  registros.forEach(r => {
+    fechas.add(r.fecha);
+    if (!alumnos[r.alumno_id]) alumnos[r.alumno_id] = { nombre: r.nombre, apellido: r.apellido, dias: {} };
+    alumnos[r.alumno_id].dias[r.fecha] = r.estado;
+  });
+  const fechasArr = [...fechas].sort();
+  res.json({ alumnos: Object.entries(alumnos).map(([id,a])=>({id,...a})), fechas: fechasArr, desde, hasta });
+});
+
+// ── ELIMINAR REGISTROS DE ASISTENCIA POR RANGO ────────────────────────────────
+app.delete('/api/asistencia/rango', auth(ADM), (req, res) => {
+  const { desde, hasta } = req.body;
+  if (!desde || !hasta) return res.status(400).json({ error: 'desde y hasta son requeridos' });
+  const result = db.prepare('DELETE FROM asistencia WHERE fecha>=? AND fecha<=?').run(desde, hasta);
+  res.json({ ok: true, eliminados: result.changes });
 });
 
 // ── ACTIVIDADES DEL CALENDARIO ACADÉMICO ─────────────────────────────────────
