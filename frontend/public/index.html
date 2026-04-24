@@ -153,9 +153,24 @@ tr:hover td{background:#fafafa}
   body{background:#fff}
   .card{border:none;box-shadow:none}
 }
+/* ── TOAST NOTIFICATIONS ───────────────────── */
+#toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:600;min-width:220px;max-width:340px;box-shadow:0 4px 16px rgba(0,0,0,.15);animation:toastIn .25s ease;pointer-events:auto}
+.toast.ok{background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9}
+.toast.err{background:#ffebee;color:#c62828;border:1px solid #ffcdd2}
+.toast.info{background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb}
+.toast.warn{background:#fff3e0;color:#e65100;border:1px solid #ffe0b2}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+/* ── SKELETON LOADER ───────────────────────── */
+.skel{background:linear-gradient(90deg,#f0f0ee 25%,#e6e5e2 50%,#f0f0ee 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;display:inline-block}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* ── FEEDBACK GUARDADO ─────────────────────── */
+.saved-ok{display:inline-block;font-size:10px;color:#2e7d32;font-weight:700;margin-left:4px;animation:fadeInQ .3s ease}
+@keyframes fadeInQ{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 </style>
 </head>
 <body>
+<div id="toast-container"></div>
 
 <div id="lp">
 <div class="lc">
@@ -195,14 +210,55 @@ tr:hover td{background:#fafafa}
 <script>
 const API='';let tok=localStorage.getItem('its_tk3');let me=null;const W=window;
 
+// ── TOAST NOTIFICATIONS ───────────────────────────────────────────────────────
+function toast(msg, tipo='info', duracion=3500){
+  const c=document.getElementById('toast-container');
+  if(!c)return;
+  const icons={ok:'✓',err:'✗',info:'ℹ',warn:'⚠'};
+  const t=document.createElement('div');
+  t.className=`toast ${tipo}`;
+  t.innerHTML=`<span style="font-size:16px">${icons[tipo]||'ℹ'}</span><span style="flex:1">${msg}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:inherit;font-size:16px;padding:0 0 0 4px">×</button>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.style.animation='toastIn .25s ease reverse';setTimeout(()=>t.remove(),220);},duracion);
+}
+
+// ── SKELETON LOADER ───────────────────────────────────────────────────────────
+function skeletonTable(cols=5, rows=6){
+  return `<div class="card"><div style="padding:16px">${Array(rows).fill(0).map(()=>`<div style="display:flex;gap:12px;margin-bottom:10px">${Array(cols).fill(0).map(()=>`<div class="skel" style="height:18px;flex:1"></div>`).join('')}</div>`).join('')}</div></div>`;
+}
+
+// ── FEEDBACK GUARDADO EN NOTAS ────────────────────────────────────────────────
+function showSaved(cellId){
+  const el=document.getElementById(cellId);
+  if(!el)return;
+  const s=document.createElement('span');
+  s.className='saved-ok';s.textContent='✓';
+  el.appendChild(s);
+  setTimeout(()=>s.remove(),2000);
+}
+
 async function api(m,u,b,isFile){
   const o={method:m,headers:{}};
   if(tok)o.headers.Authorization='Bearer '+tok;
   if(b&&!isFile){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b);}
   else if(b)o.body=b;
-  const r=await fetch(API+u,o);
-  if(!r.ok){const e=await r.json().catch(()=>({error:'Error'}));throw new Error(e.error||'Error');}
-  return r.json();
+  try{
+    const r=await fetch(API+u,o);
+    if(r.status===401){
+      // Token expirado o inválido — limpiar sesión y pedir login de nuevo
+      tok=null;localStorage.removeItem('its_tk3');
+      toast('Sesión expirada. Por favor ingresá nuevamente.','warn',5000);
+      setTimeout(()=>{me=null;document.getElementById('app').style.display='none';document.getElementById('lp').style.display='flex';},2000);
+      throw new Error('Sesión expirada');
+    }
+    if(!r.ok){const e=await r.json().catch(()=>({error:'Error del servidor'}));throw new Error(e.error||'Error');}
+    return r.json();
+  }catch(e){
+    if(e.message==='Failed to fetch'||e.message==='NetworkError when attempting to fetch resource.'||e.name==='TypeError'){
+      throw new Error('Error de conexión — verificá que el servidor esté en marcha');
+    }
+    throw e;
+  }
 }
 
 async function doLogin(){
@@ -1420,19 +1476,24 @@ W.loadNotas=async(asigId,_tipo)=>{
   if(!asigId)return;
   const sel=document.getElementById('selAsigNotas');
   if(sel)sel.value=asigId;
-  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
+  // Skeleton mientras carga
   const nc=document.getElementById('nc');
+  if(nc)nc.innerHTML=skeletonTable(8,5);
+  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
   if(!nc){go('notas');setTimeout(()=>W.loadNotas(asigId),600);return;}
   if(!alumnos.length){nc.innerHTML='<div class="es">Sin alumnos en este curso</div>';return;}
   W._nc={};W._asigId=asigId;
 
-  // Verificar habilitación de cada alumno (regla Julio) — solo para roles con edición
+  // Verificar habilitación de TODOS los alumnos en UNA SOLA llamada (evita N+1)
   const habMap={};
   if(me.rol==='director'||me.rol==='docente'){
-    await Promise.all(alumnos.map(async a=>{
-      try{const h=await api('GET','/api/alumnos/'+a.id+'/habilitacion');habMap[a.id]=h;}
-      catch{habMap[a.id]={habilitado:true};}
-    }));
+    try{
+      const ids=alumnos.map(a=>a.id);
+      const bulk=await api('POST','/api/alumnos/habilitaciones-bulk',{alumno_ids:ids});
+      Object.assign(habMap,bulk);
+    }catch{
+      alumnos.forEach(a=>{habMap[a.id]={habilitado:true};});
+    }
   }
 
   alumnos.forEach(a=>{W._nc[a.id]={tp1:a.tp1,tp2:a.tp2,tp3:a.tp3,tp4:a.tp4,tp5:a.tp5,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final_ord:a.final_ord,final_recuperatorio:a.final_recuperatorio,complementario:a.complementario,extraordinario:a.extraordinario};});
@@ -1594,7 +1655,9 @@ W.updN=async(aId,asigId,campo,val)=>{
     if(tot)tot.innerHTML=`<span class="prom-tag ${notaCls(r.nota)}">${r.puntaje??'-'}</span>`;
     if(nf)nf.innerHTML=`<span class="nota-tag ${notaCls(r.nota)}">${r.nota??'-'}</span>`;
     if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}">${r.estado}</span>`;
-  }catch(e){console.error(e);}
+    // Feedback visual ✓ en la celda total
+    if(tot){const s=document.createElement('span');s.className='saved-ok';s.textContent=' ✓';tot.appendChild(s);setTimeout(()=>s.remove(),2000);}
+  }catch(e){toast('Error al guardar nota: '+e.message,'err',5000);}
 };
 
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
@@ -1817,15 +1880,16 @@ function setAsist(aid,est){
   });
 }
 async function grdAsist(){
-  if(!W._ast){alert('Cargá una materia primero');return;}
+  if(!W._ast){toast('Cargá una materia primero','warn');return;}
   const {asigId,fecha,est}=W._ast;
   const registros=Object.entries(est).map(([alumno_id,estado])=>({alumno_id,estado}));
-  if(!registros.length){alert('No hay alumnos para guardar');return;}
+  if(!registros.length){toast('No hay alumnos para guardar','warn');return;}
   try{
     await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
+    toast(`✓ Asistencia guardada — ${registros.length} alumnos`,'ok');
     const msg=document.getElementById('amsg');
-    if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada correctamente</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
-  }catch(e){alert('Error al guardar: '+e.message);}
+    if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
+  }catch(e){toast('Error al guardar: '+e.message,'err',6000);}
 }
 async function mResumenAsist(){
   const asigs=W._asistAsigs||[];
@@ -2591,7 +2655,40 @@ async function pgInst(el){
   <div class="card card-p"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
     ${[['Nombre',d.nombre],['Email',d.email],['Teléfono',d.telefono],['Dirección',d.direccion]].map(([k,vl])=>`<div><div style="font-size:11px;color:var(--t3)">${k}</div><div style="font-size:13px;font-weight:600">${vl||'-'}</div></div>`).join('')}
     <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3)">Misión</div><div style="font-size:13px">${d.mision||'-'}</div></div>
-  </div></div>`;
+  </div></div>
+  <div class="card card-p" style="margin-top:16px">
+    <p style="font-weight:700;font-size:14px;margin-bottom:12px">🔧 Administración del sistema</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="bs i" onclick="descargarBackup()">💾 Descargar backup de base de datos</button>
+      <button class="bs o" onclick="verAuditoria()">📋 Ver registro de auditoría</button>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-top:8px">Se recomienda descargar un backup antes de cada modificación masiva de datos.</p>
+  </div>`;
+}
+function descargarBackup(){
+  const a=document.createElement('a');
+  a.href='/api/admin/backup';
+  a.download='ITS_backup_'+new Date().toISOString().split('T')[0]+'.db';
+  a.click();
+  toast('Descargando backup...','info');
+}
+async function verAuditoria(){
+  try{
+    const logs=await api('GET','/api/admin/auditoria?limite=100');
+    modal(`<h4>📋 Registro de auditoría (últimas 100 acciones)</h4>
+    <div style="overflow-y:auto;max-height:60vh"><table style="width:100%;font-size:11px;border-collapse:collapse">
+      <thead><tr style="background:#f5f5f5"><th style="padding:5px 8px;border:1px solid var(--bdr)">Fecha</th><th style="padding:5px 8px;border:1px solid var(--bdr)">Usuario</th><th style="padding:5px 8px;border:1px solid var(--bdr)">Acción</th><th style="padding:5px 8px;border:1px solid var(--bdr)">Tabla</th><th style="padding:5px 8px;border:1px solid var(--bdr)">Detalle</th></tr></thead>
+      <tbody>${logs.map(l=>`<tr>
+        <td style="padding:4px 8px;border:1px solid var(--bdr);white-space:nowrap">${l.fecha?.split('T').join(' ').split('.')[0]||l.fecha}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${l.user_nombre||''} ${l.user_apellido||''}<br><span style="font-size:9px;color:var(--t3)">${l.rol||''}</span></td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)"><span class="bx ${l.accion==='LOGIN'?'bg':l.accion==='DELETE'?'br':'bb'}">${l.accion}</span></td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${l.tabla}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr);font-size:10px">${l.detalle?JSON.stringify(JSON.parse(l.detalle)).substring(0,60)+'...':''}</td>
+      </tr>`).join('')||'<tr><td colspan="5" class="es">Sin registros</td></tr>'}
+      </tbody>
+    </table></div>
+    <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`,true);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 W.mInst=d=>{modal(`<h4>Editar institución</h4><div class="fg">
   <div class="f"><label>Nombre</label><input id="in" value="${d.nombre||''}"/></div>

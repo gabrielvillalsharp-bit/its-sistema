@@ -200,6 +200,15 @@ function crearTablas() {
       motivo TEXT,
       fecha TEXT DEFAULT (date('now'))
     );
+    CREATE TABLE IF NOT EXISTS auditoria (
+      id TEXT PRIMARY KEY,
+      usuario_id TEXT NOT NULL,
+      accion TEXT NOT NULL,
+      tabla TEXT NOT NULL,
+      registro_id TEXT,
+      detalle TEXT,
+      fecha TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS horarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asignacion_id TEXT REFERENCES asignaciones(id),
@@ -244,6 +253,9 @@ function crearTablas() {
     CREATE INDEX IF NOT EXISTS idx_cursos_carrera ON cursos(carrera_id);
     CREATE INDEX IF NOT EXISTS idx_horarios_asignacion ON horarios(asignacion_id);
     CREATE INDEX IF NOT EXISTS idx_horarios_dia ON horarios(dia);
+    CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
+    CREATE INDEX IF NOT EXISTS idx_auditoria_tabla ON auditoria(tabla);
+    CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha);
   `);
 }
 
@@ -591,6 +603,8 @@ function init() {
   // Alumnos: habilitación especial de pago y bloqueo de notas
   try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
+  // Tabla auditoría para bases existentes
+  try { db.exec(`CREATE TABLE IF NOT EXISTS auditoria (id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL, accion TEXT NOT NULL, tabla TEXT NOT NULL, registro_id TEXT, detalle TEXT, fecha TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   // Crear tablas nuevas si no existen
   try { db.exec(`CREATE TABLE IF NOT EXISTS aranceles (
     id TEXT PRIMARY KEY, concepto TEXT NOT NULL, monto REAL NOT NULL DEFAULT 0,

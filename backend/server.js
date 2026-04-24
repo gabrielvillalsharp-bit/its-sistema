@@ -6,17 +6,50 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const rateLimit = require('express-rate-limit');
 const { db, init, calcularPuntaje } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'its_secret_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'its_secret_2026_cambiar_en_produccion';
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors());
+// ── SEGURIDAD: CORS restringido ───────────────────────────────────────────────
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN
+    ? process.env.ALLOWED_ORIGIN.split(',')
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true
+}));
+
+// ── SEGURIDAD: Rate limiting ──────────────────────────────────────────────────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,
+  message: { error: 'Demasiados intentos de login. Esperá 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 300,
+  message: { error: 'Demasiadas solicitudes. Esperá un momento.' },
+});
+
 app.use(express.json());
+app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
+
+// ── AUDITORÍA ─────────────────────────────────────────────────────────────────
+function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
+  try {
+    db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha) VALUES (?,?,?,?,?,?,datetime("now"))').run(
+      'aud_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+      usuario_id, accion, tabla, registro_id, detalle ? JSON.stringify(detalle) : null
+    );
+  } catch {} // nunca romper la app por un log fallido
+}
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 function auth(roles = []) {
@@ -34,15 +67,17 @@ function auth(roles = []) {
 const ADM = ['director'];
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
   const u = db.prepare('SELECT * FROM usuarios WHERE (email=? OR ci=?) AND activo=1').get(email, email);
   if (!u || !bcrypt.compareSync(password, u.password_hash))
     return res.status(401).json({ error: 'Credenciales incorrectas' });
-  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email }, JWT_SECRET, { expiresIn: '10h' });
+  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email }, JWT_SECRET, { expiresIn: '8h' });
   let docenteId = null, alumnoId = null;
   if (u.rol === 'docente') docenteId = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(u.id)?.id;
   if (u.rol === 'alumno')  alumnoId  = db.prepare('SELECT id FROM alumnos  WHERE usuario_id=?').get(u.id)?.id;
+  audit(u.id, 'LOGIN', 'usuarios', u.id, { email: u.email });
   res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId } });
 });
 
@@ -625,9 +660,9 @@ app.get('/api/examenes', auth(), (req, res) => {
     JOIN materias m ON a.materia_id=m.id
     JOIN cursos cu ON a.curso_id=cu.id
     JOIN carreras ca ON cu.carrera_id=ca.id
-    JOIN docentes d ON a.docente_id=d.id
-    JOIN usuarios u ON d.usuario_id=u.id
-    JOIN periodos p ON e.periodo_id=p.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    LEFT JOIN periodos p ON e.periodo_id=p.id
     ${where} ORDER BY e.fecha,e.hora,ca.nombre`).all(...params));
 });
 
@@ -1325,6 +1360,65 @@ app.put('/api/actividades/:id', auth(ADM), (req, res) => {
 app.delete('/api/actividades/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE actividades SET activo=0 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// ── HABILITACIONES EN BULK (evita N+1 en loadNotas) ──────────────────────────
+app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req, res) => {
+  const { alumno_ids } = req.body;
+  if (!Array.isArray(alumno_ids) || !alumno_ids.length) return res.json({});
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) {
+    const result = {};
+    alumno_ids.forEach(id => { result[id] = { habilitado: true, razon: 'sin_periodo_activo', cuotas_faltantes: [] }; });
+    return res.json(result);
+  }
+  const cuotasRequeridas = ['Cuota 1', 'Cuota 2', 'Cuota 3', 'Cuota 4', 'Cuota 5'];
+  // Una sola query para todos los pagos de todos los alumnos del período
+  const placeholders = alumno_ids.map(() => '?').join(',');
+  const pagos = db.prepare(`SELECT alumno_id, concepto FROM pagos WHERE alumno_id IN (${placeholders}) AND periodo_id=? AND estado='Pagado'`).all(...alumno_ids, periodo.id);
+  const alumnos = db.prepare(`SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id IN (${placeholders})`).all(...alumno_ids);
+  const pagosPorAlumno = {};
+  pagos.forEach(p => {
+    if (!pagosPorAlumno[p.alumno_id]) pagosPorAlumno[p.alumno_id] = [];
+    pagosPorAlumno[p.alumno_id].push(p.concepto);
+  });
+  const result = {};
+  alumnos.forEach(al => {
+    if (al.habilitado_pago_pendiente) {
+      result[al.id] = { habilitado: true, razon: 'habilitacion_especial', cuotas_faltantes: [] };
+      return;
+    }
+    const conceptos = pagosPorAlumno[al.id] || [];
+    const faltantes = cuotasRequeridas.filter(c => !conceptos.some(p => p === c || p.includes(c)));
+    result[al.id] = faltantes.length === 0
+      ? { habilitado: true, razon: 'pago_al_dia', cuotas_faltantes: [] }
+      : { habilitado: false, razon: 'mora_de_pago', cuotas_faltantes: faltantes, alumno: `${al.apellido}, ${al.nombre}` };
+  });
+  res.json(result);
+});
+
+// ── BACKUP DE BASE DE DATOS ───────────────────────────────────────────────────
+app.get('/api/admin/backup', auth(ADM), (req, res) => {
+  const dbPath = db.name || path.join(__dirname, 'its.db');
+  const fecha = new Date().toISOString().split('T')[0];
+  res.setHeader('Content-Disposition', `attachment; filename="ITS_backup_${fecha}.db"`);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  audit(req.user.id, 'BACKUP', 'sistema', 'backup', { fecha });
+  res.sendFile(dbPath);
+});
+
+// ── AUDITORÍA ─────────────────────────────────────────────────────────────────
+app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
+  const { tabla, limite } = req.query;
+  let where = 'WHERE 1=1';
+  const params = [];
+  if (tabla) { where += ' AND a.tabla=?'; params.push(tabla); }
+  const lim = Math.min(parseInt(limite)||100, 500);
+  res.json(db.prepare(`
+    SELECT a.*, u.nombre as user_nombre, u.apellido as user_apellido, u.rol
+    FROM auditoria a
+    LEFT JOIN usuarios u ON a.usuario_id=u.id
+    ${where} ORDER BY a.fecha DESC LIMIT ?`).all(...params, lim));
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
