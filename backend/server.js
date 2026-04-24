@@ -7,7 +7,7 @@ const path = require('path');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
-const { db, init, calcularPuntaje } = require('./db');
+const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1399,8 +1399,8 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
 
 // ── BACKUP DE BASE DE DATOS ───────────────────────────────────────────────────
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
-  const dbPath = db.name || path.join(__dirname, 'its.db');
   const fecha = new Date().toISOString().split('T')[0];
+  const dbPath = DB_PATH || path.join(__dirname, '..', 'data', 'its.db');
   res.setHeader('Content-Disposition', `attachment; filename="ITS_backup_${fecha}.db"`);
   res.setHeader('Content-Type', 'application/octet-stream');
   audit(req.user.id, 'BACKUP', 'sistema', 'backup', { fecha });

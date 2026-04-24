@@ -654,7 +654,7 @@ function init() {
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 
-module.exports = { db, init, calcularPuntaje, seedHorarios };
+module.exports = { db, init, calcularPuntaje, seedHorarios, DB_PATH };
 
 // ── SEED HORARIOS ─────────────────────────────────────────────────────────────
 function seedHorarios() {
