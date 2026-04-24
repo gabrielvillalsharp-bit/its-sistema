@@ -225,7 +225,7 @@ function navFor(r){
     {g:'General',i:[
       {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','docente','alumno']},
       {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
       {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
     {g:'Estructura',i:[
@@ -241,19 +241,18 @@ function navFor(r){
     ]},
     {g:'Académico',i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director']},
-      {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente']},
+      {id:'notas',l:'Notas',c:'#185FA5',r:['director']},
       {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
     ]},
     {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
+      {id:'costos',l:'Aranceles',c:'#1D9E75',r:['director']},
       {id:'deudores',l:'Control Deudores',c:'#E24B4A',r:['director']},
       {id:'becas',l:'Becas y Descuentos',c:'#1D9E75',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
-      {id:'mis-notas',l:'Mis calificaciones',c:'#185FA5',r:['alumno']},
-      {id:'mi-asistencia',l:'Mi asistencia',c:'#1D9E75',r:['alumno']},
-      {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
+      {id:'mis-notas',l:'Mis notas',c:'#185FA5',r:['alumno']},
     ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1D9E75',r:['director','docente','alumno']},
@@ -282,10 +281,9 @@ function go(p){
   const pages={dashboard:pgDash,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,
     periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
-    pagos:pgPagos,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
+    pagos:pgPagos,costos:pgCostos,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,
-    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
-    'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
+    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas};
   pages[p]?.(el);
 }
 
@@ -363,16 +361,14 @@ async function pgDash(el){
 async function pgAvisos(el){
   const avs=await api('GET','/api/avisos');
   const puedeEditar=me.rol==='director';
-  const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos'};
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
   </div>
   ${!avs.length?`<div class="es">No hay avisos activos</div>`:''}
   ${avs.map(a=>`<div class="aviso-card ${a.tipo}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${a.titulo}</span>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
-        ${puedeEditar?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
+      <div style="display:flex;gap:4px">
         <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
         ${puedeEditar?`<button class="bs d" onclick="del('${a.id}','avisos')">✕</button>`:''}
       </div>
@@ -393,19 +389,11 @@ function mAviso(){modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
     </select></div>
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí — fijar</option></select></div>
   </div>
-  <div class="f"><label>👥 Público objetivo</label>
-    <select id="avdest">
-      <option value="todos">Todos (docentes y alumnos)</option>
-      <option value="docentes">Solo docentes</option>
-      <option value="alumnos">Solo alumnos</option>
-    </select>
-    <p style="font-size:11px;color:var(--t2);margin-top:4px">Los avisos "Solo docentes" no serán visibles para los alumnos.</p>
-  </div>
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);}
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
-  await api('POST','/api/avisos',{titulo:t,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1',destinatario:v('avdest')||'todos'});
+  await api('POST','/api/avisos',{titulo:t,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1'});
   cm();go('avisos');
 }
 
@@ -738,7 +726,8 @@ function aRow(a){return `<tr>
   <td>${a.carrera_nombre}</td>
   <td>${a.anio?`<span class="cur-tag">${a.anio}°${a.division&&a.division!=='U'?a.division:''}</span>`:'-'}</td>
   <td><span class="bx ${a.estado==='Activo'?'bg':a.estado==='Egresado'?'bb':'br'}">${a.estado}</span></td>
-  <td><div class="abs"><button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button><button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button></div></td></tr>`;}
+  <td><div class="abs"><button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button>
+      <button class="bs s" onclick="verHabilitacion(\'${a.id}\',\'${(a.display_nombre||a.nombre||'')+' '+(a.display_apellido||a.apellido||'')}\')" title="Habilitación exámenes">Hab.</button><button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button></div></td></tr>`;}
 W.fAl=(t,val)=>{const tb=document.getElementById('altb');if(!tb)return;let l=W._als;if(t==='c'&&val)l=l.filter(a=>a.carrera_id===val);if(t==='cu'&&val)l=l.filter(a=>a.curso_id===val);tb.innerHTML=l.map(aRow).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';};
 function mAl(a){const e=!!a;modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
   <div class="fr"><div class="f"><label>Nombre</label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
@@ -821,118 +810,14 @@ async function pgAsig(el){
   }).join('')||'<tr><td colspan="7" class="es">Sin asignaciones</td></tr>'}
   </tbody></table></div></div>`;
 }
-function mAsig(){
-  const {docs,mats,cursos,pers}=W._adata||{};
-  const carrs=[...new Map((cursos||[]).map(c=>[c.carrera_id,{id:c.carrera_id,nombre:c.carrera_nombre}])).values()];
-  modal(`<h4>Nueva asignación</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Al guardar se creará automáticamente el espacio de notas y el registro en el horario semanal.</p>
-  <div class="fg">
-    <div class="fr" style="align-items:flex-end">
-      <div class="f" style="flex:1"><label>Docente <span style="color:var(--red)">*</span></label>
-        <select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('')}</select></div>
-      <button class="bs i" onclick="toggleNuevoDoc()" style="margin-bottom:0;white-space:nowrap;height:36px">+ Nuevo docente</button>
-    </div>
-    <div id="nuevoDocPanel" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-top:-4px">
-      <p style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:8px">👤 Registrar nuevo docente</p>
-      <div class="fr">
-        <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="nd_nom" placeholder="Nombre"/></div>
-        <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="nd_ape" placeholder="Apellido"/></div>
-      </div>
-      <div class="fr">
-        <div class="f"><label>C.I. <span style="color:var(--red)">*</span></label><input id="nd_ci" placeholder="0.000.000"/></div>
-        <div class="f"><label>Email</label><input id="nd_em" placeholder="nombre@its.edu.py"/></div>
-      </div>
-      <div class="fr">
-        <div class="f"><label>Título</label><input id="nd_tit" placeholder="Lic., Dr., Abg..."/></div>
-        <div class="f"><label>Especialidad</label><input id="nd_esp" placeholder="Área de conocimiento"/></div>
-      </div>
-      <div class="f"><label>Contraseña inicial</label><input id="nd_pw" type="password" value="docente123"/></div>
-      <button class="bn" onclick="crearDocInline()" style="width:100%;margin-top:6px">Crear docente y continuar</button>
-    </div>
-    <div class="fr">
-      <div class="f"><label>Período <span style="color:var(--red)">*</span></label>
-        <select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
-    </div>
-    <div class="fr">
-      <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
-        <select id="asc_carr" onchange="filtCursosAsig()">${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
-      <div class="f"><label>Sección/Curso <span style="color:var(--red)">*</span></label>
-        <select id="asc">${(cursos||[]).map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
-    </div>
-    <div class="f"><label>Materia <span style="color:var(--red)">*</span></label>
-      <select id="asm">${(mats||[]).map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre} ${m.anio}°</option>`).join('')}</select></div>
-    <div style="border-top:1px solid var(--bdr);margin:10px 0;padding-top:10px">
-      <p style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">📅 Horario semanal</p>
-      <div class="fr">
-        <div class="f"><label>Día de clase</label>
-          <select id="asdia"><option value="">Sin asignar</option><option>Lunes</option><option>Martes</option><option>Miércoles</option><option>Jueves</option><option>Viernes</option></select></div>
-        <div class="f"><label>Turno</label>
-          <select id="asturno"><option value="1">1er Turno (19:00–20:20)</option><option value="2">2do Turno (20:40–22:00)</option></select></div>
-      </div>
-      <div class="f"><label>Aula (opcional)</label><input id="asaula" placeholder="Ej: Aula 3"/></div>
-    </div>
-  </div>
-  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAsig()">Guardar y crear espacio de notas</button></div>`);
-}
-function toggleNuevoDoc(){
-  const p=document.getElementById('nuevoDocPanel');
-  if(p)p.style.display=p.style.display==='none'?'block':'none';
-}
-async function crearDocInline(){
-  const o={nombre:v('nd_nom'),apellido:v('nd_ape'),ci:v('nd_ci'),email:v('nd_em'),titulo:v('nd_tit'),especialidad:v('nd_esp'),password:v('nd_pw')||'docente123'};
-  if(!o.nombre||!o.apellido)return alert('Nombre y apellido son obligatorios');
-  if(!o.ci)return alert('La CI es obligatoria para crear el docente');
-  try{
-    const r=await api('POST','/api/docentes',o);
-    // Recargar lista de docentes y actualizar el select
-    const docs=await api('GET','/api/docentes');
-    W._adata.docs=docs;
-    const sel=document.getElementById('asd');
-    if(sel){
-      sel.innerHTML=docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('');
-      // Seleccionar el docente recién creado
-      if(r.docente_id)sel.value=r.docente_id;
-    }
-    // Cerrar panel
-    const p=document.getElementById('nuevoDocPanel');
-    if(p)p.style.display='none';
-    // Feedback
-    const lbl=document.querySelector('label[for="asd"]')||document.getElementById('asd')?.previousElementSibling;
-    const fb=document.createElement('span');
-    fb.style.cssText='color:#2e7d32;font-size:11px;margin-left:8px';
-    fb.textContent=`✓ ${o.nombre} ${o.apellido} creado`;
-    document.getElementById('asd')?.parentNode?.appendChild(fb);
-    setTimeout(()=>fb.remove(),3000);
-  }catch(e){alert('Error al crear docente: '+e.message);}
-}
-function filtCursosAsig(){
-  const carrId=v('asc_carr');
-  const sel=document.getElementById('asc');
-  if(!sel)return;
-  const cursos=(W._adata?.cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
-  sel.innerHTML=cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
-  // Filtrar materias también
-  const selMat=document.getElementById('asm');
-  if(selMat){
-    const carr=(W._adata?.cursos||[]).find(c=>c.carrera_id===carrId);
-    const mats=(W._adata?.mats||[]).filter(m=>!carrId||m.carrera_id===carrId);
-    selMat.innerHTML=mats.map(m=>`<option value="${m.id}">${m.nombre} — ${m.anio}°</option>`).join('');
-  }
-}
-async function svAsig(){
-  const dia=v('asdia'),turno=parseInt(v('asturno'))||1;
-  const horaMap={1:{i:'19:00',f:'20:20'},2:{i:'20:40',f:'22:00'}};
-  const payload={
-    docente_id:v('asd'),materia_id:v('asm'),curso_id:v('asc'),periodo_id:parseInt(v('asp')),
-    dia:dia||null,turno,hora_inicio:horaMap[turno].i,hora_fin:horaMap[turno].f,aula:v('asaula')||null
-  };
-  if(!payload.docente_id||!payload.materia_id||!payload.curso_id)return alert('Docente, materia y curso son obligatorios');
-  try{
-    const r=await api('POST','/api/asignaciones',payload);
-    cm();go('asignaciones');
-    if(dia)setTimeout(()=>alert(`✓ Asignación creada. Espacio de notas generado y registrado en horario semanal (${dia}, Turno ${turno}).`),400);
-  }catch(e){alert(e.message);}
-}
+function mAsig(){const {docs,mats,cursos,pers}=W._adata||{};
+  modal(`<h4>Nueva asignación</h4><div class="fg">
+  <div class="f"><label>Docente</label><select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}</option>`).join('')}</select></div>
+  <div class="f"><label>Materia</label><select id="asm">${(mats||[]).map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre} ${m.anio}° (TP:${m.peso_tp}/P:${m.peso_parcial}/F:${m.peso_final})</option>`).join('')}</select></div>
+  <div class="f"><label>Curso/Grupo</label><select id="asc">${(cursos||[]).map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
+  <div class="f"><label>Período</label><select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAsig()">Guardar</button></div>`);}
+async function svAsig(){try{await api('POST','/api/asignaciones',{docente_id:v('asd'),materia_id:v('asm'),curso_id:v('asc'),periodo_id:parseInt(v('asp'))});cm();go('asignaciones');}catch(e){alert(e.message);}}
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
 async function pgExamenes(el){
@@ -967,7 +852,7 @@ async function importarExamenes(input){
   const fd=new FormData();fd.append('archivo',file);
   input.value='';
   try{
-    const r=await fetch('/api/examenes/importar',{method:'POST',headers:{Authorization:'Bearer '+tok},body:fd});
+    const r=await fetch('/api/examenes/importar',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd});
     const d=await r.json();
     if(d.error)return alert('Error: '+d.error);
     let msg=`✓ ${d.ok} exámenes importados`;
@@ -1065,26 +950,22 @@ W.imprimirActa=async(asigId)=>{
   </div>
   <table>
     <thead><tr>
-      <th>#</th><th>Matrícula</th><th>Apellido y Nombre</th>
-      <th>TP1</th><th>TP2</th><th>TP3</th><th>TP4</th><th>TP5</th><th>Total TPs</th>
-      <th>Parcial</th><th>Recup.P</th><th>P.Ef.</th>
-      <th>Final</th><th>Recup.F</th><th>Compl.</th><th>F.Ef.</th>
-      <th>Extraord.</th><th>Puntaje</th><th>Nota</th><th>Estado</th>
+      <th>#</th><th>Matrícula</th><th>Apellido y Nombre</th><th>TP</th>
+      <th>Parcial</th><th>Recup.</th><th>P.Ef.</th>
+      <th>Final</th><th>F.Extr.</th><th>F.Ef.</th>
+      <th>Puntaje</th><th>Nota</th><th>Estado</th>
     </tr></thead>
     <tbody>${alumnos.map((a,i)=>`<tr>
       <td>${i+1}</td>
       <td>${a.matricula||'-'}</td>
       <td style="text-align:left"><strong>${a.apellido||''}</strong>, ${a.nombre||''}</td>
-      <td>${a.tp1??'-'}</td><td>${a.tp2??'-'}</td><td>${a.tp3??'-'}</td><td>${a.tp4??'-'}</td><td>${a.tp5??'-'}</td>
-      <td><strong>${a.tp_total??'-'}</strong></td>
+      <td>${a.tp??'-'}</td>
       <td>${a.parcial??'-'}</td>
       <td>${a.parcial_recuperatorio??'-'}</td>
       <td>${a.parcial_efectivo??'-'}</td>
-      <td>${a.final_ord??'-'}</td>
-      <td>${a.final_recuperatorio??'-'}</td>
-      <td>${a.complementario??'-'}</td>
+      <td>${a.final??'-'}</td>
+      <td>${a.final_extraordinario??'-'}</td>
       <td>${a.final_efectivo??'-'}</td>
-      <td>${a.extraordinario??'-'}</td>
       <td><strong>${a.puntaje_total??'-'}</strong></td>
       <td><strong>${a.nota_final??'-'}</strong></td>
       <td>${a.estado||'Pendiente'}</td>
@@ -1192,7 +1073,6 @@ function renderHorario(){
 async function pgCalendario(el){
   const hoy=new Date();
   W._calFecha={anio:hoy.getFullYear(),mes:hoy.getMonth()};
-  W._calEl=el;
   await renderCalendario(el);
 }
 async function renderCalendario(el){
@@ -1201,16 +1081,17 @@ async function renderCalendario(el){
   const ultimo=new Date(anio,mes+1,0);
   const hasta=`${anio}-${String(mes+1).padStart(2,'0')}-${String(ultimo.getDate()).padStart(2,'0')}`;
   const filtDoc=me.rol==='docente'&&me.docenteId?'&docente_id='+me.docenteId:'';
-  const [exs,acts]=await Promise.all([
-    api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
-    api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[])
-  ]);
+  const exs=await api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`);
+
+  // Agrupar por fecha
   const porFecha={};
-  exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push({...e,_tipo:'examen'});});
-  (acts||[]).forEach(a=>{if(!porFecha[a.fecha])porFecha[a.fecha]=[];porFecha[a.fecha].push({...a,_tipo:'actividad'});});
+  exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push(e);});
+
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const hoyStr=new Date().toISOString().split('T')[0];
+
+  // Construir grilla del mes
   const primerDia=new Date(anio,mes,1).getDay();
   const totalDias=ultimo.getDate();
   let celdas='';
@@ -1219,65 +1100,48 @@ async function renderCalendario(el){
     const fStr=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=porFecha[fStr]||[];
     const isHoy=fStr===hoyStr;
-    celdas+=`<div class="cal-day${isHoy?' today':''}${evs.length?' has-exam':''}" onclick="verDia('${fStr}')" title="${evs.length?evs.length+' evento(s)':''}${me&&me.rol==='director'?' · Clic para ver/agregar':''}">
+    celdas+=`<div class="cal-day${isHoy?' today':''}${evs.length?' has-exam':''}" onclick="${evs.length?`verDia('${fStr}')`:''}" title="${evs.length?evs.length+' examen(es)':''}">
       <div class="cal-day-num">${d}</div>
-      ${evs.slice(0,2).map(e=>e._tipo==='actividad'
-        ?`<div class="cal-event" style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:1px 4px;margin-bottom:1px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📌 ${(e.titulo||'').substring(0,13)}</div>`
-        :`<div class="cal-event ${e.tipo}">${e.tipo[0]} · ${(e.materia_nombre||'').substring(0,11)}</div>`
-      ).join('')}
+      ${evs.slice(0,2).map(e=>`<div class="cal-event ${e.tipo}">${e.tipo[0]} · ${e.materia_nombre.substring(0,12)}</div>`).join('')}
       ${evs.length>2?`<div style="font-size:9px;color:var(--t3)">+${evs.length-2} más</div>`:''}
     </div>`;
   }
+
   el.innerHTML=`<div class="ph"><h3>Calendario Académico — ${meses[mes]} ${anio}</h3>
     <div class="ph-right">
-      ${me.rol==='director'?`<button class="bs i" onclick="mActividad()">+ Actividad</button>
-      <button class="bn" onclick="go('examenes')">Gestionar exámenes</button>`:''}
+      ${me.rol==='director'?`<button class="bn" onclick="go('examenes')">Gestionar exámenes</button>`:''}
     </div></div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
     <button class="bs" onclick="cambiarMes(-1)">← Anterior</button>
     <strong style="font-size:15px">${meses[mes]} ${anio}</strong>
     <button class="bs" onclick="cambiarMes(1)">Siguiente →</button>
   </div>
-  <div style="display:flex;gap:10px;margin-bottom:10px;font-size:11px;flex-wrap:wrap">
-    <span><span class="cal-event Parcial" style="display:inline-block">P</span> Parcial</span>
-    <span><span class="cal-event Final" style="display:inline-block">F</span> Final</span>
-    <span class="bx bg" style="font-size:10px">📌 Actividad</span>
-  </div>
   <div class="card card-p">
     <div class="cal-grid">${dias.map(d=>`<div class="cal-hdr">${d}</div>`).join('')}${celdas}</div>
+    <div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">
+      <span><span class="cal-event Parcial" style="display:inline-block">P</span> Parcial</span>
+      <span><span class="cal-event Final" style="display:inline-block">F</span> Final</span>
+      <span><span class="cal-event Recuperatorio" style="display:inline-block">R</span> Recuperatorio</span>
+    </div>
   </div>
-  ${(acts||[]).length?`<div class="card" style="margin-top:12px"><div class="card-p">
-    <p style="font-weight:700;margin-bottom:8px;font-size:13px">📌 Actividades de ${meses[mes]}</p>
-    ${(acts||[]).map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
-      <div>
-        <span style="font-weight:600;font-size:13px">${a.titulo}</span>
-        <span style="font-size:11px;color:var(--t2);margin-left:8px">${fmtFecha(a.fecha)}</span>
-        ${a.carrera_nombre?`<span class="cur-tag" style="margin-left:6px">${a.carrera_nombre}</span>`:''}
-        ${a.descripcion?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${a.descripcion}</div>`:''}
-      </div>
-      ${me.rol==='director'?`<div class="abs">
-        <button class="bs d" onclick="delAct('${a.id}')">Eliminar</button>
-      </div>`:''}
-    </div>`).join('')}
-  </div></div>`:''}
   <div id="diaDetalle"></div>`;
-  W._calExs=exs; W._calActs=acts||[];
+
+  W._calExs=exs;W._calEl=el;
 }
-W.cambiarMes=(d)=>{W._calFecha.mes+=d;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl||document.getElementById('mc'));};
-function verDia(fecha){
+W.cambiarMes=(d)=>{W._calFecha.mes+=d;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl);};
+W.verDia=(fecha)=>{
   const exs=(W._calExs||[]).filter(e=>e.fecha===fecha);
-  const acts=(W._calActs||[]).filter(a=>a.fecha===fecha);
   const el=document.getElementById('diaDetalle');
   if(!el)return;
-  let html=`<div class="ph" style="margin-top:16px"><h3 style="font-size:15px">Eventos del ${fmtFecha(fecha)}</h3>
-    ${me.rol==='director'?`<button class="bs i" onclick="mActividadFecha('${fecha}')">+ Actividad</button>`:''}
-  </div>`;
-  acts.forEach(a=>{html+=`<div class="card card-p" style="margin-bottom:8px;border-left:3px solid #4caf50"><p style="font-weight:700">📌 ${a.titulo}</p><p style="font-size:12px;color:var(--t2)">${a.descripcion||''}</p></div>`;});
-  exs.forEach(e=>{
+  el.innerHTML=`<div class="ph" style="margin-top:16px"><h3 style="font-size:15px">Exámenes del ${fmtFecha(fecha)}</h3></div>
+  ${exs.map(e=>{
     const pct=e.total_alumnos?Math.round(e.notas_cargadas/e.total_alumnos*100):0;
-    html+=`<div class="card card-p" style="margin-bottom:12px">
+    return `<div class="card card-p" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-        <div><span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span><strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong></div>
+        <div>
+          <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span>
+          <strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong>
+        </div>
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           <button class="bs o" onclick="imprimirActa('${e.asignacion_id}')">Acta</button>
@@ -1287,52 +1151,15 @@ function verDia(fecha){
         <div><span style="color:var(--t3)">Carrera</span><br><strong>${e.carrera_nombre} ${e.curso_anio}°${e.curso_division==='U'?'':e.curso_division}</strong></div>
         <div><span style="color:var(--t3)">Docente</span><br><strong>${e.docente_nombre} ${e.docente_apellido}</strong></div>
         <div><span style="color:var(--t3)">Hora</span><br><strong>${e.hora||'Sin especificar'}</strong></div>
-        <div><span style="color:var(--t3)">Notas</span><br><strong>${e.notas_cargadas}/${e.total_alumnos} (${pct}%)</strong><div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></div>
+        <div><span style="color:var(--t3)">Notas cargadas</span><br>
+          <strong>${e.notas_cargadas}/${e.total_alumnos} (${pct}%)</strong>
+          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        </div>
       </div>
     </div>`;
-  });
-  if(!exs.length&&!acts.length)html+=`<div class="es">Sin eventos este día${me.rol==='director'?' — podés agregar una actividad':''}</div>`;
-  el.innerHTML=html;
-}
-async function mActividad(act){
-  const isEdit=!!act;
-  const [carrs,mats]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias')]);
-  modal(`<h4>${isEdit?'Editar':'Nueva'} actividad académica</h4><div class="fg">
-    <div class="f"><label>Título <span style="color:var(--red)">*</span></label><input id="actTit" value="${isEdit&&act.titulo?act.titulo:''}" placeholder="Ej: Entrega de trabajos finales"/></div>
-    <div class="fr">
-      <div class="f"><label>Fecha <span style="color:var(--red)">*</span></label><input id="actFec" type="date" value="${isEdit&&act.fecha?act.fecha:new Date().toISOString().split('T')[0]}"/></div>
-      <div class="f"><label>Tipo</label><select id="actTipo">
-        <option value="academico" ${isEdit&&act.tipo==='academico'?'selected':''}>Académico</option>
-        <option value="examen" ${isEdit&&act.tipo==='examen'?'selected':''}>Examen</option>
-        <option value="administrativo" ${isEdit&&act.tipo==='administrativo'?'selected':''}>Administrativo</option>
-        <option value="otros" ${!isEdit||act.tipo==='otros'?'selected':''}>Otros</option>
-      </select></div>
-    </div>
-    <div class="f"><label>Descripción</label><textarea id="actDesc" rows="2" placeholder="Opcional">${isEdit&&act.descripcion?act.descripcion:''}</textarea></div>
-    <div class="fr">
-      <div class="f"><label>Carrera (opcional)</label><select id="actCarr">
-        <option value="">Todas las carreras</option>
-        ${carrs.map(c=>`<option value="${c.id}" ${isEdit&&act.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
-      </select></div>
-      <div class="f"><label>Materia (opcional)</label><select id="actMat">
-        <option value="">Sin materia específica</option>
-        ${mats.map(m=>`<option value="${m.id}" ${isEdit&&act.materia_id===m.id?'selected':''}>${m.nombre}</option>`).join('')}
-      </select></div>
-    </div>
-  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svActividad('${isEdit&&act.id?act.id:''}')">Guardar</button></div>`);
-}
-async function svActividad(id){
-  const o={titulo:v('actTit'),fecha:v('actFec'),tipo:v('actTipo'),descripcion:v('actDesc'),carrera_id:v('actCarr')||null,materia_id:v('actMat')||null};
-  if(!o.titulo||!o.fecha)return alert('Título y fecha son obligatorios');
-  id?await api('PUT','/api/actividades/'+id,o):await api('POST','/api/actividades',o);
-  cm();await renderCalendario(W._calEl||document.getElementById('mc'));
-}
-async function delAct(id){
-  if(!confirm('¿Eliminar esta actividad?'))return;
-  await api('DELETE','/api/actividades/'+id);
-  await renderCalendario(W._calEl||document.getElementById('mc'));
-}
-function mActividadFecha(fecha){mActividad();setTimeout(()=>{const f=document.getElementById('actFec');if(f)f.value=fecha;},100);}
+  }).join('')}`;
+};
+
 // ── NOTAS ─────────────────────────────────────────────────────────────────────
 async function pgNotas(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
@@ -1369,8 +1196,7 @@ function filtNotasAsigs(){
   const sel=document.getElementById('selAsigNotas');
   if(!sel)return;
   let asigs=W._notasAsigs||[];
-  // carrera_id ahora viene directo del backend — filtro simple y confiable
-  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId||(a.carrera_nombre||'').toLowerCase().includes((W._notasCarrs||[]).find(c=>c.id===carrId)?.nombre?.toLowerCase()||''));
   if(cursoId) asigs=asigs.filter(a=>a.curso_id===cursoId);
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
   const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
@@ -1385,29 +1211,16 @@ W.loadNotas=async(asigId,_tipo)=>{
   if(!nc){go('notas');setTimeout(()=>W.loadNotas(asigId),600);return;}
   if(!alumnos.length){nc.innerHTML='<div class="es">Sin alumnos en este curso</div>';return;}
   W._nc={};W._asigId=asigId;
-
-  // Verificar habilitación de cada alumno (regla Julio) — solo para roles con edición
-  const habMap={};
-  if(me.rol==='director'||me.rol==='docente'){
-    await Promise.all(alumnos.map(async a=>{
-      try{const h=await api('GET','/api/alumnos/'+a.id+'/habilitacion');habMap[a.id]=h;}
-      catch{habMap[a.id]={habilitado:true};}
-    }));
-  }
-
   alumnos.forEach(a=>{W._nc[a.id]={tp1:a.tp1,tp2:a.tp2,tp3:a.tp3,tp4:a.tp4,tp5:a.tp5,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final_ord:a.final_ord,final_recuperatorio:a.final_recuperatorio,complementario:a.complementario,extraordinario:a.extraordinario};});
   const aprobados=alumnos.filter(a=>a.nota_estado==='Aprobado').length;
   const reprobados=alumnos.filter(a=>a.nota_estado==='Reprobado').length;
   const pendientes=alumnos.filter(a=>!a.nota_estado||a.nota_estado==='Pendiente').length;
-  const bloqueados=Object.values(habMap).filter(h=>!h.habilitado).length;
-
   nc.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;font-size:12px">
       <span class="bx bg">✓ ${aprobados} aprobados</span>
       <span class="bx br">✗ ${reprobados} reprobados</span>
       <span class="bx bgr">⏳ ${pendientes} pendientes</span>
-      ${bloqueados?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div class="abs">
       <button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>
@@ -1415,7 +1228,6 @@ W.loadNotas=async(asigId,_tipo)=>{
   </div>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial ordinario · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
-    ${me.rol==='director'?'· 🔒 Alumnos con mora de pago están bloqueados — usar "Habilitar" para autorizar excepción.':''}
   </div>
   <div style="overflow-x:auto"><table style="min-width:900px;font-size:12px;border-collapse:collapse;width:100%">
   <thead>
@@ -1429,7 +1241,6 @@ W.loadNotas=async(asigId,_tipo)=>{
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#f3e5f5;color:#4a148c;font-size:11px">TOTAL<br>PUNTOS</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Calif.</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Estado</th>
-      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3f3;color:#c62828;font-size:10px">🔒 Mora</th>
     </tr>
     <tr style="background:#f5f5f5;font-size:11px">
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 1</th>
@@ -1447,28 +1258,8 @@ W.loadNotas=async(asigId,_tipo)=>{
   <tbody>
   ${alumnos.map(a=>{
     const ausente=a.nota_estado==='Ausente';
-    const hab=habMap[a.id];
-    const bloqueado=hab&&!hab.habilitado;
-    const disabled=ausente||bloqueado;
-    // Si está bloqueado, mostrar fila especial
-    if(bloqueado){
-      const cols=11; // número de columnas de notas
-      return `<tr id="nr-${a.id}" style="background:#fff3f3">
-        <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
-          <strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br>
-          <span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span>
-        </td>
-        <td colspan="${cols}" style="border:1px solid var(--bdr);padding:8px 12px;background:#fff3f3;text-align:center">
-          <span style="color:#c62828;font-size:12px;font-weight:600">🔒 Inhabilitado por mora de pago</span>
-          ${me.rol==='director'?`<button onclick="habilitarAlumno('${a.id}','${asigId}')" style="margin-left:12px;font-size:11px;padding:2px 8px;border:1px solid #1976d2;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer">Habilitar con pago pendiente</button>`:''}
-        </td>
-        <td style="border:1px solid var(--bdr);padding:4px 6px;text-align:center"><span class="bx br">Bloqueado</span></td>
-        <td style="border:1px solid var(--bdr)"></td>
-        <td style="border:1px solid var(--bdr)"></td>
-      </tr>`;
-    }
-    const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${ausente?'opacity:0.4':''}">` +
-      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${disabled?'disabled':''}` +
+    const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${ausente?'opacity:0.4':''}">`+
+      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${ausente?'disabled':''}`+
       ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
     return `<tr id="nr-${a.id}" ${ausente?'style="background:#fff8f8"':''}>
       <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
@@ -1480,23 +1271,23 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
       ${ni('parcial',25,a.parcial,'#e3f2fd')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${ausente?'disabled':''}
           onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       ${ni('final_ord',50,a.final_ord,'#fff3e0')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="—" ${ausente?'disabled':''}
           onchange="updN('${a.id}','${asigId}','final_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.final_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fce4ec;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="—" ${ausente?'disabled':''}
           onchange="updN('${a.id}','${asigId}','complementario',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.complementario!=null?'<div style="font-size:9px;color:#880e4f;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#f8e8ff;position:relative">
-        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="—" ${ausente?'disabled':''}
           onchange="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
         ${a.extraordinario!=null?'<div style="font-size:9px;color:#4a148c;position:absolute;bottom:1px;right:2px">RESET</div>':''}
       </td>
@@ -1509,22 +1300,10 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center" id="est-${a.id}">
         <span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':a.nota_estado==='Ausente'?'ba':'bgr'}">${a.nota_estado||'Pendiente'}</span>
       </td>
-      <td style="border:1px solid var(--bdr);text-align:center;background:#fff3f3;padding:4px" id="mora-${a.id}">
-        ${(habMap[a.id]&&!habMap[a.id].habilitado)
-          ? `<span style="color:#c62828;font-size:10px;font-weight:700">🔒</span>${me.rol==='director'?`<br><button onclick="habilitarAlumno('${a.id}','${W._asigId||''}')" style="font-size:9px;padding:1px 4px;border:1px solid #1976d2;border-radius:3px;background:#e3f2fd;color:#1565c0;cursor:pointer;margin-top:2px">Habilitar</button>`:''}`
-          : '<span style="color:#2e7d32;font-size:11px">✓</span>'}
-      </td>
     </tr>`;
   }).join('')}
   </tbody></table></div>`;
 };
-async function habilitarAlumno(alId,asigId){
-  if(!confirm('¿Habilitar a este alumno para cargar notas a pesar de la mora de pago? Esta acción queda registrada.'))return;
-  try{
-    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true});
-    W.loadNotas(asigId);
-  }catch(e){alert('Error: '+e.message);}
-}
 
 W.marcarAusente=async(aId,asigId,ausente)=>{
   try{
@@ -1536,9 +1315,6 @@ W.marcarAusente=async(aId,asigId,ausente)=>{
     W.loadNotas(asigId);
   }catch(e){console.error(e);}
 };
-// Alias global para acceso desde onclick en innerHTML
-function marcarAusente(aId,asigId,ausente){W.marcarAusente(aId,asigId,ausente);}
-function loadAsist(asigId){W.loadAsist(asigId);}
 
 W.updN=async(aId,asigId,campo,val)=>{
   if(!W._nc[aId])W._nc[aId]={};
@@ -1565,70 +1341,61 @@ W.updN=async(aId,asigId,campo,val)=>{
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
 async function pgAsist(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const [asigs,horarios]=await Promise.all([api('GET',url),api('GET','/api/horarios')]);
+  const [asigs,carrs,horarios]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/horarios')]);
   W._asistAsigs=asigs; W._asistHorarios=horarios;
+
+  // Calcular el día de la semana de hoy para mostrar solo las materias del día
+  const hoyDate=new Date();
   const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const diaHoy=diasN[new Date().getDay()];
-  const hoyStr=new Date().toISOString().split('T')[0];
+  const diaHoy=diasN[hoyDate.getDay()];
+  const hoyStr=hoyDate.toISOString().split('T')[0];
+
+  // Para docentes: pre-filtrar solo sus materias del día
   let asigsFiltradas=asigs;
   if(me.rol==='docente'){
     const asigIdsHoy=new Set(horarios.filter(h=>h.dia===diaHoy&&h.asignacion_id).map(h=>h.asignacion_id));
     asigsFiltradas=asigs.filter(a=>asigIdsHoy.has(a.id));
   }
-  // Carreras y años únicos desde asignaciones reales
-  const carrsEnAsigs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
-  const aniosEnAsigs=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
 
   el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
-    ${me.rol==='director'?`<div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="bs o" onclick="mResumenAsist()">📊 Resumen detallado</button>
-      <button class="bs o" onclick="mGenAsist()">📅 Generar calendario</button>
-      <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Calendario 2026</button>
-      <button class="bs d" onclick="limpiarCalMayoJul()" style="font-size:11px">🗑 Limpiar May–Jul</button>
-    </div>`:''}
+    ${me.rol==='director'?`<button class="bs o" onclick="mGenAsist()">📅 Generar calendario automático</button>`:''}
   </div>
   ${me.rol==='docente'?`<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
-    📅 Hoy es <strong>${diaHoy}</strong> — mostrando tus materias de hoy (${asigsFiltradas.length} materia${asigsFiltradas.length!==1?'s':''})
+    📅 Hoy es <strong>${diaHoy}</strong> — mostrando solo las materias que te corresponden hoy
   </div>`:''}
-  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:4px">
-    <select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
+  <div class="fb" style="flex-wrap:wrap;gap:8px">
+    ${me.rol==='director'?`<select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
       <option value="">Todas las carreras</option>
-      ${carrsEnAsigs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>
-    <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:130px">
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>`:''}
+    <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:140px">
       <option value="">Ambos turnos</option>
-      <option value="1">T1 (19:00–20:20)</option>
-      <option value="2">T2 (20:40–22:00)</option>
+      <option value="1">1er Turno (19:00–20:20)</option>
+      <option value="2">2do Turno (20:40–22:00)</option>
     </select>
-    <select id="filtAsistAnio" onchange="filtAsistAsigs()" style="min-width:100px">
-      <option value="">Todos los años</option>
-      ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-    </select>
-    <select id="selAsistAsig" onchange="W.loadAsist(this.value)" style="min-width:240px;flex:1">
+    <select id="selAsistAsig" onchange="loadAsist(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
-        const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
-        return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
+        const turnoLabel=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
+        return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${turnoLabel}</option>`;
       }).join('')}
     </select>
-    <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)W.loadAsist(W._asistId)"/>
+    <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)loadAsist(W._asistId)"/>
   </div>
   <div id="ac"></div>`;
 }
 function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
   const turno=v('filtAsistTurno');
-  const anio=v('filtAsistAnio');
   const sel=document.getElementById('selAsistAsig');
   if(!sel)return;
   let asigs=W._asistAsigs||[];
   const horarios=W._asistHorarios||[];
   if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
-  if(anio)   asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   if(turno){
-    const ids=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
-    asigs=asigs.filter(a=>ids.has(a.id));
+    const asigIdsTurno=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
+    asigs=asigs.filter(a=>asigIdsTurno.has(a.id));
   }
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>{
     const h=horarios.find(x=>x.asignacion_id===a.id);
@@ -1636,44 +1403,6 @@ function filtAsistAsigs(){
     return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
   }).join('');
   const ac=document.getElementById('ac');if(ac)ac.innerHTML='';
-}
-async function verCalSemestral(){
-  const asigs=W._asistAsigs||[];
-  const horarios=W._asistHorarios||[];
-  const meses=[{n:'Mayo',m:'2026-05'},{n:'Junio',m:'2026-06'},{n:'Julio',m:'2026-07'}];
-  const diasSem=['Lunes','Martes','Miércoles','Jueves','Viernes'];
-  const colores={'1':'#e3f2fd','2':'#fff3e0'};
-  let html=`<h4>📊 Calendario Semestral 2026 — Mayo a Julio</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Vista por mes · Carrera · Materia · Docente · Horario</p>`;
-  meses.forEach(({n,m})=>{
-    html+=`<div style="margin-bottom:20px"><p style="font-weight:700;font-size:14px;margin-bottom:8px">📅 ${n} 2026</p>`;
-    html+=`<table style="width:100%;border-collapse:collapse;font-size:11px">
-    <thead><tr style="background:#f0f4f8">
-      <th style="padding:6px 8px;border:1px solid var(--bdr);min-width:90px">Turno</th>
-      ${diasSem.map(d=>`<th style="padding:6px 8px;border:1px solid var(--bdr);text-align:center">${d}</th>`).join('')}
-    </tr></thead><tbody>`;
-    [1,2].forEach(turno=>{
-      const lbl=turno===1?'T1 19:00–20:20':'T2 20:40–22:00';
-      html+=`<tr><td style="border:1px solid var(--bdr);padding:6px 8px;font-weight:700;background:${colores[turno]}">${lbl}</td>`;
-      diasSem.forEach(dia=>{
-        const hs=horarios.filter(h=>h.dia===dia&&h.turno===turno&&h.asignacion_id);
-        const asigsDia=hs.map(h=>asigs.find(a=>a.id===h.asignacion_id)).filter(Boolean);
-        if(!asigsDia.length){html+=`<td style="border:1px solid var(--bdr);padding:4px;background:#fafaf8"><span style="color:var(--t3);font-size:10px">—</span></td>`;return;}
-        html+=`<td style="border:1px solid var(--bdr);padding:4px;vertical-align:top">`;
-        asigsDia.forEach(a=>{
-          html+=`<div style="background:${colores[turno]};border-radius:4px;padding:3px 5px;margin-bottom:2px;font-size:10px">
-            <div style="font-weight:700">${a.materia_nombre}</div>
-            <div style="color:var(--t2)">${a.carrera_nombre} ${a.curso_anio}°</div>
-            <div style="color:#555">${a.docente_nombre} ${a.docente_apellido}</div>
-          </div>`;
-        });
-        html+=`</td>`;
-      });
-      html+=`</tr>`;
-    });
-    html+=`</tbody></table></div>`;
-  });
-  modal(html+'<div class="mf"><button class="bn" onclick="cm()">Cerrar</button></div>',true);
 }
 function mGenAsist(){
   modal(`<h4>📅 Generar calendario de asistencia</h4>
@@ -1694,13 +1423,6 @@ async function ejecutarGenAsist(){
     document.getElementById('genMsg').innerHTML=`<div class="ir ok">✓ ${r.generadas.toLocaleString()} registros pre-generados desde ${fi} hasta ${ff||'fin de año'}</div>`;
   }catch(e){document.getElementById('genMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
 }
-async function genCal2026(){
-  if(!confirm('¿Generar el calendario de asistencia desde el 01 de mayo hasta el 31 de julio de 2026?\n\nEsto creará registros para todos los alumnos activos según el horario cargado.'))return;
-  try{
-    const r=await api('POST','/api/asistencia/generar-2026',{});
-    alert(`✓ Calendario 2026 generado correctamente.\n${r.generadas.toLocaleString()} registros creados (${r.desde} → ${r.hasta})`);
-  }catch(e){alert('Error: '+e.message);}
-}
 
 W.loadAsist=async(asigId)=>{
   if(!asigId)return;
@@ -1709,6 +1431,7 @@ W.loadAsist=async(asigId)=>{
   if(sel)sel.value=asigId;
   const fecha=v('fecAsist')||new Date().toISOString().split('T')[0];
 
+  // Validar que el docente registre solo en el día que le corresponde
   if(me.rol==='docente'){
     const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const diaFecha=diasN[new Date(fecha+'T12:00:00').getDay()];
@@ -1722,215 +1445,67 @@ W.loadAsist=async(asigId)=>{
     }
   }
 
-  const [{alumnos},asist]=await Promise.all([
-    api('GET','/api/notas/asignacion/'+asigId),
-    api('GET','/api/asistencia/asignacion/'+asigId)
-  ]);
+  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId);
+  const asist=await api('GET','/api/asistencia/asignacion/'+asigId);
   const hoy=asist.filter(a=>a.fecha===fecha);
-  const estMap={};
-  hoy.forEach(a=>{estMap[a.alumno_id]=a.estado;});
-  // Estado por defecto: Presente
-  alumnos.forEach(a=>{if(!estMap[a.id])estMap[a.id]='P';});
+  const estMap={};hoy.forEach(a=>{estMap[a.alumno_id]=a.estado;});
   W._ast={asigId,fecha,est:{...estMap}};
+  alumnos.forEach(a=>{if(!W._ast.est[a.id])W._ast.est[a.id]='P';});
 
+  // Info del horario de la materia
   const hor=W._asistHorarios?.find(h=>h.asignacion_id===asigId);
   const horInfo=hor?`${hor.dia} · Turno ${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'';
+
   const ac=document.getElementById('ac');
   if(!ac)return;
-  const presentes=Object.values(estMap).filter(e=>e==='P').length;
-  const ausentes=Object.values(estMap).filter(e=>e==='A').length;
-
+  const presentes=hoy.filter(e=>e.estado==='P').length;
+  const ausentes=hoy.filter(e=>e.estado==='A').length;
   ac.innerHTML=`
   <div style="background:#f0f7ff;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div>
       <span style="font-weight:700;font-size:14px">${fmtFecha(fecha)}</span>
       ${horInfo?`<span style="font-size:12px;color:var(--t2);margin-left:8px">📅 ${horInfo}</span>`:''}
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;align-items:center">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
-      <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
+      <button class="bn" onclick="W.grdAsist()">Guardar</button>
     </div>
   </div>
   <div class="card"><div class="tw"><table><thead>
-    <tr>
-      <th>Alumno</th>
-      <th style="text-align:center;width:90px;background:#d4edda">✓ Presente</th>
-      <th style="text-align:center;width:90px;background:#f8d7da">✗ Ausente</th>
-      <th style="text-align:center;width:90px;background:#fff3cd">⏰ Tardanza</th>
-      <th style="text-align:center;width:90px;background:#d1ecf1">📋 Justificado</th>
-    </tr>
+    <tr><th>Alumno</th><th style="text-align:center;width:80px">Presente</th><th style="text-align:center;width:80px">Ausente</th><th style="text-align:center;width:80px">Tardanza</th><th style="text-align:center;width:80px">Justificado</th></tr>
   </thead><tbody>
-  ${alumnos.map(a=>{
-    const est=estMap[a.id]||'P';
-    return `<tr id="arow-${a.id}">
-      <td style="padding:8px"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
-      ${['P','A','T','J'].map(s=>`<td style="text-align:center;padding:4px">
-        <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button>
-      </td>`).join('')}
-    </tr>`;
-  }).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
+  ${alumnos.map(a=>`<tr>
+    <td><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
+    ${['P','A','T','J'].map(s=>`<td style="text-align:center"><button class="asopt ${estMap[a.id]===s||(!estMap[a.id]&&s==='P')?s:''}" id="ao-${a.id}-${s}" onclick="W.sA('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button></td>`).join('')}
+  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
   </tbody></table></div></div>
-  <div id="amsg" style="margin-top:8px"></div>`;
+  <div id="amsg"></div>`;
 };
-
-// Funciones globales — no en W.* para que funcionen desde onclick en innerHTML
-function setAsist(aid,est){
-  if(!W._ast)return;
-  W._ast.est[aid]=est;
-  ['P','A','T','J'].forEach(s=>{
-    const b=document.getElementById('ao-'+aid+'-'+s);
-    if(b)b.className='asopt'+(est===s?' '+s:'');
-  });
-}
-async function grdAsist(){
-  if(!W._ast){alert('Cargá una materia primero');return;}
+W.sA=(aid,est)=>{if(!W._ast)return;W._ast.est[aid]=est;['P','A','T','J'].forEach(s=>{const b=document.getElementById(`ao-${aid}-${s}`);if(b)b.className='asopt'+(est===s?' '+s:'');});};
+W.grdAsist=async()=>{
   const {asigId,fecha,est}=W._ast;
   const registros=Object.entries(est).map(([alumno_id,estado])=>({alumno_id,estado}));
-  if(!registros.length){alert('No hay alumnos para guardar');return;}
-  try{
-    await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
-    const msg=document.getElementById('amsg');
-    if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada correctamente</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
-  }catch(e){alert('Error al guardar: '+e.message);}
-}
-async function mResumenAsist(){
-  const asigs=W._asistAsigs||[];
-  const horarios=W._asistHorarios||[];
-  const carrs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()];
-  const hoy=new Date();
-  modal(`<h4>📊 Resumen Detallado de Asistencia</h4>
-  <div class="fg">
-    <div class="fr">
-      <div class="f"><label>Carrera</label><select id="rsCarr" onchange="filtRsAsigs()"><option value="">Todas</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
-      <div class="f"><label>Turno</label><select id="rsTurno" onchange="filtRsAsigs()"><option value="">Ambos</option><option value="1">T1 (19:00)</option><option value="2">T2 (20:40)</option></select></div>
-    </div>
-    <div class="f"><label>Materia</label><select id="rsAsig"><option value="">— Seleccionar materia —</option>${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°</option>`).join('')}</select></div>
-    <div class="fr">
-      <div class="f"><label>Año / Mes</label><input id="rsAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/></div>
-      <div class="f"><label>Mes</label><select id="rsMes">${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select></div>
-    </div>
-  </div>
-  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="generarResumen()">Ver resumen</button></div>`,true);
-}
-function filtRsAsigs(){
-  const carrId=v('rsCarr'),turno=v('rsTurno');
-  const sel=document.getElementById('rsAsig');
-  if(!sel)return;
-  let asigs=W._asistAsigs||[];
-  if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
-  if(turno){
-    const hs=new Set((W._asistHorarios||[]).filter(h=>String(h.turno)===turno).map(h=>h.asignacion_id));
-    asigs=asigs.filter(a=>hs.has(a.id));
-  }
-  sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°</option>`).join('');
-}
-async function generarResumen(){
-  const asigId=v('rsAsig'),anio=v('rsAnio'),mes=v('rsMes');
-  if(!asigId)return alert('Seleccionar una materia');
-  try{
-    const r=await api('GET',`/api/asistencia/resumen?asignacion_id=${asigId}&anio=${anio}&mes=${mes}`);
-    const {alumnos,fechas,desde,hasta}=r;
-    const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const estColor={P:'#d4edda',A:'#f8d7da',T:'#fff3cd',J:'#d1ecf1'};
-    // Agrupar fechas por semana
-    const semanas=[];let sem=[];
-    fechas.forEach((f,i)=>{sem.push(f);if(sem.length===5||i===fechas.length-1){semanas.push([...sem]);sem=[];}});
-    let html=`<h4>📊 Resumen — ${meses[parseInt(mes)-1]} ${anio}</h4>
-    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">${desde} → ${hasta} · ${alumnos.length} alumnos</p>`;
-    semanas.forEach((sem,si)=>{
-      html+=`<p style="font-weight:700;font-size:12px;margin:12px 0 6px">Semana ${si+1}</p>
-      <div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">
-      <thead><tr style="background:#f5f5f5">
-        <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left;min-width:130px">Alumno</th>
-        ${sem.map(f=>`<th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center;white-space:nowrap">${f.slice(5)}</th>`).join('')}
-        <th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center">P</th>
-        <th style="padding:5px 6px;border:1px solid var(--bdr);text-align:center">A</th>
-      </tr></thead><tbody>
-      ${alumnos.map(al=>{
-        const presM=Object.values(al.dias||{}).filter(e=>e==='P').length;
-        const ausM=Object.values(al.dias||{}).filter(e=>e==='A').length;
-        return `<tr>
-          <td style="padding:5px 8px;border:1px solid var(--bdr)"><strong>${al.apellido||''}</strong>, ${al.nombre||''}</td>
-          ${sem.map(f=>{const e=al.dias?.[f]||'';return `<td style="border:1px solid var(--bdr);text-align:center;background:${estColor[e]||'#fff'};padding:3px">${e||'—'}</td>`;}).join('')}
-          <td style="border:1px solid var(--bdr);text-align:center;background:#d4edda;font-weight:700">${presM}</td>
-          <td style="border:1px solid var(--bdr);text-align:center;background:#f8d7da;font-weight:700">${ausM}</td>
-        </tr>`;
-      }).join('')}
-      </tbody></table></div>`;
-    });
-    cm();
-    modal(`${html}<div class="mf"><button class="bn" onclick="cm()">Cerrar</button></div>`,true);
-  }catch(e){alert('Error: '+e.message);}
-}
-async function limpiarCalMayoJul(){
-  if(!confirm('¿Eliminar todos los registros de asistencia del 01 de mayo al 31 de julio de 2026? Esta acción no se puede deshacer.'))return;
-  try{
-    const r=await api('DELETE','/api/asistencia/rango',{desde:'2026-05-01',hasta:'2026-07-31'});
-    alert(`✓ ${r.eliminados} registros eliminados.`);
-  }catch(e){alert('Error: '+e.message);}
-}
+  if(!registros.length)return;
+  await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
+  document.getElementById('amsg').innerHTML='<span class="bx bg" style="margin-top:8px;display:inline-block">✓ Asistencia guardada</span>';
+  setTimeout(()=>{const m=document.getElementById('amsg');if(m)m.innerHTML='';},3000);
+};
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 async function pgPagos(el){
-  const [als,pers,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  const [pgs,als,pers]=await Promise.all([api('GET','/api/pagos'),api('GET','/api/alumnos'),api('GET','/api/periodos')]);
   W._pdata={als,pers};
   el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
       <button class="bs s" onclick="exportXls('pagos')">⬇ Excel</button>
-      <label class="bs i" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarPagos(this)"/></label>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
-  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
-    <select id="filtPagoCarr" onchange="filtPagoCursos();cargarPagos()" style="min-width:160px">
-      <option value="">Todas las carreras</option>
-      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>
-    <select id="filtPagoCurso" onchange="cargarPagos()" style="min-width:160px">
-      <option value="">Todos los cursos</option>
-      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
-    </select>
-  </div>
-  <div id="tblPagos"><div class="es">Cargando pagos...</div></div>`;
-  W._pagosCarrs=carrs; W._pagosCursos=cursos;
-  await cargarPagos();
-}
-function filtPagoCursos(){
-  const carrId=v('filtPagoCarr');
-  const sel=document.getElementById('filtPagoCurso');
-  if(!sel)return;
-  const cursos=(W._pagosCursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
-}
-async function cargarPagos(){
-  const carrId=v('filtPagoCarr')||'';
-  const cursoId=v('filtPagoCurso')||'';
-  let url='/api/pagos?_=1';
-  if(carrId)url+=`&carrera_id=${carrId}`;
-  if(cursoId)url+=`&curso_id=${cursoId}`;
-  const pgs=await api('GET',url).catch(()=>[]);
-  const el=document.getElementById('tblPagos');
-  if(!el)return;
-  const total=pgs.reduce((s,p)=>s+Number(p.monto||0),0);
-  el.innerHTML=`
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-    <span style="font-size:13px;color:var(--t2)">${pgs.length} registro${pgs.length!==1?'s':''}</span>
-    <span style="font-weight:700;color:var(--green)">Total: Gs. ${total.toLocaleString()}</span>
-  </div>
-  <div class="card"><div class="tw"><table><thead><tr>
-    <th>Alumno</th><th>Carrera</th><th>Curso</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Comprobante</th><th></th>
-  </tr></thead><tbody>
-  ${pgs.map(p=>`<tr>
-    <td><strong>${p.apellido||''}, ${p.nombre||''}</strong><br><span style="font-size:10px;color:var(--t3)">${p.ci||''}</span></td>
-    <td style="font-size:12px">${p.carrera}</td>
-    <td style="font-size:12px">${p.curso_anio?p.curso_anio+'°'+(p.curso_division==='U'?'':p.curso_division):'-'}</td>
-    <td>${p.concepto}</td>
-    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
-    <td>${fmtFecha(p.fecha_pago)}</td>
-    <td style="font-size:12px">${p.medio_pago||'Efectivo'}</td>
-    <td style="font-size:12px">${p.comprobante||'-'}</td>
-    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td>
-  </tr>`).join('')||'<tr><td colspan="9" class="es">Sin pagos registrados</td></tr>'}
+  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Comprobante</th><th></th></tr></thead><tbody>
+  ${pgs.map(p=>`<tr><td><strong>${p.apellido||''}, ${p.nombre||''}</strong></td><td>${p.carrera}</td>
+    <td>${p.concepto}</td><td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
+    <td>${fmtFecha(p.fecha_pago)}</td><td style="font-size:12px">${p.medio_pago||'Efectivo'}</td><td style="font-size:12px">${p.comprobante||'-'}</td>
+    <td><button class="bs d" onclick="del('${p.id}','pagos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="8" class="es">Sin pagos registrados</td></tr>'}
   </tbody></table></div></div>`;
 }
 function mPago(){const {als,pers}=W._pdata||{};
@@ -1964,51 +1539,6 @@ async function svPago(){
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   await api('POST','/api/pagos',o);cm();go('pagos');
 }
-async function importarPagos(input){
-  const file=input.files[0];if(!file)return;
-  input.value='';
-  const fd=new FormData();fd.append('archivo',file);
-  try{
-    const r=await api('POST','/api/pagos/importar',fd,true);
-    let msg=`✓ ${r.ok} pagos importados`;
-    if(r.errores?.length)msg+=`\n⚠ ${r.errores.length} errores: ${r.errores.slice(0,3).join(', ')}`;
-    if(r.conflictos?.length){
-      // Mostrar conflictos uno a uno
-      W._conflictosPago=r.conflictos;
-      W._conflictoIdx=0;
-      W._conflictosOk=r.ok;
-      procesarConflictoPago();
-    } else {
-      alert(msg);go('pagos');
-    }
-  }catch(e){alert('Error: '+e.message);}
-}
-function procesarConflictoPago(){
-  const c=W._conflictosPago[W._conflictoIdx];
-  if(!c){alert(`✓ Importación completa. ${W._conflictosOk} pagos procesados.`);go('pagos');return;}
-  modal(`<h4>⚠ Conflicto de pago detectado</h4>
-  <p style="margin-bottom:12px;font-size:13px">Se encontró una coincidencia para:</p>
-  <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;margin-bottom:14px">
-    <p style="font-weight:700">${c.nombre}</p>
-    <p style="font-size:13px;color:var(--t2)">CI: ${c.ci} · Carrera: ${c.carrera}</p>
-    <p style="font-size:13px;color:var(--t2)">Concepto: ${c.concepto} · Monto: Gs. ${Number(c.monto).toLocaleString()} · Fecha: ${c.fecha}</p>
-  </div>
-  <p style="font-size:13px">¿Desea reemplazar los datos actuales de este pago?</p>
-  <div class="mf">
-    <button class="bs" onclick="saltarConflicto()">Omitir</button>
-    <button class="bn" onclick="confirmarReemplazo('${c.pago_id}','${c.concepto}',${c.monto},'${c.fecha}')">Reemplazar</button>
-  </div>`);
-}
-async function confirmarReemplazo(pagoId,concepto,monto,fecha){
-  try{
-    await api('PUT','/api/pagos/'+pagoId+'/reemplazar',{concepto,monto,fecha_pago:fecha,medio_pago:'Transferencia'});
-    W._conflictosOk++;
-  }catch(e){console.error(e);}
-  cm();
-  W._conflictoIdx++;
-  procesarConflictoPago();
-}
-function saltarConflicto(){cm();W._conflictoIdx++;procesarConflictoPago();}
 
 // ── DEUDORES ──────────────────────────────────────────────────────────────────
 async function pgDeudores(el){
@@ -2107,114 +1637,23 @@ async function pgMisMat(el){
 
 // ── MIS NOTAS ALUMNO ──────────────────────────────────────────────────────────
 async function pgMisNotas(el){
-  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
+  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos</div>';return;}
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
   el.innerHTML=`<div class="ph"><h3>Mis calificaciones</h3></div>
-  <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
-    <th>Materia</th><th style="text-align:center">TPs</th><th style="text-align:center">Parcial</th>
-    <th style="text-align:center">Final</th><th style="text-align:center">Total</th>
-    <th style="text-align:center">Nota</th><th style="text-align:center">Estado</th>
-  </tr></thead><tbody>
-  ${(notas||[]).map(n=>{
-    const est=n.estado||'Pendiente';
-    const estVis=(est==='Pendiente'&&!n.puntaje_total)?'Pendiente':est;
-    return `<tr>
-      <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
-      <td style="text-align:center">${n.tp_total??'—'}</td>
-      <td style="text-align:center">${n.parcial_efectivo??n.parcial??'—'}</td>
-      <td style="text-align:center">${n.final_efectivo??n.final_ord??'—'}</td>
-      <td style="text-align:center"><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
-      <td style="text-align:center"><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
-      <td style="text-align:center"><span class="bx ${estVis==='Aprobado'?'bg':estVis==='Reprobado'?'br':'bgr'}">${estVis}</span></td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" class="es">Sin calificaciones registradas</td></tr>'}
+  <div class="card"><div class="tw"><table><thead><tr><th>Materia</th><th>TP</th><th>Parcial</th><th>Recup.</th><th>Final</th><th>F.Extr.</th><th>Total</th><th>Nota</th><th>Estado</th></tr></thead><tbody>
+  ${notas.map?notas.map(n=>`<tr>
+    <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
+    <td style="text-align:center">${n.tp??'—'}</td>
+    <td style="text-align:center">${n.parcial??'—'}</td>
+    <td style="text-align:center">${n.parcial_recuperatorio!=null?`<strong>${n.parcial_recuperatorio}</strong>`:'—'}</td>
+    <td style="text-align:center">${n.final??'—'}</td>
+    <td style="text-align:center">${n.final_extraordinario!=null?`<strong>${n.final_extraordinario}</strong>`:'—'}</td>
+    <td style="text-align:center"><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
+    <td style="text-align:center"><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
+    <td><span class="bx ${n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr'}">${n.estado||'Pendiente'}</span></td>
+  </tr>`).join(''):''}
   </tbody></table></div></div>
-  <p class="tip" style="margin-top:8px">Para consultas sobre el estado de tu inscripción, contactá con administración.</p>`;
-}
-
-// ── MI ASISTENCIA (alumno) ─────────────────────────────────────────────────────
-async function pgMiAsistencia(el){
-  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
-  const registros=await api('GET','/api/asistencia/alumno/'+me.alumnoId).catch(()=>[]);
-  // Agrupar por materia
-  const porAsig={};
-  (registros||[]).forEach(r=>{
-    if(!porAsig[r.asignacion_id])porAsig[r.asignacion_id]={materia:r.materia_nombre||'Materia',dias:{}};
-    porAsig[r.asignacion_id].dias[r.fecha]=r.estado;
-  });
-  el.innerHTML=`<div class="ph"><h3>Mi asistencia</h3></div>
-  ${Object.keys(porAsig).length?Object.entries(porAsig).map(([asigId,data])=>{
-    const dias=Object.entries(data.dias).sort(([a],[b])=>a.localeCompare(b));
-    const p=dias.filter(([,e])=>e==='P').length;
-    const a=dias.filter(([,e])=>e==='A').length;
-    const t=dias.length;
-    const pct=t?Math.round(p/t*100):0;
-    return `<div class="card card-p" style="margin-bottom:12px">
-      <p style="font-weight:700;font-size:14px;margin-bottom:8px">${data.materia}</p>
-      <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
-        <span class="bx bg">✓ ${p} presentes</span>
-        <span class="bx br">✗ ${a} ausentes</span>
-        <span class="bx bgr">${pct}% asistencia</span>
-      </div>
-      <div class="prog-bar" style="margin-bottom:10px"><div class="prog-fill" style="width:${pct}%;background:${pct>=75?'var(--green)':'var(--red)'}"></div></div>
-    </div>`;
-  }).join(''):'<div class="es">Sin registros de asistencia</div>'}`;
-}
-
-// ── MI ESTADO DE CUENTA (alumno) ───────────────────────────────────────────────
-async function pgMiEstadoCuenta(el){
-  if(!me.alumnoId){
-    // Si no hay alumnoId, mostrar búsqueda por CI
-    el.innerHTML=`<div class="ph"><h3>Estado de cuenta</h3></div>
-    <div class="card card-p" style="max-width:420px;margin:0 auto">
-      <p style="font-size:13px;margin-bottom:12px">Consultá tu estado de cuenta ingresando tu C.I.:</p>
-      <div class="fg">
-        <div class="f"><label>N° Cédula de Identidad</label><input id="busci" placeholder="Ej: 1234567" type="number"/></div>
-      </div>
-      <button class="bn" style="width:100%" onclick="buscarEstadoCuenta()">Consultar</button>
-      <div id="resEstCuenta" style="margin-top:12px"></div>
-    </div>`;
-    return;
-  }
-  const r=await api('GET','/api/pagos/alumno/'+me.alumnoId).catch(()=>({pagos:[],totalPagado:0}));
-  const {pagos,totalPagado}=r;
-  el.innerHTML=`<div class="ph"><h3>Mi estado de cuenta</h3></div>
-  <div class="card card-p" style="margin-bottom:12px">
-    <div style="font-size:13px;font-weight:700;margin-bottom:4px">Total pagado en el período</div>
-    <div style="font-size:24px;font-weight:900;color:var(--green)">Gs. ${Number(totalPagado).toLocaleString()}</div>
-  </div>
-  <div class="card"><div class="tw"><table><thead><tr>
-    <th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Estado</th>
-  </tr></thead><tbody>
-  ${(pagos||[]).map(p=>`<tr>
-    <td>${p.concepto}</td>
-    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
-    <td>${fmtFecha(p.fecha_pago)}</td>
-    <td style="font-size:12px">${p.medio_pago||'Efectivo'}</td>
-    <td><span class="bx bg">${p.estado||'Pagado'}</span></td>
-  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin pagos registrados</td></tr>'}
-  </tbody></table></div></div>
-  <p class="tip" style="margin-top:8px">Para realizar pagos o consultas administrativas, acercate a secretaría.</p>`;
-}
-async function buscarEstadoCuenta(){
-  const ci=(v('busci')||'').trim();
-  if(!ci)return alert('Ingresá tu número de cédula');
-  const el=document.getElementById('resEstCuenta');
-  if(el)el.innerHTML='<div class="es">Buscando...</div>';
-  try{
-    const al=await api('GET','/api/alumnos?ci='+ci).catch(()=>null);
-    if(!al||!al.length){if(el)el.innerHTML='<div class="es">No se encontraron datos para esa cédula</div>';return;}
-    const r=await api('GET','/api/pagos/alumno/'+al[0].id);
-    const {pagos,totalPagado}=r;
-    if(el)el.innerHTML=`<div style="margin-top:8px">
-      <p style="font-weight:700">${al[0].display_apellido||al[0].apellido||''}, ${al[0].display_nombre||al[0].nombre||''}</p>
-      <p style="color:var(--t2);font-size:12px">${al[0].carrera_nombre||''}</p>
-      <p style="font-size:20px;font-weight:900;color:var(--green);margin:8px 0">Gs. ${Number(totalPagado).toLocaleString()} pagado</p>
-      ${pagos.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);font-size:13px">
-        <span>${p.concepto}</span><strong>Gs. ${Number(p.monto).toLocaleString()}</strong>
-      </div>`).join('')}
-    </div>`;
-  }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+  <p class="tip" style="margin-top:8px">Recuperatorio y Final Extraordinario en negrita reemplazaron la nota original.</p>`;
 }
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
