@@ -168,6 +168,7 @@ function crearTablas() {
       tipo TEXT NOT NULL DEFAULT 'info' CHECK(tipo IN ('info','urgente','examen','administrativo')),
       fijado INTEGER NOT NULL DEFAULT 0,
       activo INTEGER NOT NULL DEFAULT 1,
+      destinatario TEXT NOT NULL DEFAULT 'todos' CHECK(destinatario IN ('todos','docentes','alumnos')),
       usuario_id TEXT NOT NULL REFERENCES usuarios(id),
       fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -179,25 +180,25 @@ function crearTablas() {
       fecha_inicio TEXT NOT NULL, fecha_fin TEXT,
       activa INTEGER NOT NULL DEFAULT 1
     );
-
-    CREATE TABLE IF NOT EXISTS costos (
+    CREATE TABLE IF NOT EXISTS aranceles (
       id TEXT PRIMARY KEY,
       concepto TEXT NOT NULL,
       monto REAL NOT NULL DEFAULT 0,
+      tipo TEXT NOT NULL DEFAULT 'cuota' CHECK(tipo IN ('matricula','cuota','parcial','final','extraordinario','certificado','otro')),
+      carrera_id TEXT REFERENCES carreras(id),
       descripcion TEXT,
-      activo INTEGER DEFAULT 1
+      activo INTEGER NOT NULL DEFAULT 1,
+      fecha_actualizacion TEXT DEFAULT (date('now'))
     );
     CREATE TABLE IF NOT EXISTS habilitaciones_examen (
       id TEXT PRIMARY KEY,
       alumno_id TEXT NOT NULL REFERENCES alumnos(id),
-      tipo_examen TEXT NOT NULL,
-      periodo_id INTEGER REFERENCES periodos(id),
-      habilitado INTEGER DEFAULT 0,
-      pago_pendiente INTEGER DEFAULT 0,
-      habilitado_por TEXT,
-      fecha_habilitacion TEXT,
-      observacion TEXT,
-      UNIQUE(alumno_id, tipo_examen, periodo_id)
+      tipo_examen TEXT NOT NULL CHECK(tipo_examen IN ('parcial','final','extraordinario')),
+      asignacion_id TEXT REFERENCES asignaciones(id),
+      habilitado INTEGER NOT NULL DEFAULT 0,
+      habilitado_por TEXT REFERENCES usuarios(id),
+      motivo TEXT,
+      fecha TEXT DEFAULT (date('now'))
     );
     CREATE TABLE IF NOT EXISTS horarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,6 +209,41 @@ function crearTablas() {
       hora_fin TEXT NOT NULL DEFAULT '20:20',
       aula TEXT
     );
+    CREATE TABLE IF NOT EXISTS actividades (
+      id TEXT PRIMARY KEY,
+      titulo TEXT NOT NULL,
+      descripcion TEXT,
+      fecha TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'otros' CHECK(tipo IN ('examen','academico','administrativo','otros')),
+      carrera_id TEXT REFERENCES carreras(id),
+      materia_id TEXT REFERENCES materias(id),
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id),
+      activo INTEGER NOT NULL DEFAULT 1,
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Índices para consultas frecuentes
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_alumnos_carrera ON alumnos(carrera_id);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_curso ON alumnos(curso_id);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_estado ON alumnos(estado);
+    CREATE INDEX IF NOT EXISTS idx_notas_alumno ON notas(alumno_id);
+    CREATE INDEX IF NOT EXISTS idx_notas_asignacion ON notas(asignacion_id);
+    CREATE INDEX IF NOT EXISTS idx_asistencia_asignacion ON asistencia(asignacion_id);
+    CREATE INDEX IF NOT EXISTS idx_asistencia_alumno ON asistencia(alumno_id);
+    CREATE INDEX IF NOT EXISTS idx_asistencia_fecha ON asistencia(fecha);
+    CREATE INDEX IF NOT EXISTS idx_asignaciones_docente ON asignaciones(docente_id);
+    CREATE INDEX IF NOT EXISTS idx_asignaciones_curso ON asignaciones(curso_id);
+    CREATE INDEX IF NOT EXISTS idx_asignaciones_periodo ON asignaciones(periodo_id);
+    CREATE INDEX IF NOT EXISTS idx_pagos_alumno ON pagos(alumno_id);
+    CREATE INDEX IF NOT EXISTS idx_pagos_periodo ON pagos(periodo_id);
+    CREATE INDEX IF NOT EXISTS idx_examenes_fecha ON examenes(fecha);
+    CREATE INDEX IF NOT EXISTS idx_examenes_periodo ON examenes(periodo_id);
+    CREATE INDEX IF NOT EXISTS idx_materias_carrera ON materias(carrera_id);
+    CREATE INDEX IF NOT EXISTS idx_cursos_carrera ON cursos(carrera_id);
+    CREATE INDEX IF NOT EXISTS idx_horarios_asignacion ON horarios(asignacion_id);
+    CREATE INDEX IF NOT EXISTS idx_horarios_dia ON horarios(dia);
   `);
 }
 
@@ -238,17 +274,6 @@ function seedDatos() {
   if (!db.prepare("SELECT id FROM usuarios WHERE email='director@its.edu.py'").get()) {
     db.prepare('INSERT INTO usuarios (id,nombre,apellido,email,password_hash,rol) VALUES (?,?,?,?,?,?)')
       .run('u_director', 'Director', 'Sistema', 'director@its.edu.py', bcrypt.hashSync('director123', 10), 'director');
-    // Seed costos por defecto
-    if (!db.prepare('SELECT id FROM costos LIMIT 1').get()) {
-      const insK = db.prepare('INSERT INTO costos (id,concepto,monto,descripcion) VALUES (?,?,?,?)');
-      insK.run('k1','Matrícula',150000,'Matrícula anual');
-      insK.run('k2','Cuota Mensual',80000,'Cuota mensual');
-      insK.run('k3','Examen Parcial Ordinario',50000,'Pago para rendir parcial');
-      insK.run('k4','Examen Parcial Recuperatorio',60000,'Recuperatorio de parcial');
-      insK.run('k5','Examen Final Ordinario',70000,'Examen final ordinario');
-      insK.run('k6','Examen Final Complementario',80000,'Examen final complementario');
-      insK.run('k7','Examen Final Extraordinario',100000,'Examen extraordinario');
-    }
   }
 
   // Período lectivo 2025
@@ -543,10 +568,12 @@ function seedDatos() {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
   crearTablas();
-  // Migraciones para bases de datos existentes
+  // ── MIGRACIONES NO DESTRUCTIVAS ──────────────────────────────────────────────
+  // Pagos
   try { db.prepare("ALTER TABLE pagos ADD COLUMN medio_pago TEXT DEFAULT 'Efectivo'").run(); } catch {}
+  // Usuarios
   try { db.prepare("ALTER TABLE usuarios ADD COLUMN ci_raw TEXT").run(); } catch {}
-  // Permitir rol 'estudiante' — recrear check si es necesario
+  // Horarios (para bases antiguas que no tienen la tabla)
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS horarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -556,10 +583,58 @@ function init() {
       hora_fin TEXT NOT NULL DEFAULT '20:20', aula TEXT
     )`);
   } catch {}
+  // Notas: columnas nuevas
   const colsNotas = ['tp1','tp2','tp3','tp4','tp5','tp_total','final_ord','final_recuperatorio','complementario','extraordinario','ausente'];
   colsNotas.forEach(col => {
     try { db.prepare(`ALTER TABLE notas ADD COLUMN ${col} ${col==='ausente'?'INTEGER DEFAULT 0':'REAL'}`).run(); } catch {}
   });
+  // Alumnos: habilitación especial de pago y bloqueo de notas
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
+  try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
+  // Crear tablas nuevas si no existen
+  try { db.exec(`CREATE TABLE IF NOT EXISTS aranceles (
+    id TEXT PRIMARY KEY, concepto TEXT NOT NULL, monto REAL NOT NULL DEFAULT 0,
+    tipo TEXT NOT NULL DEFAULT 'cuota', carrera_id TEXT, descripcion TEXT, activo INTEGER DEFAULT 1,
+    fecha_actualizacion TEXT DEFAULT (date('now')))`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS habilitaciones_examen (
+    id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo_examen TEXT NOT NULL,
+    asignacion_id TEXT, habilitado INTEGER DEFAULT 0, habilitado_por TEXT, motivo TEXT, fecha TEXT DEFAULT (date('now')))`); } catch {}
+  // Seed aranceles por defecto si está vacío
+  if (db.prepare('SELECT COUNT(*) as n FROM aranceles').get().n === 0) {
+    const ins = db.prepare('INSERT INTO aranceles (id,concepto,tipo,monto) VALUES (?,?,?,?)');
+    [['ar1','Matrícula','matricula',500000],['ar2','Cuota mensual','cuota',350000],
+     ['ar3','Examen Parcial Ordinario','parcial',150000],['ar4','Examen Parcial Recuperatorio','parcial',150000],
+     ['ar5','Examen Final Ordinario','final',200000],['ar6','Examen Final Recuperatorio (Complementario)','final',200000],
+     ['ar7','Examen Extraordinario','extraordinario',300000],['ar8','Certificado de estudios','certificado',100000]
+    ].forEach(([id,concepto,tipo,monto])=>ins.run(id,concepto,tipo,monto));
+  }
+  // Tabla actividades para calendario académico
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS actividades (
+      id TEXT PRIMARY KEY, titulo TEXT NOT NULL, descripcion TEXT,
+      fecha TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'otros',
+      carrera_id TEXT, materia_id TEXT, usuario_id TEXT NOT NULL,
+      activo INTEGER NOT NULL DEFAULT 1,
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+  } catch {}
+  // Asignaciones: horario embebido (día y turno para el horario semanal)
+  try { db.prepare("ALTER TABLE asignaciones ADD COLUMN dia TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE asignaciones ADD COLUMN turno INTEGER DEFAULT 1").run(); } catch {}
+  try { db.prepare("ALTER TABLE asignaciones ADD COLUMN hora_inicio TEXT DEFAULT '19:00'").run(); } catch {}
+  try { db.prepare("ALTER TABLE asignaciones ADD COLUMN hora_fin TEXT DEFAULT '20:20'").run(); } catch {}
+  try { db.prepare("ALTER TABLE asignaciones ADD COLUMN aula TEXT").run(); } catch {}
+  // Tabla de conflictos de horario (para avisos automáticos)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS conflictos_horario (
+      id TEXT PRIMARY KEY,
+      tipo TEXT NOT NULL,
+      descripcion TEXT NOT NULL,
+      asignacion_id TEXT,
+      resuelto INTEGER DEFAULT 0,
+      fecha_deteccion TEXT DEFAULT (date('now'))
+    )`);
+  } catch {}
   seedDatos();
   seedHorarios();
   console.log('✓ Base de datos lista en:', DB_PATH);
