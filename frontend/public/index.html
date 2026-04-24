@@ -489,18 +489,17 @@ async function svCurso(){await api('POST','/api/cursos',{carrera_id:v('cuc'),ani
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 async function pgMaterias(el){
-  const [mats,carrs]=await Promise.all([api('GET','/api/materias'),api('GET','/api/carreras')]);W._mats=mats;W._carrs=carrs;
+  const [mats,carrs,cursos]=await Promise.all([api('GET','/api/materias'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  W._mats=mats;W._carrs=carrs;
+  const anios=[...new Set(mats.map(m=>m.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva</button></div>
-  <div class="fb"><select onchange="filtM(this.value)"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px">
+    <select id="filtMCarr" onchange="filtM()"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+    <select id="filtMAnio" onchange="filtM()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
+  </div>
   <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Hs/sem</th><th>Pesos TP/Parc/Final</th><th></th></tr></thead>
   <tbody id="mtb">${mats.map(mRow).join('')}</tbody></table></div></div>`;
 }
-function mRow(m){return `<tr>
-  <td><span class="bx ba">${m.codigo||'-'}</span></td><td><strong>${m.nombre}</strong></td>
-  <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales}h</td>
-  <td><span class="tip">${m.peso_tp}% / ${m.peso_parcial}% / ${m.peso_final}%</span></td>
-  <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td></tr>`;}
-W.filtM=cid=>{const tb=document.getElementById('mtb');if(!tb)return;const l=cid?W._mats.filter(m=>m.carrera_id===cid):W._mats;tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';};
 function mMateria(m){const e=!!m;modal(`<h4>${e?'Editar':'Nueva'} materia</h4><div class="fg">
   <div class="fr"><div class="f"><label>Nombre</label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
   <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="Ej: ENF-101"/></div></div>
@@ -759,6 +758,36 @@ function fAlAll(){
   tb.innerHTML=l.map(aRow).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';
 }
 function fAl(t,val){if(t==='c'){const el=document.getElementById('filtAlCarr');if(el)el.value=val;}if(t==='cu'){const el=document.getElementById('filtAlCurso');if(el)el.value=val;}fAlAll();}
+// Función aRow DEBE ser global — usada en als.map(aRow)
+function aRow(a){return `<tr>
+  <td><span class="bx bp2">${a.matricula||'-'}</span></td>
+  <td><strong>${a.display_apellido||a.apellido||''}, ${a.display_nombre||a.nombre||''}</strong></td>
+  <td style="font-size:12px">${a.display_ci||a.ci||'-'}</td>
+  <td>${a.carrera_nombre||'-'}</td>
+  <td>${a.curso_anio?`<span class="cur-tag">${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?a.curso_division:''}</span>`:'-'}</td>
+  <td><span class="bx ${a.estado==='Activo'?'bg':a.estado==='Egresado'?'bb':'br'}">${a.estado}</span></td>
+  <td><div class="abs">
+    <button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button>
+    <button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button>
+  </div></td>
+</tr>`;}
+// Función mRow para materias — también debe ser global
+function mRow(m){return `<tr>
+  <td><span class="bx ba">${m.codigo||'-'}</span></td><td><strong>${m.nombre}</strong></td>
+  <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales||'-'}h</td>
+  <td><span class="tip">${m.peso_tp||25}% / ${m.peso_parcial||25}% / ${m.peso_final||50}%</span></td>
+  <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td>
+</tr>`;}
+// Función filtM global
+function filtM(){
+  const carr=v('filtMCarr'), anio=v('filtMAnio'), turno=v('filtMTurno');
+  const tb=document.getElementById('mtb');if(!tb)return;
+  let l=W._mats||[];
+  if(carr) l=l.filter(m=>m.carrera_id===carr);
+  if(anio) l=l.filter(m=>String(m.anio)===anio);
+  // turno viene de asignaciones, no de materias directamente — filtrar por materias que tienen asignaciones con ese turno
+  tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';
+}
 function mAl(a){const e=!!a;modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
   <div class="fr"><div class="f"><label>Nombre</label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
   <div class="f"><label>Apellido</label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div></div>
@@ -955,64 +984,59 @@ async function svAsig(){
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
 async function pgExamenes(el){
-  const [exs,pers,carrs]=await Promise.all([api('GET','/api/examenes'),api('GET','/api/periodos'),api('GET','/api/carreras')]);
-  W._exData={pers,carrs};
-  const periodoActivo=pers.find(p=>p.activo);
+  const [exs,pers,carrs,cursos]=await Promise.all([api('GET','/api/examenes'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  W._exData={pers,carrs,cursos}; W._exs=exs;
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      <button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla Excel</button>
-      <label class="bs" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>
+      <button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla</button>
+      <label class="bs" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>
       <button class="bn" onclick="mExamen()">+ Programar examen</button>
     </div></div>
-  <div class="fb">
-    <select onchange="filtEx('tipo',this.value)"><option value="">Todos los tipos</option><option>Parcial</option><option>Final</option><option>Recuperatorio</option><option>Extraordinario</option></select>
-    <select onchange="filtEx('carr',this.value)"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+    <select id="filtExGrupo" onchange="filtExAll()" style="min-width:150px">
+      <option value="">Todos los tipos</option>
+      <optgroup label="Parciales"><option value="Parcial">Parcial Ordinario</option><option value="Recuperatorio">Parcial Recuperatorio</option></optgroup>
+      <optgroup label="Finales"><option value="Final">Final Ordinario</option><option value="Complementario">Final Complementario</option><option value="Extraordinario">Final Extraordinario</option></optgroup>
+    </select>
+    <select id="filtExCarr" onchange="filtExCursos();filtExAll()" style="min-width:150px">
+      <option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtExAnio" onchange="filtExAll()" style="min-width:110px">
+      <option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="filtExCurso" onchange="filtExAll()" style="min-width:150px">
+      <option value="">Todos los cursos</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+    </select>
+    <select id="filtExTurno" onchange="filtExAll()" style="min-width:130px">
+      <option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option>
+    </select>
   </div>
   <div class="card"><div class="tw"><table><thead><tr>
     <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Materia</th><th>Carrera / Curso</th><th>Docente</th><th>Aula</th><th>Alumnos</th><th>Notas</th><th></th>
   </tr></thead><tbody id="extb">
   ${exs.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin exámenes programados</td></tr>'}
   </tbody></table></div></div>`;
-  W._exs=exs;
 }
-async function descargarPlantillaExamenes(){
-  const asigs=await api('GET','/api/asignaciones');
-  const a=document.createElement('a');
-  a.href='/api/examenes/plantilla';a.download='plantilla_examenes.xlsx';a.click();
+function filtExCursos(){
+  const carrId=v('filtExCarr');
+  const sel=document.getElementById('filtExCurso');if(!sel)return;
+  const cursos=(W._exData?.cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
+  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
-async function importarExamenes(input){
-  const file=input.files[0];if(!file)return;
-  const fd=new FormData();fd.append('archivo',file);
-  input.value='';
-  try{
-    const r=await fetch('/api/examenes/importar',{method:'POST',headers:{Authorization:'Bearer '+tok},body:fd});
-    const d=await r.json();
-    if(d.error)return alert('Error: '+d.error);
-    let msg=`✓ ${d.ok} exámenes importados`;
-    if(d.errores?.length)msg+=`\n\n⚠ ${d.errores.length} errores:\n${d.errores.slice(0,5).join('\n')}`;
-    alert(msg);go('examenes');
-  }catch(e){alert('Error al importar: '+e.message);}
+function filtExAll(){
+  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno');
+  const tb=document.getElementById('extb');if(!tb)return;
+  let l=W._exs||[];
+  if(tipo)l=l.filter(e=>e.tipo===tipo);
+  if(carrId)l=l.filter(e=>!e.carrera_id||e.carrera_id===carrId);
+  if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
+  if(cursoId)l=l.filter(e=>e.curso_id===cursoId);
+  if(turno){const cs=new Set((W._exData?.cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(e=>cs.has(e.curso_id));}
+  tb.innerHTML=l.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin resultados</td></tr>';
 }
-function exRow(e){
-  const pct=e.total_alumnos?Math.round(e.notas_cargadas/e.total_alumnos*100):0;
-  return `<tr>
-    <td><strong>${fmtFecha(e.fecha)}</strong></td>
-    <td>${e.hora||'-'}</td>
-    <td><span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':e.tipo==='Recuperatorio'?'ba':'bgr'}">${e.tipo}</span></td>
-    <td>${e.materia_nombre}</td>
-    <td><span class="cur-tag">${e.carrera_nombre} ${e.curso_anio}°${e.curso_division==='U'?'':e.curso_division}</span></td>
-    <td>${e.docente_nombre} ${e.docente_apellido}</td>
-    <td>${e.aula||'-'}</td>
-    <td style="text-align:center">${e.total_alumnos}</td>
-    <td><div style="font-size:11px">${e.notas_cargadas}/${e.total_alumnos}</div><div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></td>
-    <td><div class="abs">
-      <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
-      <button class="bs o" onclick="imprimirActa('${e.asignacion_id}')">Acta</button>
-      <button class="bs d" onclick="del('${e.id}','examenes')">Eliminar</button>
-    </div></td></tr>`;
-}
-W.filtEx=(tipo,val)=>{const tb=document.getElementById('extb');if(!tb)return;let l=W._exs||[];if(tipo==='tipo'&&val)l=l.filter(e=>e.tipo===val);if(tipo==='carr'&&val)l=l.filter(e=>e.carrera_id===val||e.carrera_nombre===val);tb.innerHTML=l.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin resultados</td></tr>';};
+function filtEx(t,val){filtExAll();}
 
 async function mExamen(){
   const asigs=await api('GET','/api/asignaciones');
@@ -1357,19 +1381,29 @@ async function pgNotas(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
   const [asigs,carrs,cursos]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Registro de notas</h3></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
-    <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
+    <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:170px">
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>
-    <select id="filtNotaCurso" onchange="filtNotasAsigs()" style="min-width:160px">
+    <select id="filtNotaAnio" onchange="filtNotasAsigs()" style="min-width:110px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="filtNotaCurso" onchange="filtNotasAsigs()" style="min-width:150px">
       <option value="">Todos los cursos</option>
       ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
+    <select id="filtNotaTurno" onchange="filtNotasAsigs()" style="min-width:130px">
+      <option value="">Todos los turnos</option>
+      <option value="1">Turno 1 (19:00)</option>
+      <option value="2">Turno 2 (20:40)</option>
+    </select>
     <select id="selAsigNotas" onchange="W.loadNotas(this.value)" style="min-width:220px;flex:1">
       <option value="">— Seleccionar materia —</option>
-      ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} · ${a.periodo_nombre}</option>`).join('')}
+      ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
     </select>
   </div>
   <div id="nc"></div>`;
@@ -1383,14 +1417,18 @@ function filtNotasCursos(){
   filtNotasAsigs();
 }
 function filtNotasAsigs(){
-  const carrId=v('filtNotaCarr');
-  const cursoId=v('filtNotaCurso');
+  const carrId=v('filtNotaCarr'), cursoId=v('filtNotaCurso');
+  const anio=v('filtNotaAnio'), turno=v('filtNotaTurno');
   const sel=document.getElementById('selAsigNotas');
   if(!sel)return;
   let asigs=W._notasAsigs||[];
-  // carrera_id ahora viene directo del backend — filtro simple y confiable
   if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(cursoId) asigs=asigs.filter(a=>a.curso_id===cursoId);
+  if(anio) asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(turno){
+    const cs=new Set((W._notasCursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));
+    asigs=asigs.filter(a=>cs.has(a.curso_id));
+  }
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
   const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
 }
@@ -1603,7 +1641,7 @@ async function pgAsist(el){
       <button class="bs o" onclick="mResumenAsist()">📊 Resumen detallado</button>
       <button class="bs o" onclick="mGenAsist()">📅 Generar calendario</button>
       <button class="bs i" onclick="genCal2026()" style="background:#e8f5e9;color:#2e7d32;border-color:#c8e6c9">📅 Calendario 2026</button>
-      <button class="bs d" onclick="limpiarCalMayoJul()" style="font-size:11px">🗑 Limpiar May–Jul</button>
+      <button class="bs" onclick="mGenMes()" style="background:#e3f2fd;color:#1565c0;border-color:#bbdefb">📅 Generar por mes</button>
     </div>`:''}
   </div>
   ${me.rol==='docente'?`<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
@@ -1768,6 +1806,7 @@ W.loadAsist=async(asigId)=>{
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
+      <button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
@@ -1900,12 +1939,60 @@ async function generarResumen(){
     modal(`${html}<div class="mf"><button class="bn" onclick="cm()">Cerrar</button></div>`,true);
   }catch(e){alert('Error: '+e.message);}
 }
-async function limpiarCalMayoJul(){
-  if(!confirm('¿Eliminar todos los registros de asistencia del 01 de mayo al 31 de julio de 2026? Esta acción no se puede deshacer.'))return;
+function mGenMes(){
+  const hoy=new Date();
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const asigs=W._asistAsigs||[];
+  const carrs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()];
+  modal(`<h4>📅 Generar asistencia por mes</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Genera los registros de asistencia para un mes completo (Lun–Vie) según el horario cargado.</p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Año</label><input id="gmAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/></div>
+      <div class="f"><label>Mes</label><select id="gmMes">${meses.map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select></div>
+    </div>
+    <div class="f"><label>Carrera (opcional — dejar vacío para todas)</label>
+      <select id="gmCarr"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+  </div>
+  <div id="gmMsg"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="ejecutarGenMes()">Generar</button></div>`);
+}
+async function ejecutarGenMes(){
+  const anio=v('gmAnio'), mes=v('gmMes');
+  if(!anio||!mes)return alert('Ingresar año y mes');
+  const desde=`${anio}-${String(mes).padStart(2,'0')}-01`;
+  const fin=new Date(parseInt(anio),parseInt(mes),0);
+  const hasta=`${anio}-${String(mes).padStart(2,'0')}-${String(fin.getDate()).padStart(2,'0')}`;
+  document.getElementById('gmMsg').innerHTML='<div class="ir" style="background:#f0f7ff">Generando...</div>';
   try{
-    const r=await api('DELETE','/api/asistencia/rango',{desde:'2026-05-01',hasta:'2026-07-31'});
-    alert(`✓ ${r.eliminados} registros eliminados.`);
-  }catch(e){alert('Error: '+e.message);}
+    const r=await api('POST','/api/asistencia/generar',{fecha_inicio:desde,fecha_fin:hasta});
+    document.getElementById('gmMsg').innerHTML=`<div class="ir ok">✓ ${r.generadas.toLocaleString()} registros creados (${desde} → ${hasta})</div>`;
+  }catch(e){document.getElementById('gmMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
+}
+async function verAsistMes(){
+  // Vista rápida de asistencia del mes actual por materia seleccionada
+  if(!W._asistId){alert('Seleccioná una materia primero');return;}
+  const hoy=new Date();
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  modal(`<h4>📊 Ver asistencia por mes</h4>
+  <div class="fg"><div class="fr">
+    <div class="f"><label>Año</label><input id="vamAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/></div>
+    <div class="f"><label>Mes</label><select id="vamMes">${meses.map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select></div>
+  </div></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="verAsistMesGen()">Ver</button></div>`);
+}
+async function verAsistMesGen(){
+  const anio=v('vamAnio'),mes=v('vamMes');
+  cm();
+  // Reutilizar mResumenAsist con la materia actual
+  W._rsPreAsig=W._asistId;
+  await mResumenAsist();
+  setTimeout(()=>{
+    const selAsig=document.getElementById('rsAsig');
+    if(selAsig&&W._rsPreAsig){selAsig.value=W._rsPreAsig;}
+    const selAnio=document.getElementById('rsAnio');if(selAnio)selAnio.value=anio;
+    const selMes=document.getElementById('rsMes');if(selMes)selMes.value=mes;
+  },150);
 }
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────

@@ -609,8 +609,10 @@ app.get('/api/examenes', auth(), (req, res) => {
   res.json(db.prepare(`
     SELECT e.*,
       m.nombre as materia_nombre,m.codigo as materia_codigo,
+      ca.id as carrera_id,
       ca.nombre as carrera_nombre,
-      cu.anio as curso_anio,cu.division as curso_division,
+      cu.id as curso_id,
+      cu.anio as curso_anio,cu.division as curso_division,cu.turno as curso_turno,
       u.nombre as docente_nombre,u.apellido as docente_apellido,
       p.nombre as periodo_nombre,
       a.id as asignacion_id,
