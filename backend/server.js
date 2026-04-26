@@ -321,7 +321,12 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
   res.json({ id: aid, matricula });
 });
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
-  const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id } = req.body;
+  const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id, usuario_id } = req.body;
+  if (usuario_id !== undefined) {
+    // Solo actualizar el usuario_id (vinculación)
+    db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(usuario_id, req.params.id);
+    return res.json({ ok: true });
+  }
   db.prepare('UPDATE alumnos SET nombre=?,apellido=?,ci=?,telefono=?,direccion=?,estado=?,carrera_id=?,curso_id=? WHERE id=?').run(nombre,apellido,ci,telefono,direccion,estado,carrera_id,curso_id||null,req.params.id);
   res.json({ ok: true });
 });
@@ -675,12 +680,254 @@ app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
 });
 app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
   const { asignacion_id, fecha, registros } = req.body;
+  if (!asignacion_id || !fecha || !registros?.length) return res.status(400).json({ error: 'Datos incompletos' });
+
+  // Verificar feriado
+  const feriado = db.prepare("SELECT id FROM feriados WHERE fecha=? AND activo=1").get(fecha);
+  if (feriado) return res.status(400).json({ error: 'No se puede registrar asistencia en un día feriado' });
+
+  // Verificar que el docente solo registre en sus propias materias (o sea director)
+  const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(asignacion_id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    if (!doc || doc.id !== asig.docente_id) {
+      return res.status(403).json({ error: 'Solo podés registrar asistencia en tus propias materias. Usá la función de Reemplazo si estás supliendo a un colega.' });
+    }
+  }
+
   db.transaction(() => {
     registros.forEach(r => {
-      db.prepare('INSERT OR REPLACE INTO asistencia (id,alumno_id,asignacion_id,fecha,estado,observacion) VALUES (?,?,?,?,?,?)').run('as_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),r.alumno_id,asignacion_id,fecha,r.estado,r.observacion||null);
+      db.prepare('INSERT OR REPLACE INTO asistencia (id,alumno_id,asignacion_id,fecha,estado,observacion) VALUES (?,?,?,?,?,?)')
+        .run('as_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), r.alumno_id, asignacion_id, fecha, r.estado, r.observacion||null);
     });
+
+    // ── GENERAR HONORARIO AUTOMÁTICAMENTE ────────────────────────────────────
+    // Solo se genera si hay al menos 1 alumno presente
+    const hayPresentes = registros.some(r => r.estado === 'P');
+    if (hayPresentes && asig.docente_id) {
+      const turno = asig.turno || 1;
+      const horId = 'hon_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+      // Evitar duplicado para el mismo docente/asignación/fecha
+      const existe = db.prepare("SELECT id FROM honorarios WHERE docente_id=? AND asignacion_id=? AND fecha=? AND tipo='clase'").get(asig.docente_id, asignacion_id, fecha);
+      if (!existe) {
+        db.prepare('INSERT INTO honorarios (id,docente_id,asignacion_id,fecha,turno,monto,estado,tipo) VALUES (?,?,?,?,?,?,?,?)')
+          .run(horId, asig.docente_id, asignacion_id, fecha, turno, 80000, 'generado', 'clase');
+      }
+    }
   })();
   res.json({ ok: true });
+});
+
+// ── HONORARIOS: endpoints ──────────────────────────────────────────────────────
+app.get('/api/honorarios', auth(['director','docente']), (req, res) => {
+  const { docente_id, mes, anio, estado } = req.query;
+  // Docente solo ve los suyos
+  let dId = docente_id;
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    dId = doc?.id;
+    if (!dId) return res.json([]);
+  }
+  let where = 'WHERE 1=1'; const params = [];
+  if (dId)    { where += ' AND h.docente_id=?';  params.push(dId); }
+  if (estado) { where += ' AND h.estado=?';       params.push(estado); }
+  if (anio && mes) {
+    const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
+    const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
+    where += ' AND h.fecha>=? AND h.fecha<=?'; params.push(desde, hasta);
+  } else if (anio) {
+    where += ' AND strftime("%Y",h.fecha)=?'; params.push(String(anio));
+  }
+  res.json(db.prepare(`
+    SELECT h.*,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division,
+      a.turno as asig_turno, a.hora_inicio, a.hora_fin
+    FROM honorarios h
+    JOIN docentes d ON h.docente_id=d.id
+    JOIN usuarios u ON d.usuario_id=u.id
+    LEFT JOIN asignaciones a ON h.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    ${where} ORDER BY h.fecha DESC, h.turno`).all(...params));
+});
+
+app.put('/api/honorarios/:id', auth(ADM), (req, res) => {
+  const { estado, observacion } = req.body;
+  db.prepare('UPDATE honorarios SET estado=?,observacion=? WHERE id=?').run(estado, observacion||null, req.params.id);
+  res.json({ ok: true });
+});
+
+// ── REEMPLAZOS ────────────────────────────────────────────────────────────────
+app.get('/api/reemplazos', auth(['director','docente']), (req, res) => {
+  const { estado } = req.query;
+  let dId = null;
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    dId = doc?.id;
+  }
+  let where = 'WHERE 1=1'; const params = [];
+  if (dId) { where += ' AND (r.docente_titular_id=? OR r.docente_reemplazante_id=?)'; params.push(dId,dId); }
+  if (estado) { where += ' AND r.estado=?'; params.push(estado); }
+  res.json(db.prepare(`
+    SELECT r.*,
+      ut.nombre as titular_nombre, ut.apellido as titular_apellido,
+      ur.nombre as reemplazante_nombre, ur.apellido as reemplazante_apellido,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, a.turno as asig_turno,
+      ub.nombre as registrado_nombre, ub.apellido as registrado_apellido
+    FROM reemplazos r
+    JOIN docentes dt ON r.docente_titular_id=dt.id JOIN usuarios ut ON dt.usuario_id=ut.id
+    JOIN docentes dr ON r.docente_reemplazante_id=dr.id JOIN usuarios ur ON dr.usuario_id=ur.id
+    JOIN asignaciones a ON r.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN usuarios ub ON r.registrado_por=ub.id
+    ${where} ORDER BY r.fecha DESC`).all(...params));
+});
+
+app.post('/api/reemplazos', auth(['director','docente']), (req, res) => {
+  const { asignacion_id, docente_reemplazante_id, fecha, motivo } = req.body;
+  if (!asignacion_id || !docente_reemplazante_id || !fecha) return res.status(400).json({ error: 'Datos incompletos' });
+  const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(asignacion_id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  // Verificar que quien registra es el director o el titular
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    if (!doc || doc.id !== asig.docente_id) return res.status(403).json({ error: 'Solo el titular o el director pueden registrar un reemplazo' });
+  }
+  // El reemplazante no puede ser el mismo titular
+  if (docente_reemplazante_id === asig.docente_id) return res.status(400).json({ error: 'El reemplazante no puede ser el mismo docente titular' });
+  const id = 'rep_'+Date.now();
+  db.prepare('INSERT INTO reemplazos (id,asignacion_id,docente_titular_id,docente_reemplazante_id,fecha,turno,motivo,estado,registrado_por) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(id, asignacion_id, asig.docente_id, docente_reemplazante_id, fecha, asig.turno||1, motivo||null, 'pendiente', req.user.id);
+  // Notificar mediante aviso automático
+  try {
+    const docReemplazante = db.prepare('SELECT u.nombre,u.apellido FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(docente_reemplazante_id);
+    const mat = db.prepare('SELECT m.nombre FROM materias m JOIN asignaciones a ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
+    db.prepare("INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)").run(
+      'av_rep_'+Date.now(),
+      '🔄 Reemplazo pendiente de aprobación',
+      `Se registró un reemplazo para la fecha ${fecha}. Reemplazante: ${docReemplazante?.nombre||''} ${docReemplazante?.apellido||''}. Materia: ${mat?.nombre||''}. Pendiente de aprobación del Director.`,
+      'urgente', 1, 'docentes', req.user.id
+    );
+  } catch {}
+  res.json({ id, estado: 'pendiente' });
+});
+
+app.put('/api/reemplazos/:id/aprobar', auth(ADM), (req, res) => {
+  const rep = db.prepare('SELECT * FROM reemplazos WHERE id=?').get(req.params.id);
+  if (!rep) return res.status(404).json({ error: 'Reemplazo no encontrado' });
+  const { accion } = req.body; // 'aprobar' o 'rechazar'
+  if (accion === 'aprobar') {
+    db.transaction(() => {
+      db.prepare("UPDATE reemplazos SET estado='aprobado',aprobado_por=?,fecha_aprobacion=date('now') WHERE id=?").run(req.user.id, rep.id);
+      // Generar honorario para el reemplazante
+      const horId = 'hon_rep_'+Date.now();
+      db.prepare('INSERT OR IGNORE INTO honorarios (id,docente_id,asignacion_id,fecha,turno,monto,estado,tipo,reemplazo_id) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(horId, rep.docente_reemplazante_id, rep.asignacion_id, rep.fecha, rep.turno, 80000, 'generado', 'reemplazo', rep.id);
+      // Anular honorario del titular si existía
+      db.prepare("UPDATE honorarios SET estado='anulado',observacion='Reemplazado' WHERE docente_id=? AND asignacion_id=? AND fecha=? AND tipo='clase'")
+        .run(rep.docente_titular_id, rep.asignacion_id, rep.fecha);
+      // Aviso de aprobación al reemplazante
+      try {
+        const docRep = db.prepare('SELECT u.nombre,u.apellido,d.usuario_id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(rep.docente_reemplazante_id);
+        db.prepare("INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)").run(
+          'av_aprep_'+Date.now(),'✅ Reemplazo aprobado',
+          `Tu reemplazo del ${rep.fecha} fue aprobado por el Director. Se acreditaron Gs. 80.000 en tu perfil de honorarios.`,
+          'info',0,'docentes',req.user.id);
+      } catch {}
+    })();
+  } else {
+    db.prepare("UPDATE reemplazos SET estado='rechazado',aprobado_por=?,fecha_aprobacion=date('now') WHERE id=?").run(req.user.id, rep.id);
+  }
+  res.json({ ok: true });
+});
+
+// ── FERIADOS ──────────────────────────────────────────────────────────────────
+app.get('/api/feriados', auth(), (req, res) => {
+  res.json(db.prepare("SELECT * FROM feriados WHERE activo=1 ORDER BY fecha").all());
+});
+app.post('/api/feriados', auth(ADM), (req, res) => {
+  const { fecha, nombre, tipo } = req.body;
+  if (!fecha || !nombre) return res.status(400).json({ error: 'Fecha y nombre requeridos' });
+  const id = 'fer_'+Date.now();
+  db.prepare('INSERT OR IGNORE INTO feriados (id,fecha,nombre,tipo) VALUES (?,?,?,?)').run(id, fecha, nombre, tipo||'institucional');
+  res.json({ id });
+});
+app.delete('/api/feriados/:id', auth(ADM), (req, res) => {
+  db.prepare('UPDATE feriados SET activo=0 WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── RESUMEN HONORARIOS POR DOCENTE/MES (para informe) ─────────────────────────
+app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
+  const { docente_id, mes, anio } = req.query;
+  let dId = docente_id;
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    dId = doc?.id;
+  }
+  if (!dId || !mes || !anio) return res.status(400).json({ error: 'docente_id, mes y anio requeridos' });
+  const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
+  const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
+
+  // Todos los días hábiles del mes (L-V sin feriados)
+  const feriados = new Set(db.prepare("SELECT fecha FROM feriados WHERE fecha>=? AND fecha<=? AND activo=1").all(desde, hasta).map(f=>f.fecha));
+  const diasHabiles = [];
+  const cur = new Date(desde+'T12:00:00');
+  const finDate = new Date(hasta+'T12:00:00');
+  while (cur <= finDate) {
+    const d = cur.getDay();
+    if (d >= 1 && d <= 5 && !feriados.has(cur.toISOString().split('T')[0])) diasHabiles.push(cur.toISOString().split('T')[0]);
+    cur.setDate(cur.getDate()+1);
+  }
+
+  // Honorarios del docente en ese mes
+  const hons = db.prepare(`
+    SELECT h.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso,
+      a.turno, a.hora_inicio, a.hora_fin
+    FROM honorarios h
+    LEFT JOIN asignaciones a ON h.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE h.docente_id=? AND h.fecha>=? AND h.fecha<=? AND h.estado!='anulado'
+    ORDER BY h.fecha, h.turno`).all(dId, desde, hasta);
+
+  // Asignaciones del docente en el mes
+  const asigs = db.prepare(`
+    SELECT a.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE a.docente_id=?`).all(dId);
+  const horarios = db.prepare('SELECT * FROM horarios WHERE asignacion_id IN ('+asigs.map(()=>'?').join(',')+')').all(...asigs.map(a=>a.id));
+
+  // Reemplazos que involucran al docente ese mes
+  const reemplazos = db.prepare(`
+    SELECT r.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso,
+      ut.nombre as titular_nombre, ut.apellido as titular_apellido,
+      ur.nombre as rep_nombre, ur.apellido as rep_apellido
+    FROM reemplazos r
+    JOIN asignaciones a ON r.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN docentes dt ON r.docente_titular_id=dt.id JOIN usuarios ut ON dt.usuario_id=ut.id
+    JOIN docentes dr ON r.docente_reemplazante_id=dr.id JOIN usuarios ur ON dr.usuario_id=ur.id
+    WHERE (r.docente_titular_id=? OR r.docente_reemplazante_id=?) AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'`).all(dId, dId, desde, hasta);
+
+  const docInfo = db.prepare('SELECT u.nombre,u.apellido,d.titulo FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(dId);
+  const totalGanado = hons.reduce((s,h)=>s+h.monto, 0);
+
+  res.json({ docente: docInfo, diasHabiles, honorarios: hons, asignaciones: asigs, reemplazos, totalGanado, desde, hasta, mes, anio });
 });
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────

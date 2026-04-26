@@ -220,6 +220,40 @@ function crearTablas() {
       hora_fin TEXT NOT NULL DEFAULT '20:20',
       aula TEXT
     );
+    CREATE TABLE IF NOT EXISTS honorarios (
+      id TEXT PRIMARY KEY,
+      docente_id TEXT NOT NULL REFERENCES docentes(id),
+      asignacion_id TEXT REFERENCES asignaciones(id),
+      fecha TEXT NOT NULL,
+      turno INTEGER NOT NULL DEFAULT 1,
+      monto REAL NOT NULL DEFAULT 80000,
+      estado TEXT NOT NULL DEFAULT 'generado' CHECK(estado IN ('generado','pagado','anulado')),
+      tipo TEXT NOT NULL DEFAULT 'clase' CHECK(tipo IN ('clase','reemplazo')),
+      reemplazo_id TEXT,
+      observacion TEXT,
+      fecha_registro TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS reemplazos (
+      id TEXT PRIMARY KEY,
+      asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+      docente_titular_id TEXT NOT NULL REFERENCES docentes(id),
+      docente_reemplazante_id TEXT NOT NULL REFERENCES docentes(id),
+      fecha TEXT NOT NULL,
+      turno INTEGER NOT NULL DEFAULT 1,
+      motivo TEXT,
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','aprobado','rechazado')),
+      registrado_por TEXT NOT NULL REFERENCES usuarios(id),
+      aprobado_por TEXT REFERENCES usuarios(id),
+      fecha_aprobacion TEXT,
+      fecha_registro TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS feriados (
+      id TEXT PRIMARY KEY,
+      fecha TEXT NOT NULL UNIQUE,
+      nombre TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'nacional' CHECK(tipo IN ('nacional','institucional')),
+      activo INTEGER NOT NULL DEFAULT 1
+    );
     CREATE TABLE IF NOT EXISTS actividades (
       id TEXT PRIMARY KEY,
       titulo TEXT NOT NULL,
@@ -607,6 +641,14 @@ function init() {
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN puntos_max INTEGER DEFAULT 50").run(); } catch {}
+  // Tablas de honorarios
+  try { db.exec(`CREATE TABLE IF NOT EXISTS honorarios (id TEXT PRIMARY KEY, docente_id TEXT NOT NULL, asignacion_id TEXT, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, monto REAL NOT NULL DEFAULT 80000, estado TEXT NOT NULL DEFAULT 'generado', tipo TEXT NOT NULL DEFAULT 'clase', reemplazo_id TEXT, observacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS reemplazos (id TEXT PRIMARY KEY, asignacion_id TEXT NOT NULL, docente_titular_id TEXT NOT NULL, docente_reemplazante_id TEXT NOT NULL, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, motivo TEXT, estado TEXT NOT NULL DEFAULT 'pendiente', registrado_por TEXT NOT NULL, aprobado_por TEXT, fecha_aprobacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS feriados (id TEXT PRIMARY KEY, fecha TEXT NOT NULL UNIQUE, nombre TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'nacional', activo INTEGER NOT NULL DEFAULT 1)`); } catch {}
+  // Índices honorarios
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_docente ON honorarios(docente_id)'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_fecha ON honorarios(fecha)'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_reemplazos_fecha ON reemplazos(fecha)'); } catch {}
   // Tabla auditoría para bases existentes
   try { db.exec(`CREATE TABLE IF NOT EXISTS auditoria (id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL, accion TEXT NOT NULL, tabla TEXT NOT NULL, registro_id TEXT, detalle TEXT, fecha TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   // Crear tablas nuevas si no existen

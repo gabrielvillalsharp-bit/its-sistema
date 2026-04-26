@@ -307,6 +307,12 @@ function navFor(r){
       {id:'aranceles',l:'Aranceles / Costos',c:'#1D9E75',r:['director']},
       {id:'becas',l:'Becas y Descuentos',c:'#1D9E75',r:['director']},
     ]},
+    {g:'Honorarios',i:[
+      {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
+      {id:'mis-honorarios',l:'Mis honorarios',c:'#D85A30',r:['docente']},
+      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
+      {id:'feriados',l:'Feriados',c:'#888780',r:['director']},
+    ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
       {id:'mis-notas',l:'Mis calificaciones',c:'#185FA5',r:['alumno']},
@@ -341,6 +347,7 @@ function go(p){
     periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
+    honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
@@ -1055,10 +1062,18 @@ async function pgExamenes(el){
       <button class="bn" onclick="mExamen()">+ Programar examen</button>
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
-    <select id="filtExGrupo" onchange="filtExAll()" style="min-width:150px">
+    <select id="filtExGrupo" onchange="filtExAll()" style="min-width:160px">
       <option value="">Todos los tipos</option>
-      <optgroup label="Parciales"><option value="Parcial">Parcial Ordinario</option><option value="Recuperatorio">Parcial Recuperatorio</option></optgroup>
-      <optgroup label="Finales"><option value="Final">Final Ordinario</option><option value="Complementario">Final Complementario</option><option value="Extraordinario">Final Extraordinario</option></optgroup>
+      <optgroup label="─ Parciales ─">
+        <option value="Parcial">Parcial Ordinario</option>
+        <option value="Recuperatorio">Parcial Recuperatorio</option>
+      </optgroup>
+      <optgroup label="─ Finales ─">
+        <option value="Final">Final Ordinario</option>
+        <option value="Final Recuperatorio">Final Recuperatorio</option>
+        <option value="Complementario">Final Complementario</option>
+        <option value="Extraordinario">Final Extraordinario</option>
+      </optgroup>
     </select>
     <select id="filtExCarr" onchange="filtExCursos();filtExAll()" style="min-width:150px">
       <option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
@@ -2008,11 +2023,10 @@ W.loadAsist=async(asigId)=>{
   <div class="card"><div class="tw"><table><thead>
     <tr>
       <th>Alumno</th>
-      <th style="text-align:center;width:90px;background:#d4edda">✓ Presente</th>
-      <th style="text-align:center;width:90px;background:#f8d7da">✗ Ausente</th>
-      <th style="text-align:center;width:90px;background:#fff3cd">⏰ Tardanza</th>
-      <th style="text-align:center;width:90px;background:#d1ecf1">📋 Justificado</th>
-      ${me.rol==='director'?'<th style="width:60px">Editar</th>':''}
+      <th style="text-align:center;width:100px;background:#d4edda">✓ Presente</th>
+      <th style="text-align:center;width:100px;background:#f8d7da">✗ Ausente</th>
+      <th style="text-align:center;width:100px;background:#d1ecf1">📋 Justificado</th>
+      ${me.rol==='director'?'<th style="width:90px;text-align:center">Editar</th>':''}
     </tr>
   </thead><tbody>
   ${alumnos.map(a=>{
@@ -2020,12 +2034,14 @@ W.loadAsist=async(asigId)=>{
     const regId=hoy.find(r=>r.alumno_id===a.id)?.id||'';
     return `<tr id="arow-${a.id}">
       <td style="padding:8px"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
-      ${['P','A','T','J'].map(s=>`<td style="text-align:center;padding:4px">
-        <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button>
+      ${['P','A','J'].map(s=>`<td style="text-align:center;padding:4px">
+        <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',J:'📋'}[s]}</button>
       </td>`).join('')}
-      ${me.rol==='director'?`<td style="text-align:center;padding:4px">${regId?`<div style="display:flex;gap:3px;justify-content:center"><button class="bs i" style="font-size:10px;padding:1px 5px" onclick="editarAsist('${regId}','${a.alumno_apellido||''} ${a.alumno_nombre||''}','${estMap[a.id]||'P'}')">✏</button><button class="bs d" style="font-size:10px;padding:1px 5px" onclick="eliminarAsist('${regId}','${a.id}')">✕</button></div>`:'—'}</td>`:''}
+      ${me.rol==='director'?`<td style="text-align:center;padding:4px">
+        <button class="bs i" style="font-size:11px;padding:3px 8px" onclick="editarAsist('${regId||''}','${a.id}','${(a.alumno_apellido||'')+', '+(a.alumno_nombre||'')}','${est}')">✏ Editar</button>
+      </td>`:''}
     </tr>`;
-  }).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
+  }).join('')||'<tr><td colspan="4" class="es">Sin alumnos en este curso</td></tr>'}
   </tbody></table></div></div>
   <div id="amsg" style="margin-top:8px"></div>`;
 };
@@ -2034,10 +2050,43 @@ W.loadAsist=async(asigId)=>{
 function setAsist(aid,est){
   if(!W._ast)return;
   W._ast.est[aid]=est;
-  ['P','A','T','J'].forEach(s=>{
+  ['P','A','J'].forEach(s=>{
     const b=document.getElementById('ao-'+aid+'-'+s);
     if(b)b.className='asopt'+(est===s?' '+s:'');
   });
+}
+function editarAsist(regId, alId, alumnoNombre, estadoActual){
+  modal(`<h4>✏ Editar asistencia</h4>
+  <p style="margin-bottom:12px;font-size:13px">Alumno: <strong>${alumnoNombre}</strong></p>
+  <div class="f" style="margin-bottom:10px"><label>Estado</label>
+    <select id="editEstAsist" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px">
+      <option value="P" ${estadoActual==='P'?'selected':''}>✓ Presente</option>
+      <option value="A" ${estadoActual==='A'?'selected':''}>✗ Ausente</option>
+      <option value="J" ${estadoActual==='J'?'selected':''}>📋 Justificado</option>
+    </select>
+  </div>
+  <div class="f" style="margin-bottom:14px"><label>Observación (opcional)</label>
+    <input id="editObsAsist" placeholder="Motivo, aclaración..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px"/>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    ${regId?`<button class="bs d" onclick="eliminarAsist('${regId}','${alId}');cm()">Eliminar registro</button>`:''}
+    <button class="bn" onclick="guardarEditAsist('${regId}','${alId}')">Guardar</button>
+  </div>`);
+}
+async function guardarEditAsist(regId, alId){
+  const estado=v('editEstAsist'), obs=v('editObsAsist');
+  try{
+    if(regId){
+      await api('PUT','/api/asistencia/'+regId,{estado,observacion:obs||null});
+    } else if(W._ast){
+      const {asigId,fecha}=W._ast;
+      await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros:[{alumno_id:alId,estado}]});
+    }
+    toast('✓ Asistencia actualizada','ok');
+    cm();
+    if(W._asistId)W.loadAsist(W._asistId);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function grdAsist(){
   if(!W._ast){toast('Cargá una materia primero','warn');return;}
@@ -3025,6 +3074,406 @@ async function buscarEstadoCuenta(){
 }
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── MÓDULO HONORARIOS PROFESIONALES ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function pgHonorarios(el){
+  const [docs,carrs]=await Promise.all([api('GET','/api/docentes'),api('GET','/api/carreras')]);
+  const hoy=new Date();
+  el.innerHTML=`<div class="ph"><h3>💰 Honorarios Profesionales</h3>
+    <div class="ph-right">
+      <button class="bs o" onclick="verReemplazos()">🔄 Reemplazos pendientes</button>
+    </div></div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <select id="filtHonDoc" style="min-width:220px">
+      <option value="">Todos los docentes</option>
+      ${docs.map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre} — ${d.especialidad||''}</option>`).join('')}
+    </select>
+    <select id="filtHonMes" style="min-width:130px">
+      ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}
+    </select>
+    <input id="filtHonAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/>
+    <button class="bn" onclick="cargarHonorarios()">Ver honorarios</button>
+    <button class="bs o" onclick="imprimirInformeHon()">🖨 Imprimir informe</button>
+  </div>
+  <div id="panelHon"><div class="es">Seleccioná un docente y mes para ver los honorarios</div></div>`;
+}
+
+async function cargarHonorarios(){
+  const docId=v('filtHonDoc'), mes=v('filtHonMes'), anio=v('filtHonAnio');
+  if(!mes||!anio){toast('Seleccioná mes y año','warn');return;}
+  const el=document.getElementById('panelHon');
+  if(!el)return;
+  el.innerHTML=skeletonTable(5,6);
+  try{
+    let url=`/api/honorarios/resumen?mes=${mes}&anio=${anio}`;
+    if(docId)url+=`&docente_id=${docId}`;
+    else{
+      // Vista general: todos los docentes
+      const hons=await api('GET',`/api/honorarios?mes=${mes}&anio=${anio}`);
+      renderHonorariosGeneral(el,hons,mes,anio);
+      return;
+    }
+    const r=await api('GET',url);
+    W._honResumen=r;
+    renderHonorariosDocente(el,r);
+  }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
+
+function renderHonorariosGeneral(el, hons, mes, anio){
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  // Agrupar por docente
+  const porDoc={};
+  hons.forEach(h=>{
+    if(!porDoc[h.docente_id])porDoc[h.docente_id]={nombre:`${h.docente_apellido||''},${h.docente_nombre||''}`,clases:0,total:0};
+    porDoc[h.docente_id].clases++;
+    porDoc[h.docente_id].total+=h.monto;
+  });
+  const totalInst=hons.reduce((s,h)=>s+h.monto,0);
+  el.innerHTML=`
+  <div style="background:#e8f5e9;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;gap:20px;flex-wrap:wrap">
+    <div><span style="font-size:11px;color:var(--t2)">Total institucional ${meses[mes-1]} ${anio}</span><br><span style="font-size:22px;font-weight:900;color:#2e7d32">Gs. ${totalInst.toLocaleString()}</span></div>
+    <div><span style="font-size:11px;color:var(--t2)">Clases registradas</span><br><span style="font-size:22px;font-weight:700">${hons.length}</span></div>
+    <div><span style="font-size:11px;color:var(--t2)">Docentes activos</span><br><span style="font-size:22px;font-weight:700">${Object.keys(porDoc).length}</span></div>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Docente</th><th style="text-align:center">Clases dictadas</th><th style="text-align:right">Total Gs.</th><th></th>
+  </tr></thead><tbody>
+  ${Object.entries(porDoc).map(([dId,d])=>`<tr>
+    <td><strong>${d.nombre}</strong></td>
+    <td style="text-align:center">${d.clases}</td>
+    <td style="text-align:right;font-weight:700;color:#2e7d32">Gs. ${d.total.toLocaleString()}</td>
+    <td><button class="bs i" onclick="verHonDocente('${dId}')">Ver detalle</button></td>
+  </tr>`).join('')||'<tr><td colspan="4" class="es">Sin honorarios registrados</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+function verHonDocente(docId){
+  const selDoc=document.getElementById('filtHonDoc');
+  if(selDoc)selDoc.value=docId;
+  cargarHonorarios();
+}
+
+function renderHonorariosDocente(el, r){
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesNombre=meses[parseInt(r.mes)-1];
+  // Construir mapa de honorarios por fecha
+  const honMap={};
+  r.honorarios.forEach(h=>{
+    if(!honMap[h.fecha])honMap[h.fecha]=[];
+    honMap[h.fecha].push(h);
+  });
+  // Mapa de reemplazos por fecha
+  const repMap={};
+  r.reemplazos.forEach(rep=>{
+    if(!repMap[rep.fecha])repMap[rep.fecha]=[];
+    repMap[rep.fecha].push(rep);
+  });
+  const estColor={generado:'#e8f5e9',pagado:'#e3f2fd',anulado:'#fff3f3'};
+  el.innerHTML=`
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <div style="background:#1a5fa8;color:#fff;border-radius:10px;padding:12px 18px;min-width:180px">
+      <div style="font-size:11px;opacity:.85">${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</div>
+      <div style="font-size:11px;opacity:.7;margin-bottom:6px">Honorarios ${mesNombre} ${r.anio}</div>
+      <div style="font-size:26px;font-weight:900">Gs. ${(r.totalGanado||0).toLocaleString()}</div>
+      <div style="font-size:11px;opacity:.8">${r.honorarios.length} clase${r.honorarios.length!==1?'s':''} registradas</div>
+    </div>
+    <div style="background:#fff3e0;border-radius:10px;padding:12px 18px;min-width:150px">
+      <div style="font-size:11px;color:#e65100">Días hábiles del mes</div>
+      <div style="font-size:26px;font-weight:700;color:#e65100">${r.diasHabiles.length}</div>
+    </div>
+    <div style="background:#e8f5e9;border-radius:10px;padding:12px 18px;min-width:150px">
+      <div style="font-size:11px;color:#2e7d32">Días con honorario</div>
+      <div style="font-size:26px;font-weight:700;color:#2e7d32">${[...new Set(r.honorarios.map(h=>h.fecha))].length}</div>
+    </div>
+  </div>
+  <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:700px;font-size:12px;border-collapse:collapse;width:100%">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Día</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Carrera / Materia</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Turno</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Tipo</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:right">Monto</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
+    </tr></thead>
+    <tbody>
+    ${r.diasHabiles.map(fecha=>{
+      const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
+      const diaNum=new Date(fecha+'T12:00:00').getDay();
+      const dNombre=diasN[diaNum];
+      const honsDelDia=honMap[fecha]||[];
+      const repsDelDia=repMap[fecha]||[];
+      if(!honsDelDia.length&&!repsDelDia.length){
+        return `<tr style="background:#fff9f9">
+          <td style="padding:6px 10px;border:1px solid var(--bdr);color:#888">${fmtFecha(fecha)}</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);color:#888">${dNombre}</td>
+          <td colspan="3" style="padding:6px 10px;border:1px solid var(--bdr);color:#ccc;font-style:italic">Sin registro de asistencia</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right;color:#ccc">—</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx br" style="font-size:10px">Ausente</span></td>
+        </tr>`;
+      }
+      return honsDelDia.map(h=>`<tr style="background:${estColor[h.estado]||'#fff'}">
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600">${fmtFecha(fecha)}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr)">${dNombre}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr)">${h.carrera_nombre||''}<br><span style="font-size:10px;color:var(--t2)">${h.materia_nombre||''} ${h.curso_anio?h.curso_anio+'°':''}</span></td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">${h.turno===1?'T1 19:00':'T2 20:40'}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr)"><span class="bx ${h.tipo==='reemplazo'?'ba':'bb'}" style="font-size:10px">${h.tipo==='reemplazo'?'🔄 Reemplazo':'📚 Clase'}</span></td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right;font-weight:700;color:#2e7d32">Gs. ${h.monto.toLocaleString()}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${h.estado==='generado'?'bg':h.estado==='pagado'?'bb':'br'}" style="font-size:10px">${h.estado}</span></td>
+      </tr>`).join('');
+    }).join('')}
+    <tr style="background:#e8f5e9;font-weight:700">
+      <td colspan="5" style="padding:8px 10px;border:1px solid var(--bdr);text-align:right">TOTAL DEL MES</td>
+      <td style="padding:8px 10px;border:1px solid var(--bdr);text-align:right;font-size:14px;color:#2e7d32">Gs. ${(r.totalGanado||0).toLocaleString()}</td>
+      <td style="border:1px solid var(--bdr)"></td>
+    </tr>
+    </tbody>
+  </table></div></div>`;
+}
+
+async function imprimirInformeHon(){
+  if(!W._honResumen){toast('Cargá primero el detalle de un docente','warn');return;}
+  const r=W._honResumen;
+  const inst=await api('GET','/api/institucion').catch(()=>({}));
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
+  const honMap={};r.honorarios.forEach(h=>{if(!honMap[h.fecha])honMap[h.fecha]=[];honMap[h.fecha].push(h);});
+  const ventana=window.open('','_blank','width=900,height=720');
+  ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Informe Honorarios — ${r.docente?.nombre} ${r.docente?.apellido}</title>
+  <style>
+    *{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:16px;color:#000}
+    .header{text-align:center;margin-bottom:14px}.header img{height:60px;display:block;margin:0 auto 4px}
+    .header h2{font-size:14px;margin:2px 0}.header p{font-size:9px;margin:1px 0;font-style:italic}
+    .titulo{text-align:center;font-weight:bold;font-size:13px;margin:10px 0;text-transform:uppercase;text-decoration:underline}
+    .info-line{margin:4px 0;font-size:11px}
+    table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10px}
+    th{background:#e0e0e0;border:1px solid #333;padding:4px 6px;text-align:center;font-weight:bold}
+    td{border:1px solid #555;padding:4px 6px}
+    .ausente{color:#999;font-style:italic}
+    .total-row{background:#d4edda;font-weight:bold}
+    .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
+    .firma-box{min-width:180px}.firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
+    @media print{body{padding:8px}button{display:none}}
+  </style></head><body>
+  <div class="header">
+    ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
+    <h2>${inst.nombre||'Instituto Técnico Superior'} — SANTÍSIMA TRINIDAD</h2>
+    <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+  </div>
+  <div class="titulo">Informe Mensual de Honorarios Profesionales — ${meses[parseInt(r.mes)-1]} ${r.anio}</div>
+  <div class="info-line">Docente: <strong>${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</strong></div>
+  <div class="info-line">Período: <strong>${r.desde} al ${r.hasta}</strong> &nbsp;·&nbsp; Monto por turno: <strong>Gs. 80.000</strong></div>
+  <table>
+    <thead><tr>
+      <th>Fecha</th><th>Día</th><th>Carrera</th><th>Materia</th><th>Año</th><th>Turno</th><th>Tipo</th><th style="text-align:right">Monto Gs.</th>
+    </tr></thead>
+    <tbody>
+    ${r.diasHabiles.map(fecha=>{
+      const dNombre=diasN[new Date(fecha+'T12:00:00').getDay()];
+      const hons=honMap[fecha]||[];
+      if(!hons.length)return`<tr class="ausente"><td>${fecha}</td><td>${dNombre}</td><td colspan="4">Sin asistencia registrada</td><td>—</td><td style="text-align:right">—</td></tr>`;
+      return hons.map(h=>`<tr>
+        <td>${fecha}</td><td>${dNombre}</td><td>${h.carrera_nombre||''}</td><td>${h.materia_nombre||''}</td>
+        <td style="text-align:center">${h.curso_anio||''}°</td>
+        <td style="text-align:center">${h.turno===1?'T1 (19:00)':'T2 (20:40)'}</td>
+        <td style="text-align:center">${h.tipo==='reemplazo'?'🔄 Reemplazo':'Clase'}</td>
+        <td style="text-align:right">${h.monto.toLocaleString()}</td>
+      </tr>`).join('');
+    }).join('')}
+    <tr class="total-row">
+      <td colspan="7" style="text-align:right;font-size:12px">TOTAL NETO A COBRAR:</td>
+      <td style="text-align:right;font-size:13px">Gs. ${(r.totalGanado||0).toLocaleString()}</td>
+    </tr>
+    </tbody>
+  </table>
+  <div class="info-line" style="margin-top:10px;font-size:10px;color:#555">
+    Generado el ${new Date().toLocaleDateString('es-PY')} — Sistema ITS | Clases registradas: ${r.honorarios.length} | Días hábiles: ${r.diasHabiles.length}
+  </div>
+  <div class="firmas">
+    <div class="firma-box"><div class="firma-line"></div><div>${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</div><div style="font-size:9px;color:#666">Firma del Docente</div></div>
+    <div class="firma-box"><div class="firma-line"></div><div>Director/a</div><div style="font-size:9px;color:#666">Firma y Sello</div></div>
+  </div>
+  <div style="text-align:center;margin-top:16px">
+    <button onclick="window.print()" style="padding:8px 22px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir informe</button>
+  </div></body></html>`);
+  ventana.document.close();
+}
+
+// ── MIS HONORARIOS (docente) ──────────────────────────────────────────────────
+async function pgMisHonorarios(el){
+  const hoy=new Date();
+  el.innerHTML=`<div class="ph"><h3>💰 Mis honorarios</h3></div>
+  <div class="fb" style="gap:8px;margin-bottom:14px">
+    <select id="mhMes">${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select>
+    <input id="mhAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/>
+    <button class="bn" onclick="cargarMisHon()">Ver</button>
+    <button class="bs o" onclick="imprimirMiInforme()">🖨 Imprimir mi informe</button>
+  </div>
+  <div id="panelMisHon"><div class="es">Seleccioná un mes para ver tus honorarios</div></div>`;
+}
+async function cargarMisHon(){
+  const mes=v('mhMes'), anio=v('mhAnio');
+  const el=document.getElementById('panelMisHon');
+  if(!el)return;
+  el.innerHTML=skeletonTable(5,5);
+  try{
+    const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}`);
+    W._honResumen=r;
+    // Docente NO ve los montos — solo ve sus clases dictadas
+    const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
+    const honMap={};r.honorarios.forEach(h=>{if(!honMap[h.fecha])honMap[h.fecha]=[];honMap[h.fecha].push(h);});
+    el.innerHTML=`
+    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div class="card card-p" style="flex:1;min-width:150px">
+        <div style="font-size:12px;color:var(--t2)">Clases dictadas</div>
+        <div style="font-size:28px;font-weight:900;color:#1a5fa8">${r.honorarios.length}</div>
+      </div>
+      <div class="card card-p" style="flex:1;min-width:150px">
+        <div style="font-size:12px;color:var(--t2)">Días hábiles del mes</div>
+        <div style="font-size:28px;font-weight:700;color:#e65100">${r.diasHabiles.length}</div>
+      </div>
+    </div>
+    <div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f0f4f8">
+        <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr)">Día</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr)">Carrera / Materia</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Turno</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Tipo</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
+      </tr></thead>
+      <tbody>
+      ${r.diasHabiles.map(fecha=>{
+        const dNombre=diasN[new Date(fecha+'T12:00:00').getDay()];
+        const hons=honMap[fecha]||[];
+        if(!hons.length)return`<tr style="color:#ccc"><td style="padding:5px 10px;border:1px solid var(--bdr)">${fmtFecha(fecha)}</td><td style="border:1px solid var(--bdr)">${dNombre}</td><td colspan="3" style="border:1px solid var(--bdr);font-style:italic">Sin asistencia registrada</td><td style="border:1px solid var(--bdr);text-align:center"><span class="bx br" style="font-size:10px">Ausente</span></td></tr>`;
+        return hons.map(h=>`<tr>
+          <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600">${fmtFecha(fecha)}</td>
+          <td style="border:1px solid var(--bdr)">${dNombre}</td>
+          <td style="border:1px solid var(--bdr)">${h.carrera_nombre||''}<br><span style="font-size:10px;color:var(--t2)">${h.materia_nombre||''} ${h.curso_anio?h.curso_anio+'°':''}</span></td>
+          <td style="border:1px solid var(--bdr);text-align:center">${h.turno===1?'T1 19:00':'T2 20:40'}</td>
+          <td style="border:1px solid var(--bdr);text-align:center"><span class="bx ${h.tipo==='reemplazo'?'ba':'bb'}" style="font-size:10px">${h.tipo==='reemplazo'?'🔄 Reemplazo':'📚 Clase'}</span></td>
+          <td style="border:1px solid var(--bdr);text-align:center"><span class="bx ${h.estado==='generado'?'bg':h.estado==='pagado'?'bb':'br'}" style="font-size:10px">${h.estado}</span></td>
+        </tr>`).join('');
+      }).join('')}
+      </tbody>
+    </table></div></div>`;
+  }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
+function imprimirMiInforme(){imprimirInformeHon();}
+
+// ── REEMPLAZOS ────────────────────────────────────────────────────────────────
+async function pgReemplazos(el){
+  const [reps,docs,asigs]=await Promise.all([
+    api('GET','/api/reemplazos'),
+    api('GET','/api/docentes'),
+    api('GET','/api/asignaciones')
+  ]);
+  const esDirector=me.rol==='director';
+  const pendientes=reps.filter(r=>r.estado==='pendiente');
+  el.innerHTML=`<div class="ph"><h3>🔄 Reemplazos</h3>
+    <button class="bn" onclick="mReemplazo()">+ Registrar reemplazo</button>
+  </div>
+  ${pendientes.length&&esDirector?`<div style="background:#fff3e0;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
+    ⚠ <strong>${pendientes.length} reemplazo${pendientes.length!==1?'s':''} pendiente${pendientes.length!==1?'s':''} de aprobación</strong>
+  </div>`:''}
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Fecha</th><th>Titular</th><th>Reemplazante</th><th>Materia</th><th>Turno</th><th>Estado</th><th></th>
+  </tr></thead><tbody>
+  ${reps.map(r=>`<tr style="${r.estado==='pendiente'?'background:#fffbf0':''}">
+    <td style="white-space:nowrap;font-weight:600">${fmtFecha(r.fecha)}</td>
+    <td>${r.titular_apellido||''}, ${r.titular_nombre||''}</td>
+    <td><strong>${r.reemplazante_apellido||''}, ${r.reemplazante_nombre||''}</strong></td>
+    <td style="font-size:12px">${r.materia_nombre||''}<br><span style="color:var(--t2)">${r.carrera_nombre||''} ${r.anio_curso?r.anio_curso+'°':''}</span></td>
+    <td style="text-align:center">${r.asig_turno===1?'T1 19:00':'T2 20:40'}</td>
+    <td><span class="bx ${r.estado==='pendiente'?'ba':r.estado==='aprobado'?'bg':'br'}">${r.estado}</span></td>
+    <td>${esDirector&&r.estado==='pendiente'?`<div class="abs">
+      <button class="bs i" onclick="aprobarReemplazo('${r.id}','aprobar')">✓ Aprobar</button>
+      <button class="bs d" onclick="aprobarReemplazo('${r.id}','rechazar')">✕ Rechazar</button>
+    </div>`:''}</td>
+  </tr>`).join('')||'<tr><td colspan="7" class="es">Sin reemplazos registrados</td></tr>'}
+  </tbody></table></div></div>`;
+  W._repsData={docs,asigs};
+}
+async function mReemplazo(){
+  const {docs,asigs}=W._repsData||await Promise.all([api('GET','/api/docentes'),api('GET','/api/asignaciones')]).then(([d,a])=>({docs:d,asigs:a}));
+  // Si es docente, solo puede registrar reemplazo de sus propias materias
+  let misAsigs=asigs;
+  if(me.rol==='docente'){
+    const doc=(docs||[]).find(d=>d.usuario_id===me.id);
+    if(doc)misAsigs=asigs.filter(a=>a.docente_id===doc.docente_id);
+  }
+  modal(`<h4>🔄 Registrar reemplazo</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Solo el titular de la cátedra o el director pueden registrar un reemplazo. El director debe aprobarlo.</p>
+  <div class="fg">
+    <div class="f"><label>Materia (asignación) <span style="color:var(--red)">*</span></label>
+      <select id="repAsig">${misAsigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (${a.turno===1?'T1 19:00':'T2 20:40'})</option>`).join('')}</select></div>
+    <div class="f"><label>Docente reemplazante <span style="color:var(--red)">*</span></label>
+      <select id="repDoc">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre} — ${d.especialidad||''}</option>`).join('')}</select></div>
+    <div class="fr">
+      <div class="f"><label>Fecha del reemplazo <span style="color:var(--red)">*</span></label><input id="repFec" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+    </div>
+    <div class="f"><label>Motivo (opcional)</label><input id="repMot" placeholder="Ej: Enfermedad, viaje..."/></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svReemplazo()">Registrar (pendiente de aprobación)</button></div>`);
+}
+async function svReemplazo(){
+  const o={asignacion_id:v('repAsig'),docente_reemplazante_id:v('repDoc'),fecha:v('repFec'),motivo:v('repMot')};
+  if(!o.asignacion_id||!o.docente_reemplazante_id||!o.fecha)return alert('Completar campos obligatorios');
+  try{
+    await api('POST','/api/reemplazos',o);
+    toast('✓ Reemplazo registrado — pendiente de aprobación del director','info',5000);
+    cm();go('reemplazos');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function aprobarReemplazo(id,accion){
+  const msg=accion==='aprobar'?'¿Aprobar este reemplazo? Se acreditarán Gs. 80.000 al docente reemplazante.':'¿Rechazar este reemplazo?';
+  if(!confirm(msg))return;
+  try{
+    await api('PUT','/api/reemplazos/'+id+'/aprobar',{accion});
+    toast(accion==='aprobar'?'✓ Reemplazo aprobado y honorario acreditado':'Reemplazo rechazado',accion==='aprobar'?'ok':'warn');
+    go('reemplazos');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+function verReemplazos(){go('reemplazos');}
+
+// ── FERIADOS ──────────────────────────────────────────────────────────────────
+async function pgFeriados(el){
+  const feriados=await api('GET','/api/feriados');
+  el.innerHTML=`<div class="ph"><h3>📅 Feriados</h3><button class="bn" onclick="mFeriado()">+ Agregar feriado</button></div>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Los días marcados como feriado no permiten registro de asistencia ni generan honorarios.</p>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Fecha</th><th>Nombre</th><th>Tipo</th><th></th>
+  </tr></thead><tbody>
+  ${feriados.map(f=>`<tr>
+    <td style="font-weight:600;white-space:nowrap">${fmtFecha(f.fecha)}</td>
+    <td>${f.nombre}</td>
+    <td><span class="bx ${f.tipo==='nacional'?'bb':'ba'}">${f.tipo==='nacional'?'Nacional':'Institucional'}</span></td>
+    <td><button class="bs d" onclick="del('${f.id}','feriados')">Eliminar</button></td>
+  </tr>`).join('')||'<tr><td colspan="4" class="es">Sin feriados cargados</td></tr>'}
+  </tbody></table></div></div>`;
+}
+function mFeriado(){
+  modal(`<h4>📅 Agregar feriado</h4><div class="fg">
+    <div class="f"><label>Fecha <span style="color:var(--red)">*</span></label><input id="ferFec" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+    <div class="f"><label>Nombre del feriado <span style="color:var(--red)">*</span></label><input id="ferNom" placeholder="Ej: Día de la Independencia"/></div>
+    <div class="f"><label>Tipo</label><select id="ferTip">
+      <option value="institucional">Institucional (receso, evento)</option>
+      <option value="nacional">Nacional (feriado del país)</option>
+    </select></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svFeriado()">Guardar</button></div>`);
+}
+async function svFeriado(){
+  const o={fecha:v('ferFec'),nombre:v('ferNom'),tipo:v('ferTip')};
+  if(!o.fecha||!o.nombre)return alert('Completar fecha y nombre');
+  try{await api('POST','/api/feriados',o);toast('✓ Feriado agregado','ok');cm();go('feriados');}
+  catch(e){toast('Error: '+e.message,'err');}
+}
+
 async function pgInst(el){
   const d=await api('GET','/api/institucion');
   el.innerHTML=`<div class="ph"><h3>Datos de la institución</h3><button class="bn" onclick="mInst(DJ(this.dataset.j))" data-j="${J(d)}">Editar</button></div>
@@ -3101,27 +3550,122 @@ async function svInst(){await api('PUT','/api/institucion',{nombre:v('in'),telef
 
 // ── USUARIOS ──────────────────────────────────────────────────────────────────
 async function pgUsuarios(el){
-  const data=await api('GET','/api/usuarios/directores');
+  const [data,als,carrs,cursos]=await Promise.all([
+    api('GET','/api/usuarios/directores'),
+    api('GET','/api/alumnos'),
+    api('GET','/api/carreras'),
+    api('GET','/api/cursos')
+  ]);
+  W._usData={data,als,carrs,cursos};
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  // Marcar qué alumnos tienen usuario
+  const userEmails=new Set(data.map(u=>u.email));
   el.innerHTML=`<div class="ph"><h3>Usuarios y accesos</h3>
     <div class="ph-right">
-      <button class="bs o" onclick="reseedDocentes()" title="Crear usuarios para docentes que no tienen acceso">🔄 Crear accesos docentes</button>
+      <button class="bs o" onclick="crearAccesosAlumnos()" title="Crear accesos para alumnos sin usuario">👥 Crear accesos alumnos</button>
+      <button class="bs o" onclick="reseedDocentes()" title="Crear usuarios para docentes">🔄 Crear accesos docentes</button>
       <button class="bn" onclick="mUsuario()">+ Nuevo usuario</button>
     </div></div>
-  <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px">
-    ℹ <strong>Contraseña inicial de docentes:</strong> <code style="background:#fff;padding:2px 6px;border-radius:4px">docente123</code> — cada docente puede cambiarla desde su perfil.
+  <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
+    ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
+    Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
-  ${data.map(u=>`<tr>
-    <td><strong>${u.nombre} ${u.apellido||''}</strong></td>
-    <td style="font-size:12px">${u.email}</td>
-    <td><span class="bx ${u.rol==='director'?'br':u.rol==='docente'?'bb':'bg'}">${u.rol}</span></td>
-    <td><span class="bx ${u.activo?'bg':'br'}">${u.activo?'Activo':'Inactivo'}</span></td>
-    <td><div class="abs">
-      <button class="bs i" onclick='mUsuario(${JSON.stringify(u).replace(/"/g,"&quot;")})'>Editar</button>
-      <button class="bs s" onclick="mPassU('${u.id}')">Clave</button>
-      <button class="bs d" onclick="delU('${u.id}')">Eliminar</button>
-    </div></td></tr>`).join('')}
+  <!-- FILTROS -->
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+    <select id="filtUsRol" onchange="filtUs()" style="min-width:140px">
+      <option value="">Todos los roles</option>
+      <option value="director">Director</option>
+      <option value="docente">Docentes</option>
+      <option value="alumno">Alumnos</option>
+    </select>
+    <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="min-width:160px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtUsAnio" onchange="filtUs()" style="min-width:110px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="filtUsCurso" onchange="filtUs()" style="min-width:150px">
+      <option value="">Todos los cursos</option>
+      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+    </select>
+    <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px"/>
+  </div>
+  <div id="tbUsuarios">
+  ${renderTbUsuarios(data)}
+  </div>`;
+}
+function filtUsCursos(){
+  const carrId=v('filtUsCarr');
+  const sel=document.getElementById('filtUsCurso');
+  if(!sel)return;
+  const cursos=(W._usData?.cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
+  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+}
+function filtUs(){
+  const rol=v('filtUsRol'), carrId=v('filtUsCarr'), anio=v('filtUsAnio');
+  const cursoId=v('filtUsCurso'), bus=(v('filtUsBus')||'').toLowerCase();
+  let l=W._usData?.data||[];
+  if(rol) l=l.filter(u=>u.rol===rol);
+  if(bus) l=l.filter(u=>(u.nombre||'').toLowerCase().includes(bus)||(u.apellido||'').toLowerCase().includes(bus)||(u.email||'').toLowerCase().includes(bus));
+  // Para alumnos: filtrar por carrera/año/curso usando datos de als
+  if(carrId||anio||cursoId){
+    const alsFilt=new Set((W._usData?.als||[])
+      .filter(a=>(!carrId||a.carrera_id===carrId)&&(!anio||String(a.curso_anio)===anio)&&(!cursoId||a.curso_id===cursoId))
+      .map(a=>a.usuario_id).filter(Boolean));
+    l=l.filter(u=>u.rol!=='alumno'||alsFilt.has(u.id));
+  }
+  const tb=document.getElementById('tbUsuarios');
+  if(tb)tb.innerHTML=renderTbUsuarios(l);
+}
+function renderTbUsuarios(lista){
+  if(!lista.length)return'<div class="es">Sin usuarios con esos filtros</div>';
+  const rolColor={director:'br',docente:'bb',alumno:'bg'};
+  return`<div class="card"><div class="tw"><table><thead><tr>
+    <th>Nombre</th><th>Email / CI</th><th>Rol</th><th>Estado</th><th>Carrera / Curso</th><th></th>
+  </tr></thead><tbody>
+  ${lista.map(u=>{
+    // Buscar datos extra si es alumno
+    const al=(W._usData?.als||[]).find(a=>a.usuario_id===u.id);
+    return`<tr>
+      <td><strong>${u.nombre||''} ${u.apellido||''}</strong></td>
+      <td style="font-size:12px">${u.email||''}<br><span style="color:var(--t3)">${u.ci||''}</span></td>
+      <td><span class="bx ${rolColor[u.rol]||'bgr'}">${u.rol}</span></td>
+      <td><span class="bx ${u.activo?'bg':'br'}">${u.activo?'Activo':'Inactivo'}</span></td>
+      <td style="font-size:12px">${al?`${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}`:'-'}</td>
+      <td><div class="abs">
+        <button class="bs i" onclick='mUsuario(${JSON.stringify(u).replace(/"/g,"&quot;")})'>Editar</button>
+        <button class="bs s" onclick="mPassU('${u.id}')">Clave</button>
+        <button class="bs d" onclick="delU('${u.id}')">Eliminar</button>
+      </div></td>
+    </tr>`;
+  }).join('')}
   </tbody></table></div></div>`;
+}
+async function crearAccesosAlumnos(){
+  const als=W._usData?.als||[];
+  const sinUsuario=als.filter(a=>!a.usuario_id);
+  if(!sinUsuario.length){toast('Todos los alumnos ya tienen usuario asignado','info');return;}
+  if(!confirm(`¿Crear acceso para ${sinUsuario.length} alumno${sinUsuario.length!==1?'s':''} sin usuario?\nContraseña inicial: N° de cédula del alumno`))return;
+  let creados=0,errores=0;
+  for(const al of sinUsuario){
+    try{
+      const ci=(al.display_ci||al.ci||'').replace(/[^0-9]/g,'');
+      const email=`al_${ci||al.id}@its.edu.py`;
+      const r=await api('POST','/api/usuarios/directores',{
+        nombre:al.display_nombre||al.nombre||'',
+        apellido:al.display_apellido||al.apellido||'',
+        ci:al.display_ci||al.ci||'',
+        email,password:ci||'alumno123',rol:'alumno'
+      });
+      // Vincular usuario al alumno
+      await api('PUT','/api/alumnos/'+al.id,{usuario_id:r.id}).catch(()=>{});
+      creados++;
+    }catch{errores++;}
+  }
+  toast(`✓ ${creados} accesos creados${errores?` · ${errores} errores`:''}`, creados?'ok':'warn', 5000);
+  go('usuarios');
 }
 async function reseedDocentes(){
   if(!confirm('¿Crear usuarios de acceso para todos los docentes que no tienen usuario?\nContraseña inicial: docente123'))return;
