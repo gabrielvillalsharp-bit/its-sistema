@@ -83,7 +83,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
 // ── USUARIOS ──────────────────────────────────────────────────────────────────
 app.get('/api/usuarios/directores', auth(['director']), (req, res) => {
-  res.json(db.prepare("SELECT id,nombre,apellido,email,ci,activo,rol FROM usuarios WHERE rol IN ('director') ORDER BY nombre").all());
+  res.json(db.prepare("SELECT id,nombre,apellido,email,ci,activo,rol FROM usuarios WHERE rol IN ('director','docente','alumno') ORDER BY rol,nombre").all());
 });
 app.post('/api/usuarios/directores', auth(['director']), (req, res) => {
   const { nombre, apellido, email, password, ci, rol } = req.body;
@@ -714,10 +714,15 @@ app.get('/api/examenes', auth(), (req, res) => {
 });
 
 app.post('/api/examenes', auth(ADM), (req, res) => {
-  const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion } = req.body;
+  const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
   const id = 'ex_' + Date.now();
-  db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion) VALUES (?,?,?,?,?,?,?,?)').run(id,asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null);
+  db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id,asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null,puntos_max||50);
   res.json({ id });
+});
+app.put('/api/examenes/:id', auth(ADM), (req, res) => {
+  const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
+  db.prepare('UPDATE examenes SET asignacion_id=?,tipo=?,fecha=?,hora=?,aula=?,periodo_id=?,observacion=?,puntos_max=? WHERE id=?').run(asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null,puntos_max||50,req.params.id);
+  res.json({ ok: true });
 });
 
 app.put('/api/examenes/:id', auth(ADM), (req, res) => {
@@ -1372,6 +1377,34 @@ app.post('/api/habilitaciones', auth(ADM), (req, res) => {
 });
 app.get('/api/habilitaciones/:alumno_id', auth(), (req, res) => {
   res.json(db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').all(req.params.alumno_id));
+});
+
+// ── RE-SEED DOCENTES (para Railway donde la BD ya existía) ────────────────────
+app.post('/api/admin/reseed-docentes', auth(ADM), (req, res) => {
+  try {
+    const { seedDatos } = require('./db');
+    // Crear usuarios para docentes que no tienen usuario vinculado
+    const docsSinUser = db.prepare("SELECT d.id,d.especialidad,d.titulo,u2.nombre,u2.apellido,u2.email FROM docentes d JOIN usuarios u2 ON d.usuario_id=u2.id WHERE d.usuario_id IS NULL OR d.usuario_id=''").all();
+    // Alternativa: buscar docentes cuyo usuario no existe
+    const allDocs = db.prepare('SELECT * FROM docentes').all();
+    const insU = db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol) VALUES (?,?,?,?,?,?)');
+    const passDoc = bcrypt.hashSync('docente123', 10);
+    let created = 0;
+    allDocs.forEach(d => {
+      const uid = 'u_' + d.id;
+      const userExists = db.prepare('SELECT id FROM usuarios WHERE id=?').get(uid);
+      if (!userExists) {
+        // Buscar datos del docente en el seed original
+        const u = db.prepare('SELECT * FROM usuarios WHERE id=?').get(uid);
+        if (!u) {
+          insU.run(uid, d.especialidad||'Docente', '', `${d.id}@its.edu.py`, passDoc, 'docente');
+          db.prepare('UPDATE docentes SET usuario_id=? WHERE id=?').run(uid, d.id);
+          created++;
+        }
+      }
+    });
+    res.json({ ok: true, created, total: allDocs.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ACTIVIDADES DEL CALENDARIO ACADÉMICO ─────────────────────────────────────
