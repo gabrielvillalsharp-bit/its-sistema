@@ -311,7 +311,6 @@ function navFor(r){
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
       {id:'mis-honorarios',l:'Mis honorarios',c:'#D85A30',r:['docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
-      {id:'feriados',l:'Feriados',c:'#888780',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
@@ -324,7 +323,6 @@ function navFor(r){
     ]},
     {g:'Configuración',i:[
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
-      {id:'escala',l:'Escala de notas',c:'#D85A30',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
     ]},
@@ -1279,7 +1277,7 @@ async function imprimirActaExamenPorAsig(asigId, tipo){
 W.imprimirActa=imprimirActa;
 
 // Función reutilizable para generar ventana de acta con logo
-async function generarVentanaActa(ex, alumnos, inst, pMax){
+async function generarVentanaActa(ex, alumnos, inst, pMax, esFinal, excluidos){
   const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const fecha=ex.fecha?new Date(ex.fecha+'T12:00:00'):new Date();
   const ventana=window.open('','_blank','width=860,height=720');
@@ -1332,7 +1330,9 @@ async function generarVentanaActa(ex, alumnos, inst, pMax){
     </tbody>
   </table>
   <div class="obs">A.) El alumno que no se presente figurará como AUSENTE. Para rendir el recuperatorio deberá solicitar habilitación en Dirección Académica.<br>
-  B.) El docente dispondrá de ocho (8) días a partir de la fecha de evaluación para la entrega del acta.</div>
+  B.) El docente dispondrá de ocho (8) días a partir de la fecha de evaluación para la entrega del acta.
+  ${esFinal&&excluidos>0?`<br>C.) <strong>${excluidos} alumno${excluidos!==1?'s':''} inhabilitado${excluidos!==1?'s':''} por mora de pago</strong> no figuran en este acta. Para su habilitación debe intervenir la Dirección Académica.`:''}
+  </div>
   <div class="info-line">Recibido por: ................................................. &nbsp;&nbsp; Fecha: ....../....../${fecha.getFullYear()}</div>
   <div class="firmas">
     <div class="firma-box"><div class="firma-line"></div><div>PROFESOR</div></div>
@@ -1347,9 +1347,12 @@ async function generarVentanaActa(ex, alumnos, inst, pMax){
 // Sobrescribir imprimirActaExamen para usar generarVentanaActa
 async function imprimirActaExamen(examenId, tipoOverride){
   try{
-    const {examen:ex,alumnos,institucion:inst}=await api('GET','/api/examenes/'+examenId+'/acta');
+    const {examen:ex,alumnos,institucion:inst,excluidos,esFinal}=await api('GET','/api/examenes/'+examenId+'/acta');
     const pMax=ex.puntos_max||(ex.tipo==='Extraordinario'?100:50);
-    generarVentanaActa(ex,alumnos,inst,pMax);
+    if(esFinal&&excluidos>0){
+      toast(`ℹ ${excluidos} alumno${excluidos!==1?'s':''} en mora no aparecen en el acta de ${ex.tipo}`,'info',5000);
+    }
+    generarVentanaActa(ex,alumnos,inst,pMax,esFinal,excluidos);
   }catch(e){toast('Error al generar acta: '+e.message,'err');}
 }
 
@@ -1476,10 +1479,13 @@ async function renderCalendario(el){
   const ultimo=new Date(anio,mes+1,0);
   const hasta=`${anio}-${String(mes+1).padStart(2,'0')}-${String(ultimo.getDate()).padStart(2,'0')}`;
   const filtDoc=me.rol==='docente'&&me.docenteId?'&docente_id='+me.docenteId:'';
-  const [exs,acts]=await Promise.all([
+  const [exs,acts,feriados]=await Promise.all([
     api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
-    api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[])
+    api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[]),
+    api('GET','/api/feriados').catch(()=>[])
   ]);
+  const ferSet=new Set(feriados.map(f=>f.fecha));
+  const ferMap=Object.fromEntries(feriados.map(f=>[f.fecha,f]));
   const porFecha={};
   exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push({...e,_tipo:'examen'});});
   (acts||[]).forEach(a=>{if(!porFecha[a.fecha])porFecha[a.fecha]=[];porFecha[a.fecha].push({...a,_tipo:'actividad'});});
@@ -1491,52 +1497,67 @@ async function renderCalendario(el){
   let celdas='';
   for(let i=0;i<primerDia;i++)celdas+=`<div></div>`;
   for(let d=1;d<=totalDias;d++){
-    const fStr=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const evs=porFecha[fStr]||[];
-    const isHoy=fStr===hoyStr;
-    celdas+=`<div class="cal-day${isHoy?' today':''}${evs.length?' has-exam':''}" onclick="verDia('${fStr}')" title="${evs.length?evs.length+' evento(s)':''}${me&&me.rol==='director'?' · Clic para ver/agregar':''}">
-      <div class="cal-day-num">${d}</div>
-      ${evs.slice(0,2).map(e=>e._tipo==='actividad'
-        ?`<div class="cal-event" style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:1px 4px;margin-bottom:1px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📌 ${(e.titulo||'').substring(0,13)}</div>`
-        :`<div class="cal-event ${e.tipo}">${e.tipo[0]} · ${(e.materia_nombre||'').substring(0,11)}</div>`
+    const fs=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const esHoy=fs===hoyStr;
+    const esFeriado=ferSet.has(fs);
+    const evs=porFecha[fs]||[];
+    celdas+=`<div style="border:1px solid var(--bdr);border-radius:8px;padding:6px 8px;min-height:70px;background:${esFeriado?'#fff3e0':esHoy?'#e3f2fd':'#fff'};${esHoy?'border-color:#185FA5;':''}">
+      <div style="font-weight:${esHoy?'900':'600'};font-size:13px;color:${esFeriado?'#e65100':esHoy?'#185FA5':'var(--txt)'};margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
+        <span>${d}</span>
+        ${esFeriado?`<span style="font-size:9px;background:#fff3e0;color:#e65100;padding:1px 5px;border-radius:8px;border:1px solid #ffcc02" title="${ferMap[fs]?.nombre}">🏖 Feriado</span>`:''}
+      </div>
+      ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
+      ${evs.map(e=>e._tipo==='examen'
+        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px;cursor:pointer" onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre}">
+          <strong>${e.tipo}</strong> · ${e.materia_nombre||''}<br>
+          <span style="color:#666">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} ${e.hora?'· '+e.hora:''}</span>
+        </div>`
+        :`<div style="background:#e8f5e9;border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px">📌 ${e.titulo||e.descripcion||''}</div>`
       ).join('')}
-      ${evs.length>2?`<div style="font-size:9px;color:var(--t3)">+${evs.length-2} más</div>`:''}
+      ${me.rol==='director'?`<button onclick="mExamen()" style="font-size:9px;padding:1px 5px;border:1px dashed #ccc;border-radius:4px;background:transparent;cursor:pointer;margin-top:2px;color:var(--t3)">+ Examen</button>`:''}
     </div>`;
   }
-  el.innerHTML=`<div class="ph"><h3>Calendario Académico — ${meses[mes]} ${anio}</h3>
+  const esDir=me.rol==='director';
+  el.innerHTML=`<div class="ph"><h3>Calendario de Exámenes</h3>
     <div class="ph-right">
-      ${me.rol==='director'?`<button class="bs i" onclick="mActividad()">+ Actividad</button>
-      <button class="bn" onclick="go('examenes')">Gestionar exámenes</button>`:''}
+      ${esDir?`<button class="bs o" onclick="mFeriado()" title="Gestionar feriados">📅 Feriados</button>`:''}
+      ${esDir?`<button class="bs" onclick="verListaFeriados()">Ver todos los feriados</button>`:''}
+      ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-    <button class="bs" onclick="cambiarMes(-1)">← Anterior</button>
-    <strong style="font-size:15px">${meses[mes]} ${anio}</strong>
-    <button class="bs" onclick="cambiarMes(1)">Siguiente →</button>
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <button class="bs" onclick="W._calFecha.mes--;if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl)">◀</button>
+    <span style="font-size:16px;font-weight:700">${meses[mes]} ${anio}</span>
+    <button class="bs" onclick="W._calFecha.mes++;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}renderCalendario(W._calEl)">▶</button>
+    ${feriados.length?`<span style="font-size:11px;color:#e65100">🏖 ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length} feriados este mes</span>`:''}
   </div>
-  <div style="display:flex;gap:10px;margin-bottom:10px;font-size:11px;flex-wrap:wrap">
-    <span><span class="cal-event Parcial" style="display:inline-block">P</span> Parcial</span>
-    <span><span class="cal-event Final" style="display:inline-block">F</span> Final</span>
-    <span class="bx bg" style="font-size:10px">📌 Actividad</span>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px">
+    ${dias.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;color:var(--t2)">${d}</div>`).join('')}
   </div>
-  <div class="card card-p">
-    <div class="cal-grid">${dias.map(d=>`<div class="cal-hdr">${d}</div>`).join('')}${celdas}</div>
-  </div>
-  ${(acts||[]).length?`<div class="card" style="margin-top:12px"><div class="card-p">
-    <p style="font-weight:700;margin-bottom:8px;font-size:13px">📌 Actividades de ${meses[mes]}</p>
-    ${(acts||[]).map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
-      <div>
-        <span style="font-weight:600;font-size:13px">${a.titulo}</span>
-        <span style="font-size:11px;color:var(--t2);margin-left:8px">${fmtFecha(a.fecha)}</span>
-        ${a.carrera_nombre?`<span class="cur-tag" style="margin-left:6px">${a.carrera_nombre}</span>`:''}
-        ${a.descripcion?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${a.descripcion}</div>`:''}
-      </div>
-      ${me.rol==='director'?`<div class="abs">
-        <button class="bs d" onclick="delAct('${a.id}')">Eliminar</button>
-      </div>`:''}
-    </div>`).join('')}
-  </div></div>`:''}
-  <div id="diaDetalle"></div>`;
-  W._calExs=exs; W._calActs=acts||[];
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${celdas}</div>`;
+}
+async function verListaFeriados(){
+  const feriados=await api('GET','/api/feriados').catch(()=>[]);
+  modal(`<h4>📅 Feriados registrados</h4>
+  <div style="max-height:60vh;overflow-y:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5f5f5">
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Fecha</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Nombre</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Tipo</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)"></th>
+    </tr></thead>
+    <tbody>${feriados.map(f=>`<tr>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600;white-space:nowrap">${fmtFecha(f.fecha)}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">${f.nombre}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)"><span class="bx ${f.tipo==='nacional'?'bb':'ba'}" style="font-size:10px">${f.tipo}</span></td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)"><button class="bs d" style="font-size:10px" onclick="del('${f.id}','feriados');cm();setTimeout(()=>go('calendario'),300)">Eliminar</button></td>
+    </tr>`).join('')||'<tr><td colspan="4" class="es">Sin feriados</td></tr>'}
+    </tbody>
+  </table></div>
+  <div class="mf" style="margin-top:10px">
+    <button class="bs o" onclick="cm();mFeriado()">+ Agregar feriado</button>
+    <button class="bs" onclick="cm()">Cerrar</button>
+  </div>`,true);
 }
 W.cambiarMes=(d)=>{W._calFecha.mes+=d;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl||document.getElementById('mc'));};
 function verDia(fecha){
@@ -2574,12 +2595,14 @@ async function selAlumnoPago(alId){
   panel.innerHTML='<div class="es">Cargando historial...</div>';
 
   try{
-    const [rPagos,rHab]=await Promise.all([
+    const [rPagos,rHab,rBecas]=await Promise.all([
       api('GET','/api/pagos/alumno/'+alId),
-      api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true}))
+      api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
+      api('GET','/api/becas?alumno_id='+alId).catch(()=>[])
     ]);
     const {pagos,totalPagado,alumno}=rPagos;
     const al=alumno||(W._pdata?.als||[]).find(a=>a.id===alId)||{};
+    const becasActivas=(rBecas||[]).filter(b=>b.activa);
 
     // Clasificar por tipo de concepto
     const tipoGrupo={
@@ -2624,9 +2647,10 @@ async function selAlumnoPago(alId){
           <div style="font-size:11px;opacity:.8">Total acumulado</div>
         </div>
       </div>
-      <!-- Estado habilitación -->
+      <!-- Estado habilitación y beca -->
       <div style="padding:10px 16px;background:#f9f9f9;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:600">Estado de habilitación:</span>${habEstado}
+        <span style="font-size:12px;font-weight:600">Habilitación:</span>${habEstado}
+        ${becasActivas.length?`<span style="font-size:11px;padding:3px 8px;background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;color:#2e7d32">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
         <button class="bs i" onclick="mPagoParaAlumno('${alId}')" style="margin-left:auto">+ Registrar pago</button>
       </div>
       <!-- Historial por categorías -->
@@ -2754,18 +2778,30 @@ async function verificarHabPago(){
   const div=document.getElementById('pgHabInfo');
   if(!alId||!div){if(div)div.innerHTML='';return;}
   try{
-    const h=await api('GET','/api/alumnos/'+alId+'/habilitacion');
+    const [h,becas]=await Promise.all([
+      api('GET','/api/alumnos/'+alId+'/habilitacion'),
+      api('GET','/api/becas?alumno_id='+alId).catch(()=>[])
+    ]);
+    const becasActivas=(becas||[]).filter(b=>b.activa);
+    let html='';
     if(h.habilitado){
-      div.innerHTML=`<div style="font-size:11px;padding:4px 8px;background:#e8f5e9;border-radius:4px;color:#2e7d32;margin-bottom:4px">
+      html+=`<div style="font-size:11px;padding:4px 8px;background:#e8f5e9;border-radius:4px;color:#2e7d32;margin-bottom:4px">
         ✓ Habilitado — ${h.razon==='habilitacion_especial'?'excepción del director':h.razon==='pago_al_dia'?'cuotas 1–5 al día':'sin mora'}
       </div>`;
     } else {
       const falt=(h.cuotas_faltantes||[]);
-      div.innerHTML=`<div style="font-size:11px;padding:4px 8px;background:#fff3e0;border-radius:4px;color:#e65100;margin-bottom:4px">
-        ⚠ <strong>Mora:</strong> ${falt.length?'Faltan: '+falt.join(', '):'cuotas incompletas'} — no puede rendir finales sin habilitación
+      html+=`<div style="font-size:11px;padding:4px 8px;background:#fff3e0;border-radius:4px;color:#e65100;margin-bottom:4px">
+        ⚠ <strong>Mora:</strong> ${falt.length?'Faltan: '+falt.join(', '):'cuotas incompletas'}
       </div>`;
     }
-  }catch{div.innerHTML='';}
+    if(becasActivas.length){
+      html+=`<div style="font-size:11px;padding:6px 10px;background:#e8f5e9;border:2px solid #4caf50;border-radius:6px;margin-top:4px">
+        💎 <strong>BECA ACTIVA:</strong> ${becasActivas.map(b=>`${b.tipo}${b.porcentaje?' — '+b.porcentaje+'% de descuento':b.monto_fijo?' — Gs. '+Number(b.monto_fijo).toLocaleString()+' de descuento':''}`).join(' · ')}
+        <br><span style="font-size:10px;color:#388e3c">Aplicar el descuento correspondiente al monto de este pago</span>
+      </div>`;
+    }
+    div.innerHTML=html;
+  }catch{if(div)div.innerHTML='';}
 }
 function filtrarAlPago(){
   const q=(v('pgbus')||'').toLowerCase().trim();
@@ -2930,43 +2966,114 @@ async function pgDeudores(el){
 
 // ── BECAS ─────────────────────────────────────────────────────────────────────
 async function pgBecas(el){
-  const [becas,als]=await Promise.all([api('GET','/api/becas'),api('GET','/api/alumnos')]);
-  W._bdata={als};
-  el.innerHTML=`<div class="ph"><h3>Becas y descuentos (${becas.length})</h3><button class="bn" onclick="mBeca()">+ Nueva beca</button></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Alumno</th><th>Carrera</th><th>Tipo</th><th>Descuento</th><th>Descripción</th><th>Desde</th><th>Hasta</th><th>Estado</th><th></th></tr></thead><tbody>
-  ${becas.map(b=>`<tr>
-    <td><strong>${b.alumno_apellido||''}, ${b.alumno_nombre||''}</strong></td>
-    <td>${b.carrera_nombre}</td>
-    <td><span class="bx ${b.tipo==='Beca Total'?'bg':b.tipo==='Beca Parcial'?'bb':'ba'}">${b.tipo}</span></td>
-    <td>${b.porcentaje?b.porcentaje+'%':b.monto_fijo?'Gs. '+Number(b.monto_fijo).toLocaleString():'-'}</td>
-    <td>${b.descripcion||'-'}</td>
-    <td>${fmtFecha(b.fecha_inicio)}</td>
-    <td>${fmtFecha(b.fecha_fin)||'Indefinido'}</td>
-    <td><span class="bx ${b.activa?'bg':'bgr'}">${b.activa?'Activa':'Inactiva'}</span></td>
-    <td><div class="abs"><button class="bs d" onclick="del('${b.id}','becas')">Eliminar</button></div></td>
-  </tr>`).join('')||'<tr><td colspan="9" class="es">Sin becas registradas</td></tr>'}
+  const [becas,als,carrs,cursos]=await Promise.all([
+    api('GET','/api/becas'),
+    api('GET','/api/alumnos'),
+    api('GET','/api/carreras'),
+    api('GET','/api/cursos')
+  ]);
+  W._bdata={als,carrs,cursos};
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  el.innerHTML=`<div class="ph"><h3>💎 Becas y descuentos</h3><button class="bn" onclick="mBeca()">+ Nueva beca</button></div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <select id="filtBecaCarr" onchange="filtBecaCursos();filtBecas()" style="min-width:180px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtBecaAnio" onchange="filtBecas()" style="min-width:110px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="filtBecaTipo" onchange="filtBecas()" style="min-width:140px">
+      <option value="">Todos los tipos</option>
+      <option value="Beca Total">Beca Total</option>
+      <option value="Beca Parcial">Beca Parcial</option>
+      <option value="Descuento">Descuento</option>
+      <option value="Convenio">Convenio</option>
+    </select>
+    <input id="filtBecaBus" placeholder="🔍 Buscar alumno..." oninput="filtBecas()" style="min-width:180px"/>
+  </div>
+  <div id="tbBecas">${renderTbBecas(becas,als)}</div>`;
+  W._becasAll=becas;
+}
+function filtBecaCursos(){
+  const carrId=v('filtBecaCarr');
+  // Solo filtrar alumnos disponibles
+}
+function filtBecas(){
+  const carrId=v('filtBecaCarr'), anio=v('filtBecaAnio'), tipo=v('filtBecaTipo');
+  const bus=(v('filtBecaBus')||'').toLowerCase();
+  let becas=W._becasAll||[];
+  if(tipo) becas=becas.filter(b=>b.tipo===tipo);
+  if(bus)  becas=becas.filter(b=>`${b.alumno_apellido||''} ${b.alumno_nombre||''}`.toLowerCase().includes(bus)||(b.alumno_ci||'').includes(bus));
+  // Filtrar por carrera y año usando los datos de alumnos
+  if(carrId||anio){
+    const als=W._bdata?.als||[];
+    const alsFilt=new Set(als.filter(a=>(!carrId||a.carrera_id===carrId)&&(!anio||String(a.curso_anio)===anio)).map(a=>a.id));
+    becas=becas.filter(b=>alsFilt.has(b.alumno_id));
+  }
+  const el=document.getElementById('tbBecas');
+  if(el)el.innerHTML=renderTbBecas(becas,W._bdata?.als||[]);
+}
+function renderTbBecas(becas,als){
+  return`<div class="card"><div class="tw"><table><thead><tr>
+    <th>Alumno</th><th>Carrera / Año</th><th>Tipo</th><th>Descuento</th><th>Descripción</th><th>Desde</th><th>Hasta</th><th>Estado</th><th></th>
+  </tr></thead><tbody>
+  ${becas.map(b=>{
+    const al=als.find(a=>a.id===b.alumno_id);
+    return`<tr>
+      <td><strong>${b.alumno_apellido||''}, ${b.alumno_nombre||''}</strong><br><span style="font-size:10px;color:var(--t3)">${al?.display_ci||b.alumno_ci||''}</span></td>
+      <td style="font-size:12px">${b.carrera_nombre||''}<br>${al?.curso_anio?`<span style="font-size:10px;color:var(--t2)">${al.curso_anio}° año</span>`:''}</td>
+      <td><span class="bx ${b.tipo==='Beca Total'?'bg':b.tipo==='Beca Parcial'?'bb':'ba'}">${b.tipo}</span></td>
+      <td style="font-weight:700">${b.porcentaje?b.porcentaje+'%':b.monto_fijo?'Gs. '+Number(b.monto_fijo).toLocaleString():'-'}</td>
+      <td style="font-size:12px">${b.descripcion||'-'}</td>
+      <td>${fmtFecha(b.fecha_inicio)}</td>
+      <td>${fmtFecha(b.fecha_fin)||'Indefinido'}</td>
+      <td><span class="bx ${b.activa?'bg':'bgr'}">${b.activa?'Activa':'Inactiva'}</span></td>
+      <td><button class="bs d" onclick="del('${b.id}','becas')">Eliminar</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" class="es">Sin becas con esos filtros</td></tr>'}
   </tbody></table></div></div>`;
 }
-function mBeca(){const {als}=W._bdata||{};
-  modal(`<h4>Nueva beca / descuento</h4><div class="fg">
-  <div class="f"><label>Alumno</label><select id="bcal">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select></div>
+function mBeca(){
+  const {als,carrs,cursos}=W._bdata||{};
+  const anios=[...new Set((cursos||[]).map(cu=>cu.anio).filter(Boolean))].sort();
+  modal(`<h4>💎 Nueva beca / descuento</h4><div class="fg">
+  <div class="fb" style="gap:8px;margin-bottom:8px">
+    <select id="bcCarr" onchange="filtBecaAls()" style="flex:1">
+      <option value="">Todas las carreras</option>
+      ${(carrs||[]).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="bcAnio" onchange="filtBecaAls()" style="flex:0 0 110px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+  </div>
+  <div class="f"><label>Alumno <span style="color:var(--red)">*</span></label>
+    <select id="bcal" style="width:100%"><option value="">— Seleccionar alumno —</option>${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre||''} ${a.curso_anio?a.curso_anio+'°':''}</option>`).join('')}</select>
+  </div>
   <div class="fr">
     <div class="f"><label>Tipo</label><select id="bcti"><option>Beca Total</option><option>Beca Parcial</option><option>Descuento</option><option>Convenio</option></select></div>
     <div class="f"><label>% Descuento</label><input id="bcpct" type="number" min="0" max="100" placeholder="Ej: 50"/></div>
   </div>
   <div class="fr">
     <div class="f"><label>O monto fijo (Gs.)</label><input id="bcmf" type="number" placeholder="Alternativo al %"/></div>
-    <div class="f"><label>Desde</label><input id="bcde" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+    <div class="f"><label>Desde <span style="color:var(--red)">*</span></label><input id="bcde" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
   </div>
   <div class="fr">
     <div class="f"><label>Hasta (vacío = indefinido)</label><input id="bcha" type="date"/></div>
     <div class="f"><label>Descripción</label><input id="bcds" placeholder="Motivo de la beca"/></div>
   </div>
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svBeca()">Guardar</button></div>`);}
-async function svBeca(){
-  const o={alumno_id:v('bcal'),tipo:v('bcti'),porcentaje:parseFloat(v('bcpct'))||null,monto_fijo:parseFloat(v('bcmf'))||null,descripcion:v('bcds'),fecha_inicio:v('bcde'),fecha_fin:v('bcha')||null};
-  if(!o.alumno_id||!o.fecha_inicio)return alert('Completar alumno y fecha');
-  await api('POST','/api/becas',o);cm();go('becas');
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svBeca()">Guardar</button></div>`);
+}
+function filtBecaAls(){
+  const carrId=v('bcCarr'), anio=v('bcAnio');
+  const sel=document.getElementById('bcal');
+  if(!sel)return;
+  let als=W._bdata?.als||[];
+  if(carrId) als=als.filter(a=>a.carrera_id===carrId);
+  if(anio)   als=als.filter(a=>String(a.curso_anio)===anio);
+  sel.innerHTML='<option value="">— Seleccionar alumno —</option>'+als.map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre||''} ${a.curso_anio?a.curso_anio+'°':''}</option>`).join('');
 }
 
 // ── MI ÁREA DOCENTE ───────────────────────────────────────────────────────────

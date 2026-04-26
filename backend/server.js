@@ -1103,15 +1103,20 @@ app.get('/api/pagos/deudores', auth(ADM), (req, res) => {
 });
 
 // Becas y descuentos
-app.get('/api/becas', auth(ADM), (req, res) => {
+app.get('/api/becas', auth(['director','docente']), (req, res) => {
+  const { alumno_id } = req.query;
+  let where = ''; const params = [];
+  if (alumno_id) { where = ' WHERE b.alumno_id=?'; params.push(alumno_id); }
   res.json(db.prepare(`
     SELECT b.*,COALESCE(al.nombre,u.nombre) as alumno_nombre,COALESCE(al.apellido,u.apellido) as alumno_apellido,
-      c.nombre as carrera_nombre
+      COALESCE(al.ci,u.ci) as alumno_ci,
+      c.nombre as carrera_nombre, cu.anio as curso_anio
     FROM becas b
     JOIN alumnos al ON b.alumno_id=al.id
     LEFT JOIN usuarios u ON al.usuario_id=u.id
-    JOIN carreras c ON al.carrera_id=c.id
-    ORDER BY b.fecha_inicio DESC`).all());
+    LEFT JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id
+    ${where} ORDER BY b.fecha_inicio DESC`).all(...params));
 });
 app.post('/api/becas', auth(ADM), (req, res) => {
   const { alumno_id, tipo, porcentaje, monto_fijo, descripcion, fecha_inicio, fecha_fin } = req.body;
@@ -1794,12 +1799,16 @@ app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
     LEFT JOIN periodos p ON e.periodo_id=p.id
     WHERE e.id=?`).get(req.params.id);
   if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
-  // Notas de los alumnos para ese examen
-  const alumnos = ex.asignacion_id ? db.prepare(`
-    SELECT al.matricula, COALESCE(al.ci,u2.ci) as ci,
+
+  // Tipos de examen FINAL (aplica filtro de habilitación)
+  const esFinal = ['Final','Final Recuperatorio','Complementario','Extraordinario'].includes(ex.tipo);
+
+  const todosAlumnos = ex.asignacion_id ? db.prepare(`
+    SELECT al.id, al.matricula, al.habilitado_pago_pendiente,
+      COALESCE(al.ci,u2.ci) as ci,
       COALESCE(al.nombre,u2.nombre) as nombre, COALESCE(al.apellido,u2.apellido) as apellido,
       n.puntaje_total, n.nota_final, n.estado, n.ausente,
-      CASE e.tipo
+      CASE ?
         WHEN 'Parcial' THEN n.parcial
         WHEN 'Recuperatorio' THEN n.parcial_recuperatorio
         WHEN 'Final' THEN n.final_ord
@@ -1812,9 +1821,33 @@ app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
     LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
     WHERE al.curso_id=(SELECT curso_id FROM asignaciones WHERE id=?) AND al.estado='Activo'
-    ORDER BY COALESCE(al.apellido,u2.apellido)`, ex.tipo).all(ex.asignacion_id, ex.asignacion_id) : [];
+    ORDER BY COALESCE(al.apellido,u2.apellido)`, ex.tipo).all(ex.tipo, ex.asignacion_id, ex.asignacion_id) : [];
+
+  let alumnos = todosAlumnos;
+  let excluidos = 0;
+
+  if (esFinal) {
+    // Para finales: solo incluir alumnos habilitados
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const cuotasReq = ['Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'];
+    const filtrados = [];
+    for (const al of todosAlumnos) {
+      if (al.habilitado_pago_pendiente) { filtrados.push(al); continue; }
+      if (periodo) {
+        const pagos = db.prepare("SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'").all(al.id, periodo.id);
+        const conceptos = pagos.map(p=>p.concepto);
+        const faltantes = cuotasReq.filter(c=>!conceptos.some(p=>p===c||p.includes(c)));
+        if (faltantes.length === 0) filtrados.push(al);
+        else excluidos++;
+      } else {
+        filtrados.push(al); // Sin período activo: no bloquear
+      }
+    }
+    alumnos = filtrados;
+  }
+
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
-  res.json({ examen: ex, alumnos, institucion: inst });
+  res.json({ examen: ex, alumnos, institucion: inst, excluidos, esFinal });
 });
 
 // ── ACTA DE TPS (trabajos prácticos) ─────────────────────────────────────────
