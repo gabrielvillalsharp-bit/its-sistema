@@ -326,6 +326,7 @@ function navFor(r){
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'escala',l:'Escala de notas',c:'#D85A30',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
+      {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -348,7 +349,7 @@ function go(p){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
-    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,
+    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
   pages[p]?.(el);
@@ -367,9 +368,21 @@ function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.t
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
 async function del(id,tipo){
-  const msgs={carreras:'¿Eliminar carrera?',cursos:'¿Eliminar curso?',materias:'¿Eliminar materia?',docentes:'¿Eliminar docente?',alumnos:'¿Eliminar alumno?',periodos:'¿Eliminar período?',asignaciones:'¿Eliminar asignación?',examenes:'¿Eliminar este examen?',avisos:'¿Eliminar aviso?',pagos:'¿Eliminar pago?',becas:'¿Eliminar beca?'};
-  if(!confirm(msgs[tipo]||'¿Eliminar?'))return;
-  await api('DELETE','/api/'+tipo+'/'+id);go(cur);
+  const labels={notas:'nota',pagos:'pago',examenes:'examen programado',alumnos:'alumno',docentes:'docente',asistencia:'registro de asistencia',avisos:'aviso',actividades:'actividad',feriados:'feriado',usuarios:'usuario',reemplazos:'reemplazo',carreras:'carrera',cursos:'curso',materias:'materia',asignaciones:'asignación',becas:'beca',periodos:'período'};
+  const label=labels[tipo]||'registro';
+  const extra=tipo==='alumnos'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán sus notas, asistencia y pagos asociados.</span>':tipo==='carreras'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán los cursos, materias y asignaciones de esta carrera.</span>':'';
+  confirm2(
+    `🗑 Eliminar ${label}`,
+    `<p>¿Confirmar la eliminación de este ${label}?</p>${extra}<p style="font-size:12px;color:#c62828;margin-top:8px;font-weight:600">⚠ Esta acción no se puede deshacer.</p>`,
+    async function(){
+      try{
+        await api('DELETE','/api/'+tipo+'/'+id);
+        go(cur);
+        toast(`✓ ${label.charAt(0).toUpperCase()+label.slice(1)} eliminado`,'ok');
+      }catch(e){toast('Error al eliminar: '+e.message,'err');}
+    },
+    null
+  );
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────────
@@ -2088,17 +2101,55 @@ async function guardarEditAsist(regId, alId){
     if(W._asistId)W.loadAsist(W._asistId);
   }catch(e){toast('Error: '+e.message,'err');}
 }
+// ── MODAL DE CONFIRMACIÓN RICO (reemplaza confirm() nativo) ──────────────────
+function confirm2(titulo, cuerpo, onAceptar, onModificar){
+  const id='cfm_'+Date.now();
+  const div=document.createElement('div');
+  div.id=id;
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;display:flex;align-items:center;justify-content:center';
+  div.innerHTML=`<div style="background:#fff;border-radius:14px;padding:22px;max-width:440px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <h4 style="font-size:15px;font-weight:700;color:#1a2a4a;margin-bottom:10px">${titulo}</h4>
+    <div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:16px">${cuerpo}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      ${onModificar?`<button onclick="document.getElementById('${id}').remove();(${onModificar.toString()})()" style="padding:8px 16px;border:1px solid var(--bdr);border-radius:7px;background:#fff;color:#333;cursor:pointer;font-size:13px;font-weight:600">✏ Modificar</button>`:''}
+      <button onclick="document.getElementById('${id}').remove();(${onAceptar.toString()})()" style="padding:8px 20px;border:none;border-radius:7px;background:#1a5fa8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✓ Confirmar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+}
+
 async function grdAsist(){
   if(!W._ast){toast('Cargá una materia primero','warn');return;}
   const {asigId,fecha,est}=W._ast;
   const registros=Object.entries(est).map(([alumno_id,estado])=>({alumno_id,estado}));
   if(!registros.length){toast('No hay alumnos para guardar','warn');return;}
-  try{
-    await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
-    toast(`✓ Asistencia guardada — ${registros.length} alumnos`,'ok');
-    const msg=document.getElementById('amsg');
-    if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
-  }catch(e){toast('Error al guardar: '+e.message,'err',6000);}
+  // Resumen para confirmación
+  const presentes=registros.filter(r=>r.estado==='P').length;
+  const ausentes=registros.filter(r=>r.estado==='A').length;
+  const justif=registros.filter(r=>r.estado==='J').length;
+  const hon=presentes>0?'<br><span style="color:#2e7d32;font-size:12px">💰 Se generará honorario de Gs. 80.000 por esta clase</span>':'<br><span style="color:#e65100;font-size:12px">⚠ Sin alumnos presentes — no se genera honorario</span>';
+  confirm2(
+    '💾 Confirmar registro de asistencia',
+    `<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:8px">
+      <strong>Fecha:</strong> ${fmtFecha(fecha)}<br>
+      <strong>Alumnos:</strong> ${registros.length} en total<br>
+      <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">
+        <span style="color:#2e7d32;font-weight:700">✓ ${presentes} presentes</span>
+        <span style="color:#c62828;font-weight:700">✗ ${ausentes} ausentes</span>
+        ${justif?`<span style="color:#1565c0;font-weight:700">📋 ${justif} justificados</span>`:''}
+      </div>${hon}
+    </div>
+    ¿Confirmar el registro? Esta acción guardará la asistencia del día.`,
+    async function(){
+      try{
+        await api('POST','/api/asistencia/bulk',{asignacion_id:asigId,fecha,registros});
+        toast(`✓ Asistencia guardada — ${registros.length} alumnos`,'ok');
+        const msg=document.getElementById('amsg');
+        if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
+      }catch(e){toast('Error al guardar: '+e.message,'err',6000);}
+    },
+    function(){toast('Podés seguir editando la asistencia','info');}
+  );
 }
 async function eliminarAsist(regId,alId){
   if(!confirm('¿Eliminar este registro de asistencia?'))return;
@@ -2732,7 +2783,23 @@ function filtrarAlPago(){
 async function svPago(){
   const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
-  await api('POST','/api/pagos',o);cm();go('pagos');
+  const al=(W._pdata?.als||[]).find(a=>a.id===o.alumno_id);
+  const nom=al?`${al.display_apellido||''}, ${al.display_nombre||''}`:'—';
+  confirm2(
+    '💰 Confirmar registro de pago',
+    `<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px">
+      <div><span style="font-size:11px;color:var(--t3)">Alumno</span><br><strong>${nom}</strong></div>
+      <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Concepto</span><br><strong>${o.concepto}</strong></div>
+      <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Monto</span><br><span style="font-size:20px;font-weight:900;color:#2e7d32">Gs. ${(o.monto||0).toLocaleString()}</span></div>
+      <div style="margin-top:4px;font-size:12px">Medio: ${o.medio_pago}${o.comprobante?' · Comp: '+o.comprobante:''}</div>
+    </div>
+    <p style="font-size:12px;color:var(--t2);margin-top:8px">Verificá que el monto y concepto sean correctos.</p>`,
+    async function(){
+      try{await api('POST','/api/pagos',o);cm();go('pagos');toast('✓ Pago registrado','ok');}
+      catch(e){toast('Error: '+e.message,'err');}
+    },
+    function(){toast('Podés corregir los datos del pago','info');}
+  );
 }
 async function importarPagos(input){
   const file=input.files[0];if(!file)return;
@@ -3473,6 +3540,136 @@ async function svFeriado(){
   try{await api('POST','/api/feriados',o);toast('✓ Feriado agregado','ok');cm();go('feriados');}
   catch(e){toast('Error: '+e.message,'err');}
 }
+
+async function pgAuditoria(el){
+  const hoy=new Date();
+  const anio=hoy.getFullYear(), mes=String(hoy.getMonth()+1).padStart(2,'0');
+  el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
+    <div class="ph-right">
+      <button class="bs s" onclick="exportAuditoria()">⬇ Exportar CSV</button>
+      <button class="bs d" onclick="limpiarAuditoria()">🗑 Purgar antiguos</button>
+    </div></div>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <select id="audAccion" onchange="cargarAuditoria()">
+      <option value="">Todas las acciones</option>
+      <option value="LOGIN">🔐 Login</option>
+      <option value="UPDATE_NOTA">📝 Modificación de nota</option>
+      <option value="UPDATE_ASISTENCIA">📅 Modificación asistencia</option>
+      <option value="DELETE">🗑 Eliminación</option>
+      <option value="BACKUP">💾 Backup</option>
+      <option value="HABILITAR">✅ Habilitación de alumno</option>
+      <option value="PAGO">💰 Pago registrado</option>
+      <option value="REEMPLAZO">🔄 Reemplazo</option>
+      <option value="HONORARIO">💵 Honorario</option>
+      <option value="ERROR">❌ Error del sistema</option>
+    </select>
+    <select id="audTabla" onchange="cargarAuditoria()">
+      <option value="">Todas las tablas</option>
+      <option value="notas">Notas</option>
+      <option value="asistencia">Asistencia</option>
+      <option value="pagos">Pagos</option>
+      <option value="honorarios">Honorarios</option>
+      <option value="reemplazos">Reemplazos</option>
+      <option value="usuarios">Usuarios</option>
+      <option value="alumnos">Alumnos</option>
+      <option value="examenes">Exámenes</option>
+      <option value="sistema">Sistema</option>
+    </select>
+    <input id="audDesde" type="date" value="${anio}-${mes}-01" onchange="cargarAuditoria()" style="width:auto"/>
+    <input id="audHasta" type="date" value="${anio}-${mes}-${String(new Date(anio,parseInt(mes),0).getDate()).padStart(2,'0')}" onchange="cargarAuditoria()" style="width:auto"/>
+    <input id="audBus" placeholder="🔍 Buscar en detalle..." oninput="filtAudit()" style="min-width:180px"/>
+    <select id="audLim" onchange="cargarAuditoria()" style="width:auto">
+      <option value="100">100 registros</option>
+      <option value="200" selected>200 registros</option>
+      <option value="500">500 registros</option>
+      <option value="1000">1000 registros</option>
+    </select>
+  </div>
+  <div id="audStats" style="margin-bottom:12px"></div>
+  <div id="audTbl"><div class="es">Cargando...</div></div>`;
+  await cargarAuditoria();
+}
+async function cargarAuditoria(){
+  const accion=v('audAccion'), tabla=v('audTabla');
+  const desde=v('audDesde'), hasta=v('audHasta'), lim=v('audLim')||200;
+  let url=`/api/admin/auditoria?limite=${lim}`;
+  if(accion)url+=`&accion=${accion}`;
+  if(tabla)url+=`&tabla=${tabla}`;
+  if(desde)url+=`&desde=${desde}`;
+  if(hasta)url+=`&hasta=${hasta}`;
+  const el=document.getElementById('audTbl');
+  const stats=document.getElementById('audStats');
+  try{
+    const r=await api('GET',url);
+    W._auditData=r.registros||r;
+    const regs=W._auditData;
+    // Stats
+    if(stats&&r.stats){
+      stats.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${(r.stats||[]).map(s=>`<span style="padding:4px 10px;background:#f0f4f8;border-radius:8px;font-size:11px"><strong>${s.accion}</strong>: ${s.total}</span>`).join('')}
+      </div>`;
+    }
+    if(!el)return;
+    if(!regs.length){el.innerHTML='<div class="es">Sin registros para los filtros seleccionados</div>';return;}
+    const accionColor={LOGIN:'bg',UPDATE_NOTA:'bb',DELETE:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba'};
+    el.innerHTML=`<div class="card"><div class="tw" style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;min-width:800px">
+      <thead><tr style="background:#f0f4f8">
+        <th style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">Fecha / Hora</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Usuario</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Rol</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Tabla</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Registro ID</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Detalle</th>
+      </tr></thead>
+      <tbody id="audBody">
+      ${regs.map(r=>audRow(r,accionColor)).join('')}
+      </tbody>
+    </table></div></div>
+    <p style="font-size:11px;color:var(--t3);margin-top:6px">Mostrando ${regs.length} registros · Última actualización: ${new Date().toLocaleTimeString('es-PY')}</p>`;
+  }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
+function audRow(r,accionColor){
+  let detalle='';
+  try{const d=JSON.parse(r.detalle||'{}');detalle=Object.entries(d).map(([k,vl])=>`<span style="font-size:10px;color:var(--t3)">${k}:</span> ${JSON.stringify(vl)}`).join(' · ');}catch{detalle=r.detalle||'';}
+  const c=accionColor||{};
+  return `<tr>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${(r.fecha||'').replace('T',' ').split('.')[0]}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap"><strong>${r.user_nombre||'Sistema'}</strong> ${r.user_apellido||''}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':'bg'}" style="font-size:9px">${r.rol||'—'}</span></td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${c[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span></td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr)">${r.tabla||'—'}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.registro_id||'—'}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
+  </tr>`;
+}
+function filtAudit(){
+  const q=(v('audBus')||'').toLowerCase();
+  const rows=document.querySelectorAll('#audBody tr');
+  rows.forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+}
+function exportAuditoria(){
+  const regs=W._auditData||[];
+  if(!regs.length){toast('Sin datos para exportar','warn');return;}
+  const header='Fecha,Usuario,Rol,Accion,Tabla,Registro_ID,Detalle\n';
+  const rows=regs.map(r=>[r.fecha,`${r.user_nombre||''} ${r.user_apellido||''}`,r.rol,r.accion,r.tabla,r.registro_id,JSON.stringify(r.detalle||'')].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(header+rows);
+  a.download=`auditoria_ITS_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  toast('✓ CSV exportado','ok');
+}
+async function limpiarAuditoria(){
+  const dias=prompt('Eliminar registros de auditoría más antiguos de cuántos días (mínimo 30):','90');
+  if(!dias||isNaN(dias))return;
+  if(!confirm(`¿Eliminar registros de auditoría anteriores a ${dias} días? Esta acción no se puede deshacer.`))return;
+  try{
+    const r=await api('DELETE','/api/admin/auditoria',{dias:parseInt(dias)});
+    toast(`✓ ${r.eliminados} registros eliminados`,'ok');
+    cargarAuditoria();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function verAuditoria(){go('auditoria');}
 
 async function pgInst(el){
   const d=await api('GET','/api/institucion');

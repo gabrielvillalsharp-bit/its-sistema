@@ -567,26 +567,23 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
 });
 
 app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, res) => {
-  const { tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,ausente } = req.body;
-  const n = f => (f !== '' && f != null) ? parseFloat(f) : null;
-  if (ausente) {
-    const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
-    if (existe) db.prepare('UPDATE notas SET ausente=1,puntaje_total=NULL,nota_final=NULL,estado=? WHERE alumno_id=? AND asignacion_id=?').run('Ausente',req.params.alumno_id,req.params.asig_id);
-    else db.prepare('INSERT INTO notas (id,alumno_id,asignacion_id,ausente,estado) VALUES (?,?,?,1,?)').run('n_'+Date.now(),req.params.alumno_id,req.params.asig_id,'Ausente');
-    return res.json({ puntaje: null, nota: null, estado: 'Ausente' });
-  }
-  const calc = calcularPuntaje(n(tp1),n(tp2),n(tp3),n(tp4),n(tp5),n(parcial),n(parcial_recuperatorio),n(final_ord),n(final_recuperatorio),n(complementario),n(extraordinario));
-  const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
-  const fields = { tp1:n(tp1),tp2:n(tp2),tp3:n(tp3),tp4:n(tp4),tp5:n(tp5),tp_total:calc.tp_total??null,
-    parcial:n(parcial),parcial_recuperatorio:n(parcial_recuperatorio),parcial_efectivo:calc.parcial_ef??null,
-    final_ord:n(final_ord),final_recuperatorio:n(final_recuperatorio),complementario:n(complementario),final_efectivo:calc.final_ef??null,
-    extraordinario:n(extraordinario),ausente:0,puntaje_total:calc.puntaje??null,nota_final:calc.nota??null,estado:calc.estado };
-  if (existe) {
-    db.prepare(`UPDATE notas SET tp1=?,tp2=?,tp3=?,tp4=?,tp5=?,tp_total=?,parcial=?,parcial_recuperatorio=?,parcial_efectivo=?,final_ord=?,final_recuperatorio=?,complementario=?,final_efectivo=?,extraordinario=?,ausente=0,puntaje_total=?,nota_final=?,estado=? WHERE alumno_id=? AND asignacion_id=?`).run(fields.tp1,fields.tp2,fields.tp3,fields.tp4,fields.tp5,fields.tp_total,fields.parcial,fields.parcial_recuperatorio,fields.parcial_efectivo,fields.final_ord,fields.final_recuperatorio,fields.complementario,fields.final_efectivo,fields.extraordinario,fields.puntaje_total,fields.nota_final,fields.estado,req.params.alumno_id,req.params.asig_id);
-  } else {
-    db.prepare(`INSERT INTO notas (id,alumno_id,asignacion_id,tp1,tp2,tp3,tp4,tp5,tp_total,parcial,parcial_recuperatorio,parcial_efectivo,final_ord,final_recuperatorio,complementario,final_efectivo,extraordinario,ausente,puntaje_total,nota_final,estado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)`).run('n_'+Date.now(),req.params.alumno_id,req.params.asig_id,fields.tp1,fields.tp2,fields.tp3,fields.tp4,fields.tp5,fields.tp_total,fields.parcial,fields.parcial_recuperatorio,fields.parcial_efectivo,fields.final_ord,fields.final_recuperatorio,fields.complementario,fields.final_efectivo,fields.extraordinario,fields.puntaje_total,fields.nota_final,fields.estado);
-  }
-  res.json({ puntaje: calc.puntaje, nota: calc.nota, tp_total: calc.tp_total, parcial_ef: calc.parcial_ef, final_ef: calc.final_ef, estado: calc.estado });
+  try {
+    const asig = db.prepare('SELECT docente_id FROM asignaciones WHERE id=?').get(req.params.asig_id);
+    // Docente solo puede editar notas de sus materias
+    if (req.user.rol === 'docente') {
+      const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+      if (!doc || doc.id !== asig?.docente_id) return res.status(403).json({ error: 'Solo podés cargar notas de tus propias materias' });
+    }
+    const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente'];
+    const vals = campos.map(c => req.body[c]===''||req.body[c]===undefined||req.body[c]===null ? null : parseFloat(req.body[c]));
+    const { calcularPuntaje } = require('./db');
+    const nota = calcularPuntaje(...vals.slice(0,11));
+    const campos_q = campos.map(c=>`${c}=?`).join(',');
+    const extra = ',puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=?';
+    db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.puntaje, nota.nota, nota.estado, nota.parcial_efectivo, nota.final_efectivo, req.params.alumno_id, req.params.asig_id);
+    audit(req.user.id,'UPDATE_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,{campos:req.body});
+    res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_efectivo, final_efectivo: nota.final_efectivo });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
@@ -968,14 +965,11 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
 });
 app.put('/api/examenes/:id', auth(ADM), (req, res) => {
   const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
-  db.prepare('UPDATE examenes SET asignacion_id=?,tipo=?,fecha=?,hora=?,aula=?,periodo_id=?,observacion=?,puntos_max=? WHERE id=?').run(asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null,puntos_max||50,req.params.id);
-  res.json({ ok: true });
-});
-
-app.put('/api/examenes/:id', auth(ADM), (req, res) => {
-  const { tipo, fecha, hora, aula, observacion } = req.body;
-  db.prepare('UPDATE examenes SET tipo=?,fecha=?,hora=?,aula=?,observacion=? WHERE id=?').run(tipo,fecha,hora||null,aula||null,observacion||null,req.params.id);
-  res.json({ ok: true });
+  try {
+    db.prepare('UPDATE examenes SET asignacion_id=?,tipo=?,fecha=?,hora=?,aula=?,periodo_id=?,observacion=?,puntos_max=? WHERE id=?').run(asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null,puntos_max||50,req.params.id);
+    audit(req.user.id,'UPDATE','examenes',req.params.id,{tipo,fecha});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/examenes/:id', auth(ADM), (req, res) => {
@@ -1073,10 +1067,21 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
 });
 app.post('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago } = req.body;
-  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run('pg_'+Date.now(),alumno_id,periodo_id,concepto,monto,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
-  res.json({ ok: true });
+  try {
+    const id = 'pg_'+Date.now();
+    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,monto,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
+    audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto,medio_pago});
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
-app.delete('/api/pagos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
+  try {
+    const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
+    db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id);
+    audit(req.user.id,'DELETE','pagos',req.params.id,{concepto:p?.concepto,monto:p?.monto});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // Deudores — alumnos sin pago de matrícula o cuotas en el período activo
 app.get('/api/pagos/deudores', auth(ADM), (req, res) => {
@@ -1386,7 +1391,9 @@ app.post('/api/periodos/:id/promover', auth(ADM), (req, res) => {
 // ── HABILITACIÓN ESPECIAL DE ALUMNO (ignorar bloqueo de mora) ─────────────────
 app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
   const { habilitado } = req.body;
+  const al = db.prepare('SELECT nombre,apellido FROM alumnos WHERE id=?').get(req.params.id);
   db.prepare('UPDATE alumnos SET habilitado_pago_pendiente=? WHERE id=?').run(habilitado?1:0, req.params.id);
+  audit(req.user.id,'HABILITAR','alumnos',req.params.id,{habilitado,alumno:`${al?.apellido||''} ${al?.nombre||''}`,tipo:'excepcion_pago_mora'});
   res.json({ ok: true, habilitado: !!habilitado });
 });
 
@@ -1735,17 +1742,39 @@ app.get('/api/admin/backup', auth(ADM), (req, res) => {
 });
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
+// ── AUDITORÍA COMPLETA ────────────────────────────────────────────────────────
 app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
-  const { tabla, limite } = req.query;
-  let where = 'WHERE 1=1';
-  const params = [];
-  if (tabla) { where += ' AND a.tabla=?'; params.push(tabla); }
-  const lim = Math.min(parseInt(limite)||100, 500);
-  res.json(db.prepare(`
+  const { tabla, accion, usuario_id, desde, hasta, limite } = req.query;
+  let where = 'WHERE 1=1'; const params = [];
+  if (tabla)      { where += ' AND a.tabla=?';       params.push(tabla); }
+  if (accion)     { where += ' AND a.accion=?';      params.push(accion); }
+  if (usuario_id) { where += ' AND a.usuario_id=?';  params.push(usuario_id); }
+  if (desde)      { where += ' AND a.fecha>=?';      params.push(desde); }
+  if (hasta)      { where += " AND a.fecha<=?";      params.push(hasta+' 23:59:59'); }
+  const lim = Math.min(parseInt(limite)||200, 1000);
+  const rows = db.prepare(`
     SELECT a.*, u.nombre as user_nombre, u.apellido as user_apellido, u.rol
     FROM auditoria a
     LEFT JOIN usuarios u ON a.usuario_id=u.id
-    ${where} ORDER BY a.fecha DESC LIMIT ?`).all(...params, lim));
+    ${where} ORDER BY a.fecha DESC LIMIT ?`).all(...params, lim);
+  // Estadísticas para el panel
+  const stats = db.prepare(`
+    SELECT accion, COUNT(*) as total FROM auditoria
+    WHERE fecha>=date('now','-30 days') GROUP BY accion ORDER BY total DESC`).all();
+  const usuarios_activos = db.prepare(`
+    SELECT a.usuario_id, u.nombre, u.apellido, u.rol, COUNT(*) as acciones
+    FROM auditoria a JOIN usuarios u ON a.usuario_id=u.id
+    WHERE a.fecha>=date('now','-7 days') GROUP BY a.usuario_id ORDER BY acciones DESC LIMIT 10`).all();
+  res.json({ registros: rows, stats, usuarios_activos, total: rows.length });
+});
+
+app.delete('/api/admin/auditoria', auth(ADM), (req, res) => {
+  // Permite limpiar auditoría anterior a N días (mínimo 30)
+  const { dias } = req.body;
+  const d = Math.max(parseInt(dias)||90, 30);
+  const result = db.prepare(`DELETE FROM auditoria WHERE fecha<date('now','-${d} days')`).run();
+  audit(req.user.id, 'PURGE_AUDIT', 'auditoria', null, { dias: d, eliminados: result.changes });
+  res.json({ ok: true, eliminados: result.changes });
 });
 
 // ── ACTA DE EXAMEN (datos para impresión) ─────────────────────────────────────
@@ -1816,6 +1845,24 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
+
+// ── MIDDLEWARE GLOBAL DE ERRORES (captura cualquier crash) ──────────────────
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err.message);
+  try { audit('sistema', 'ERROR', req.path, null, { error: err.message, method: req.method }); } catch {}
+  res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
+});
+
+// ── ÍNDICES ADICIONALES PARA PERFORMANCE ────────────────────────────────────
+// (se ejecutan al inicio, no destructivos)
+try {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_notas_asig_alumno ON notas(asignacion_id, alumno_id);
+    CREATE INDEX IF NOT EXISTS idx_asistencia_fecha_asig ON asistencia(fecha, asignacion_id);
+    CREATE INDEX IF NOT EXISTS idx_pagos_alumno_periodo ON pagos(alumno_id, periodo_id);
+    CREATE INDEX IF NOT EXISTS idx_honorarios_docente_fecha ON honorarios(docente_id, fecha);
+  `);
+} catch {}
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
