@@ -7,7 +7,41 @@ const path = require('path');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
+const nodemailer = require('nodemailer');
+const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
+
+// ── EMAIL CONFIG ──────────────────────────────────────────────────────────────
+const MAIL_USER = process.env.MAIL_USER || 'institutosantisimatrinidadpjc@gmail.com';
+const MAIL_PASS = process.env.MAIL_PASS || 'gestionsantisimatrinidad';
+const mailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: MAIL_USER, pass: MAIL_PASS }
+});
+async function sendMail(to, subject, html) {
+  if (!to || !to.includes('@')) return false;
+  try {
+    await mailTransporter.sendMail({
+      from: `"ITS Santísima Trinidad" <${MAIL_USER}>`, to, subject, html
+    });
+    return true;
+  } catch(e) { console.error('Email error:', e.message); return false; }
+}
+function htmlEmail(titulo, cuerpo, pie='') {
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+    <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);padding:20px;text-align:center">
+      <h2 style="color:#fff;margin:0">Instituto Técnico Superior</h2>
+      <p style="color:#e0f0ff;margin:4px 0;font-size:13px">Santísima Trinidad</p>
+    </div>
+    <div style="padding:24px;background:#fff;border:1px solid #e0e0e0">
+      <h3 style="color:#1a2a4a">${titulo}</h3>
+      ${cuerpo}
+    </div>
+    <div style="padding:12px;background:#f5f5f5;text-align:center;font-size:11px;color:#888">
+      ${pie||'Sistema de Gestión Académica ITS — No responder este correo'}
+    </div>
+  </div>`;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1879,7 +1913,255 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
 
-// ── MIDDLEWARE GLOBAL DE ERRORES (captura cualquier crash) ──────────────────
+// ── CRON: Recordatorio de exámenes 24hs antes (corre a las 9:00 AM diario) ──
+cron.schedule('0 9 * * *', async () => {
+  try {
+    const manana = new Date(); manana.setDate(manana.getDate() + 1);
+    const fechaManana = manana.toISOString().split('T')[0];
+    const examenes = db.prepare(`
+      SELECT e.*, m.nombre as materia, ca.nombre as carrera,
+        cu.anio as anio, cu.division as division,
+        u.nombre as doc_nombre, u.apellido as doc_apellido, u.email as doc_email
+      FROM examenes e
+      LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+      LEFT JOIN materias m ON a.materia_id=m.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN docentes d ON a.docente_id=d.id
+      LEFT JOIN usuarios u ON d.usuario_id=u.id
+      WHERE e.fecha=?`).all(fechaManana);
+    for (const ex of examenes) {
+      if (!ex.doc_email) continue;
+      const html = htmlEmail(
+        `📋 Recordatorio: Examen mañana ${fechaManana}`,
+        `<p>Estimado/a <strong>${ex.doc_nombre} ${ex.doc_apellido}</strong>,</p>
+        <p>Le recordamos que mañana tiene programado un examen:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.materia}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.tipo}</td></tr>
+          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Carrera</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.carrera} ${ex.anio}°${ex.division==='U'?'':ex.division}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.hora||'A confirmar'}</td></tr>
+          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Aula</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.aula||'A confirmar'}</td></tr>
+        </table>
+        <p style="margin-top:16px;color:#555">Por favor tenga lista el acta de examen y los materiales necesarios.</p>`
+      );
+      await sendMail(ex.doc_email, `📋 Recordatorio examen: ${ex.materia} — ${fechaManana}`, html);
+      audit('sistema','NOTIFICACION_EMAIL','examenes',ex.id,{tipo:'recordatorio_24h',email:ex.doc_email});
+    }
+    console.log(`✓ Cron recordatorios: ${examenes.length} emails enviados`);
+  } catch(e) { console.error('Cron error:', e.message); }
+});
+
+// ── ENDPOINT: Enviar recordatorio manual ─────────────────────────────────────
+app.post('/api/examenes/:id/recordatorio', auth(ADM), async (req, res) => {
+  const ex = db.prepare(`
+    SELECT e.*, m.nombre as materia, ca.nombre as carrera, cu.anio,
+      u.nombre as doc_nombre, u.apellido as doc_apellido, u.email as doc_email
+    FROM examenes e
+    LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    WHERE e.id=?`).get(req.params.id);
+  if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
+  if (!ex.doc_email) return res.status(400).json({ error: 'El docente no tiene email registrado' });
+  const html = htmlEmail(
+    `📋 Recordatorio de examen — ${ex.fecha}`,
+    `<p>Estimado/a <strong>${ex.doc_nombre} ${ex.doc_apellido}</strong>,</p>
+    <p>El Director le envía este recordatorio sobre el examen programado:</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.materia}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.tipo}</td></tr>
+      <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Fecha</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.fecha}</td></tr>
+      <tr><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.hora||'A confirmar'}</td></tr>
+    </table>`
+  );
+  const ok = await sendMail(ex.doc_email, `📋 Recordatorio: ${ex.materia} — ${ex.fecha}`, html);
+  if (ok) { audit(req.user.id,'NOTIFICACION_EMAIL','examenes',ex.id,{manual:true}); res.json({ ok: true }); }
+  else res.status(500).json({ error: 'No se pudo enviar el email. Verificar configuración.' });
+});
+
+// ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
+app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
+  const al = db.prepare(`
+    SELECT a.*, COALESCE(a.nombre,u.nombre) as disp_nombre, COALESCE(a.apellido,u.apellido) as disp_apellido,
+      COALESCE(a.ci,u.ci) as disp_ci, c.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division, p.nombre as periodo_nombre
+    FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+    LEFT JOIN carreras c ON a.carrera_id=c.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN periodos p ON p.activo=1
+    WHERE a.id=?`).get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const notas = db.prepare(`
+    SELECT n.*, m.nombre as materia_nombre, m.codigo as materia_codigo,
+      COALESCE(ud.nombre,'') as doc_nombre, COALESCE(ud.apellido,'') as doc_apellido
+    FROM notas n
+    JOIN asignaciones asig ON n.asignacion_id=asig.id
+    JOIN materias m ON asig.materia_id=m.id
+    JOIN periodos p ON asig.periodo_id=p.id
+    LEFT JOIN docentes d ON asig.docente_id=d.id
+    LEFT JOIN usuarios ud ON d.usuario_id=ud.id
+    WHERE n.alumno_id=? AND p.activo=1
+    ORDER BY m.nombre`).all(req.params.id);
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  res.json({ alumno: al, notas, institucion: inst });
+});
+
+// ── CONSTANCIA DE ESTUDIOS ────────────────────────────────────────────────────
+app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
+  const al = db.prepare(`
+    SELECT a.*, COALESCE(a.nombre,u.nombre) as disp_nombre, COALESCE(a.apellido,u.apellido) as disp_apellido,
+      COALESCE(a.ci,u.ci) as disp_ci, c.nombre as carrera_nombre,
+      cu.anio as curso_anio, p.nombre as periodo_nombre, p.anio as periodo_anio
+    FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+    LEFT JOIN carreras c ON a.carrera_id=c.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN periodos p ON p.activo=1
+    WHERE a.id=?`).get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  // Registrar emisión
+  const cid = 'const_'+Date.now();
+  db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,date("now"),?)').run(cid, req.params.id, 'estudios', req.user.id);
+  audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id});
+  res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: new Date().toISOString().split('T')[0] });
+});
+
+// ── ESTADO DE CUENTA CON DEUDAS ACUMULADAS ────────────────────────────────────
+app.get('/api/alumnos/:id/estado-cuenta', auth(['director','alumno']), (req, res) => {
+  // Alumno solo puede ver el suyo
+  if (req.user.rol === 'alumno') {
+    const alCheck = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (!alCheck || alCheck.id !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
+  }
+  const al = db.prepare(`
+    SELECT a.*, COALESCE(a.nombre,u.nombre) as disp_nombre, COALESCE(a.apellido,u.apellido) as disp_apellido,
+      COALESCE(a.ci,u.ci) as disp_ci, c.nombre as carrera_nombre, cu.anio as curso_anio
+    FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+    LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id
+    WHERE a.id=?`).get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
+  const pagos = db.prepare(`
+    SELECT * FROM pagos WHERE alumno_id=? ${periodo?'AND periodo_id=?':''} ORDER BY fecha_pago DESC`).all(...(periodo?[req.params.id,periodo.id]:[req.params.id]));
+  const aranceles = db.prepare(`SELECT * FROM aranceles WHERE activo=1`).all();
+  // Calcular deudas por cuota
+  const cuotasOblig = ['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'];
+  const resumenCuotas = cuotasOblig.map(nombre => {
+    const arancel = aranceles.find(a => a.concepto?.includes(nombre) || nombre.includes(a.tipo||''));
+    const montoEsperado = arancel?.monto || 0;
+    const pagado = pagos.filter(p => p.concepto===nombre || p.concepto?.includes(nombre)).reduce((s,p)=>s+Number(p.monto||0),0);
+    const deuda = Math.max(0, montoEsperado - pagado);
+    return { concepto: nombre, monto_esperado: montoEsperado, pagado, deuda, estado: pagado>=montoEsperado&&montoEsperado>0?'pagado':pagado>0?'parcial':'pendiente' };
+  });
+  const totalPagado = pagos.reduce((s,p)=>s+Number(p.monto||0),0);
+  const totalDeuda = resumenCuotas.reduce((s,c)=>s+c.deuda,0);
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  res.json({ alumno: al, pagos, resumenCuotas, totalPagado, totalDeuda, periodo, institucion: inst });
+});
+
+// ── DASHBOARD ANALÍTICO ───────────────────────────────────────────────────────
+app.get('/api/dashboard/analitico', auth(ADM), (req, res) => {
+  const { carrera_id, periodo_id } = req.query;
+  const periodo = periodo_id
+    ? db.prepare('SELECT * FROM periodos WHERE id=?').get(periodo_id)
+    : db.prepare('SELECT * FROM periodos WHERE activo=1').get();
+  const periodos = db.prepare('SELECT * FROM periodos ORDER BY anio DESC, id DESC').all();
+  const carreras = db.prepare('SELECT * FROM carreras ORDER BY nombre').all();
+  // Filtros
+  let filtCurso = ''; const fp = [];
+  if (carrera_id) { filtCurso = ' AND cu.carrera_id=?'; fp.push(carrera_id); }
+  if (periodo?.id) { filtCurso += ' AND asig.periodo_id=?'; fp.push(periodo.id); }
+  // Aprobados/reprobados por carrera
+  const notasPorCarrera = db.prepare(`
+    SELECT ca.nombre as carrera, ca.id as carrera_id,
+      COUNT(DISTINCT n.alumno_id) as total,
+      SUM(CASE WHEN n.estado='Aprobado' THEN 1 ELSE 0 END) as aprobados,
+      SUM(CASE WHEN n.estado='Reprobado' THEN 1 ELSE 0 END) as reprobados,
+      SUM(CASE WHEN n.estado='Pendiente' OR n.estado IS NULL THEN 1 ELSE 0 END) as pendientes,
+      ROUND(AVG(CASE WHEN n.nota_final IS NOT NULL THEN n.nota_final END),2) as promedio
+    FROM notas n
+    JOIN asignaciones asig ON n.asignacion_id=asig.id
+    JOIN cursos cu ON asig.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE 1=1 ${filtCurso}
+    GROUP BY ca.id ORDER BY ca.nombre`).all(...fp);
+  // Asistencia promedio por docente
+  const asistDocente = db.prepare(`
+    SELECT u.nombre||' '||u.apellido as docente, d.id as docente_id,
+      COUNT(*) as total_registros,
+      SUM(CASE WHEN a.estado='P' THEN 1 ELSE 0 END) as presentes,
+      ROUND(SUM(CASE WHEN a.estado='P' THEN 1.0 ELSE 0 END)*100/COUNT(*),1) as pct_asistencia
+    FROM asistencia a
+    JOIN asignaciones asig ON a.asignacion_id=asig.id
+    JOIN docentes d ON asig.docente_id=d.id
+    JOIN usuarios u ON d.usuario_id=u.id
+    WHERE 1=1 ${carrera_id?' AND cu.carrera_id=?':''} ${periodo?.id?' AND asig.periodo_id=?':''}
+    GROUP BY d.id ORDER BY pct_asistencia DESC LIMIT 15`).all(...fp);
+  // Ingresos mensuales
+  const ingresosMes = db.prepare(`
+    SELECT strftime('%Y-%m',fecha_pago) as mes,
+      SUM(monto) as total, COUNT(*) as cantidad
+    FROM pagos WHERE estado='Pagado'
+    GROUP BY mes ORDER BY mes DESC LIMIT 12`).all().reverse();
+  // Alumnos en riesgo (asistencia < 75%)
+  const enRiesgo = db.prepare(`
+    SELECT al.id, COALESCE(al.apellido,u.nombre) as apellido, COALESCE(al.nombre,u.nombre) as nombre,
+      ca.nombre as carrera, cu.anio,
+      COUNT(*) as total_clases,
+      SUM(CASE WHEN a.estado='P' THEN 1 ELSE 0 END) as presentes,
+      ROUND(SUM(CASE WHEN a.estado='P' THEN 1.0 ELSE 0 END)*100/COUNT(*),1) as pct
+    FROM asistencia a
+    JOIN asignaciones asig ON a.asignacion_id=asig.id
+    JOIN alumnos al ON a.alumno_id=al.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    JOIN cursos cu ON asig.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE al.estado='Activo' ${carrera_id?' AND ca.id=?':''} ${periodo?.id?' AND asig.periodo_id=?':''}
+    GROUP BY al.id HAVING pct < 75 AND total_clases >= 5
+    ORDER BY pct ASC LIMIT 20`).all(...fp);
+  // Pagos pendientes por mes (deudores)
+  const deudoresPorCarrera = db.prepare(`
+    SELECT ca.nombre as carrera, COUNT(DISTINCT al.id) as sin_pago
+    FROM alumnos al
+    JOIN carreras ca ON al.carrera_id=ca.id
+    WHERE al.estado='Activo' ${carrera_id?' AND ca.id=?':''}
+    AND al.id NOT IN (
+      SELECT DISTINCT alumno_id FROM pagos WHERE estado='Pagado' ${periodo?.id?' AND periodo_id=?':''}
+    )
+    GROUP BY ca.id ORDER BY sin_pago DESC`).all(...(carrera_id?[carrera_id,...(periodo?.id?[periodo.id]:[])]:periodo?.id?[periodo.id]:[]));
+  // Exámenes por tipo en el período
+  const exsPorTipo = db.prepare(`
+    SELECT e.tipo, COUNT(*) as total
+    FROM examenes e
+    ${periodo?.id?'WHERE e.periodo_id=?':'WHERE 1=1'}
+    GROUP BY e.tipo ORDER BY total DESC`).all(...(periodo?.id?[periodo.id]:[]));
+  // Honorarios mensuales
+  const honorariosMes = db.prepare(`
+    SELECT strftime('%Y-%m',fecha) as mes, SUM(monto) as total, COUNT(*) as clases
+    FROM honorarios WHERE estado!='anulado'
+    GROUP BY mes ORDER BY mes DESC LIMIT 6`).all().reverse();
+  res.json({ notasPorCarrera, asistDocente, ingresosMes, enRiesgo, deudoresPorCarrera, exsPorTipo, honorariosMes, periodos, carreras, periodo_activo: periodo?.nombre });
+});
+
+// ── CELULAR DOCENTE ───────────────────────────────────────────────────────────
+app.put('/api/docentes/:uid/celular', auth(ADM), (req, res) => {
+  db.prepare('UPDATE docentes SET celular=? WHERE id=?').run(req.body.celular||null, req.params.uid);
+  res.json({ ok: true });
+});
+
+// ── CONSTANCIA: registrar en pagos ───────────────────────────────────────────
+app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
+  const { alumno_id, monto, comprobante } = req.body;
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  const pid = 'pg_const_'+Date.now();
+  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago) VALUES (?,?,?,?,?,date("now"),?,?,?)').run(pid,alumno_id,periodo?.id||1,'Constancia de estudios',monto||0,'Pagado',comprobante||null,'Efectivo');
+  audit(req.user.id,'PAGO','pagos',pid,{concepto:'Constancia de estudios',alumno_id});
+  res.json({ ok: true, pago_id: pid });
+});
 app.use((err, req, res, next) => {
   console.error('Error no manejado:', err.message);
   try { audit('sistema', 'ERROR', req.path, null, { error: err.message, method: req.method }); } catch {}

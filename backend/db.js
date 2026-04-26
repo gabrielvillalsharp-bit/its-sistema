@@ -211,7 +211,25 @@ function crearTablas() {
       detalle TEXT,
       fecha TEXT NOT NULL DEFAULT (datetime('now'))
     );
-    CREATE TABLE IF NOT EXISTS horarios (
+    CREATE TABLE IF NOT EXISTS constancias (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      tipo TEXT NOT NULL DEFAULT 'estudios' CHECK(tipo IN ('estudios','regularidad','notas')),
+      pago_id TEXT REFERENCES pagos(id),
+      fecha TEXT NOT NULL DEFAULT (date('now')),
+      emitido_por TEXT REFERENCES usuarios(id),
+      observacion TEXT
+    );
+    CREATE TABLE IF NOT EXISTS deudas_cuotas (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      periodo_id INTEGER NOT NULL REFERENCES periodos(id),
+      concepto TEXT NOT NULL,
+      monto_total REAL NOT NULL,
+      monto_pagado REAL NOT NULL DEFAULT 0,
+      fecha_vencimiento TEXT,
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','parcial','pagado','vencido'))
+    );
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asignacion_id TEXT REFERENCES asignaciones(id),
       dia TEXT NOT NULL CHECK(dia IN ('Lunes','Martes','Miércoles','Jueves','Viernes')),
@@ -641,6 +659,9 @@ function init() {
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN puntos_max INTEGER DEFAULT 50").run(); } catch {}
+  try { db.prepare("ALTER TABLE docentes ADD COLUMN celular TEXT").run(); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS constancias (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'estudios', pago_id TEXT, fecha TEXT NOT NULL DEFAULT (date('now')), emitido_por TEXT, observacion TEXT)`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS deudas_cuotas (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, periodo_id INTEGER NOT NULL, concepto TEXT NOT NULL, monto_total REAL NOT NULL, monto_pagado REAL NOT NULL DEFAULT 0, fecha_vencimiento TEXT, estado TEXT NOT NULL DEFAULT 'pendiente')`); } catch {}
   // Tablas de honorarios
   try { db.exec(`CREATE TABLE IF NOT EXISTS honorarios (id TEXT PRIMARY KEY, docente_id TEXT NOT NULL, asignacion_id TEXT, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, monto REAL NOT NULL DEFAULT 80000, estado TEXT NOT NULL DEFAULT 'generado', tipo TEXT NOT NULL DEFAULT 'clase', reemplazo_id TEXT, observacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS reemplazos (id TEXT PRIMARY KEY, asignacion_id TEXT NOT NULL, docente_titular_id TEXT NOT NULL, docente_reemplazante_id TEXT NOT NULL, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, motivo TEXT, estado TEXT NOT NULL DEFAULT 'pendiente', registrado_por TEXT NOT NULL, aprobado_por TEXT, fecha_aprobacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
