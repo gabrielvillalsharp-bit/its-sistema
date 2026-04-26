@@ -68,7 +68,8 @@ function crearTablas() {
     CREATE TABLE IF NOT EXISTS institucion (
       id INTEGER PRIMARY KEY DEFAULT 1,
       nombre TEXT NOT NULL DEFAULT 'Instituto Técnico Superior',
-      direccion TEXT, telefono TEXT, email TEXT, mision TEXT
+      direccion TEXT, telefono TEXT, email TEXT, mision TEXT,
+      logo_base64 TEXT
     );
     CREATE TABLE IF NOT EXISTS escala_notas (
       id TEXT PRIMARY KEY, nota INTEGER NOT NULL,
@@ -603,6 +604,7 @@ function init() {
   // Alumnos: habilitación especial de pago y bloqueo de notas
   try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
+  try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   // Tabla auditoría para bases existentes
   try { db.exec(`CREATE TABLE IF NOT EXISTS auditoria (id TEXT PRIMARY KEY, usuario_id TEXT NOT NULL, accion TEXT NOT NULL, tabla TEXT NOT NULL, registro_id TEXT, detalle TEXT, fecha TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   // Crear tablas nuevas si no existen

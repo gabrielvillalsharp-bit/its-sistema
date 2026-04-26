@@ -141,9 +141,15 @@ app.put('/api/escala', auth(ADM), (req, res) => {
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
 app.get('/api/institucion', auth(), (req, res) => res.json(db.prepare('SELECT * FROM institucion WHERE id=1').get()));
 app.put('/api/institucion', auth(ADM), (req, res) => {
-  const { nombre, direccion, telefono, email, mision } = req.body;
-  db.prepare('UPDATE institucion SET nombre=?,direccion=?,telefono=?,email=?,mision=? WHERE id=1').run(nombre,direccion,telefono,email,mision);
+  const { nombre, telefono, email, direccion, mision } = req.body;
+  db.prepare('UPDATE institucion SET nombre=?,telefono=?,email=?,direccion=?,mision=? WHERE id=1').run(nombre,telefono||'',email||'',direccion||'',mision||'');
   res.json({ ok: true });
+});
+app.post('/api/institucion/logo', auth(ADM), upload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+  const b64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  db.prepare('UPDATE institucion SET logo_base64=? WHERE id=1').run(b64);
+  res.json({ ok: true, logo_base64: b64 });
 });
 
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────

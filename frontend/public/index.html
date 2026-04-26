@@ -1079,6 +1079,34 @@ async function pgExamenes(el){
   ${exs.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin exámenes programados</td></tr>'}
   </tbody></table></div></div>`;
 }
+function exRow(e){
+  const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
+  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
+  return `<tr>
+    <td style="white-space:nowrap;font-weight:600">${e.fecha?fmtFecha(e.fecha):'—'}</td>
+    <td style="white-space:nowrap">${e.hora||'—'}</td>
+    <td><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px">${e.tipo||'—'}</span></td>
+    <td><strong>${e.materia_nombre||'—'}</strong></td>
+    <td style="font-size:12px">${e.carrera_nombre||'—'} ${e.curso_anio?e.curso_anio+'°':''}</td>
+    <td style="font-size:12px">${e.docente_nombre||''} ${e.docente_apellido||''}</td>
+    <td style="font-size:12px">${e.aula||'—'}</td>
+    <td style="text-align:center;font-size:12px">${e.total_alumnos||0}</td>
+    <td style="text-align:center;font-size:12px">
+      <div class="prog-bar" style="width:50px;display:inline-block;vertical-align:middle">
+        <div class="prog-fill" style="width:${pct}%"></div>
+      </div>
+      <span style="font-size:10px;margin-left:3px">${e.notas_cargadas||0}/${e.total_alumnos||0}</span>
+    </td>
+    <td>
+      <div class="abs">
+        ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
+        ${e.id?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
+        ${e.asignacion_id?`<button class="bs" style="font-size:11px" onclick="imprimirActaTP('${e.asignacion_id}')">🖨 TPs</button>`:''}
+        <button class="bs d" style="font-size:11px" onclick="del('${e.id}','examenes')">✕</button>
+      </div>
+    </td>
+  </tr>`;
+}
 function filtExCursos(){
   const carrId=v('filtExCarr');
   const sel=document.getElementById('filtExCurso');if(!sel)return;
@@ -2000,6 +2028,7 @@ async function imprimirActaExamen(examenId){
       @media print{body{margin:0;padding:10px}button{display:none}}
     </style></head><body>
     <div class="header">
+      ${inst.logo_base64?`<img src="${inst.logo_base64}" style="height:70px;margin-bottom:6px;object-fit:contain"/><br>`:''}
       <h2>${inst.nombre||'Instituto Técnico Superior'}</h2>
       <h2>SANTÍSIMA TRINIDAD</h2>
       <p>RESOLUCIÓN DGUISITS N°452/2024</p>
@@ -2070,6 +2099,7 @@ async function imprimirActaTP(asigId){
       @media print{body{margin:0;padding:8px}button{display:none}}
     </style></head><body>
     <div class="header">
+      ${inst.logo_base64?`<img src="${inst.logo_base64}" style="height:55px;margin-bottom:4px;object-fit:contain"/><br>`:''}
       <h2>${inst.nombre||'Instituto Técnico Superior'} — SANTÍSIMA TRINIDAD</h2>
     </div>
     <div class="titulo">Planilla de Trabajos Prácticos</div>
@@ -2896,10 +2926,25 @@ async function buscarEstadoCuenta(){
 async function pgInst(el){
   const d=await api('GET','/api/institucion');
   el.innerHTML=`<div class="ph"><h3>Datos de la institución</h3><button class="bn" onclick="mInst(DJ(this.dataset.j))" data-j="${J(d)}">Editar</button></div>
-  <div class="card card-p"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-    ${[['Nombre',d.nombre],['Email',d.email],['Teléfono',d.telefono],['Dirección',d.direccion]].map(([k,vl])=>`<div><div style="font-size:11px;color:var(--t3)">${k}</div><div style="font-size:13px;font-weight:600">${vl||'-'}</div></div>`).join('')}
-    <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3)">Misión</div><div style="font-size:13px">${d.mision||'-'}</div></div>
-  </div></div>
+  <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start">
+    <div class="card card-p">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        ${[['Nombre',d.nombre],['Email',d.email],['Teléfono',d.telefono],['Dirección',d.direccion]].map(([k,vl])=>`<div><div style="font-size:11px;color:var(--t3)">${k}</div><div style="font-size:13px;font-weight:600">${vl||'-'}</div></div>`).join('')}
+        <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3)">Misión</div><div style="font-size:13px">${d.mision||'-'}</div></div>
+      </div>
+    </div>
+    <div class="card card-p" style="text-align:center">
+      <p style="font-weight:700;font-size:13px;margin-bottom:10px">🖼 Logo institucional</p>
+      ${d.logo_base64
+        ?`<img src="${d.logo_base64}" style="max-width:180px;max-height:120px;object-fit:contain;margin-bottom:10px;border:1px solid var(--bdr);border-radius:6px;padding:6px"/>`
+        :`<div style="width:180px;height:100px;border:2px dashed var(--bdr);border-radius:8px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;color:var(--t3);font-size:12px">Sin logo</div>`}
+      <label class="bs i" style="cursor:pointer;display:block;text-align:center">
+        📂 ${d.logo_base64?'Cambiar logo':'Subir logo'}
+        <input type="file" accept="image/*" style="display:none" onchange="subirLogo(this)"/>
+      </label>
+      <p style="font-size:10px;color:var(--t3);margin-top:6px">PNG o JPG · Aparece en las actas de examen</p>
+    </div>
+  </div>
   <div class="card card-p" style="margin-top:16px">
     <p style="font-weight:700;font-size:14px;margin-bottom:12px">🔧 Administración del sistema</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -2908,6 +2953,15 @@ async function pgInst(el){
     </div>
     <p style="font-size:11px;color:var(--t3);margin-top:8px">Se recomienda descargar un backup antes de cada modificación masiva de datos.</p>
   </div>`;
+}
+async function subirLogo(input){
+  const file=input.files[0];if(!file)return;
+  const fd=new FormData();fd.append('logo',file);
+  try{
+    const r=await api('POST','/api/institucion/logo',fd,true);
+    toast('✓ Logo actualizado. Se usará en las actas.','ok');
+    go('institucion');
+  }catch(e){toast('Error al subir logo: '+e.message,'err');}
 }
 function descargarBackup(){
   const a=document.createElement('a');
