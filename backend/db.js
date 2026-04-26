@@ -230,14 +230,6 @@ function crearTablas() {
       fecha_vencimiento TEXT,
       estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','parcial','pagado','vencido'))
     );
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      asignacion_id TEXT REFERENCES asignaciones(id),
-      dia TEXT NOT NULL CHECK(dia IN ('Lunes','Martes','Miércoles','Jueves','Viernes')),
-      turno INTEGER NOT NULL DEFAULT 1 CHECK(turno IN (1,2)),
-      hora_inicio TEXT NOT NULL DEFAULT '19:00',
-      hora_fin TEXT NOT NULL DEFAULT '20:20',
-      aula TEXT
-    );
     CREATE TABLE IF NOT EXISTS honorarios (
       id TEXT PRIMARY KEY,
       docente_id TEXT NOT NULL REFERENCES docentes(id),
