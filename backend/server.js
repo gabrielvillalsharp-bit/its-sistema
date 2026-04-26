@@ -99,6 +99,11 @@ app.put('/api/usuarios/directores/:id', auth(['director']), (req, res) => {
   db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=?,ci=?,rol=?,activo=? WHERE id=?').run(nombre, apellido||'', email, ci||'', rol||'director', activo?1:0, req.params.id);
   res.json({ ok: true });
 });
+app.put('/api/docentes/vincular', auth(ADM), (req, res) => {
+  const { docente_id, usuario_id } = req.body;
+  db.prepare('UPDATE docentes SET usuario_id=? WHERE id=?').run(usuario_id, docente_id);
+  res.json({ ok: true });
+});
 app.put('/api/usuarios/directores/:id/password', auth(['director']), (req, res) => {
   const { password } = req.body;
   if (!password || password.length < 4) return res.status(400).json({ error: 'Contraseña muy corta' });
@@ -624,6 +629,44 @@ app.get('/api/asistencia/asignacion/:asig_id', auth(), (req, res) => {
     FROM asistencia as2 JOIN alumnos al ON as2.alumno_id=al.id LEFT JOIN usuarios u ON al.usuario_id=u.id
     WHERE as2.asignacion_id=? ORDER BY as2.fecha,COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id));
 });
+// Modificar un registro individual de asistencia
+app.put('/api/asistencia/:id', auth(['director','docente']), (req, res) => {
+  const { estado, observacion } = req.body;
+  db.prepare('UPDATE asistencia SET estado=?,observacion=? WHERE id=?').run(estado, observacion||null, req.params.id);
+  res.json({ ok: true });
+});
+// Eliminar un registro individual de asistencia
+app.delete('/api/asistencia/:id', auth(['director','docente']), (req, res) => {
+  db.prepare('DELETE FROM asistencia WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+// Consulta de asistencia por alumno — resumen consolidado
+app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
+  const al = db.prepare('SELECT id,usuario_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  // Alumno solo puede ver su propio resumen
+  if (req.user.rol === 'alumno' && al.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
+  const registros = db.prepare(`
+    SELECT a.estado, m.nombre as materia, COUNT(*) as total
+    FROM asistencia a
+    JOIN asignaciones asig ON a.asignacion_id=asig.id
+    JOIN materias m ON asig.materia_id=m.id
+    WHERE a.alumno_id=?
+    GROUP BY a.asignacion_id, a.estado
+    ORDER BY m.nombre`).all(req.params.alumno_id);
+  // Consolidar por materia
+  const porMateria = {};
+  registros.forEach(r => {
+    if (!porMateria[r.materia]) porMateria[r.materia] = { materia: r.materia, P: 0, A: 0, T: 0, J: 0 };
+    porMateria[r.materia][r.estado] = (porMateria[r.materia][r.estado] || 0) + r.total;
+  });
+  const resumen = Object.values(porMateria).map(m => ({
+    ...m,
+    total: m.P + m.A + m.T + m.J,
+    pct: m.P + m.A + m.T + m.J > 0 ? Math.round(m.P / (m.P + m.A + m.T + m.J) * 100) : 0
+  }));
+  res.json(resumen);
+});
 app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
   const { asignacion_id, fecha, registros } = req.body;
   db.transaction(() => {
@@ -641,29 +684,27 @@ app.get('/api/examenes', auth(), (req, res) => {
   if (periodo_id) { where += ' AND e.periodo_id=?'; params.push(periodo_id); }
   if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
   if (tipo) { where += ' AND e.tipo=?'; params.push(tipo); }
-  res.json(db.prepare(`
-    SELECT e.*,
-      m.nombre as materia_nombre,m.codigo as materia_codigo,
-      ca.id as carrera_id,
-      ca.nombre as carrera_nombre,
-      cu.id as curso_id,
-      cu.anio as curso_anio,cu.division as curso_division,cu.turno as curso_turno,
-      u.nombre as docente_nombre,u.apellido as docente_apellido,
-      p.nombre as periodo_nombre,
-      a.id as asignacion_id,
-      (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND
-        CASE e.tipo WHEN 'Parcial' THEN n.parcial IS NOT NULL WHEN 'Final' THEN n.final_ord IS NOT NULL ELSE 0 END
-      ) as notas_cargadas,
-      (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
-    FROM examenes e
-    JOIN asignaciones a ON e.asignacion_id=a.id
-    JOIN materias m ON a.materia_id=m.id
-    JOIN cursos cu ON a.curso_id=cu.id
-    JOIN carreras ca ON cu.carrera_id=ca.id
-    LEFT JOIN docentes d ON a.docente_id=d.id
-    LEFT JOIN usuarios u ON d.usuario_id=u.id
-    LEFT JOIN periodos p ON e.periodo_id=p.id
-    ${where} ORDER BY e.fecha,e.hora,ca.nombre`).all(...params));
+  try {
+    res.json(db.prepare(`
+      SELECT e.*,
+        m.nombre as materia_nombre, m.codigo as materia_codigo,
+        ca.id as carrera_id, ca.nombre as carrera_nombre,
+        cu.id as curso_id, cu.anio as curso_anio, cu.division as curso_division, cu.turno as curso_turno,
+        u.nombre as docente_nombre, u.apellido as docente_apellido,
+        p.nombre as periodo_nombre,
+        a.id as asignacion_id,
+        (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id) as notas_cargadas,
+        (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
+      FROM examenes e
+      LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+      LEFT JOIN materias m ON a.materia_id=m.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN docentes d ON a.docente_id=d.id
+      LEFT JOIN usuarios u ON d.usuario_id=u.id
+      LEFT JOIN periodos p ON e.periodo_id=p.id
+      ${where} ORDER BY e.fecha DESC, e.hora, ca.nombre`).all(...params));
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/examenes', auth(ADM), (req, res) => {
@@ -1419,6 +1460,75 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
     FROM auditoria a
     LEFT JOIN usuarios u ON a.usuario_id=u.id
     ${where} ORDER BY a.fecha DESC LIMIT ?`).all(...params, lim));
+});
+
+// ── ACTA DE EXAMEN (datos para impresión) ─────────────────────────────────────
+app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
+  const ex = db.prepare(`
+    SELECT e.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      p.nombre as periodo_nombre
+    FROM examenes e
+    LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    LEFT JOIN periodos p ON e.periodo_id=p.id
+    WHERE e.id=?`).get(req.params.id);
+  if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
+  // Notas de los alumnos para ese examen
+  const alumnos = ex.asignacion_id ? db.prepare(`
+    SELECT al.matricula, COALESCE(al.ci,u2.ci) as ci,
+      COALESCE(al.nombre,u2.nombre) as nombre, COALESCE(al.apellido,u2.apellido) as apellido,
+      n.puntaje_total, n.nota_final, n.estado, n.ausente,
+      CASE e.tipo
+        WHEN 'Parcial' THEN n.parcial
+        WHEN 'Recuperatorio' THEN n.parcial_recuperatorio
+        WHEN 'Final' THEN n.final_ord
+        WHEN 'Final Recuperatorio' THEN n.final_recuperatorio
+        WHEN 'Complementario' THEN n.complementario
+        WHEN 'Extraordinario' THEN n.extraordinario
+        ELSE n.puntaje_total
+      END as puntaje_examen
+    FROM alumnos al
+    LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
+    LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
+    WHERE al.curso_id=(SELECT curso_id FROM asignaciones WHERE id=?) AND al.estado='Activo'
+    ORDER BY COALESCE(al.apellido,u2.apellido)`, ex.tipo).all(ex.asignacion_id, ex.asignacion_id) : [];
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  res.json({ examen: ex, alumnos, institucion: inst });
+});
+
+// ── ACTA DE TPS (trabajos prácticos) ─────────────────────────────────────────
+app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res) => {
+  const asig = db.prepare(`
+    SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      p.nombre as periodo_nombre
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    JOIN periodos p ON a.periodo_id=p.id
+    WHERE a.id=?`).get(req.params.id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  const alumnos = db.prepare(`
+    SELECT al.matricula, COALESCE(al.ci,u2.ci) as ci,
+      COALESCE(al.nombre,u2.nombre) as nombre, COALESCE(al.apellido,u2.apellido) as apellido,
+      n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total
+    FROM alumnos al
+    LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
+    LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
+    WHERE al.curso_id=? AND al.estado='Activo'
+    ORDER BY COALESCE(al.apellido,u2.apellido)`).all(req.params.id, asig.curso_id);
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  res.json({ asignacion: asig, alumnos, institucion: inst });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));

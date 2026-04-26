@@ -305,7 +305,6 @@ function navFor(r){
     {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
       {id:'aranceles',l:'Aranceles / Costos',c:'#1D9E75',r:['director']},
-      {id:'deudores',l:'Control Deudores',c:'#E24B4A',r:['director']},
       {id:'becas',l:'Becas y Descuentos',c:'#1D9E75',r:['director']},
     ]},
     {g:'Mi área',i:[
@@ -421,7 +420,8 @@ async function pgDash(el){
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 async function pgAvisos(el){
   const avs=await api('GET','/api/avisos');
-  const puedeEditar=me.rol==='director';
+  const puedeEditar=me.rol==='director'||me.rol==='docente';
+  const esDirector=me.rol==='director';
   const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos'};
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
@@ -431,16 +431,18 @@ async function pgAvisos(el){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${a.titulo}</span>
       <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
-        ${puedeEditar?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
+        ${esDirector?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
         <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
-        ${puedeEditar?`<button class="bs d" onclick="del('${a.id}','avisos')">✕</button>`:''}
+        ${esDirector||a.autor_id===me.id?`<button class="bs d" onclick="del('${a.id}','avisos')">✕</button>`:''}
       </div>
     </div>
     <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
     <div class="aviso-meta">Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''}</div>
   </div>`).join('')}`;
 }
-function mAviso(){modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
+function mAviso(){
+  const esDirector=me.rol==='director';
+  modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..."></textarea></div>
   <div class="fr">
@@ -452,14 +454,14 @@ function mAviso(){modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
     </select></div>
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí — fijar</option></select></div>
   </div>
-  <div class="f"><label>👥 Público objetivo</label>
+  ${esDirector?`<div class="f"><label>👥 Público objetivo</label>
     <select id="avdest">
       <option value="todos">Todos (docentes y alumnos)</option>
       <option value="docentes">Solo docentes</option>
       <option value="alumnos">Solo alumnos</option>
     </select>
     <p style="font-size:11px;color:var(--t2);margin-top:4px">Los avisos "Solo docentes" no serán visibles para los alumnos.</p>
-  </div>
+  </div>`:`<input type="hidden" id="avdest" value="todos"/>`}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);}
 async function svAviso(){
   const t=v('avt'),c=v('avc');
@@ -1100,13 +1102,27 @@ async function mExamen(){
   const asigs=await api('GET','/api/asignaciones');
   const pers=W._exData?.pers||await api('GET','/api/periodos');
   modal(`<h4>Programar examen</h4><div class="fg">
-  <div class="f"><label>Materia / Asignación</label><select id="exas">${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} — ${a.docente_nombre} ${a.docente_apellido}</option>`).join('')}</select></div>
+  <div class="f"><label>Materia / Asignación <span style="color:var(--red)">*</span></label>
+    <select id="exas">${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} — ${a.docente_nombre} ${a.docente_apellido}</option>`).join('')}</select></div>
   <div class="fr">
-    <div class="f"><label>Tipo</label><select id="exti"><option>Parcial</option><option>Final</option><option>Recuperatorio</option><option>Extraordinario</option></select></div>
+    <div class="f"><label>Tipo <span style="color:var(--red)">*</span></label>
+      <select id="exti">
+        <optgroup label="Exámenes Parciales">
+          <option value="Parcial">Parcial Ordinario</option>
+          <option value="Recuperatorio">Parcial Recuperatorio</option>
+        </optgroup>
+        <optgroup label="Exámenes Finales">
+          <option value="Final">Final Ordinario</option>
+          <option value="Final Recuperatorio">Final Recuperatorio</option>
+          <option value="Complementario">Final Complementario</option>
+          <option value="Extraordinario">Final Extraordinario (100 pts) ⚡</option>
+        </optgroup>
+      </select>
+    </div>
     <div class="f"><label>Período</label><select id="expe">${pers.map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
   </div>
   <div class="fr">
-    <div class="f"><label>Fecha</label><input id="exfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+    <div class="f"><label>Fecha <span style="color:var(--red)">*</span></label><input id="exfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
     <div class="f"><label>Hora</label><input id="exho" type="time" placeholder="19:00"/></div>
   </div>
   <div class="f"><label>Aula (opcional)</label><input id="exau" placeholder="Ej: Aula 3"/></div>
@@ -1381,7 +1397,8 @@ function verDia(fecha){
         <div><span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span><strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong></div>
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
-          <button class="bs o" onclick="imprimirActa('${e.asignacion_id}')">Acta</button>
+          <button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>
+          <button class="bs" onclick="imprimirActaTP('${e.asignacion_id}')">🖨 Acta TPs</button>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">
@@ -1550,7 +1567,10 @@ W.loadNotas=async(asigId,_tipo)=>{
     const ausente=a.nota_estado==='Ausente';
     const hab=habMap[a.id];
     const bloqueado=hab&&!hab.habilitado;
-    const disabled=ausente||bloqueado;
+    // REGLA: bloqueo por mora solo aplica a finales y extraordinario
+    // TPs, parcial ordinario y parcial recuperatorio siempre habilitados
+    const disabledFinal=ausente||bloqueado;   // finales bloqueados por mora
+    const disabledBase=ausente;               // TPs y parciales: solo si está ausente
     const cuotasFalt=hab?.cuotas_faltantes||[];
     // Columna exclusiva Control Pago/Mora — extremo derecho
     const celdaMora=`<td style="border:1px solid #ffcdd2;text-align:center;padding:5px 4px;background:${bloqueado?'#fff3f3':'#f9fff9'};min-width:95px;vertical-align:middle" id="mora-${a.id}">
@@ -1558,8 +1578,9 @@ W.loadNotas=async(asigId,_tipo)=>{
         ?`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
             <span style="color:#c62828;font-size:10px;font-weight:700;line-height:1.2">🔒 MORA</span>
             ${cuotasFalt.length?`<span style="color:#b71c1c;font-size:8px;text-align:center;line-height:1.3">${cuotasFalt.map(c=>c.replace('Cuota ','')).join(', ')}</span>`:''}
+            <span style="font-size:8px;color:#888;text-align:center">TPs/Parciales<br>habilitados</span>
             ${me.rol==='director'
-              ?`<button onclick="habilitarAlumno('${a.id}','${asigId}')" style="margin-top:3px;font-size:9px;padding:2px 5px;border:1px solid #1976d2;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer;white-space:nowrap;line-height:1.3">Habilitar<br>excepción</button>`
+              ?`<button onclick="habilitarAlumno('${a.id}','${asigId}')" style="margin-top:3px;font-size:9px;padding:2px 5px;border:1px solid #1976d2;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer;white-space:nowrap;line-height:1.3">Habilitar<br>finales</button>`
               :`<span style="font-size:9px;color:#e57373;text-align:center">Ver admin.</span>`}
           </div>`
         :`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
@@ -1567,8 +1588,13 @@ W.loadNotas=async(asigId,_tipo)=>{
             <span style="font-size:9px;color:#4caf50">Al día</span>
           </div>`}
     </td>`;
-    const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabled?'opacity:0.45':''}">` +
-      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${disabled?'disabled':''}` +
+    // ni para TPs y parciales (nunca bloqueados por mora)
+    const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabledBase?'opacity:0.45':''}">` +
+      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${disabledBase?'disabled':''}` +
+      ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
+    // niFinal para finales (bloqueados también por mora)
+    const niFinal=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabledFinal?'opacity:0.45':''}">` +
+      `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}` +
       ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
     return `<tr id="nr-${a.id}" ${ausente?'style="background:#fff8f8"':bloqueado?'style="background:#fffafa"':''}>
       <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
@@ -1580,23 +1606,23 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
       ${ni('parcial',25,a.parcial,'#e3f2fd')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${disabledBase?'disabled':''}
           onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
-      ${ni('final_ord',50,a.final_ord,'#fff3e0')}
+      ${niFinal('final_ord',50,a.final_ord,'#fff3e0')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
           onchange="updN('${a.id}','${asigId}','final_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.final_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fce4ec;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
           onchange="updN('${a.id}','${asigId}','complementario',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.complementario!=null?'<div style="font-size:9px;color:#880e4f;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#f8e8ff;position:relative">
-        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="—" ${disabled?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
           onchange="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
         ${a.extraordinario!=null?'<div style="font-size:9px;color:#4a148c;position:absolute;bottom:1px;right:2px">RESET</div>':''}
       </td>
@@ -1845,6 +1871,7 @@ W.loadAsist=async(asigId)=>{
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
       <button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>
+      <button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
@@ -1855,15 +1882,18 @@ W.loadAsist=async(asigId)=>{
       <th style="text-align:center;width:90px;background:#f8d7da">✗ Ausente</th>
       <th style="text-align:center;width:90px;background:#fff3cd">⏰ Tardanza</th>
       <th style="text-align:center;width:90px;background:#d1ecf1">📋 Justificado</th>
+      ${me.rol==='director'?'<th style="width:60px">Editar</th>':''}
     </tr>
   </thead><tbody>
   ${alumnos.map(a=>{
     const est=estMap[a.id]||'P';
+    const regId=hoy.find(r=>r.alumno_id===a.id)?.id||'';
     return `<tr id="arow-${a.id}">
       <td style="padding:8px"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
       ${['P','A','T','J'].map(s=>`<td style="text-align:center;padding:4px">
         <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',T:'⏰',J:'📋'}[s]}</button>
       </td>`).join('')}
+      ${me.rol==='director'?`<td style="text-align:center;padding:4px">${regId?`<button class="bs d" style="font-size:10px;padding:1px 5px" onclick="eliminarAsist('${regId}','${a.id}')">✕</button>`:'—'}</td>`:''}
     </tr>`;
   }).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
   </tbody></table></div></div>
@@ -1890,6 +1920,189 @@ async function grdAsist(){
     const msg=document.getElementById('amsg');
     if(msg){msg.innerHTML='<span class="bx bg">✓ Asistencia guardada</span>';setTimeout(()=>{if(msg)msg.innerHTML='';},3000);}
   }catch(e){toast('Error al guardar: '+e.message,'err',6000);}
+}
+async function eliminarAsist(regId,alId){
+  if(!confirm('¿Eliminar este registro de asistencia?'))return;
+  try{
+    await api('DELETE','/api/asistencia/'+regId);
+    toast('Registro eliminado','ok');
+    // Recargar la vista
+    if(W._asistId)W.loadAsist(W._asistId);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function verResumenAlumno(asigId){
+  // Cargar todos los alumnos del curso y su asistencia consolidada
+  const {alumnos}=await api('GET','/api/notas/asignacion/'+asigId).catch(()=>({alumnos:[]}));
+  modal(`<h4>👤 Asistencia por alumno</h4>
+  <div class="f" style="margin-bottom:12px"><input id="busAlAsist" placeholder="🔍 Buscar alumno..." oninput="filtrarListaAlAsist()" /></div>
+  <div id="listaAlAsist" style="max-height:65vh;overflow-y:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="background:#f5f5f5">
+      <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:left">Alumno</th>
+      <th style="padding:7px 8px;border:1px solid var(--bdr);text-align:center;background:#d4edda">Presentes</th>
+      <th style="padding:7px 8px;border:1px solid var(--bdr);text-align:center;background:#f8d7da">Ausentes</th>
+      <th style="padding:7px 8px;border:1px solid var(--bdr);text-align:center;background:#fff3cd">Tardanzas</th>
+      <th style="padding:7px 8px;border:1px solid var(--bdr);text-align:center;background:#d1ecf1">Justif.</th>
+      <th style="padding:7px 8px;border:1px solid var(--bdr);text-align:center">% Asist.</th>
+    </tr></thead>
+    <tbody id="tbAlAsist">
+    ${await Promise.all(alumnos.map(async a=>{
+      const res=await api('GET','/api/asistencia/resumen-alumno/'+a.id).catch(()=>[]);
+      const mat=res[0]||{P:0,A:0,T:0,J:0,total:0,pct:0};
+      const total=mat.P+mat.A+mat.T+mat.J;
+      const pct=total?Math.round(mat.P/total*100):0;
+      return `<tr class="al-asist-row">
+        <td style="padding:7px 10px;border:1px solid var(--bdr)"><strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br><span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span></td>
+        <td style="border:1px solid var(--bdr);text-align:center;background:#f9fff9;font-weight:700">${mat.P||0}</td>
+        <td style="border:1px solid var(--bdr);text-align:center;background:#fff9f9;font-weight:700;color:#c62828">${mat.A||0}</td>
+        <td style="border:1px solid var(--bdr);text-align:center">${mat.T||0}</td>
+        <td style="border:1px solid var(--bdr);text-align:center">${mat.J||0}</td>
+        <td style="border:1px solid var(--bdr);text-align:center;font-weight:700;color:${pct>=75?'#2e7d32':'#c62828'}">${pct}%</td>
+      </tr>`;
+    })).then(rows=>rows.join(''))||'<tr><td colspan="6" class="es">Sin datos</td></tr>'}
+    </tbody>
+  </table></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`,true);
+}
+function filtrarListaAlAsist(){
+  const q=(v('busAlAsist')||'').toLowerCase();
+  document.querySelectorAll('.al-asist-row').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+}
+
+// ── IMPRESIÓN DE ACTAS ────────────────────────────────────────────────────────
+async function imprimirActaExamen(examenId){
+  try{
+    const {examen:ex,alumnos,institucion:inst}=await api('GET','/api/examenes/'+examenId+'/acta');
+    const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const fecha=ex.fecha?new Date(ex.fecha+'T12:00:00'):new Date();
+    const ventana=window.open('','_blank','width=850,height=700');
+    ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Acta de Examen</title>
+    <style>
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#000}
+      .header{text-align:center;margin-bottom:16px}
+      .header h2{font-size:15px;margin:2px 0}
+      .header p{font-size:10px;margin:1px 0;font-style:italic}
+      .titulo{text-align:center;font-weight:bold;font-size:14px;margin:14px 0;text-transform:uppercase;text-decoration:underline}
+      .info-line{margin:6px 0;font-size:12px}
+      .intro{margin:12px 0;font-size:11px;text-align:justify}
+      table{width:100%;border-collapse:collapse;margin:12px 0;font-size:11px}
+      th{background:#e0e0e0;border:1px solid #333;padding:5px 8px;text-align:center;font-weight:bold}
+      td{border:1px solid #555;padding:5px 8px}
+      td.num{text-align:center}
+      .notas-cols{text-align:center;min-width:50px}
+      .notas-letra{text-align:center;min-width:60px}
+      .obs{font-size:10px;margin:10px 0;text-align:justify}
+      .firmas{display:flex;justify-content:space-between;margin-top:40px;text-align:center}
+      .firma-box{min-width:200px}
+      .firma-line{border-top:1px solid #000;margin:4px auto;width:180px}
+      @media print{body{margin:0;padding:10px}button{display:none}}
+    </style></head><body>
+    <div class="header">
+      <h2>${inst.nombre||'Instituto Técnico Superior'}</h2>
+      <h2>SANTÍSIMA TRINIDAD</h2>
+      <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+    </div>
+    <div class="titulo">Planilla de Evaluación — ${ex.tipo||'Examen'}</div>
+    <div class="info-line">Encargado de Cátedra: <strong>${ex.docente_nombre||''} ${ex.docente_apellido||''}</strong> &nbsp;&nbsp;&nbsp; Carrera: <strong>${ex.carrera_nombre||''}</strong></div>
+    <div class="info-line">Materia: <strong>${ex.materia_nombre||''}</strong> &nbsp;&nbsp;&nbsp; Semestre: <strong>${ex.curso_anio||''}° año</strong></div>
+    <div class="intro">En la ciudad de Pedro Juan Caballero, del mes de <strong>${meses[fecha.getMonth()]}</strong> del año <strong>${fecha.getFullYear()}</strong>, se procede a la evaluación de los exámenes de los alumnos/as, obteniéndose los siguientes resultados:</div>
+    <table>
+      <thead><tr>
+        <th style="width:35px">N°</th>
+        <th>NOMBRES Y APELLIDOS</th>
+        <th>N° DE CÉDULA</th>
+        <th colspan="2">PUNTAJE</th>
+      </tr>
+      <tr><th></th><th></th><th></th><th class="notas-cols">N°</th><th class="notas-letra">LETRA</th></tr></thead>
+      <tbody>
+      ${alumnos.map((a,i)=>{
+        const puntaje=a.puntaje_examen??a.puntaje_total;
+        const letra=puntaje===null||puntaje===undefined?'Ausente':puntaje>=94?'Cinco':puntaje>=86?'Cuatro':puntaje>=78?'Tres':puntaje>=70?'Dos':'Uno';
+        return `<tr>
+          <td class="num">${i+1}</td>
+          <td>${a.apellido||''}, ${a.nombre||''}</td>
+          <td class="num">${a.ci||''}</td>
+          <td class="num">${a.ausente?'Ausente':puntaje??'-'}</td>
+          <td class="notas-letra">${a.ausente?'Ausente':letra}</td>
+        </tr>`;
+      }).join('')}
+      ${Array(Math.max(0,18-alumnos.length)).fill('<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>').join('')}
+      </tbody>
+    </table>
+    <div class="obs">A.) El alumno que no se presente al examen parcial ordinario figurará como AUSENTE, y para rendir el recuperatorio deberá solicitar su habilitación en la Dirección Académica.<br>
+    B.) El docente dispondrá de ocho (8) días a partir de la fecha de evaluación para la entrega del acta correspondiente.</div>
+    <div class="info-line">Recibido por: .................................................................................</div>
+    <div class="info-line">Fecha: ........... / ........... / ${fecha.getFullYear()}</div>
+    <div class="obs">Acta registrada y archivada en la Dirección Académica junto con sus antecedentes.</div>
+    <div class="firmas">
+      <div class="firma-box"><div class="firma-line"></div><div>PROFESOR</div></div>
+      <div class="firma-box"><div class="firma-line"></div><div>DIRECTOR GENERAL</div></div>
+    </div>
+    <div style="text-align:center;margin-top:20px">
+      <button onclick="window.print()" style="padding:8px 20px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir acta</button>
+    </div>
+    </body></html>`);
+    ventana.document.close();
+  }catch(e){toast('Error al generar acta: '+e.message,'err');}
+}
+async function imprimirActaTP(asigId){
+  try{
+    const {asignacion:asig,alumnos,institucion:inst}=await api('GET','/api/asignaciones/'+asigId+'/acta-tp');
+    const ventana=window.open('','_blank','width=900,height=700');
+    ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Acta de TPs</title>
+    <style>
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:20px;color:#000}
+      .header{text-align:center;margin-bottom:14px}
+      .header h2{font-size:14px;margin:2px 0}
+      .titulo{text-align:center;font-weight:bold;font-size:13px;margin:12px 0;text-transform:uppercase;text-decoration:underline}
+      .info-line{margin:5px 0}
+      table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10px}
+      th{background:#e0e0e0;border:1px solid #333;padding:4px 6px;text-align:center;font-weight:bold}
+      td{border:1px solid #555;padding:4px 6px}
+      td.num{text-align:center}
+      .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
+      .firma-box{min-width:180px}
+      .firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
+      @media print{body{margin:0;padding:8px}button{display:none}}
+    </style></head><body>
+    <div class="header">
+      <h2>${inst.nombre||'Instituto Técnico Superior'} — SANTÍSIMA TRINIDAD</h2>
+    </div>
+    <div class="titulo">Planilla de Trabajos Prácticos</div>
+    <div class="info-line">Docente: <strong>${asig.docente_nombre||''} ${asig.docente_apellido||''}</strong> &nbsp; Carrera: <strong>${asig.carrera_nombre||''}</strong></div>
+    <div class="info-line">Materia: <strong>${asig.materia_nombre||''}</strong> &nbsp; Año: <strong>${asig.curso_anio||''}°</strong> &nbsp; Período: <strong>${asig.periodo_nombre||''}</strong></div>
+    <table>
+      <thead><tr>
+        <th>N°</th><th>NOMBRES Y APELLIDOS</th><th>C.I.</th>
+        <th>TP 1<br><small>5pts</small></th><th>TP 2<br><small>5pts</small></th><th>TP 3<br><small>5pts</small></th>
+        <th>TP 4<br><small>5pts</small></th><th>TP 5<br><small>5pts</small></th>
+        <th>TOTAL<br><small>25pts</small></th>
+      </tr></thead>
+      <tbody>
+      ${alumnos.map((a,i)=>`<tr>
+        <td class="num">${i+1}</td>
+        <td>${a.apellido||''}, ${a.nombre||''}</td>
+        <td class="num">${a.ci||''}</td>
+        <td class="num">${a.tp1??'-'}</td><td class="num">${a.tp2??'-'}</td><td class="num">${a.tp3??'-'}</td>
+        <td class="num">${a.tp4??'-'}</td><td class="num">${a.tp5??'-'}</td>
+        <td class="num"><strong>${a.tp_total??'-'}</strong></td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="firmas">
+      <div class="firma-box"><div class="firma-line"></div><div>PROFESOR</div></div>
+      <div class="firma-box"><div class="firma-line"></div><div>DIRECTOR GENERAL</div></div>
+    </div>
+    <div style="text-align:center;margin-top:16px">
+      <button onclick="window.print()" style="padding:8px 20px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir acta</button>
+    </div>
+    </body></html>`);
+    ventana.document.close();
+  }catch(e){toast('Error al generar acta: '+e.message,'err');}
 }
 async function mResumenAsist(){
   const asigs=W._asistAsigs||[];
@@ -2258,10 +2471,15 @@ function mPago(){
     <div id="pgHabInfo"></div>
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel()">
-        <optgroup label="Matrícula y Cuotas">
+        <optgroup label="Matrícula">
           <option>Matrícula 2025</option><option>Matrícula 2026</option>
-          <option>Cuota 1</option><option>Cuota 2</option><option>Cuota 3</option>
-          <option>Cuota 4</option><option>Cuota 5</option><option>Cuota 6</option><option>Cuota 7</option>
+        </optgroup>
+        <optgroup label="Cuotas mensuales (Marzo–Julio)">
+          <option value="Cuota 1">Cuota 1 — Marzo</option>
+          <option value="Cuota 2">Cuota 2 — Abril</option>
+          <option value="Cuota 3">Cuota 3 — Mayo</option>
+          <option value="Cuota 4">Cuota 4 — Junio</option>
+          <option value="Cuota 5">Cuota 5 — Julio</option>
         </optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
@@ -2269,8 +2487,9 @@ function mPago(){
         </optgroup>
         <optgroup label="Exámenes Finales">
           <option value="Examen Final Ordinario">Final Ordinario</option>
+          <option value="Examen Final Recuperatorio">Final Recuperatorio</option>
           <option value="Examen Final Complementario">Final Complementario</option>
-          <option value="Examen Final Extraordinario">Final Extraordinario ⚡</option>
+          <option value="Examen Final Extraordinario">Final Extraordinario ⚡ (100 pts)</option>
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select></div>
@@ -2563,33 +2782,58 @@ async function pgMisNotas(el){
   <p class="tip" style="margin-top:8px">Para consultas sobre el estado de tu inscripción, contactá con administración.</p>`;
 }
 
-// ── MI ASISTENCIA (alumno) ─────────────────────────────────────────────────────
+// ── MI ASISTENCIA (alumno) — resumen consolidado ──────────────────────────────
 async function pgMiAsistencia(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
-  const registros=await api('GET','/api/asistencia/alumno/'+me.alumnoId).catch(()=>[]);
-  // Agrupar por materia
-  const porAsig={};
-  (registros||[]).forEach(r=>{
-    if(!porAsig[r.asignacion_id])porAsig[r.asignacion_id]={materia:r.materia_nombre||'Materia',dias:{}};
-    porAsig[r.asignacion_id].dias[r.fecha]=r.estado;
-  });
+  el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div>'+skeletonTable(5,4);
+  const resumen=await api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]);
+  if(!resumen||!resumen.length){
+    el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div><div class="es">Sin registros de asistencia</div>';
+    return;
+  }
+  const totalP=resumen.reduce((s,m)=>s+m.P,0);
+  const totalA=resumen.reduce((s,m)=>s+m.A,0);
+  const totalT=resumen.reduce((s,m)=>s+(m.T||0),0);
+  const totalAll=totalP+totalA+totalT;
+  const pctGlobal=totalAll?Math.round(totalP/totalAll*100):0;
   el.innerHTML=`<div class="ph"><h3>Mi asistencia</h3></div>
-  ${Object.keys(porAsig).length?Object.entries(porAsig).map(([asigId,data])=>{
-    const dias=Object.entries(data.dias).sort(([a],[b])=>a.localeCompare(b));
-    const p=dias.filter(([,e])=>e==='P').length;
-    const a=dias.filter(([,e])=>e==='A').length;
-    const t=dias.length;
-    const pct=t?Math.round(p/t*100):0;
-    return `<div class="card card-p" style="margin-bottom:12px">
-      <p style="font-weight:700;font-size:14px;margin-bottom:8px">${data.materia}</p>
-      <div style="display:flex;gap:12px;font-size:13px;margin-bottom:8px;flex-wrap:wrap">
-        <span class="bx bg">✓ ${p} presentes</span>
-        <span class="bx br">✗ ${a} ausentes</span>
-        <span class="bx bgr">${pct}% asistencia</span>
+  <div class="card card-p" style="margin-bottom:16px">
+    <p style="font-weight:700;font-size:14px;margin-bottom:8px">Resumen global</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="bx bg">✓ ${totalP} presentes</span>
+      <span class="bx br">✗ ${totalA} ausentes</span>
+      ${totalT?`<span class="bx ba">⏰ ${totalT} tardanzas</span>`:''}
+      <span class="bx ${pctGlobal>=75?'bg':'br'}">${pctGlobal}% global</span>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" style="width:${pctGlobal}%;background:${pctGlobal>=75?'var(--green)':'var(--red)'}"></div></div>
+    <p style="font-size:11px;color:var(--t3);margin-top:6px">Se requiere 75% de asistencia para regularizar</p>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Materia</th>
+    <th style="text-align:center;background:#d4edda">Presentes</th>
+    <th style="text-align:center;background:#f8d7da">Ausentes</th>
+    <th style="text-align:center;background:#fff3cd">Tardanzas</th>
+    <th style="text-align:center">Total clases</th>
+    <th style="text-align:center">% Asistencia</th>
+    <th style="text-align:center">Estado</th>
+  </tr></thead><tbody>
+  ${resumen.map(m=>`<tr>
+    <td><strong>${m.materia}</strong></td>
+    <td style="text-align:center;font-weight:700;color:#2e7d32">${m.P||0}</td>
+    <td style="text-align:center;font-weight:700;color:#c62828">${m.A||0}</td>
+    <td style="text-align:center">${m.T||0}</td>
+    <td style="text-align:center">${m.total||0}</td>
+    <td style="text-align:center">
+      <div class="prog-bar" style="width:80px;display:inline-block;vertical-align:middle;margin-right:4px">
+        <div class="prog-fill" style="width:${m.pct}%;background:${m.pct>=75?'var(--green)':'var(--red)'}"></div>
       </div>
-      <div class="prog-bar" style="margin-bottom:10px"><div class="prog-fill" style="width:${pct}%;background:${pct>=75?'var(--green)':'var(--red)'}"></div></div>
-    </div>`;
-  }).join(''):'<div class="es">Sin registros de asistencia</div>'}`;
+      <strong style="color:${m.pct>=75?'var(--green)':'var(--red)'}">${m.pct}%</strong>
+    </td>
+    <td style="text-align:center">
+      <span class="bx ${m.pct>=75?'bg':'br'}">${m.pct>=75?'Regular':'En riesgo'}</span>
+    </td>
+  </tr>`).join('')}
+  </tbody></table></div></div>`;
 }
 
 // ── MI ESTADO DE CUENTA (alumno) ───────────────────────────────────────────────
@@ -2717,19 +2961,53 @@ async function pgUsuarios(el){
   </tbody></table></div></div>`;
 }
 function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><div class="fg">
-  <div class="fr"><div class="f"><label>Nombre</label><input id="un2" value="${e?u.nombre:''}" placeholder="Nombre"/></div>
+  <div class="fr"><div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="un2" value="${e?u.nombre:''}" placeholder="Nombre"/></div>
   <div class="f"><label>Apellido</label><input id="uap" value="${e?u.apellido||'':''}" placeholder="Apellido"/></div></div>
-  <div class="f"><label>Email</label><input id="uem" value="${e?u.email:''}" placeholder="nombre@its.edu.py"/></div>
-  ${!e?`<div class="f"><label>Contraseña</label><input id="ups" type="password" placeholder="Mín. 4 caracteres"/></div>`:''}
-  <div class="f"><label>Rol</label><select id="urol"><option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option></select></div>
+  <div class="f"><label>C.I.</label><input id="uci2" value="${e?u.ci||'':''}" placeholder="Sin puntos ni guiones"/></div>
+  <div class="f"><label>Email <span style="color:var(--red)">*</span></label><input id="uem" value="${e?u.email:''}" placeholder="nombre@its.edu.py"/></div>
+  ${!e?`<div class="f"><label>Contraseña <span style="color:var(--red)">*</span></label><input id="ups" type="password" placeholder="Mín. 4 caracteres"/></div>`:''}
+  <div class="f"><label>Rol</label><select id="urol" onchange="onCambioRolU()">
+    <option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option>
+    <option value="docente" ${e&&u.rol==='docente'?'selected':''}>Docente — cargar notas y asistencia</option>
+    <option value="alumno" ${e&&u.rol==='alumno'?'selected':''}>Alumno — ver sus propios datos</option>
+  </select></div>
+  <div id="panelDocU" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:10px;margin-top:-4px">
+    <p style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:6px">👤 Vincular a docente existente</p>
+    <select id="uDocId"><option value="">— Seleccionar docente —</option></select>
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">El docente podrá ingresar con este usuario y ver solo sus materias asignadas.</p>
+  </div>
   ${e?`<div class="f"><label>Estado</label><select id="uact"><option value="1" ${u.activo?'selected':''}>Activo</option><option value="0" ${!u.activo?'selected':''}>Inactivo</option></select></div>`:''}
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svUsuario('${e?u.id:''}')">Guardar</button></div>`);}
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svUsuario('${e?u.id:''}')">Guardar</button></div>`);
+  setTimeout(()=>onCambioRolU(),100);
+}
+async function onCambioRolU(){
+  const rol=v('urol');
+  const panel=document.getElementById('panelDocU');
+  if(!panel)return;
+  if(rol==='docente'){
+    panel.style.display='block';
+    const docs=await api('GET','/api/docentes').catch(()=>[]);
+    const sel=document.getElementById('uDocId');
+    if(sel)sel.innerHTML='<option value="">— Seleccionar docente —</option>'+docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}${d.especialidad?' — '+d.especialidad:''}</option>`).join('');
+  }else{panel.style.display='none';}
+}
 async function svUsuario(id){
-  const o={nombre:v('un2'),apellido:v('uap'),email:v('uem'),rol:v('urol')};
+  const o={nombre:v('un2'),apellido:v('uap'),ci:v('uci2')||'',email:v('uem'),rol:v('urol')};
   if(!o.nombre||!o.email)return alert('Completar nombre y email');
-  if(!id){o.password=v('ups');if(!o.password)return alert('Ingresar contraseña');}
+  if(!id){o.password=v('ups');if(!o.password||o.password.length<4)return alert('Ingresar contraseña (mín. 4 caracteres)');}
   else o.activo=v('uact')==='1';
-  try{id?await api('PUT','/api/usuarios/directores/'+id,o):await api('POST','/api/usuarios/directores',o);cm();go('usuarios');}catch(e){alert(e.message);}
+  // Si es docente y se vincula, actualizar el docente_id
+  const docId=v('uDocId');
+  try{
+    let userId;
+    if(id){await api('PUT','/api/usuarios/directores/'+id,o);userId=id;}
+    else{const r=await api('POST','/api/usuarios/directores',o);userId=r.id;}
+    // Vincular docente si se seleccionó
+    if(o.rol==='docente'&&docId){
+      await api('PUT','/api/docentes/vincular',{docente_id:docId,usuario_id:userId}).catch(()=>{});
+    }
+    cm();go('usuarios');
+  }catch(e){alert(e.message);}
 }
 function mPassU(id){modal(`<h4>Cambiar contraseña</h4><div class="fg"><div class="f"><label>Nueva contraseña</label><input id="npu" type="password" placeholder="Mín. 4 caracteres"/></div></div>
 <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPassU('${id}')">Guardar</button></div>`);}
