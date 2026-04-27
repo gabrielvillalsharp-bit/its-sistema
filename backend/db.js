@@ -17,14 +17,13 @@ db.pragma('foreign_keys = ON');
 // Final: última instancia cargada reemplaza las anteriores (ord → recup → complementario)
 // Extraordinario: RESET total — ignora todo y usa solo ese valor (escala sobre 100)
 function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio, final_ord, final_recuperatorio, complementario, extraordinario) {
-  // Ausente o sin datos
   const hayDatos = [tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario]
     .some(v => v !== null && v !== undefined && v !== '');
   if (!hayDatos) return { puntaje: null, nota: null, estado: 'Pendiente' };
 
   const n = v => (v !== null && v !== undefined && v !== '') ? parseFloat(v) : null;
 
-  // EXTRAORDINARIO: reset total
+  // EXTRAORDINARIO: resetea todo
   const extr = n(extraordinario);
   if (extr !== null) {
     const puntaje = Math.round(extr * 100) / 100;
@@ -33,16 +32,13 @@ function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio
     return { puntaje, nota, estado, parcial_ef: null, final_ef: null, tp_total: null };
   }
 
-  // BLOQUE PARCIAL: recuperatorio reemplaza ordinario si está cargado
   const parOrd = n(parcial);
   const parRec = n(parcial_recuperatorio);
   const parcial_ef = parRec !== null ? parRec : parOrd;
 
-  // BLOQUE TPs: suma simple
   const tps = [n(tp1), n(tp2), n(tp3), n(tp4), n(tp5)];
   const tp_total = tps.every(t => t === null) ? null : tps.reduce((acc, t) => acc + (t || 0), 0);
 
-  // BLOQUE FINAL: última instancia cargada (complementario > recuperatorio > ordinario)
   const finOrd = n(final_ord);
   const finRec = n(final_recuperatorio);
   const finCom = n(complementario);
@@ -51,11 +47,15 @@ function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio
   else if (finRec !== null) final_ef = finRec;
   else if (finOrd !== null) final_ef = finOrd;
 
-  // Sin ningún dato válido
-  if (parcial_ef === null && tp_total === null && final_ef === null)
-    return { puntaje: null, nota: null, estado: 'Pendiente', parcial_ef, final_ef, tp_total };
+  // ── REGLA CLAVE: solo mostrar Aprobado/Reprobado cuando hay un final cargado
+  // Si solo hay TPs y/o parciales → Pendiente (esperando el final)
+  if (final_ef === null) {
+    // Calcular puntaje parcial para mostrar, pero estado = Pendiente
+    const puntajeParcial = Math.round(((parcial_ef || 0) + (tp_total || 0)) * 100) / 100;
+    return { puntaje: puntajeParcial||null, nota: null, estado: 'Pendiente', parcial_ef, final_ef, tp_total };
+  }
 
-  // SUMA TOTAL (sobre 100)
+  // Hay final → calcular nota definitiva
   const puntaje = Math.round(((parcial_ef || 0) + (tp_total || 0) + (final_ef || 0)) * 100) / 100;
   const nota = puntaje >= 94 ? 5 : puntaje >= 86 ? 4 : puntaje >= 78 ? 3 : puntaje >= 70 ? 2 : 1;
   const estado = nota >= 2 ? 'Aprobado' : 'Reprobado';

@@ -180,10 +180,13 @@ tr:hover td{background:#fafafa}
     <h1>Instituto Técnico Superior</h1>
     <p>Santísima Trinidad — Sistema Académico</p>
   </div>
-  <div class="f"><label>Email o C.I.</label><input id="lem" placeholder="director@its.edu.py"/></div>
-  <div class="f"><label>Contraseña</label><input id="lps" type="password" placeholder="••••••"/></div>
+  <div class="f"><label>Email o C.I.</label><input id="lem" placeholder="Ej: 1234567 o director@its.edu.py" onkeydown="if(event.key==='Enter')document.getElementById('lps').focus()"/></div>
+  <div class="f"><label>Contraseña</label><input id="lps" type="password" placeholder="Tu número de cédula" onkeydown="if(event.key==='Enter')doLogin()"/></div>
   <button class="bp" onclick="doLogin()">Ingresar al sistema</button>
-  <div id="le" style="font-size:12px;color:#b91c1c;margin-top:6px;display:none">Email/CI o contraseña incorrectos</div>
+  <div id="le" style="font-size:12px;color:#b91c1c;margin-top:6px;padding:8px;background:#fff3f3;border-radius:6px;display:none">Email/CI o contraseña incorrectos</div>
+  <div style="font-size:11px;color:#888;margin-top:8px;text-align:center">
+    Alumnos: ingresá con tu N° de cédula como usuario y contraseña
+  </div>
   <div class="dl">
     <p>Acceso rápido:</p>
     <button class="db2" onclick="ql('director@its.edu.py','director123')">Director — acceso total</button>
@@ -246,11 +249,14 @@ async function api(m,u,b,isFile){
   try{
     const r=await fetch(API+u,o);
     if(r.status===401){
-      // Token expirado o inválido — limpiar sesión y pedir login de nuevo
-      tok=null;localStorage.removeItem('its_tk3');
-      toast('Sesión expirada. Por favor ingresá nuevamente.','warn',5000);
-      setTimeout(()=>{me=null;document.getElementById('app').style.display='none';document.getElementById('lp').style.display='flex';},2000);
-      throw new Error('Sesión expirada');
+      // Solo redirigir si ya estábamos logueados (tok existía)
+      if(tok){
+        tok=null;localStorage.removeItem('its_tk3');
+        toast('Sesión expirada. Por favor ingresá nuevamente.','warn',5000);
+        setTimeout(()=>{me=null;document.getElementById('app').style.display='none';document.getElementById('lp').style.display='flex';},2000);
+      }
+      const e=await r.json().catch(()=>({error:'Credenciales incorrectas'}));
+      throw new Error(e.error||'Credenciales incorrectas');
     }
     if(!r.ok){const e=await r.json().catch(()=>({error:'Error del servidor'}));throw new Error(e.error||'Error');}
     return r.json();
@@ -264,10 +270,20 @@ async function api(m,u,b,isFile){
 
 async function doLogin(){
   document.getElementById('le').style.display='none';
+  const email=v('lem'), password=v('lps');
+  if(!email||!password){
+    document.getElementById('le').textContent='Ingresá email/CI y contraseña';
+    document.getElementById('le').style.display='block';
+    return;
+  }
   try{
-    const res=await api('POST','/api/login',{email:v('lem'),password:v('lps')});
+    const res=await api('POST','/api/login',{email,password});
     tok=res.token;me=res.user;localStorage.setItem('its_tk3',tok);startApp();
-  }catch{document.getElementById('le').style.display='block';}
+  }catch(e){
+    const msg=e.message==='Sesión expirada'?'Credenciales incorrectas':e.message||'Credenciales incorrectas';
+    document.getElementById('le').textContent=msg;
+    document.getElementById('le').style.display='block';
+  }
 }
 function ql(e,p){document.getElementById('lem').value=e;document.getElementById('lps').value=p;}
 function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
@@ -282,7 +298,7 @@ function startApp(){
 function navFor(r){
   return [
     {g:'General',i:[
-      {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director','docente','alumno']},
+      {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director']},
       {id:'dashboard-analitico',l:'Análisis y estadísticas',c:'#185FA5',r:['director']},
       {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
       {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','alumno']},
@@ -311,7 +327,6 @@ function navFor(r){
     ]},
     {g:'Honorarios',i:[
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
-      {id:'mis-honorarios',l:'Mis honorarios',c:'#D85A30',r:['docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
     ]},
     {g:'Mi área',i:[
@@ -443,9 +458,42 @@ async function pgAvisos(el){
   const puedeEditar=me.rol==='director'||me.rol==='docente';
   const esDirector=me.rol==='director';
   const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos'};
+
+  // Para docente: cargar sus próximos exámenes
+  let misExamenes=[];
+  if(me.rol==='docente'){
+    try{
+      const todos=await api('GET','/api/examenes');
+      const hoy=new Date().toISOString().split('T')[0];
+      // Filtrar los del docente y los próximos 30 días
+      const limite=new Date();limite.setDate(limite.getDate()+30);
+      const limStr=limite.toISOString().split('T')[0];
+      misExamenes=todos.filter(e=>{
+        const esDocente=e.docente_nombre&&`${e.docente_nombre} ${e.docente_apellido}`===`${me.nombre} ${me.apellido}`;
+        return esDocente&&e.fecha>=hoy&&e.fecha<=limStr;
+      }).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    }catch{}
+  }
+
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
   </div>
+
+  ${misExamenes.length?`<div class="card card-p" style="margin-bottom:16px;border-left:4px solid #D85A30">
+    <p style="font-weight:700;font-size:13px;margin-bottom:8px;color:#D85A30">📋 Mis exámenes próximos (30 días)</p>
+    ${misExamenes.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:6px">
+      <div>
+        <span style="font-weight:700">${e.tipo}</span> —
+        <span style="font-size:13px">${e.materia_nombre||''}</span>
+        <br><span style="font-size:11px;color:var(--t2)">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} · ${e.fecha} ${e.hora?'· '+e.hora:''} ${e.aula?'· Aula: '+e.aula:''}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <span class="bx ${e.tipo==='Extraordinario'?'bv':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'br':'bb'}" style="font-size:10px">${e.tipo}</span>
+        <span class="bx bgr" style="font-size:10px">${e.puntos_max||50} pts</span>
+      </div>
+    </div>`).join('')}
+  </div>`:''}
+
   ${!avs.length?`<div class="es">No hay avisos activos</div>`:''}
   ${avs.map(a=>`<div class="aviso-card ${a.tipo}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
@@ -1428,7 +1476,7 @@ async function generarVentanaActa(ex, alumnos, inst, pMax, esFinal, excluidos){
     .obs{font-size:10px;margin:10px 0;text-align:justify}
     .firmas{display:flex;justify-content:space-between;margin-top:38px;text-align:center}
     .firma-box{min-width:190px}.firma-line{border-top:1px solid #000;margin:4px auto;width:170px}
-    @media print{body{padding:8px}button{display:none}}
+    @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
   </style></head><body>
   <div class="header">
     ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -1679,7 +1727,7 @@ function verDia(fecha){
         <div><span class="bx ${e.tipo==='Final'?'br':e.tipo==='Parcial'?'bb':'ba'}">${e.tipo}</span><strong style="font-size:15px;margin-left:8px">${e.materia_nombre}</strong></div>
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
-          <button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>
+          ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">
@@ -1809,7 +1857,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${bloqueados?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div class="abs">
-      <button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>
+      ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>`:''}
     </div>
   </div>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
@@ -1828,7 +1876,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#f3e5f5;color:#4a148c;font-size:11px">TOTAL<br>PUNTOS</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Calif.</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Estado</th>
-      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3f3;color:#c62828;font-size:10px">🔒 Mora</th>
+      ${me.rol==='director'?'<th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3f3;color:#c62828;font-size:10px">🔒 Mora</th>':''}
     </tr>
     <tr style="background:#f5f5f5;font-size:11px">
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 1</th>
@@ -1845,7 +1893,8 @@ W.loadNotas=async(asigId,_tipo)=>{
   </thead>
   <tbody>
   ${alumnos.map(a=>{
-    const ausente=a.nota_estado==='Ausente';
+    // ausente solo si fue explícitamente marcado (campo ausente=1), no por estado de nota
+    const ausente=a.ausente===1||a.ausente===true;
     const hab=habMap[a.id];
     const bloqueado=hab&&!hab.habilitado;
     // REGLA: bloqueo por mora solo aplica a finales y extraordinario
@@ -1853,22 +1902,20 @@ W.loadNotas=async(asigId,_tipo)=>{
     const disabledFinal=ausente||bloqueado;   // finales bloqueados por mora
     const disabledBase=ausente;               // TPs y parciales: solo si está ausente
     const cuotasFalt=hab?.cuotas_faltantes||[];
-    // Columna exclusiva Control Pago/Mora — extremo derecho
-    const celdaMora=`<td style="border:1px solid #ffcdd2;text-align:center;padding:5px 4px;background:${bloqueado?'#fff3f3':'#f9fff9'};min-width:95px;vertical-align:middle" id="mora-${a.id}">
+    // Columna mora: solo director la ve. Docente recibe aviso al intentar guardar final.
+    const celdaMora=me.rol==='director'?`<td style="border:1px solid #ffcdd2;text-align:center;padding:5px 4px;background:${bloqueado?'#fff3f3':'#f9fff9'};min-width:95px;vertical-align:middle" id="mora-${a.id}">
       ${bloqueado
         ?`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
             <span style="color:#c62828;font-size:10px;font-weight:700;line-height:1.2">🔒 MORA</span>
             ${cuotasFalt.length?`<span style="color:#b71c1c;font-size:8px;text-align:center;line-height:1.3">${cuotasFalt.map(c=>c.replace('Cuota ','')).join(', ')}</span>`:''}
             <span style="font-size:8px;color:#888;text-align:center">TPs/Parciales<br>habilitados</span>
-            ${me.rol==='director'
-              ?`<button onclick="habilitarAlumno('${a.id}','${asigId}')" style="margin-top:3px;font-size:9px;padding:2px 5px;border:1px solid #1976d2;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer;white-space:nowrap;line-height:1.3">Habilitar<br>finales</button>`
-              :`<span style="font-size:9px;color:#e57373;text-align:center">Ver admin.</span>`}
+            <button onclick="habilitarAlumno('${a.id}','${asigId}')" style="margin-top:3px;font-size:9px;padding:2px 5px;border:1px solid #1976d2;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer;white-space:nowrap;line-height:1.3">Habilitar<br>finales</button>
           </div>`
         :`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
             <span style="color:#2e7d32;font-size:16px;line-height:1">✓</span>
             <span style="font-size:9px;color:#4caf50">Al día</span>
           </div>`}
-    </td>`;
+    </td>`:'<td style="display:none"></td>';
     // ni para TPs y parciales (nunca bloqueados por mora)
     const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabledBase?'opacity:0.45':''}">` +
       `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${disabledBase?'disabled':''}` +
@@ -2343,7 +2390,7 @@ async function imprimirActaTP(asigId){
       .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
       .firma-box{min-width:180px}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-      @media print{body{margin:0;padding:8px}button{display:none}}
+      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}" style="height:55px;margin-bottom:4px;object-fit:contain"/><br>`:''}
@@ -3456,7 +3503,7 @@ async function imprimirInformeHon(){
     .total-row{background:#d4edda;font-weight:bold}
     .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
     .firma-box{min-width:180px}.firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-    @media print{body{padding:8px}button{display:none}}
+    @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
   </style></head><body>
   <div class="header">
     ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -3969,7 +4016,7 @@ async function imprimirBoletin(alId){
       .resumen{background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:10px;margin:12px 0;display:flex;gap:20px;justify-content:center}
       .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-      @media print{body{padding:8px}button{display:none}}
+      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -4047,7 +4094,7 @@ async function imprimirConstancia(alId){
       .firma{margin-top:60px;text-align:center}
       .firma-line{border-top:1px solid #000;width:200px;margin:4px auto}
       .pie{margin-top:40px;font-size:10px;text-align:center;color:#555}
-      @media print{body{padding:20px 40px}button{display:none}}
+      @page{size:A4;margin:20mm 25mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -4104,7 +4151,7 @@ async function imprimirEstadoCuenta(alId){
       .total-row{background:#e8f5e9;font-weight:bold}.deuda-row{background:#ffebee;font-weight:bold}
       .firmas{display:flex;justify-content:space-between;margin-top:30px;text-align:center}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:150px}
-      @media print{body{padding:8px}button{display:none}}
+      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -4318,14 +4365,19 @@ async function crearAccesosAlumnos(){
   for(const al of sinUsuario){
     try{
       const ci=(al.display_ci||al.ci||'').replace(/[^0-9]/g,'');
-      const email=`al_${ci||al.id}@its.edu.py`;
+      const nombre=(al.display_nombre||al.nombre||'').toLowerCase().replace(/\s+/g,'.');
+      const apellido=(al.display_apellido||al.apellido||'').toLowerCase().replace(/\s+/g,'.');
+      // Email: nombre.apellido@its.edu.py — usuario memorable
+      // Contraseña: CI del alumno
+      const email=ci?`${ci}@its.edu.py`:`${nombre}.${apellido}@its.edu.py`;
       const r=await api('POST','/api/usuarios/directores',{
         nombre:al.display_nombre||al.nombre||'',
         apellido:al.display_apellido||al.apellido||'',
         ci:al.display_ci||al.ci||'',
-        email,password:ci||'alumno123',rol:'alumno'
+        email,
+        password:ci||'alumno123',
+        rol:'alumno'
       });
-      // Vincular usuario al alumno
       await api('PUT','/api/alumnos/'+al.id,{usuario_id:r.id}).catch(()=>{});
       creados++;
     }catch{errores++;}
@@ -4342,11 +4394,17 @@ async function reseedDocentes(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><div class="fg">
-  <div class="fr"><div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="un2" value="${e?u.nombre:''}" placeholder="Nombre"/></div>
-  <div class="f"><label>Apellido</label><input id="uap" value="${e?u.apellido||'':''}" placeholder="Apellido"/></div></div>
-  <div class="f"><label>C.I.</label><input id="uci2" value="${e?u.ci||'':''}" placeholder="Sin puntos ni guiones"/></div>
-  <div class="f"><label>Email <span style="color:var(--red)">*</span></label><input id="uem" value="${e?u.email:''}" placeholder="nombre@its.edu.py"/></div>
-  ${!e?`<div class="f"><label>Contraseña <span style="color:var(--red)">*</span></label><input id="ups" type="password" placeholder="Mín. 4 caracteres"/></div>`:''}
+  <div class="fr"><div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="un2" value="${e?u.nombre:''}" placeholder="Nombre" oninput="autoEmailUsuario()"/></div>
+  <div class="f"><label>Apellido</label><input id="uap" value="${e?u.apellido||'':''}" placeholder="Apellido" oninput="autoEmailUsuario()"/></div></div>
+  <div class="f"><label>C.I. <span style="color:var(--red)">*</span></label><input id="uci2" value="${e?u.ci||'':''}" placeholder="Sin puntos ni guiones — será la contraseña inicial" oninput="autoEmailUsuario()"/></div>
+  <div class="f"><label>Email (usuario de ingreso)</label>
+    <input id="uem" value="${e?u.email:''}" placeholder="Se completa automático desde CI"/>
+    <p style="font-size:10px;color:var(--t2);margin-top:3px">📋 El usuario ingresará con este email y su CI como contraseña</p>
+  </div>
+  ${!e?`<div class="f"><label>Contraseña inicial</label>
+    <input id="ups" type="text" placeholder="Se completa automático desde CI" style="background:#f5f5f5"/>
+    <p style="font-size:10px;color:#2e7d32;margin-top:2px">✓ La contraseña se genera automáticamente desde el CI</p>
+  </div>`:''}
   <div class="f"><label>Rol</label><select id="urol" onchange="onCambioRolU()">
     <option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option>
     <option value="docente" ${e&&u.rol==='docente'?'selected':''}>Docente — cargar notas y asistencia</option>
@@ -4361,33 +4419,39 @@ function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><d
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svUsuario('${e?u.id:''}')">Guardar</button></div>`);
   setTimeout(()=>onCambioRolU(),100);
 }
-async function onCambioRolU(){
-  const rol=v('urol');
-  const panel=document.getElementById('panelDocU');
-  if(!panel)return;
-  if(rol==='docente'){
-    panel.style.display='block';
-    const docs=await api('GET','/api/docentes').catch(()=>[]);
-    const sel=document.getElementById('uDocId');
-    if(sel)sel.innerHTML='<option value="">— Seleccionar docente —</option>'+docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}${d.especialidad?' — '+d.especialidad:''}</option>`).join('');
-  }else{panel.style.display='none';}
+function autoEmailUsuario(){
+  const ci=(v('uci2')||'').replace(/[^0-9]/g,'');
+  const nom=(v('un2')||'').toLowerCase().replace(/\s+/g,'');
+  const ape=(v('uap')||'').toLowerCase().replace(/\s+/g,'');
+  const em=document.getElementById('uem');
+  const pw=document.getElementById('ups');
+  if(em&&!em.dataset.manual){
+    em.value=ci?`${ci}@its.edu.py`:(nom&&ape?`${nom}.${ape}@its.edu.py`:'');
+  }
+  if(pw&&ci) pw.value=ci;
 }
 async function svUsuario(id){
-  const o={nombre:v('un2'),apellido:v('uap'),ci:v('uci2')||'',email:v('uem'),rol:v('urol')};
+  const ci=v('uci2')||'';
+  const o={nombre:v('un2'),apellido:v('uap'),ci,email:v('uem'),rol:v('urol')};
   if(!o.nombre||!o.email)return alert('Completar nombre y email');
-  if(!id){o.password=v('ups');if(!o.password||o.password.length<4)return alert('Ingresar contraseña (mín. 4 caracteres)');}
-  else o.activo=v('uact')==='1';
-  // Si es docente y se vincula, actualizar el docente_id
+  if(!id){
+    // Contraseña = CI si existe, sino lo que ingresó
+    const pwInput=v('ups')||'';
+    o.password=pwInput||ci;
+    if(!o.password||o.password.length<3)return alert('Ingresar cédula para generar la contraseña');
+  } else {
+    o.activo=v('uact')==='1';
+  }
   const docId=v('uDocId');
   try{
     let userId;
     if(id){await api('PUT','/api/usuarios/directores/'+id,o);userId=id;}
     else{const r=await api('POST','/api/usuarios/directores',o);userId=r.id;}
-    // Vincular docente si se seleccionó
     if(o.rol==='docente'&&docId){
       await api('PUT','/api/docentes/vincular',{docente_id:docId,usuario_id:userId}).catch(()=>{});
     }
     cm();go('usuarios');
+    toast(`✓ Usuario creado — ingresar con: ${o.email} / contraseña: ${o.password||ci}`,'ok',8000);
   }catch(e){alert(e.message);}
 }
 function mPassU(id){modal(`<h4>Cambiar contraseña</h4><div class="fg"><div class="f"><label>Nueva contraseña</label><input id="npu" type="password" placeholder="Mín. 4 caracteres"/></div></div>

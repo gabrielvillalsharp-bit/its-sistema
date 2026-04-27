@@ -119,7 +119,9 @@ app.get('/api/setup', (req, res) => {
 app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
-  const u = db.prepare('SELECT * FROM usuarios WHERE (email=? OR ci=?) AND activo=1').get(email, email);
+  // Buscar por email, por CI, o por email generado desde CI (ci@its.edu.py)
+  const ciEmail = `${email}@its.edu.py`;
+  const u = db.prepare('SELECT * FROM usuarios WHERE (email=? OR ci=? OR email=?) AND activo=1').get(email, email, ciEmail);
   if (!u || !bcrypt.compareSync(password, u.password_hash))
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email }, JWT_SECRET, { expiresIn: '8h' });
@@ -1740,13 +1742,12 @@ app.post('/api/admin/reseed-docentes', auth(ADM), (req, res) => {
       const uid = 'u_' + d.id;
       const userExists = db.prepare('SELECT id FROM usuarios WHERE id=?').get(uid);
       if (!userExists) {
-        // Buscar datos del docente en el seed original
-        const u = db.prepare('SELECT * FROM usuarios WHERE id=?').get(uid);
-        if (!u) {
-          insU.run(uid, d.especialidad||'Docente', '', `${d.id}@its.edu.py`, passDoc, 'docente');
-          db.prepare('UPDATE docentes SET usuario_id=? WHERE id=?').run(uid, d.id);
-          created++;
-        }
+        // Nombre legible para el docente: nombre.apellido@its.edu.py
+        const nombre = (d.nombre||d.especialidad||'Docente').toLowerCase().replace(/\s+/g,'').slice(0,15);
+        const emailDoc = `${d.id}@its.edu.py`;
+        insU.run(uid, d.especialidad||'Docente', '', emailDoc, passDoc, 'docente');
+        db.prepare('UPDATE docentes SET usuario_id=? WHERE id=?').run(uid, d.id);
+        created++;
       }
     });
     res.json({ ok: true, created, total: allDocs.length });
