@@ -198,6 +198,7 @@ tr:hover td{background:#fafafa}
 <div class="tb">
   <div class="tl"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
   <h2>ITS — Sistema Académico</h2>
+  <p style="font-size:9px;color:#a0b0c0;margin-top:2px;font-style:italic">Sistema académico creado por el Prof. Gabriel Sharp</p>
   <div class="tr2">
     <span id="un" style="font-size:13px;color:var(--t2)"></span>
     <span id="rp" class="rp"></span>
@@ -540,7 +541,7 @@ function mAviso(){
   const esDirector=me.rol==='director';
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
-  <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..."></textarea></div>
+  <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
   <div class="fr">
     <div class="f"><label>Tipo</label><select id="avtp">
       <option value="info">Información general</option>
@@ -550,15 +551,23 @@ function mAviso(){
     </select></div>
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí — fijar</option></select></div>
   </div>
-  ${esDirector?`<div class="f"><label>👥 Público objetivo</label>
+  <div class="f"><label>Público objetivo</label>
     <select id="avdest">
-      <option value="todos">Todos (docentes y alumnos)</option>
-      <option value="docentes">Solo docentes</option>
-      <option value="alumnos">Solo alumnos</option>
+      ${esDirector?`
+        <option value="todos">Todos (docentes y alumnos)</option>
+        <option value="docentes">Solo docentes</option>
+        <option value="alumnos">Solo alumnos</option>
+      `:`
+        <option value="mis-alumnos">Mis alumnos (de mis materias)</option>
+        <option value="director">Solo al Director</option>
+      `}
     </select>
-    <p style="font-size:11px;color:var(--t2);margin-top:4px">Los avisos "Solo docentes" no serán visibles para los alumnos.</p>
-  </div>`:`<input type="hidden" id="avdest" value="todos"/>`}
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);}
+    <p style="font-size:11px;color:var(--t2);margin-top:3px">
+      ${esDirector?'Los avisos "Solo docentes" no son visibles para alumnos.':'Los avisos de docentes solo llegan a sus propios alumnos o al Director.'}
+    </p>
+  </div>
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
+}
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
@@ -611,7 +620,16 @@ function mCarrera(c){const e=!!c;modal(`<h4>${e?'Editar':'Nueva'} carrera</h4><d
   <div class="fr"><div class="f"><label>Nombre</label><input id="cn" value="${e?c.nombre:''}" placeholder="Ej: Enfermería"/></div>
   <div class="f"><label>Código</label><input id="cc" value="${e?c.codigo:''}" placeholder="Ej: ENF"/></div></div>
   <div class="fr"><div class="f"><label>Turno</label><select id="ct">${['Mañana','Tarde','Nocturno'].map(t=>`<option ${e&&c.turno===t?'selected':''}>${t}</option>`).join('')}</select></div>
-  <div class="f"><label>Semestres</label><input id="cs" type="number" value="${e?c.semestres:4}" min="1"/></div></div>
+  <div class="f"><label>Duración (años)</label><input id="cs" type="number" value="${e?c.semestres:2}" min="1" max="4" placeholder="Ej: 2"/></div></div>
+  <div class="f"><label>Años que ofrece la carrera</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      ${[1,2,3,4].map(a=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px">
+        <input type="checkbox" id="ca${a}" value="${a}" ${e?(c.anios_activos||[1,2]).includes(a)?'checked':'':'a<=2?\'checked\':\'''}/>
+        ${a}° año
+      </label>`).join('')}
+    </div>
+    <p style="font-size:10px;color:var(--t2);margin-top:4px">Seleccioná los años que tiene esta carrera para crear las secciones automáticamente</p>
+  </div>
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svCarrera('${e?c.id:''}')">Guardar</button></div>`);}
 async function svCarrera(id){
   const o={nombre:v('cn'),codigo:v('cc').toUpperCase(),turno:v('ct'),semestres:parseInt(v('cs'))};
@@ -845,13 +863,33 @@ async function crearSegundoSemestre(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 function mPer(){modal(`<h4>Nuevo período académico</h4><div class="fg">
-  <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: Año Lectivo 2027"/></div>
-  <div class="fr"><div class="f"><label>Año</label><input id="pa" type="number" value="${new Date().getFullYear()+1}"/></div>
-  <div class="f"><label>Semestre</label><select id="ps"><option>1ro</option><option>2do</option><option>Anual</option></select></div></div>
+  <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: Año Lectivo 2027 — 1er Semestre"/></div>
+  <div class="fr"><div class="f"><label>Año</label><input id="pa" type="number" value="${new Date().getFullYear()}"/></div>
+  <div class="f"><label>Semestre</label><select id="ps"><option value="1ro">1er Semestre</option><option value="2do">2do Semestre</option><option value="Anual">Anual</option></select></div></div>
   <div class="fr"><div class="f"><label>Inicio</label><input id="pi" type="date"/></div>
   <div class="f"><label>Fin</label><input id="pf" type="date"/></div></div>
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svP()">Guardar</button></div>`);}
-async function svP(){await api('POST','/api/periodos',{nombre:v('pn'),anio:parseInt(v('pa')),semestre:v('ps'),fecha_inicio:v('pi'),fecha_fin:v('pf')});cm();go('periodos');}
+  <div class="f"><label>Importar asignaciones desde Excel (opcional)</label>
+    <label class="bs" style="cursor:pointer;padding:8px 14px;display:block;text-align:center">
+      📥 Seleccionar archivo .xlsx
+      <input type="file" id="pFileAsig" accept=".xlsx,.xls" style="display:none" onchange="this.nextElementSibling.textContent=this.files[0]?.name||''"/>
+    </label>
+    <span id="pFileNom" style="font-size:11px;color:var(--t2)"></span>
+  </div>
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svP()">Crear período</button></div>`);}
+async function svP(){
+  try{
+    const r=await api('POST','/api/periodos',{nombre:v('pn'),anio:parseInt(v('pa')),semestre:v('ps'),fecha_inicio:v('pi'),fecha_fin:v('pf')});
+    const fileInput=document.getElementById('pFileAsig');
+    if(fileInput?.files?.length&&r.id){
+      const fd=new FormData();fd.append('archivo',fileInput.files[0]);fd.append('periodo_id',r.id);
+      await api('POST','/api/periodos/importar-asignaciones',fd,true).catch(e=>toast('Período creado. Importación con advertencias: '+e.message,'warn',5000));
+      toast('✓ Período creado con asignaciones importadas','ok');
+    }else{
+      toast('✓ Período creado','ok');
+    }
+    cm();go('periodos');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 async function actP(id){await api('PUT','/api/periodos/'+id+'/activar');go('periodos');}
 async function mPromover(periodoId, periodoNombre){
   const [carrs,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos')]);
@@ -1132,14 +1170,25 @@ async function svAl(id){
 function mImp(){
   const carrs=W._carrs||[];
   const cursos=W._cursos||[];
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   modal(`<h4>Importar alumnos desde Excel</h4>
-  <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Compatible con el formato institucional del ITS (columnas <strong>NOMBRE COMPLETO</strong> y <strong>N° CÉDULA</strong>).</p>
+  <p style="font-size:13px;color:var(--t2);margin-bottom:12px">Compatible con el formato institucional del ITS.</p>
   <div class="fg">
-    <div class="f"><label>1. Seleccionar Carrera <span style="color:var(--red)">*</span></label>
-      <select id="impCarr" onchange="filtCursosImp()"><option value="">— Seleccionar carrera —</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
-    <div class="f"><label>2. Seleccionar Curso/Sección</label>
+    <div class="fr">
+      <div class="f"><label>1. Carrera <span style="color:var(--red)">*</span></label>
+        <select id="impCarr" onchange="filtCursosImp()"style="width:100%">
+          <option value="">— Seleccionar carrera —</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select></div>
+      <div class="f"><label>2. Año <span style="color:var(--red)">*</span></label>
+        <select id="impAnio" onchange="filtCursosImp()" style="min-width:90px">
+          <option value="">— Año —</option>
+          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="f"><label>3. Sección (opcional)</label>
       <select id="impCurs"><option value="">Sin asignar sección</option></select></div>
-    <div class="f"><label>3. Seleccionar archivo Excel</label>
+    <div class="f"><label>4. Seleccionar archivo Excel</label>
       <div class="iz" onclick="document.getElementById('fxl').click()" style="margin-top:4px">Clic para seleccionar .xlsx
         <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div></div>
   </div>
@@ -1147,11 +1196,13 @@ function mImp(){
   <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
 }
 function filtCursosImp(){
-  const carrId=v('impCarr');
+  const carrId=v('impCarr'), anio=v('impAnio');
   const sel=document.getElementById('impCurs');
   if(!sel)return;
-  const cursos=(W._cursos||[]).filter(cu=>cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  let cursos=(W._cursos||[]);
+  if(carrId) cursos=cursos.filter(cu=>cu.carrera_id===carrId);
+  if(anio)   cursos=cursos.filter(cu=>String(cu.anio)===anio);
+  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — Secc. ${cu.division==='U'?'Única':cu.division}</option>`).join('');
 }
 async function doImp(inp){
   const file=inp.files[0];if(!file)return;
@@ -4594,7 +4645,7 @@ async function imprimirBoletin(alId){
     </div>
     <div class="firmas">
       <div><div class="firma-line"></div><div>Alumno/a</div></div>
-      <div><div class="firma-line"></div><div>Director/a General</div></div>
+      <div><div class="firma-line"></div><div style="font-weight:700">Docente</div><div style="font-size:9px;color:#666">Firma y sello</div></div>
     </div>
     <div style="text-align:center;margin-top:16px">
       <button onclick="window.print()" style="padding:8px 22px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir boletín</button>

@@ -2149,6 +2149,9 @@ app.get('/api/alumnos/:id/estado-cuenta', auth(['director','alumno']), (req, res
     const deuda = Math.max(0, montoEsperado - pagado);
     return { concepto: nombre, monto_esperado: montoEsperado, pagado, deuda, estado: pagado>=montoEsperado&&montoEsperado>0?'pagado':pagado>0?'parcial':'pendiente' };
   });
+  // Agregar constancias como ítem adicional si hay pagos
+  const pagosConst = pagos.filter(p=>p.concepto==='Constancia de estudios');
+  if(pagosConst.length) resumenCuotas.push({ concepto:'Constancias de estudios', monto_esperado:0, pagado:pagosConst.reduce((s,p)=>s+Number(p.monto||0),0), deuda:0, estado:'pagado' });
   const totalPagado = pagos.reduce((s,p)=>s+Number(p.monto||0),0);
   const totalDeuda = resumenCuotas.reduce((s,c)=>s+c.deuda,0);
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
@@ -2250,7 +2253,8 @@ app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
   const { alumno_id, monto, comprobante } = req.body;
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   const pid = 'pg_const_'+Date.now();
-  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago) VALUES (?,?,?,?,?,date("now"),?,?,?)').run(pid,alumno_id,periodo?.id||1,'Constancia de estudios',monto||0,'Pagado',comprobante||null,'Efectivo');
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago) VALUES (?,?,?,?,?,?,?,?,?)').run(pid,alumno_id,periodo?.id||1,'Constancia de estudios',monto||0,fechaHoy,'Pagado',comprobante||null,'Efectivo');
   audit(req.user.id,'PAGO','pagos',pid,{concepto:'Constancia de estudios',alumno_id});
   res.json({ ok: true, pago_id: pid });
 });
