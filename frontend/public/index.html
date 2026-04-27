@@ -3183,58 +3183,6 @@ async function pgMiEstadoCuenta(el){
     </div>`;
   }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
 }
-    // Si no hay alumnoId, mostrar búsqueda por CI
-    el.innerHTML=`<div class="ph"><h3>Estado de cuenta</h3></div>
-    <div class="card card-p" style="max-width:420px;margin:0 auto">
-      <p style="font-size:13px;margin-bottom:12px">Consultá tu estado de cuenta ingresando tu C.I.:</p>
-      <div class="fg">
-        <div class="f"><label>N° Cédula de Identidad</label><input id="busci" placeholder="Ej: 1234567" type="number"/></div>
-      </div>
-      <button class="bn" style="width:100%" onclick="buscarEstadoCuenta()">Consultar</button>
-      <div id="resEstCuenta" style="margin-top:12px"></div>
-    </div>`;
-    return;
-  }
-  const r=await api('GET','/api/pagos/alumno/'+me.alumnoId).catch(()=>({pagos:[],totalPagado:0}));
-  const {pagos,totalPagado}=r;
-  el.innerHTML=`<div class="ph"><h3>Mi estado de cuenta</h3></div>
-  <div class="card card-p" style="margin-bottom:12px">
-    <div style="font-size:13px;font-weight:700;margin-bottom:4px">Total pagado en el período</div>
-    <div style="font-size:24px;font-weight:900;color:var(--green)">Gs. ${Number(totalPagado).toLocaleString()}</div>
-  </div>
-  <div class="card"><div class="tw"><table><thead><tr>
-    <th>Concepto</th><th>Monto</th><th>Fecha</th><th>Medio</th><th>Estado</th>
-  </tr></thead><tbody>
-  ${(pagos||[]).map(p=>`<tr>
-    <td>${p.concepto}</td>
-    <td><strong>Gs. ${Number(p.monto).toLocaleString()}</strong></td>
-    <td>${fmtFecha(p.fecha_pago)}</td>
-    <td style="font-size:12px">${p.medio_pago||'Efectivo'}</td>
-    <td><span class="bx bg">${p.estado||'Pagado'}</span></td>
-  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin pagos registrados</td></tr>'}
-  </tbody></table></div></div>
-  <p class="tip" style="margin-top:8px">Para realizar pagos o consultas administrativas, acercate a secretaría.</p>`;
-}
-async function buscarEstadoCuenta(){
-  const ci=(v('busci')||'').trim();
-  if(!ci)return alert('Ingresá tu número de cédula');
-  const el=document.getElementById('resEstCuenta');
-  if(el)el.innerHTML='<div class="es">Buscando...</div>';
-  try{
-    const al=await api('GET','/api/alumnos?ci='+ci).catch(()=>null);
-    if(!al||!al.length){if(el)el.innerHTML='<div class="es">No se encontraron datos para esa cédula</div>';return;}
-    const r=await api('GET','/api/pagos/alumno/'+al[0].id);
-    const {pagos,totalPagado}=r;
-    if(el)el.innerHTML=`<div style="margin-top:8px">
-      <p style="font-weight:700">${al[0].display_apellido||al[0].apellido||''}, ${al[0].display_nombre||al[0].nombre||''}</p>
-      <p style="color:var(--t2);font-size:12px">${al[0].carrera_nombre||''}</p>
-      <p style="font-size:20px;font-weight:900;color:var(--green);margin:8px 0">Gs. ${Number(totalPagado).toLocaleString()} pagado</p>
-      ${pagos.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bdr);font-size:13px">
-        <span>${p.concepto}</span><strong>Gs. ${Number(p.monto).toLocaleString()}</strong>
-      </div>`).join('')}
-    </div>`;
-  }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
-}
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════

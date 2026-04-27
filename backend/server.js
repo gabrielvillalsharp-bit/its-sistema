@@ -100,7 +100,22 @@ function auth(roles = []) {
 }
 const ADM = ['director'];
 
-// ── LOGIN ─────────────────────────────────────────────────────────────────────
+// ── ENDPOINT DE EMERGENCIA: recrear director si no existe ─────────────────────
+app.get('/api/setup', (req, res) => {
+  try {
+    const existe = db.prepare("SELECT id FROM usuarios WHERE email='director@its.edu.py'").get();
+    if (!existe) {
+      db.prepare('INSERT INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)')
+        .run('u_director','Director','Sistema','director@its.edu.py',bcrypt.hashSync('director123',10),'director');
+      res.json({ ok: true, mensaje: 'Director creado. Email: director@its.edu.py / Pass: director123' });
+    } else {
+      // Resetear contraseña por si acaso
+      db.prepare("UPDATE usuarios SET password_hash=?, activo=1 WHERE email='director@its.edu.py'")
+        .run(bcrypt.hashSync('director123', 10));
+      res.json({ ok: true, mensaje: 'Contraseña del director reseteada a: director123' });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/api/login', loginLimiter, (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
