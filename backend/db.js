@@ -662,6 +662,21 @@ function init() {
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN puntos_max INTEGER DEFAULT 50").run(); } catch {}
+  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
+  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_egreso (
+    id TEXT PRIMARY KEY,
+    alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','aprobado','rechazado')),
+    materias_aprobadas INTEGER NOT NULL DEFAULT 0,
+    materias_total INTEGER NOT NULL DEFAULT 0,
+    pagos_completos INTEGER NOT NULL DEFAULT 0,
+    aprobado_por TEXT REFERENCES usuarios(id),
+    fecha_solicitud TEXT NOT NULL DEFAULT (datetime('now')),
+    fecha_resolucion TEXT,
+    observacion TEXT
+  )`); } catch {}
   try { db.prepare("ALTER TABLE docentes ADD COLUMN celular TEXT").run(); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS constancias (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'estudios', pago_id TEXT, fecha TEXT NOT NULL DEFAULT (date('now')), emitido_por TEXT, observacion TEXT)`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS deudas_cuotas (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, periodo_id INTEGER NOT NULL, concepto TEXT NOT NULL, monto_total REAL NOT NULL, monto_pagado REAL NOT NULL DEFAULT 0, fecha_vencimiento TEXT, estado TEXT NOT NULL DEFAULT 'pendiente')`); } catch {}

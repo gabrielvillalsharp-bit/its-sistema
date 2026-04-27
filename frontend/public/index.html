@@ -292,7 +292,9 @@ function startApp(){
   hide('lp');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
-  buildNav();go('dashboard');
+  buildNav();
+  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':'dashboard';
+  go(inicio);
 }
 
 function navFor(r){
@@ -301,7 +303,7 @@ function navFor(r){
       {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director']},
       {id:'dashboard-analitico',l:'Análisis y estadísticas',c:'#185FA5',r:['director']},
       {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
       {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
     {g:'Estructura',i:[
@@ -313,6 +315,7 @@ function navFor(r){
     {g:'Personas',i:[
       {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
       {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
+      {id:'egreso',l:'🎓 Pasaje de año / Egreso',c:'#7F77DD',r:['director']},
       {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
     ]},
     {g:'Académico',i:[
@@ -364,6 +367,7 @@ function go(p){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
+    egreso:pgEgreso,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
@@ -592,6 +596,13 @@ async function svCarrera(id){
 }
 
 // ── CURSOS ────────────────────────────────────────────────────────────────────
+function delSeccion(id){
+  confirm2('🗑 Eliminar sección','¿Eliminar esta sección? Se eliminarán también sus asignaciones. Esta acción no se puede deshacer.',
+    async function(){
+      try{await api('DELETE','/api/cursos/'+id);toast('✓ Sección eliminada','ok');go('cursos');}
+      catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
 async function pgCursos(el){
   const [cursos,carrs]=await Promise.all([api('GET','/api/cursos'),api('GET','/api/carreras')]);W._carrs=carrs;
   el.innerHTML=`<div class="ph"><h3>Cursos y grupos</h3><button class="bn" onclick="mCurso()">+ Nuevo curso</button></div>
@@ -602,7 +613,7 @@ async function pgCursos(el){
     <td><span class="cur-tag">${cu.division==='U'?'Único':cu.division}</span></td>
     <td>${cu.turno||'-'}</td><td>${cu.total_alumnos}</td>
     <td><span class="bx ${cu.activo?'bg':'br'}">${cu.activo?'Activo':'Inactivo'}</span></td>
-    <td><button class="bs d" onclick="del('${cu.id}','cursos')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin cursos</td></tr>'}
+    <td><button class="bs d" onclick="delSeccion('${cu.id}')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin secciones</td></tr>'}
   </tbody></table></div></div>`;
 }
 function mCurso(){modal(`<h4>Nuevo curso / grupo</h4><div class="fg">
@@ -897,8 +908,7 @@ function aRow(a){return `<tr>
   <td><div class="abs">
     <button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button>
     ${me.rol==='director'?`<button class="bs o" onclick="imprimirBoletin('${a.id}')" title="Boletín de calificaciones">📋 Boletín</button>
-    <button class="bs" onclick="imprimirConstancia('${a.id}')" title="Constancia de estudios">📄 Constancia</button>
-    <button class="bs s" onclick="imprimirEstadoCuenta('${a.id}')" title="Estado de cuenta">💳 Cuenta</button>`:''}
+    <button class="bs" onclick="imprimirConstancia('${a.id}')" title="Constancia de estudios">📄 Constancia</button>`:''}
     <button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button>
   </div></td>
 </tr>`;}
@@ -933,9 +943,25 @@ function mAl(a){const e=!!a;modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div cla
 async function svAl(id){
   const o={nombre:v('an'),apellido:v('aap'),ci:v('aci'),telefono:v('atel'),carrera_id:v('acar'),curso_id:v('acur')||null,fecha_ingreso:v('aing')};
   if(!o.nombre||!o.apellido||!o.ci)return alert('Completar nombre, apellido y CI');
-  if(!id){o.email=v('aem');await api('POST','/api/alumnos',o);}
-  else{o.estado=v('aest');await api('PUT','/api/alumnos/'+id,o);}
-  cm();go('alumnos');
+  try{
+    if(id){o.estado=v('aest');await api('PUT','/api/alumnos/'+id,o);cm();go('alumnos');}
+    else{
+      const r=await api('POST','/api/alumnos',o);
+      cm();
+      modal(`<div style="text-align:center;padding:10px">
+        <div style="font-size:36px;margin-bottom:8px">✅</div>
+        <h4 style="color:#2e7d32;margin-bottom:4px">Alumno registrado</h4>
+        <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Matrícula: <strong>${r.matricula}</strong></p>
+        <div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:10px;padding:14px;text-align:left">
+          <p style="font-weight:700;font-size:12px;color:#2e7d32;margin-bottom:8px">🔑 Credenciales de acceso:</p>
+          <p style="font-size:13px;margin:5px 0"><b>Usuario:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.email||''}</code></p>
+          <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial_pass||o.ci}</code></p>
+          <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. La contraseña es su N° de cédula.</p>
+        </div>
+        <div class="mf" style="margin-top:12px"><button class="bn" onclick="cm();go('alumnos')">Aceptar</button></div>
+      </div>`);
+    }
+  }catch(e){alert(e.message);}
 }
 function mImp(){
   const carrs=W._carrs||[];
@@ -1180,6 +1206,11 @@ function exRow(e){
       <div class="abs">
         ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
         ${e.id?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
+        <label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen PDF/Word">
+          📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓</span>`:'Adjuntar'}
+          <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+        </label>
+        ${e.archivo_nombre?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`:''}
         ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#e3f2fd;color:#1565c0" onclick="enviarRecordatorio('${e.id}')" title="Enviar recordatorio por email al docente">✉ Aviso</button>`:''}
         <button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>
       </div>
@@ -1295,6 +1326,199 @@ function filtExAll(){
 }
 function filtEx(t,val){filtExAll();}
 
+async function subirArchivoExamen(exId, input){
+  const file=input.files[0];if(!file)return;
+  input.value='';
+  const fd=new FormData();fd.append('archivo',file);
+  try{
+    toast('Subiendo archivo...','info',2000);
+    await api('POST','/api/examenes/'+exId+'/archivo',fd,true);
+    toast('✓ Archivo adjuntado al examen: '+file.name,'ok',4000);
+    go('examenes');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+function verArchivoExamen(exId){
+  const url=window.location.origin+'/api/examenes/'+exId+'/archivo';
+  // Abrir en nueva pestaña para PDF, o descargar para Word
+  window.open(url,'_blank');
+}
+
+// ── EGRESO Y PASAJE DE AÑO ────────────────────────────────────────────────────
+async function pgEgreso(el){
+  el.innerHTML='<div class="ph"><h3>🎓 Pasaje de año y egresos</h3></div>'+skeletonTable(6,8);
+  try{
+    const candidatos=await api('GET','/api/alumnos/candidatos-egreso');
+    W._egresoCand=candidatos;
+    const [carrs]=await Promise.all([api('GET','/api/carreras')]);
+    const anios=[...new Set(candidatos.map(c=>c.anio).filter(Boolean))].sort();
+    el.innerHTML=`<div class="ph"><h3>🎓 Pasaje de año y egresos</h3></div>
+    <div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px">
+      <strong>Instrucciones:</strong> Los alumnos que aprobaron todas las materias y están al día con los pagos pueden ser marcados como <strong>Egresados</strong>. 
+      Los que tienen materias reprobadas o pagos pendientes pueden ser habilitados manualmente por el Director.
+    </div>
+    <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <select id="filtEgrCarr" onchange="filtEgreso()" style="min-width:180px">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.nombre}">${c.nombre}</option>`).join('')}
+      </select>
+      <select id="filtEgrAnio" onchange="filtEgreso()" style="min-width:120px">
+        <option value="">Todos los años</option>
+        ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+      </select>
+      <select id="filtEgrEst" onchange="filtEgreso()" style="min-width:160px">
+        <option value="">Todos</option>
+        <option value="puede">✓ Puede egresar</option>
+        <option value="pendiente">⏳ Solicitud pendiente</option>
+        <option value="no">✗ Tiene pendientes</option>
+      </select>
+    </div>
+    <div id="tblEgreso">${renderEgreso(candidatos)}</div>`;
+  }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
+function filtEgreso(){
+  const carr=v('filtEgrCarr'), anio=v('filtEgrAnio'), est=v('filtEgrEst');
+  let cands=W._egresoCand||[];
+  if(carr) cands=cands.filter(c=>c.carrera_nombre===carr);
+  if(anio) cands=cands.filter(c=>String(c.anio)===anio);
+  if(est==='puede') cands=cands.filter(c=>c.puede_egresar&&!c.solicitud);
+  if(est==='pendiente') cands=cands.filter(c=>c.solicitud?.estado==='pendiente');
+  if(est==='no') cands=cands.filter(c=>!c.puede_egresar);
+  const el=document.getElementById('tblEgreso');
+  if(el)el.innerHTML=renderEgreso(cands);
+}
+function renderEgreso(cands){
+  if(!cands.length)return'<div class="es">Sin alumnos con los filtros seleccionados</div>';
+  return`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Alumno</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Carrera / Año</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Materias</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Pagos</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Estado egreso</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Acción</th>
+    </tr></thead>
+    <tbody>
+    ${cands.map(c=>{
+      const solEst=c.solicitud?.estado;
+      return`<tr style="${c.puede_egresar?'background:#f1fff5':c.reprobadas>0?'background:#fff9f9':''}">
+        <td style="padding:6px 10px;border:1px solid var(--bdr)">
+          <strong>${c.apellido}, ${c.nombre}</strong><br>
+          <span style="font-size:10px;color:var(--t3)">CI: ${c.ci||'—'}</span>
+        </td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px">${c.carrera_nombre}<br><strong>${c.anio}°</strong></td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">
+          <span style="color:#2e7d32">${c.aprobadas} ✓</span> / ${c.total_materias}
+          ${c.reprobadas>0?`<br><span style="color:#c62828;font-size:10px">${c.reprobadas} reprobadas</span>`:''}
+        </td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">
+          ${c.pagos_pendientes.length===0?'<span style="color:#2e7d32">✓ Al día</span>':`<span style="color:#c62828;font-size:10px">${c.pagos_pendientes.length} pendientes</span>`}
+        </td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">
+          ${solEst==='aprobado'?'<span class="bx bg">✓ Egresado</span>':
+            solEst==='pendiente'?'<span class="bx ba">⏳ Pendiente</span>':
+            solEst==='rechazado'?'<span class="bx br">✗ Rechazado</span>':
+            c.puede_egresar?'<span class="bx bg" style="background:#e8f5e9">Apto</span>':'<span class="bx bgr">No apto</span>'}
+        </td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">
+          <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+          ${solEst==='aprobado'?
+            `<button class="bs o" style="font-size:10px" onclick="imprimirActaEgreso('${c.id}')">🖨 Acta egreso</button>`:
+            solEst==='pendiente'?
+              `<button class="bs i" style="font-size:10px" onclick="resolverEgreso('${c.id}','aprobar')">✓ Aprobar</button>
+               <button class="bs d" style="font-size:10px" onclick="resolverEgreso('${c.id}','rechazar')">✗ Rechazar</button>`:
+            `<button class="bs" style="font-size:10px;background:#1a5fa8;color:#fff" onclick="solicitarEgreso('${c.id}','${c.nombre} ${c.apellido}')">Solicitar egreso</button>`}
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+async function solicitarEgreso(alId, nombre){
+  confirm2('🎓 Solicitar egreso',
+    `<p>¿Registrar solicitud de egreso para <strong>${nombre}</strong>?</p>
+    <p style="font-size:12px;color:var(--t2)">El sistema verificará materias aprobadas y pagos. La solicitud quedará pendiente de resolución.</p>`,
+    async function(){
+      try{
+        await api('POST','/api/alumnos/'+alId+'/solicitar-egreso',{});
+        toast('✓ Solicitud de egreso registrada','ok');
+        go('egreso');
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+async function resolverEgreso(alId, accion){
+  const titulo=accion==='aprobar'?'✓ Aprobar egreso':'✗ Rechazar egreso';
+  const msg=accion==='aprobar'?'El alumno pasará a estado <strong>Egresado</strong> y podrás imprimir el Acta de Egreso.':'La solicitud quedará rechazada.';
+  modal(`<h4>${titulo}</h4><p style="font-size:13px">${msg}</p>
+  <div class="f"><label>Observación (opcional)</label><input id="egrObs" placeholder="Aclaración o motivo..."/></div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="${accion==='aprobar'?'bn':'bs d'}" onclick="confirmarResolverEgreso('${alId}','${accion}')">${accion==='aprobar'?'✓ Aprobar y egresar':'✗ Rechazar'}</button>
+  </div>`);
+}
+async function confirmarResolverEgreso(alId, accion){
+  const obs=v('egrObs');
+  try{
+    await api('PUT','/api/alumnos/'+alId+'/resolver-egreso',{accion,observacion:obs||null});
+    toast(accion==='aprobar'?'✓ Alumno egresado correctamente':'Solicitud rechazada','ok');
+    cm();go('egreso');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function imprimirActaEgreso(alId){
+  try{
+    const {alumno,solicitud,notas,institucion:inst,fecha}=await api('GET','/api/alumnos/'+alId+'/acta-egreso');
+    const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const d=new Date((fecha||new Date().toISOString().split('T')[0])+'T12:00:00');
+    const ven=window.open('','_blank','width=800,height=720');
+    ven.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Acta de Egreso — ${alumno.disp_apellido} ${alumno.disp_nombre}</title>
+    <style>
+      @page{size:A4;margin:20mm 25mm}
+      body{font-family:"Times New Roman",serif;font-size:12px;margin:0;padding:30px 50px;line-height:1.8}
+      .header{text-align:center;margin-bottom:18px}
+      .header img{height:65px;display:block;margin:0 auto 8px;object-fit:contain}
+      h2{font-size:14px;margin:2px 0;font-family:Arial,sans-serif}
+      .titulo{text-align:center;font-weight:bold;font-size:15px;margin:18px 0;letter-spacing:2px;font-family:Arial,sans-serif;text-decoration:underline}
+      .info{font-size:12.5px;text-align:justify;line-height:2.2}
+      table{width:100%;border-collapse:collapse;margin:12px 0;font-size:11px}
+      th{background:#e0e0e0;border:1px solid #333;padding:5px 8px}
+      td{border:1px solid #555;padding:5px 8px}td.c{text-align:center}
+      .firma{margin-top:50px;display:flex;justify-content:space-between;text-align:center}
+      .firma-line{border-top:1px solid #000;width:180px;margin:4px auto}
+      @media print{body{padding:0}button{display:none}}
+    </style></head><body>
+    <div class="header">
+      ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
+      <h2>INSTITUTO TÉCNICO SUPERIOR — SANTÍSIMA TRINIDAD</h2>
+      <p style="font-size:9px;font-style:italic">RESOLUCIÓN DGUISITS N°452/2024</p>
+    </div>
+    <div class="titulo">ACTA DE EGRESO</div>
+    <div class="info">
+      <p>El Director General del Instituto Técnico Superior Santísima Trinidad, <strong>Abg. Gustavo Armando Echeverría</strong>, hace constar que el/la alumno/a:</p>
+      <p style="text-align:center;font-size:14px;font-weight:bold;letter-spacing:1px;margin:16px 0">${(alumno.disp_apellido||'').toUpperCase()}, ${(alumno.disp_nombre||'').toUpperCase()}</p>
+      <p style="text-align:center;font-size:11px;color:#555;margin-bottom:14px">C.I.: ${alumno.disp_ci||'—'}</p>
+      <p>ha <strong>culminado satisfactoriamente</strong> todos los requisitos académicos y administrativos correspondientes a la carrera de <strong>${alumno.carrera_nombre}</strong>, habiendo aprobado las siguientes materias:</p>
+    </div>
+    <table>
+      <thead><tr><th>N°</th><th>Materia</th><th class="c">Puntaje</th><th class="c">Nota</th></tr></thead>
+      <tbody>
+      ${notas.map((n,i)=>`<tr><td class="c">${i+1}</td><td>${n.materia}</td><td class="c">${n.puntaje_total??'—'}</td><td class="c">${n.nota_final??'—'}</td></tr>`).join('')}
+      <tr style="background:#e8f5e9;font-weight:700"><td colspan="2" style="text-align:right">Promedio general:</td><td class="c" colspan="2">${notas.length?(notas.reduce((s,n)=>s+(n.nota_final||0),0)/notas.filter(n=>n.nota_final).length).toFixed(2):'—'}</td></tr>
+      </tbody>
+    </table>
+    <div class="info">
+      <p>Se expide la presente Acta de Egreso en la ciudad de <strong>Pedro Juan Caballero</strong>, a los <strong>${d.getDate()}</strong> días del mes de <strong>${meses[d.getMonth()]}</strong> del año <strong>${d.getFullYear()}</strong>.</p>
+    </div>
+    <div class="firma">
+      <div><div class="firma-line"></div><div style="font-family:Arial;font-size:11px">Alumno/a Egresado/a</div></div>
+      <div><div class="firma-line"></div><div style="font-family:Arial;font-size:11px;font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-family:Arial;font-size:10px;color:#555">Director General</div></div>
+    </div>
+    <div style="text-align:center;margin-top:18px">
+      <button onclick="window.print()" style="padding:8px 22px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimir acta de egreso</button>
+    </div></body></html>`);
+    ven.document.close();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 async function delExamen(id){
   confirm2('🗑 Eliminar examen','¿Eliminar este examen programado? Esta acción no se puede deshacer.',
     async function(){
@@ -1728,6 +1952,11 @@ function verDia(fecha){
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
+          ${e.archivo_nombre?`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`:''}
+          <label class="bs" style="font-size:11px;cursor:pointer" title="Adjuntar examen PDF/Word">
+            📎 ${e.archivo_nombre?'Reemplazar':'Adjuntar examen'}
+            <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+          </label>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">
@@ -3184,84 +3413,148 @@ async function pgMisMat(el){
 // ── MIS NOTAS ALUMNO ──────────────────────────────────────────────────────────
 async function pgMisNotas(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
+  el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
-  el.innerHTML=`<div class="ph"><h3>Mis calificaciones</h3></div>
-  <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
-    <th>Materia</th><th style="text-align:center">TPs</th><th style="text-align:center">Parcial</th>
-    <th style="text-align:center">Final</th><th style="text-align:center">Total</th>
-    <th style="text-align:center">Nota</th><th style="text-align:center">Estado</th>
-  </tr></thead><tbody>
-  ${(notas||[]).map(n=>{
-    const est=n.estado||'Pendiente';
-    const estVis=(est==='Pendiente'&&!n.puntaje_total)?'Pendiente':est;
-    return `<tr>
-      <td><strong>${n.materia_nombre}</strong><br><span style="font-size:11px;color:var(--t3)">${n.periodo_nombre}</span></td>
-      <td style="text-align:center">${n.tp_total??'—'}</td>
-      <td style="text-align:center">${n.parcial_efectivo??n.parcial??'—'}</td>
-      <td style="text-align:center">${n.final_efectivo??n.final_ord??'—'}</td>
-      <td style="text-align:center"><span class="prom-tag ${notaCls(n.nota_final)}">${n.puntaje_total??'—'}</span></td>
-      <td style="text-align:center"><span class="nota-tag ${notaCls(n.nota_final)}">${n.nota_final??'—'}</span></td>
-      <td style="text-align:center"><span class="bx ${estVis==='Aprobado'?'bg':estVis==='Reprobado'?'br':'bgr'}">${estVis}</span></td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" class="es">Sin calificaciones registradas</td></tr>'}
-  </tbody></table></div></div>
-  <p class="tip" style="margin-top:8px">Para consultas sobre el estado de tu inscripción, contactá con administración.</p>`;
+  W._misNotas=notas;
+  const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))];
+  el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3></div>
+  <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px">
+      <option value="">Todas las materias</option>
+      ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
+    </select>
+  </div>
+  <div id="tblMisNotas">${renderMisNotas(notas)}</div>
+  <p style="font-size:11px;color:var(--t3);margin-top:8px">Las notas son solo de lectura. Para consultas dirigirse a administración.</p>`;
+}
+function filtMisNotas(){
+  const mat=v('filtMisNotasMat');
+  let notas=W._misNotas||[];
+  if(mat) notas=notas.filter(n=>n.materia_nombre===mat);
+  const el=document.getElementById('tblMisNotas');
+  if(el)el.innerHTML=renderMisNotas(notas);
+}
+function renderMisNotas(notas){
+  if(!notas||!notas.length)return'<div class="es">Sin calificaciones registradas</div>';
+  return`<div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:900px;font-size:11px;border-collapse:collapse;width:100%">
+    <thead>
+      <tr style="background:#1a5fa8;color:#fff">
+        <th rowspan="2" style="padding:6px 8px;border:1px solid #1565c0;text-align:left;min-width:140px">Materia</th>
+        <th colspan="6" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;background:#1976d2">Trabajos Prácticos</th>
+        <th colspan="2" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;background:#1565c0">Parcial</th>
+        <th colspan="3" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;background:#0d47a1">Final</th>
+        <th rowspan="2" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;min-width:55px">Ptje.</th>
+        <th rowspan="2" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;min-width:40px">Nota</th>
+        <th rowspan="2" style="padding:6px 8px;border:1px solid #1565c0;text-align:center;min-width:80px">Estado</th>
+      </tr>
+      <tr style="background:#e3f2fd;font-size:10px">
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP1</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP2</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP3</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP4</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP5</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700">Total</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Ord.</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Recup.</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Final</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Recup.</th>
+        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Compl.</th>
+      </tr>
+    </thead>
+    <tbody>
+    ${notas.map(n=>{
+      const est=n.estado||'Pendiente';
+      return`<tr style="${est==='Aprobado'?'background:#f1fff5':est==='Reprobado'?'background:#fff5f5':''}">
+        <td style="padding:5px 8px;border:1px solid var(--bdr);font-weight:600">${n.materia_nombre||''}</td>
+        ${[n.tp1,n.tp2,n.tp3,n.tp4,n.tp5].map(v=>`<td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-size:11px">${v??'—'}</td>`).join('')}
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700">${n.tp_total??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.parcial??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.parcial_recuperatorio??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.final_ord??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.final_recuperatorio??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.complementario??'—'}</td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center"><strong>${n.puntaje_total??'—'}</strong></td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center"><strong>${n.nota_final??'—'}</strong></td>
+        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">
+          <span class="bx ${est==='Aprobado'?'bg':est==='Reprobado'?'br':'bgr'}" style="font-size:10px">${est}</span>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div></div>`;
 }
 
-// ── MI ASISTENCIA (alumno) — resumen consolidado ──────────────────────────────
 async function pgMiAsistencia(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
-  el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div>'+skeletonTable(5,4);
-  const resumen=await api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]);
-  if(!resumen||!resumen.length){
-    el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div><div class="es">Sin registros de asistencia</div>';
-    return;
-  }
-  const totalP=resumen.reduce((s,m)=>s+m.P,0);
-  const totalA=resumen.reduce((s,m)=>s+m.A,0);
-  const totalT=resumen.reduce((s,m)=>s+(m.T||0),0);
-  const totalAll=totalP+totalA+totalT;
+  el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div>'+skeletonTable(4,5);
+  const [resumen,detalle]=await Promise.all([
+    api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]),
+    api('GET','/api/asistencia/detalle-alumno/'+me.alumnoId).catch(()=>[])
+  ]);
+  W._miAsistDetalle=detalle||[];
+  const materias=[...new Set((resumen||[]).map(m=>m.materia).filter(Boolean))];
+  const totalP=(resumen||[]).reduce((s,m)=>s+m.P,0);
+  const totalA=(resumen||[]).reduce((s,m)=>s+m.A,0);
+  const totalAll=totalP+totalA;
   const pctGlobal=totalAll?Math.round(totalP/totalAll*100):0;
-  el.innerHTML=`<div class="ph"><h3>Mi asistencia</h3></div>
-  <div class="card card-p" style="margin-bottom:16px">
-    <p style="font-weight:700;font-size:14px;margin-bottom:8px">Resumen global</p>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
-      <span class="bx bg">✓ ${totalP} presentes</span>
-      <span class="bx br">✗ ${totalA} ausentes</span>
-      ${totalT?`<span class="bx ba">⏰ ${totalT} tardanzas</span>`:''}
-      <span class="bx ${pctGlobal>=75?'bg':'br'}">${pctGlobal}% global</span>
+  el.innerHTML=`<div class="ph"><h3>📅 Mi asistencia</h3></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <div class="card card-p" style="flex:1;min-width:120px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Asistencia global</div>
+      <div style="font-size:28px;font-weight:900;color:${pctGlobal>=75?'var(--green)':'var(--red)'}">${pctGlobal}%</div>
     </div>
-    <div class="prog-bar"><div class="prog-fill" style="width:${pctGlobal}%;background:${pctGlobal>=75?'var(--green)':'var(--red)'}"></div></div>
-    <p style="font-size:11px;color:var(--t3);margin-top:6px">Se requiere 75% de asistencia para regularizar</p>
+    <div class="card card-p" style="flex:1;min-width:100px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Presentes</div>
+      <div style="font-size:28px;font-weight:700;color:var(--green)">${totalP}</div>
+    </div>
+    <div class="card card-p" style="flex:1;min-width:100px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Ausentes</div>
+      <div style="font-size:28px;font-weight:700;color:var(--red)">${totalA}</div>
+    </div>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr>
-    <th>Materia</th>
-    <th style="text-align:center;background:#d4edda">Presentes</th>
-    <th style="text-align:center;background:#f8d7da">Ausentes</th>
-    <th style="text-align:center;background:#fff3cd">Tardanzas</th>
-    <th style="text-align:center">Total clases</th>
-    <th style="text-align:center">% Asistencia</th>
-    <th style="text-align:center">Estado</th>
-  </tr></thead><tbody>
-  ${resumen.map(m=>`<tr>
-    <td><strong>${m.materia}</strong></td>
-    <td style="text-align:center;font-weight:700;color:#2e7d32">${m.P||0}</td>
-    <td style="text-align:center;font-weight:700;color:#c62828">${m.A||0}</td>
-    <td style="text-align:center">${m.T||0}</td>
-    <td style="text-align:center">${m.total||0}</td>
-    <td style="text-align:center">
-      <div class="prog-bar" style="width:80px;display:inline-block;vertical-align:middle;margin-right:4px">
-        <div class="prog-fill" style="width:${m.pct}%;background:${m.pct>=75?'var(--green)':'var(--red)'}"></div>
-      </div>
-      <strong style="color:${m.pct>=75?'var(--green)':'var(--red)'}">${m.pct}%</strong>
-    </td>
-    <td style="text-align:center">
-      <span class="bx ${m.pct>=75?'bg':'br'}">${m.pct>=75?'Regular':'En riesgo'}</span>
-    </td>
-  </tr>`).join('')}
-  </tbody></table></div></div>`;
+  <div class="fb" style="gap:8px;margin-bottom:12px">
+    <select id="filtMiAsistMat" onchange="filtMiAsist()" style="min-width:200px">
+      <option value="">Todas las materias</option>
+      ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
+    </select>
+    <select id="filtMiAsistEst" onchange="filtMiAsist()" style="min-width:130px">
+      <option value="">Todos los estados</option>
+      <option value="P">✓ Presente</option>
+      <option value="A">✗ Ausente</option>
+      <option value="J">📋 Justificado</option>
+    </select>
+  </div>
+  <div id="tblMiAsist">${renderMiAsist(detalle||[])}</div>`;
 }
-
+function filtMiAsist(){
+  const mat=v('filtMiAsistMat'), est=v('filtMiAsistEst');
+  let d=W._miAsistDetalle||[];
+  if(mat) d=d.filter(r=>r.materia===mat);
+  if(est) d=d.filter(r=>r.estado===est);
+  const el=document.getElementById('tblMiAsist');
+  if(el)el.innerHTML=renderMiAsist(d);
+}
+function renderMiAsist(detalle){
+  if(!detalle||!detalle.length)return'<div class="es">Sin registros de asistencia</div>';
+  return`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Fecha</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Materia</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Observación</th>
+    </tr></thead>
+    <tbody>
+    ${detalle.map(r=>`<tr style="${r.estado==='A'?'background:#fff9f9':r.estado==='J'?'background:#f0f9ff':''}">
+      <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-weight:600">${fmtFecha(r.fecha)}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">${r.materia||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">
+        <span class="bx ${r.estado==='P'?'bg':r.estado==='J'?'bb':'br'}" style="font-size:10px">${r.estado==='P'?'✓ Presente':r.estado==='J'?'📋 Justificado':'✗ Ausente'}</span>
+      </td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:var(--t2)">${r.observacion||'—'}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div></div>`;
+}
 // ── MI ESTADO DE CUENTA (alumno) ───────────────────────────────────────────────
 async function pgMiEstadoCuenta(el){
   if(!me.alumnoId){el.innerHTML='<div class="ph"><h3>Estado de cuenta</h3></div><div class="es">Sin datos de alumno vinculado</div>';return;}
@@ -4076,58 +4369,95 @@ async function imprimirBoletin(alId){
 // ── CONSTANCIA DE ESTUDIOS ────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 async function imprimirConstancia(alId){
-  if(!confirm('¿Emitir constancia de estudios para este alumno?\n\nRecordá registrar el cobro en el módulo de Pagos.'))return;
+  // Verificar si existe pago de constancia para este alumno
+  const pagConst=await api('GET','/api/constancias/pago/'+alId).catch(()=>null);
+  if(!pagConst||!pagConst.pagado){
+    modal(`<div style="text-align:center;padding:16px">
+      <div style="font-size:40px;margin-bottom:10px">🔒</div>
+      <h4 style="color:#e65100">Pago de constancia requerido</h4>
+      <p style="font-size:13px;color:var(--t2);margin:10px 0">Para imprimir la constancia, primero debe registrarse el pago correspondiente.</p>
+      <div style="background:#fff3e0;border-radius:8px;padding:12px;margin:10px 0;font-size:12px">
+        Monto estándar de constancia: <strong>Gs. ${(pagConst?.arancel||30000).toLocaleString()}</strong>
+      </div>
+      <div class="mf" style="margin-top:12px">
+        <button class="bs" onclick="cm()">Cancelar</button>
+        <button class="bn" style="background:#e65100" onclick="registrarPagoConstancia('${alId}',${pagConst?.arancel||30000})">💰 Registrar pago y habilitar</button>
+      </div>
+    </div>`);
+    return;
+  }
+  // Solicitar "a quién va dirigido"
+  modal(`<h4>📄 Constancia de estudios</h4>
+  <div class="f"><label>A quién va dirigido (opcional)</label>
+    <input id="constDirig" placeholder="Ej: A quien corresponda, Banco Continental..." style="width:100%"/>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="generarConstanciaImpresion('${alId}',v('constDirig'))">🖨 Generar constancia</button>
+  </div>`);
+}
+async function registrarPagoConstancia(alId,arancel){
+  cm();
+  try{
+    await api('POST','/api/constancias/registrar-pago',{alumno_id:alId,monto:arancel,comprobante:'CONST-'+Date.now()});
+    toast('✓ Pago registrado — ahora podés imprimir la constancia','ok',4000);
+    setTimeout(()=>imprimirConstancia(alId),500);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function generarConstanciaImpresion(alId,dirigido){
+  cm();
   try{
     const {alumno,institucion:inst,constancia_id,fecha}=await api('GET','/api/alumnos/'+alId+'/constancia');
     const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     const d=new Date(fecha+'T12:00:00');
-    const ven=window.open('','_blank','width=720,height:620');
+    const ven=window.open('','_blank','width=720,height:700');
     ven.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Constancia — ${alumno.disp_apellido} ${alumno.disp_nombre}</title>
     <style>
-      body{font-family:"Times New Roman",serif;font-size:12px;margin:0;padding:40px 60px;line-height:1.8}
-      .header{text-align:center;margin-bottom:20px}.header img{height:65px;display:block;margin:0 auto 8px}
-      h2{font-size:15px;margin:2px 0;font-family:Arial,sans-serif}
-      p{font-size:9px;margin:2px 0;font-style:italic;font-family:Arial,sans-serif}
+      @page{size:A4;margin:20mm 25mm}
+      *{box-sizing:border-box}
+      body{font-family:"Times New Roman",serif;font-size:12px;margin:0;padding:30px 50px;line-height:1.8;color:#000}
+      .header{text-align:center;margin-bottom:20px}
+      .header img{height:70px;display:block;margin:0 auto 8px;object-fit:contain}
+      h2{font-size:14px;margin:2px 0;font-family:Arial,sans-serif}
+      .res{font-size:9px;font-style:italic;font-family:Arial,sans-serif}
       .titulo{text-align:center;font-weight:bold;font-size:14px;margin:24px 0;letter-spacing:2px;font-family:Arial,sans-serif;text-decoration:underline}
-      .cuerpo{font-size:12.5px;text-align:justify;margin:0 20px;line-height:2}
+      .dirigido{font-size:12px;margin:10px 0 18px}
+      .cuerpo{font-size:12.5px;text-align:justify;line-height:2.2}
       .firma{margin-top:60px;text-align:center}
-      .firma-line{border-top:1px solid #000;width:200px;margin:4px auto}
-      .pie{margin-top:40px;font-size:10px;text-align:center;color:#555}
-      @page{size:A4;margin:20mm 25mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+      .firma-line{border-top:1px solid #000;width:220px;margin:4px auto}
+      @media print{body{padding:0}button{display:none}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
-      <h2>${inst.nombre||'INSTITUTO TÉCNICO SUPERIOR'}</h2>
+      <h2>INSTITUTO TÉCNICO SUPERIOR</h2>
       <h2>SANTÍSIMA TRINIDAD</h2>
-      <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+      <p class="res">RESOLUCIÓN DGUISITS N°452/2024</p>
     </div>
     <div class="titulo">CONSTANCIA DE ESTUDIOS</div>
+    ${dirigido?`<p class="dirigido"><strong>Señores:</strong> ${dirigido}</p>`:'<p class="dirigido"><strong>A quien corresponda:</strong></p>'}
     <div class="cuerpo">
-      <p style="font-size:13px">El Director General del <strong>${inst.nombre||'Instituto Técnico Superior Santísima Trinidad'}</strong>, hace constar por medio de la presente que:</p>
+      <p>El Director General del <strong>Instituto Técnico Superior Santísima Trinidad</strong>, <strong>Abg. Gustavo Armando Echeverría</strong>, hace constar por medio de la presente que:</p>
       <br>
-      <p style="font-size:14px;text-align:center;font-weight:bold;letter-spacing:1px">${alumno.disp_apellido||''}, ${alumno.disp_nombre||''}</p>
-      <p style="font-size:11px;text-align:center;color:#555">C.I.: ${alumno.disp_ci||'—'}</p>
+      <p style="text-align:center;font-weight:bold;font-size:14px;letter-spacing:1px">${(alumno.disp_apellido||'').toUpperCase()}, ${(alumno.disp_nombre||'').toUpperCase()}</p>
+      <p style="text-align:center;font-size:11px;color:#555">C.I.: ${alumno.disp_ci||'—'}</p>
       <br>
-      <p style="font-size:13px">es alumno/a <strong>regular</strong> de esta institución, cursando actualmente el <strong>${alumno.curso_anio||''}° año</strong> de la carrera de <strong>${alumno.carrera_nombre||''}</strong>, período lectivo <strong>${alumno.periodo_anio||new Date().getFullYear()}</strong>.</p>
+      <p>es alumno/a <strong>regular</strong> de esta institución, cursando actualmente el <strong>${alumno.curso_anio||''}° año</strong> de la carrera de <strong>${alumno.carrera_nombre||''}</strong>, período lectivo <strong>${alumno.periodo_anio||new Date().getFullYear()}</strong>.</p>
       <br>
-      <p style="font-size:13px">Se expide la presente constancia a solicitud del/la interesado/a, en la ciudad de <strong>Pedro Juan Caballero</strong>, a los <strong>${d.getDate()}</strong> días del mes de <strong>${meses[d.getMonth()]}</strong> del año <strong>${d.getFullYear()}</strong>.</p>
+      <p>Se expide la presente constancia a solicitud del/la interesado/a, en la ciudad de <strong>Pedro Juan Caballero</strong>, a los <strong>${d.getDate()}</strong> días del mes de <strong>${meses[d.getMonth()]}</strong> del año <strong>${d.getFullYear()}</strong>.</p>
     </div>
     <div class="firma">
       <div class="firma-line"></div>
-      <div style="font-size:12px;font-family:Arial">Director/a General</div>
-      <div style="font-size:10px;color:#555">${inst.nombre||'ITS Santísima Trinidad'}</div>
+      <div style="font-size:12px;font-family:Arial;font-weight:700">Abg. Gustavo Armando Echeverría</div>
+      <div style="font-size:11px;color:#555;font-family:Arial">Director General</div>
+      <div style="font-size:10px;color:#888;font-family:Arial">Instituto Técnico Superior Santísima Trinidad</div>
     </div>
-    <div class="pie">Ref. Constancia N° ${constancia_id.replace('const_','')} — Emitida el ${fecha}</div>
     <div style="text-align:center;margin-top:20px">
       <button onclick="window.print()" style="padding:8px 22px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir constancia</button>
     </div></body></html>`);
     ven.document.close();
-    // Preguntar si registrar pago
-    toast('Constancia emitida. Recordá registrar el cobro en Pagos.','info',6000);
   }catch(e){toast('Error: '+e.message,'err');}
 }
-
 // ═══════════════════════════════════════════════════════════════════════════
 // ── ESTADO DE CUENTA IMPRIMIBLE ────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════

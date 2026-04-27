@@ -339,37 +339,38 @@ app.get('/api/alumnos', auth(), (req, res) => {
     ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 500`).all(...params));
 });
 app.post('/api/alumnos', auth(ADM), (req, res) => {
-  const { nombre, apellido, ci, email, password, carrera_id, curso_id, telefono, direccion, fecha_ingreso } = req.body;
+  const { nombre, apellido, ci, carrera_id, curso_id, telefono, direccion, fecha_ingreso } = req.body;
   if (!nombre || !apellido || !ci) return res.status(400).json({ error: 'Nombre, apellido y CI son obligatorios' });
   const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carrera_id);
   if (!carr) return res.status(400).json({ error: 'Carrera no encontrada' });
   const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
   const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
   const aid = 'a_'+Date.now();
+  const ciRaw = String(ci).replace(/[^0-9]/g,'');
+
+  // Generar email único: nombre.apellido@its.edu.py
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  let emailFinal = `${norm(nombre)}.${norm(apellido)}@its.edu.py`;
+  if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+    emailFinal = `${norm(nombre)}.${norm(apellido)}.${ciRaw.slice(-3)}@its.edu.py`;
+
+  let emailGenerado = emailFinal;
   db.transaction(() => {
-    let uid = null;
-    if (email) {
-      uid = 'u_a_'+Date.now();
-      const ciRaw = String(ci).replace(/[^0-9]/g,'');
-      try {
-        db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ci,email,bcrypt.hashSync(password||ciRaw.slice(-3)||ci,10),'alumno');
-      } catch { uid = null; }
-    }
-    db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,telefono,direccion,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(aid,uid,matricula,carrera_id,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],'Activo',telefono||null,direccion||null,ci,nombre,apellido);
-    // Propagación automática: crear notas vacías en todas las asignaciones del curso
+    const uid = 'u_a_'+Date.now();
+    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+      .run(uid, nombre, apellido, ciRaw, emailFinal, bcrypt.hashSync(ciRaw||'123', 10), 'alumno');
+    db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,telefono,direccion,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(aid, uid, matricula, carrera_id, curso_id||null, fecha_ingreso||new Date().toISOString().split('T')[0], 'Activo', telefono||null, direccion||null, ciRaw, nombre, apellido);
     if (curso_id) {
       const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
       if (periodo) {
-        const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo.id);
-        asigs.forEach(a => {
-          try {
-            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente');
-          } catch {}
+        db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo.id).forEach(a => {
+          try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {}
         });
       }
     }
   })();
-  res.json({ id: aid, matricula });
+  res.json({ id: aid, matricula, email: emailGenerado, credencial_usuario: emailGenerado, credencial_pass: ciRaw });
 });
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id, usuario_id } = req.body;
@@ -700,6 +701,26 @@ app.delete('/api/asistencia/:id', auth(['director','docente']), (req, res) => {
   res.json({ ok: true });
 });
 // Consulta de asistencia por alumno — resumen consolidado
+// Detalle de asistencia del alumno (lista de fechas)
+// Detalle de asistencia del alumno (lista de fechas)
+app.get('/api/asistencia/detalle-alumno/:alumno_id', auth(), (req, res) => {
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (!al || al.id !== req.params.alumno_id) return res.status(403).json({ error: 'Sin acceso' });
+  }
+  const rows = db.prepare(`
+    SELECT a.fecha, a.estado, a.observacion,
+      m.nombre as materia, ca.nombre as carrera, cu.anio
+    FROM asistencia a
+    JOIN asignaciones asig ON a.asignacion_id=asig.id
+    JOIN materias m ON asig.materia_id=m.id
+    JOIN cursos cu ON asig.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE a.alumno_id=?
+    ORDER BY a.fecha DESC, m.nombre`).all(req.params.alumno_id);
+  res.json(rows);
+});
+
 app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT id,usuario_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
@@ -713,7 +734,6 @@ app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
     WHERE a.alumno_id=?
     GROUP BY a.asignacion_id, a.estado
     ORDER BY m.nombre`).all(req.params.alumno_id);
-  // Consolidar por materia
   const porMateria = {};
   registros.forEach(r => {
     if (!porMateria[r.materia]) porMateria[r.materia] = { materia: r.materia, P: 0, A: 0, T: 0, J: 0 };
@@ -2064,6 +2084,13 @@ app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
   res.json({ alumno: al, notas, institucion: inst });
 });
 
+// Verificar si existe pago de constancia
+app.get('/api/constancias/pago/:alumno_id', auth(ADM), (req, res) => {
+  const pago = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto='Constancia de estudios' ORDER BY fecha_pago DESC LIMIT 1").get(req.params.alumno_id);
+  const arancel = db.prepare("SELECT monto FROM aranceles WHERE concepto LIKE '%constancia%' AND activo=1 LIMIT 1").get();
+  res.json({ pagado: !!pago, pago_id: pago?.id||null, arancel: arancel?.monto||30000 });
+});
+
 // ── CONSTANCIA DE ESTUDIOS ────────────────────────────────────────────────────
 app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   const al = db.prepare(`
@@ -2217,6 +2244,93 @@ app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
   audit(req.user.id,'PAGO','pagos',pid,{concepto:'Constancia de estudios',alumno_id});
   res.json({ ok: true, pago_id: pid });
 });
+// ── PASAJE DE AÑO Y EGRESO ────────────────────────────────────────────────────
+app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
+  const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
+  const alumnos = db.prepare(`
+    SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
+      COALESCE(a.ci,u.ci) as ci, ca.nombre as carrera_nombre, cu.anio, cu.id as curso_id, a.estado
+    FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+    JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE a.estado='Activo' ORDER BY ca.nombre, cu.anio, apellido`).all();
+
+  const resultado = alumnos.map(al => {
+    const notas = periodo ? db.prepare("SELECT estado FROM notas n JOIN asignaciones asig ON n.asignacion_id=asig.id WHERE n.alumno_id=? AND asig.periodo_id=?").all(al.id, periodo.id) : [];
+    const aprobadas = notas.filter(n=>n.estado==='Aprobado').length;
+    const reprobadas = notas.filter(n=>n.estado==='Reprobado').length;
+    const cuotasReq = ['Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'];
+    const pagos = periodo ? db.prepare("SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'").all(al.id, periodo.id) : [];
+    const pagosFalt = cuotasReq.filter(c=>!pagos.some(p=>p.concepto===c||p.concepto.includes(c)));
+    const solicitud = db.prepare("SELECT * FROM solicitudes_egreso WHERE alumno_id=? ORDER BY fecha_solicitud DESC LIMIT 1").get(al.id);
+    return { ...al, total_materias: notas.length, aprobadas, reprobadas, pagos_pendientes: pagosFalt, puede_egresar: reprobadas===0&&notas.length>0&&pagosFalt.length===0, solicitud };
+  });
+  res.json(resultado);
+});
+
+app.post('/api/alumnos/:id/solicitar-egreso', auth(ADM), (req, res) => {
+  const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  const notas = periodo ? db.prepare("SELECT estado FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE n.alumno_id=? AND a.periodo_id=?").all(al.id,periodo.id) : [];
+  const aprobadas = notas.filter(n=>n.estado==='Aprobado').length;
+  const cuotasReq = ['Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'];
+  const pagos = periodo ? db.prepare("SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'").all(al.id,periodo.id) : [];
+  const pagosOk = cuotasReq.every(c=>pagos.some(p=>p.concepto===c||p.concepto.includes(c)));
+  const id = 'egr_'+Date.now();
+  db.prepare('INSERT INTO solicitudes_egreso (id,alumno_id,estado,materias_aprobadas,materias_total,pagos_completos) VALUES (?,?,?,?,?,?)').run(id,al.id,'pendiente',aprobadas,notas.length,pagosOk?1:0);
+  audit(req.user.id,'SOLICITUD_EGRESO','solicitudes_egreso',id,{alumno_id:al.id});
+  res.json({ id, estado: 'pendiente' });
+});
+
+app.put('/api/alumnos/:id/resolver-egreso', auth(ADM), (req, res) => {
+  const { accion, observacion } = req.body;
+  const solicitud = db.prepare("SELECT * FROM solicitudes_egreso WHERE alumno_id=? AND estado='pendiente' ORDER BY fecha_solicitud DESC LIMIT 1").get(req.params.id);
+  if (!solicitud) return res.status(404).json({ error: 'Sin solicitud pendiente' });
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  db.prepare("UPDATE solicitudes_egreso SET estado=?,aprobado_por=?,fecha_resolucion=?,observacion=? WHERE id=?").run(accion==='aprobar'?'aprobado':'rechazado',req.user.id,fechaHoy,observacion||null,solicitud.id);
+  if (accion === 'aprobar') {
+    db.prepare("UPDATE alumnos SET estado='Egresado' WHERE id=?").run(req.params.id);
+    audit(req.user.id,'EGRESO','alumnos',req.params.id,{accion:'aprobado'});
+  }
+  res.json({ ok: true, estado: accion==='aprobar'?'aprobado':'rechazado' });
+});
+
+app.get('/api/alumnos/:id/acta-egreso', auth(ADM), (req, res) => {
+  const al = db.prepare(`SELECT a.*, COALESCE(a.nombre,u.nombre) as disp_nombre, COALESCE(a.apellido,u.apellido) as disp_apellido, COALESCE(a.ci,u.ci) as disp_ci, ca.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id LEFT JOIN carreras ca ON a.carrera_id=ca.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const solicitud = db.prepare("SELECT * FROM solicitudes_egreso WHERE alumno_id=? AND estado='aprobado' ORDER BY fecha_resolucion DESC LIMIT 1").get(req.params.id);
+  if (!solicitud) return res.status(400).json({ error: 'El alumno no tiene solicitud de egreso aprobada por el Director' });
+  const notas = db.prepare(`SELECT m.nombre as materia, n.puntaje_total, n.nota_final, n.estado FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id JOIN materias m ON a.materia_id=m.id WHERE n.alumno_id=? AND n.estado='Aprobado' ORDER BY m.nombre`).all(req.params.id);
+  const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
+  res.json({ alumno: al, solicitud, notas, institucion: inst, fecha: solicitud.fecha_resolucion||new Date().toISOString().split('T')[0] });
+});
+
+// ── EXAMENES: adjuntar archivo PDF/Word ───────────────────────────────────────
+app.post('/api/examenes/:id/archivo', auth(['director','docente']), upload.single('archivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+  const ok = ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  if (!ok.includes(req.file.mimetype)) return res.status(400).json({ error: 'Solo PDF o Word (.doc, .docx)' });
+  if (req.file.size > 10*1024*1024) return res.status(400).json({ error: 'El archivo no puede superar 10 MB' });
+  try {
+    db.prepare('UPDATE examenes SET archivo_nombre=?, archivo_data=?, archivo_tipo=? WHERE id=?').run(req.file.originalname, req.file.buffer, req.file.mimetype, req.params.id);
+    audit(req.user.id,'UPLOAD_EXAMEN','examenes',req.params.id,{archivo:req.file.originalname});
+    res.json({ ok: true, nombre: req.file.originalname });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) => {
+  const ex = db.prepare('SELECT archivo_data, archivo_nombre, archivo_tipo FROM examenes WHERE id=?').get(req.params.id);
+  if (!ex || !ex.archivo_data) return res.status(404).json({ error: 'Sin archivo adjunto' });
+  res.set('Content-Type', ex.archivo_tipo);
+  res.set('Content-Disposition', `inline; filename="${ex.archivo_nombre}"`);
+  res.send(Buffer.from(ex.archivo_data));
+});
+
+app.delete('/api/examenes/:id/archivo', auth(ADM), (req, res) => {
+  db.prepare('UPDATE examenes SET archivo_nombre=NULL, archivo_data=NULL, archivo_tipo=NULL WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 app.use((err, req, res, next) => {
   console.error('Error no manejado:', err.message);
   try { audit('sistema', 'ERROR', req.path, null, { error: err.message, method: req.method }); } catch {}
