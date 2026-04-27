@@ -616,21 +616,28 @@ async function pgCarreras(el){
     <td><div class="abs"><button class="bs i" onclick="mCarrera(DJ(this.dataset.j))" data-j="${J(c)}">Editar</button><button class="bs d" onclick="del('${c.id}','carreras')">Eliminar</button></div></td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
-function mCarrera(c){const e=!!c;modal(`<h4>${e?'Editar':'Nueva'} carrera</h4><div class="fg">
-  <div class="fr"><div class="f"><label>Nombre</label><input id="cn" value="${e?c.nombre:''}" placeholder="Ej: Enfermería"/></div>
-  <div class="f"><label>Código</label><input id="cc" value="${e?c.codigo:''}" placeholder="Ej: ENF"/></div></div>
-  <div class="fr"><div class="f"><label>Turno</label><select id="ct">${['Mañana','Tarde','Nocturno'].map(t=>`<option ${e&&c.turno===t?'selected':''}>${t}</option>`).join('')}</select></div>
-  <div class="f"><label>Duración (años)</label><input id="cs" type="number" value="${e?c.semestres:2}" min="1" max="4" placeholder="Ej: 2"/></div></div>
-  <div class="f"><label>Años que ofrece la carrera</label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-      ${[1,2,3,4].map(a=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px">
-        <input type="checkbox" id="ca${a}" value="${a}" ${e?(c.anios_activos||[1,2]).includes(a)?'checked':'':'a<=2?\'checked\':\'''}/>
-        ${a}° año
-      </label>`).join('')}
-    </div>
-    <p style="font-size:10px;color:var(--t2);margin-top:4px">Seleccioná los años que tiene esta carrera para crear las secciones automáticamente</p>
+function mCarrera(c){
+  const e=!!c;
+  const aniosActivos=e?(c.anios_activos||[1,2]):[1,2];
+  const chkAnios=[1,2,3,4].map(a=>{
+    const checked=aniosActivos.includes(a)?'checked':'';
+    return `<label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="ca${a}" value="${a}" ${checked}/> ${a}° año</label>`;
+  }).join('');
+  modal(`<h4>${e?'Editar':'Nueva'} carrera</h4><div class="fg">
+  <div class="fr">
+    <div class="f"><label>Nombre</label><input id="cn" value="${e?c.nombre:''}" placeholder="Ej: Enfermería"/></div>
+    <div class="f"><label>Código</label><input id="cc" value="${e?c.codigo:''}" placeholder="Ej: ENF"/></div>
   </div>
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svCarrera('${e?c.id:''}')">Guardar</button></div>`);}
+  <div class="fr">
+    <div class="f"><label>Turno</label><select id="ct">${['Mañana','Tarde','Nocturno'].map(t=>`<option ${e&&c.turno===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="f"><label>Duración (años)</label><input id="cs" type="number" value="${e?c.semestres:2}" min="1" max="4" placeholder="Ej: 2"/></div>
+  </div>
+  <div class="f"><label>Años que ofrece la carrera</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${chkAnios}</div>
+    <p style="font-size:10px;color:var(--t2);margin-top:4px">Seleccioná los años que tiene esta carrera</p>
+  </div>
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svCarrera('${e?c.id:''}')">Guardar</button></div>`);
+}
 async function svCarrera(id){
   const o={nombre:v('cn'),codigo:v('cc').toUpperCase(),turno:v('ct'),semestres:parseInt(v('cs'))};
   if(!o.nombre||!o.codigo)return alert('Completar nombre y código');
