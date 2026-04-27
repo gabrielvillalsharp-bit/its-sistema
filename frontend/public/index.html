@@ -1132,9 +1132,8 @@ function exRow(e){
       <div class="abs">
         ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
         ${e.id?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
-        ${e.asignacion_id?`<button class="bs" style="font-size:11px" onclick="imprimirActaTP('${e.asignacion_id}')">🖨 TPs</button>`:''}
         ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#e3f2fd;color:#1565c0" onclick="enviarRecordatorio('${e.id}')" title="Enviar recordatorio por email al docente">✉ Aviso</button>`:''}
-        <button class="bs d" style="font-size:11px" onclick="del('${e.id}','examenes')">✕</button>
+        <button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>
       </div>
     </td>
   </tr>`;
@@ -1149,8 +1148,57 @@ async function enviarRecordatorio(exId){
 function descargarPlantillaExamenes(){
   const a=document.createElement('a');
   a.href='/api/examenes/plantilla';
-  a.download='plantilla_examenes.xlsx';
+  a.download='plantilla_examenes_ITS.xlsx';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  toast('Descargando plantilla...','info');
+}
+async function importarExamenes(input){
+  const file=input.files[0];if(!file)return;
+  input.value='';
+  toast('Leyendo archivo Excel...','info',2000);
+  const fd=new FormData();fd.append('archivo',file);
+  try{
+    const r=await api('POST','/api/examenes/importar',fd,true);
+    if(!r||!r.preview||!r.preview.length){toast('No se encontraron filas válidas en el Excel','warn');return;}
+    // Mostrar previsualización para confirmar o modificar
+    modal(`<h4>📥 Importar exámenes desde Excel</h4>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Se encontraron <strong>${r.preview.length}</strong> exámenes. Revisá los datos antes de confirmar:</p>
+    <div style="max-height:55vh;overflow-y:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#f0f4f8">
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Materia</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Tipo</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Fecha</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Hora</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Aula</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Estado</th>
+      </tr></thead>
+      <tbody>${r.preview.map(ex=>`<tr style="background:${ex.error?'#fff3f3':''}">
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.materia_nombre||ex.materia||'—'}<br><span style="font-size:10px;color:var(--t3)">${ex.carrera||''} ${ex.anio?ex.anio+'°':''}</span></td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)"><span class="bx ${ex.tipo?.startsWith('Parc')?'bb':'br'}" style="font-size:10px">${ex.tipo||'—'}</span></td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr);white-space:nowrap;font-weight:600">${ex.fecha||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.hora||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.aula||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.error?`<span style="color:#c62828;font-size:10px">⚠ ${ex.error}</span>`:'<span style="color:#2e7d32;font-size:10px">✓ OK</span>'}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>
+    ${r.errores?.length?`<div style="background:#fff3e0;border-radius:6px;padding:8px;margin-top:8px;font-size:11px">⚠ ${r.errores.length} fila(s) con errores no se importarán</div>`:''}
+    <div class="mf" style="margin-top:12px">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="confirmarImportarExamenes(${JSON.stringify(r.ids).replace(/"/g,'&quot;')})">✓ Confirmar importación (${r.preview.filter(x=>!x.error).length} válidos)</button>
+    </div>`,true);
+  }catch(e){toast('Error al leer el archivo: '+e.message,'err',5000);}
+}
+async function confirmarImportarExamenes(ids){
+  try{
+    const r=await api('POST','/api/examenes/confirmar-importar',{ids});
+    cm();
+    toast(`✓ ${r.importados} exámenes importados correctamente`,'ok',5000);
+    go('examenes');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function verExamen(exId){
   if(!exId)return;
@@ -1199,19 +1247,50 @@ function filtExAll(){
 }
 function filtEx(t,val){filtExAll();}
 
+async function delExamen(id){
+  confirm2('🗑 Eliminar examen','¿Eliminar este examen programado? Esta acción no se puede deshacer.',
+    async function(){
+      try{await api('DELETE','/api/examenes/'+id);toast('✓ Examen eliminado','ok');go('examenes');}
+      catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
 async function mExamen(exData){
   const e=!!exData;
-  const asigs=await api('GET','/api/asignaciones');
-  const pers=W._exData?.pers||await api('GET','/api/periodos');
+  const [asigs,pers,carrs]=await Promise.all([
+    api('GET','/api/asignaciones'),
+    api('GET','/api/periodos'),
+    api('GET','/api/carreras')
+  ]);
+  W._mexAsigs=asigs;
+  const anios=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
   modal(`<h4>${e?'Editar':'Programar'} examen</h4><div class="fg">
+  <!-- Filtros rápidos -->
+  ${!e?`<div style="background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:10px 12px;margin-bottom:6px">
+    <p style="font-size:11px;font-weight:700;color:#1565c0;margin-bottom:6px">🔍 Filtrar materia por:</p>
+    <div class="fb" style="gap:6px;flex-wrap:wrap">
+      <select id="fmCarr" onchange="filtMexAsigs()" style="font-size:12px;flex:1;min-width:140px">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+      <select id="fmAnio" onchange="filtMexAsigs()" style="font-size:12px;flex:0 0 100px">
+        <option value="">Todos los años</option>
+        ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+      </select>
+      <select id="fmTurno" onchange="filtMexAsigs()" style="font-size:12px;flex:0 0 130px">
+        <option value="">Ambos turnos</option>
+        <option value="1">Turno 1 (19:00)</option>
+        <option value="2">Turno 2 (20:40)</option>
+      </select>
+    </div>
+  </div>`:''}
   <div class="f"><label>Materia / Asignación <span style="color:var(--red)">*</span></label>
-    <select id="exas">${asigs.map(a=>`<option value="${a.id}" ${e&&exData.asignacion_id===a.id?'selected':''}>${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} — ${a.docente_nombre} ${a.docente_apellido}</option>`).join('')}</select></div>
+    <select id="exas">${asigs.map(a=>`<option value="${a.id}" ${e&&exData.asignacion_id===a.id?'selected':''}>${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre} ${a.docente_apellido} (T${a.turno||1})</option>`).join('')}</select></div>
   <div class="fr">
-    <div class="f"><label>Tipo de examen <span style="color:var(--red)">*</span></label>
+    <div class="f"><label>Tipo <span style="color:var(--red)">*</span></label>
       <select id="exti" onchange="updPuntosMax()">
         <optgroup label="─── PARCIALES ───">
-          <option value="Parcial" ${e&&exData.tipo==='Parcial'?'selected':''}>Parcial Ordinario — 50 pts</option>
-          <option value="Recuperatorio" ${e&&exData.tipo==='Recuperatorio'?'selected':''}>Parcial Recuperatorio — 50 pts</option>
+          <option value="Parcial" ${e&&exData.tipo==='Parcial'?'selected':''}>Parcial Ordinario — 25 pts</option>
+          <option value="Recuperatorio" ${e&&exData.tipo==='Recuperatorio'?'selected':''}>Parcial Recuperatorio — 25 pts</option>
         </optgroup>
         <optgroup label="─── FINALES ───">
           <option value="Final" ${e&&exData.tipo==='Final'?'selected':''}>Final Ordinario — 50 pts</option>
@@ -1222,8 +1301,8 @@ async function mExamen(exData){
       </select>
     </div>
     <div class="f"><label>Puntos máximos</label>
-      <input id="expmax" type="number" value="${e&&exData.puntos_max?exData.puntos_max:50}" min="1" max="100" style="width:80px"/>
-      <p style="font-size:10px;color:var(--t2);margin-top:3px" id="ptshint">Finales = 50 pts · Extraordinario = 100 pts</p>
+      <input id="expmax" type="number" value="${e&&exData.puntos_max?exData.puntos_max:25}" min="1" max="100" style="width:80px"/>
+      <p style="font-size:10px;color:var(--t2);margin-top:3px" id="ptshint">Parciales = 25 pts · Finales = 50 pts</p>
     </div>
   </div>
   <div class="f"><label>Período</label><select id="expe">${pers.map(p=>`<option value="${p.id}" ${(e&&exData.periodo_id===p.id)||p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
@@ -1234,15 +1313,26 @@ async function mExamen(exData){
   <div class="f"><label>Aula (opcional)</label><input id="exau" value="${e&&exData.aula?exData.aula:''}" placeholder="Ej: Aula 3"/></div>
   <div class="f"><label>Observaciones</label><input id="exob" value="${e&&exData.observacion?exData.observacion:''}" placeholder="Opcional"/></div>
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svExamen('${e?exData.id:''}')">Guardar</button></div>`);
-  updPuntosMax();
+  if(!e)updPuntosMax();
+}
+function filtMexAsigs(){
+  const carrId=v('fmCarr'), anio=v('fmAnio'), turno=v('fmTurno');
+  const sel=document.getElementById('exas');
+  if(!sel)return;
+  let asigs=W._mexAsigs||[];
+  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(anio)   asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(turno)  asigs=asigs.filter(a=>String(a.turno||1)===turno);
+  sel.innerHTML=asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre} ${a.docente_apellido} (T${a.turno||1})</option>`).join('');
 }
 function updPuntosMax(){
   const tipo=v('exti');
   const inp=document.getElementById('expmax');
   const hint=document.getElementById('ptshint');
   if(!inp)return;
-  if(tipo==='Extraordinario'){inp.value=100;if(hint)hint.textContent='Extraordinario siempre vale 100 pts — resetea todas las notas anteriores';}
-  else{if(parseInt(inp.value)===100)inp.value=50;if(hint)hint.textContent='Parciales y Finales = 50 pts cada uno';}
+  if(tipo==='Extraordinario'){inp.value=100;if(hint)hint.textContent='Extraordinario siempre vale 100 pts';}
+  else if(tipo==='Parcial'||tipo==='Recuperatorio'){inp.value=25;if(hint)hint.textContent='Parciales = 25 pts cada uno';}
+  else{inp.value=50;if(hint)hint.textContent='Finales = 50 pts cada uno';}
 }
 async function svExamen(id){
   const o={asignacion_id:v('exas'),tipo:v('exti'),fecha:v('exfe'),hora:v('exho'),aula:v('exau'),observacion:v('exob'),periodo_id:parseInt(v('expe')),puntos_max:parseInt(v('expmax'))||50};
@@ -1590,7 +1680,6 @@ function verDia(fecha){
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           <button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>
-          <button class="bs" onclick="imprimirActaTP('${e.asignacion_id}')">🖨 Acta TPs</button>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">

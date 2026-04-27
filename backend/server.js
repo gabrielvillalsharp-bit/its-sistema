@@ -1285,29 +1285,67 @@ app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
   res.send(buf);
 });
 
-// Importar exámenes desde Excel
+// Importar exámenes desde Excel — devuelve preview para confirmar
 app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
+    if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
     const wb = XLSX.read(req.file.buffer, { type:'buffer' });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:'' });
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-    const results = { ok:0, errores:[] };
+    const preview = [], errores = [], pendientes = [];
     rows.forEach((row, i) => {
-      try {
-        const asig_id = String(row.asignacion_id||'').trim();
-        const tipo = String(row.tipo||'Parcial').trim();
-        const fecha = String(row.fecha||'').trim();
-        if (!asig_id || !fecha) { results.errores.push(`Fila ${i+2}: asignacion_id y fecha son obligatorios`); return; }
-        const asig = db.prepare('SELECT id FROM asignaciones WHERE id=?').get(asig_id);
-        if (!asig) { results.errores.push(`Fila ${i+2}: asignacion_id no encontrado "${asig_id}"`); return; }
-        if (!['Parcial','Final','Recuperatorio','Extraordinario'].includes(tipo)) { results.errores.push(`Fila ${i+2}: tipo inválido "${tipo}"`); return; }
-        const pid = periodo?.id || null;
-        db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion) VALUES (?,?,?,?,?,?,?,?)').run('ex_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),asig_id,tipo,fecha,row.hora||null,row.aula||null,pid,row.observacion||null);
-        results.ok++;
-      } catch(e) { results.errores.push(`Fila ${i+2}: ${e.message}`); }
+      const asig_id = String(row.asignacion_id||'').trim();
+      const tipo = String(row.tipo||'Parcial').trim();
+      const fecha = String(row.fecha||'').trim();
+      const TIPOS_OK = ['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
+      if (!asig_id || !fecha) {
+        const err = `Fila ${i+2}: asignacion_id y fecha son obligatorios`;
+        preview.push({ ...row, error: err }); errores.push(err); return;
+      }
+      const asig = db.prepare(`
+        SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio
+        FROM asignaciones a
+        JOIN materias m ON a.materia_id=m.id
+        JOIN cursos cu ON a.curso_id=cu.id
+        JOIN carreras ca ON cu.carrera_id=ca.id
+        WHERE a.id=?`).get(asig_id);
+      if (!asig) {
+        const err = `Fila ${i+2}: asignacion_id "${asig_id}" no encontrado`;
+        preview.push({ ...row, error: err }); errores.push(err); return;
+      }
+      if (!TIPOS_OK.includes(tipo)) {
+        const err = `Fila ${i+2}: tipo "${tipo}" inválido`;
+        preview.push({ ...row, error: err }); errores.push(err); return;
+      }
+      const pMax = tipo === 'Extraordinario' ? 100 : (tipo === 'Parcial' || tipo === 'Recuperatorio') ? 25 : 50;
+      const id = 'ex_import_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+      pendientes.push({ id, asig_id, tipo, fecha, hora: row.hora||null, aula: row.aula||null, periodo_id: periodo?.id||null, observacion: row.observacion||null, puntos_max: pMax });
+      preview.push({ materia_nombre: asig.materia_nombre, carrera: asig.carrera_nombre, anio: asig.anio, tipo, fecha, hora: row.hora||'', aula: row.aula||'', id });
     });
-    res.json(results);
+    // Guardar pendientes en memoria temporal (sesión simple via header)
+    req.app.locals._importPendiente = pendientes;
+    res.json({ preview, errores, ids: pendientes.map(p=>p.id) });
   } catch(e) { res.status(400).json({ error:'Error procesando archivo: '+e.message }); }
+});
+
+// Confirmar importación de exámenes previsualizados
+app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
+  try {
+    const pendientes = req.app.locals._importPendiente || [];
+    if (!pendientes.length) return res.status(400).json({ error: 'No hay importación pendiente' });
+    const { ids } = req.body;
+    const aImportar = ids ? pendientes.filter(p => ids.includes(p.id)) : pendientes;
+    let importados = 0;
+    aImportar.forEach(p => {
+      try {
+        db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id,p.asig_id,p.tipo,p.fecha,p.hora,p.aula,p.periodo_id,p.observacion,p.puntos_max||50);
+        importados++;
+      } catch {}
+    });
+    req.app.locals._importPendiente = [];
+    audit(req.user.id,'IMPORTAR','examenes','bulk',{importados});
+    res.json({ ok: true, importados });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── HORARIOS ──────────────────────────────────────────────────────────────────
@@ -2040,9 +2078,10 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   // Registrar emisión
   const cid = 'const_'+Date.now();
-  db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,date("now"),?)').run(cid, req.params.id, 'estudios', req.user.id);
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,?,?)').run(cid, req.params.id, 'estudios', fechaHoy, req.user.id);
   audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id});
-  res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: new Date().toISOString().split('T')[0] });
+  res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: fechaHoy });
 });
 
 // ── ESTADO DE CUENTA CON DEUDAS ACUMULADAS ────────────────────────────────────
