@@ -308,7 +308,7 @@ function navFor(r){
     ]},
     {g:'Estructura',i:[
       {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
-      {id:'cursos',l:'Cursos / Grupos',c:'#D85A30',r:['director']},
+      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
       {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
       {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director']},
     ]},
@@ -387,9 +387,9 @@ function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.t
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
 async function del(id,tipo){
-  const labels={notas:'nota',pagos:'pago',examenes:'examen programado',alumnos:'alumno',docentes:'docente',asistencia:'registro de asistencia',avisos:'aviso',actividades:'actividad',feriados:'feriado',usuarios:'usuario',reemplazos:'reemplazo',carreras:'carrera',cursos:'curso',materias:'materia',asignaciones:'asignación',becas:'beca',periodos:'período'};
+  const labels={notas:'nota',pagos:'pago',examenes:'examen programado',alumnos:'alumno',docentes:'docente',asistencia:'registro de asistencia',avisos:'aviso',actividades:'actividad',feriados:'feriado',usuarios:'usuario',reemplazos:'reemplazo',carreras:'carrera',cursos:'sección',materias:'materia',asignaciones:'asignación',becas:'beca',periodos:'período'};
   const label=labels[tipo]||'registro';
-  const extra=tipo==='alumnos'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán sus notas, asistencia y pagos asociados.</span>':tipo==='carreras'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán los cursos, materias y asignaciones de esta carrera.</span>':'';
+  const extra=tipo==='alumnos'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán sus notas, asistencia y pagos asociados.</span>':tipo==='carreras'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán los secciones, materias y asignaciones de esta carrera.</span>':'';
   confirm2(
     `🗑 Eliminar ${label}`,
     `<p>¿Confirmar la eliminación de este ${label}?</p>${extra}<p style="font-size:12px;color:#c62828;margin-top:8px;font-weight:600">⚠ Esta acción no se puede deshacer.</p>`,
@@ -422,7 +422,7 @@ async function pgDash(el){
     <div class="sc"><div class="sl">Alumnos activos</div><div class="sv">${d.total_alumnos}</div></div>
     <div class="sc"><div class="sl">Docentes</div><div class="sv">${d.total_docentes}</div></div>
     <div class="sc"><div class="sl">Carreras</div><div class="sv">${d.total_carreras}</div></div>
-    <div class="sc"><div class="sl">Cursos</div><div class="sv">${d.total_cursos}</div></div>
+    <div class="sc"><div class="sl">Secciones</div><div class="sv">${d.total_cursos}</div></div>
     <div class="sc"><div class="sl">Aprobados</div><div class="sv" style="color:var(--green)">${d.aprobados}</div></div>
     <div class="sc"><div class="sl">Reprobados</div><div class="sv" style="color:var(--red)">${d.reprobados}</div></div>
     ${me.rol==='director'?`
@@ -480,8 +480,10 @@ async function pgAvisos(el){
   }
 
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
-    ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
-  </div>
+    <div class="ph-right">
+      ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
+      ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
+    </div></div>
 
   ${misExamenes.length?`<div class="card card-p" style="margin-bottom:16px;border-left:4px solid #D85A30">
     <p style="font-weight:700;font-size:13px;margin-bottom:8px;color:#D85A30">📋 Mis exámenes próximos (30 días)</p>
@@ -511,6 +513,28 @@ async function pgAvisos(el){
     <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
     <div class="aviso-meta">Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''}</div>
   </div>`).join('')}`;
+}
+function mAvisoDirector(){
+  modal(`<h4>✉ Mensaje al Director</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Este mensaje será visible solo para el Director.</p>
+  <div class="fg">
+    <div class="f"><label>Asunto <span style="color:var(--red)">*</span></label>
+      <input id="adTit" placeholder="Ej: Consulta sobre examen, Solicitud de reemplazo..."/></div>
+    <div class="f"><label>Mensaje <span style="color:var(--red)">*</span></label>
+      <textarea id="adCon" rows="4" placeholder="Escribí tu mensaje aquí..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="svAvisoDirector()">✉ Enviar al Director</button>
+  </div>`);
+}
+async function svAvisoDirector(){
+  const titulo=v('adTit'),contenido=v('adCon');
+  if(!titulo||!contenido)return alert('Completar asunto y mensaje');
+  try{
+    await api('POST','/api/avisos',{titulo:`✉ [Docente] ${titulo}`,contenido,tipo:'administrativo',destinatario:'director',fijado:0});
+    cm();toast('✉ Mensaje enviado al Director correctamente','ok',4000);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 function mAviso(){
   const esDirector=me.rol==='director';
@@ -574,7 +598,7 @@ async function pgCarreras(el){
   const d=await api('GET','/api/carreras');
   el.innerHTML=`<div class="ph"><h3>Carreras (${d.length})</h3>
     <div class="ph-right"><button class="bs s" onclick="exportXls('alumnos')">⬇ Excel alumnos</button><button class="bn" onclick="mCarrera()">+ Nueva carrera</button></div></div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Turno</th><th>Alumnos</th><th>Materias</th><th>Cursos</th><th>Est.</th><th></th></tr></thead><tbody>
+  <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Turno</th><th>Alumnos</th><th>Materias</th><th>Secciones</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(c=>`<tr>
     <td><span class="bx bb">${c.codigo}</span></td><td><strong>${c.nombre}</strong></td><td>${c.turno||'-'}</td>
     <td>${c.total_alumnos}</td><td>${c.total_materias}</td>
@@ -605,7 +629,7 @@ function delSeccion(id){
 }
 async function pgCursos(el){
   const [cursos,carrs]=await Promise.all([api('GET','/api/cursos'),api('GET','/api/carreras')]);W._carrs=carrs;
-  el.innerHTML=`<div class="ph"><h3>Cursos y grupos</h3><button class="bn" onclick="mCurso()">+ Nuevo curso</button></div>
+  el.innerHTML=`<div class="ph"><h3>Secciones</h3><button class="bn" onclick="mCurso()">+ Nueva sección</button></div>
   <p class="tip" style="margin-bottom:12px">Cada curso = carrera + año + división. Cosmiatría tiene sección A y B separadas.</p>
   <div class="card"><div class="tw"><table><thead><tr><th>Carrera</th><th>Año</th><th>División</th><th>Turno</th><th>Alumnos</th><th>Estado</th><th></th></tr></thead><tbody>
   ${cursos.map(cu=>`<tr>
@@ -616,7 +640,7 @@ async function pgCursos(el){
     <td><button class="bs d" onclick="delSeccion('${cu.id}')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin secciones</td></tr>'}
   </tbody></table></div></div>`;
 }
-function mCurso(){modal(`<h4>Nuevo curso / grupo</h4><div class="fg">
+function mCurso(){modal(`<h4>Nueva sección</h4><div class="fg">
   <div class="f"><label>Carrera</label><select id="cuc">${(W._carrs||[]).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
   <div class="fr">
     <div class="f"><label>Año</label><select id="cua">${[1,2,3,4].map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select></div>
@@ -628,45 +652,144 @@ async function svCurso(){await api('POST','/api/cursos',{carrera_id:v('cuc'),ani
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 async function pgMaterias(el){
-  const [mats,carrs,cursos]=await Promise.all([api('GET','/api/materias'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  W._mats=mats;W._carrs=carrs;
+  const [mats,carrs,cursos,docs]=await Promise.all([
+    api('GET','/api/materias'),api('GET','/api/carreras'),
+    api('GET','/api/cursos'),api('GET','/api/docentes')
+  ]);
+  W._mats=mats;W._carrs=carrs;W._cursos=cursos;W._docsMat=docs;
   const anios=[...new Set(mats.map(m=>m.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva</button></div>
-  <div class="fb" style="flex-wrap:wrap;gap:8px">
-    <select id="filtMCarr" onchange="filtM()"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
-    <select id="filtMAnio" onchange="filtM()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
+  el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva materia</button></div>
+  <p class="tip" style="margin-bottom:10px">Al crear una materia asignás directamente Sección, Docente, Día y Turno. Aparecerá automáticamente en Notas y Asistencia.</p>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+    <select id="filtMCarr" onchange="filtM()" style="min-width:180px"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+    <select id="filtMAnio" onchange="filtM()" style="min-width:110px"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Hs/sem</th><th>Pesos TP/Parc/Final</th><th></th></tr></thead>
-  <tbody id="mtb">${mats.map(mRow).join('')}</tbody></table></div></div>`;
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Hs/sem</th><th></th>
+  </tr></thead>
+  <tbody id="mtb">${mats.map(m=>mRow(m)).join('')}</tbody></table></div></div>`;
 }
-function mMateria(m){const e=!!m;modal(`<h4>${e?'Editar':'Nueva'} materia</h4><div class="fg">
-  <div class="fr"><div class="f"><label>Nombre</label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
-  <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="Ej: ENF-101"/></div></div>
-  <div class="fr"><div class="f"><label>Carrera</label><select id="mca">${(W._carrs||[]).map(c=>`<option value="${c.id}" ${e&&m.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}</select></div>
-  <div class="f"><label>Año</label><select id="ma">${[1,2,3,4].map(a=>`<option value="${a}" ${e&&m.anio===a?'selected':''}>${a}° año</option>`).join('')}</select></div></div>
-  <div class="f"><label>Horas semanales</label><input id="mh" type="number" value="${e?m.horas_semanales:4}" min="1"/></div>
-  <div class="peso-box"><div class="titulo">Distribución de puntos (deben sumar 100)</div>
-    <div class="fr3">
-      <div class="f"><label>Trabajo Práctico</label><input id="mtp" type="number" value="${e?m.peso_tp:25}" oninput="updPeso()"/></div>
-      <div class="f"><label>Parcial</label><input id="mpar" type="number" value="${e?m.peso_parcial:25}" oninput="updPeso()"/></div>
-      <div class="f"><label>Final</label><input id="mfin" type="number" value="${e?m.peso_final:50}" oninput="updPeso()"/></div>
-    </div>
-    <div id="peso-sum"></div>
+async function mMateria(m){
+  const e=!!m;
+  const [carrs,cursos,docs]=await Promise.all([
+    Promise.resolve(W._carrs||[]),
+    Promise.resolve(W._cursos||[]),
+    Promise.resolve(W._docsMat||[])
+  ]);
+  modal(`<h4>${e?'Editar':'Nueva'} materia</h4>
+  <div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#2e7d32">
+    ✓ Al guardar, la materia y su asignación aparecen automáticamente en Notas y Asistencia
   </div>
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svMat('${e?m.id:''}')">Guardar</button></div>`);updPeso();}
-W.updPeso=()=>{const s=(parseInt(v('mtp'))||0)+(parseInt(v('mpar'))||0)+(parseInt(v('mfin'))||0);const el=document.getElementById('peso-sum');if(el)el.innerHTML=`<span style="font-size:12px;font-weight:600;color:${s===100?'var(--green)':'var(--red)'}">Total: ${s} / 100 ${s===100?'✓':''}</span>`;}
-async function svMat(id){
-  const tp=parseInt(v('mtp')),pp=parseInt(v('mpar')),pf=parseInt(v('mfin'));
-  if(tp+pp+pf!==100)return alert('Los pesos deben sumar 100. Actualmente: '+(tp+pp+pf));
-  const o={carrera_id:v('mca'),nombre:v('mn'),codigo:v('mc2').toUpperCase(),horas_semanales:parseInt(v('mh')),anio:parseInt(v('ma')),peso_tp:tp,peso_parcial:pp,peso_final:pf};
-  if(!o.nombre)return alert('Ingresar nombre');
-  id?await api('PUT','/api/materias/'+id,o):await api('POST','/api/materias',o);cm();go('materias');
+  <div class="fg">
+  <div class="fr">
+    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
+    <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="ENF-101"/></div>
+  </div>
+  <div class="fr">
+    <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+      <select id="mca" onchange="filtSeccionesMat()">
+        ${carrs.map(c=>`<option value="${c.id}" ${e&&m.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
+      </select></div>
+    <div class="f"><label>Año <span style="color:var(--red)">*</span></label>
+      <select id="ma" onchange="filtSeccionesMat()">
+        ${[1,2,3,4].map(a=>`<option value="${a}" ${e&&m.anio===a?'selected':''}>${a}° año</option>`).join('')}
+      </select></div>
+  </div>
+  <div class="f"><label>Sección <span style="color:var(--red)">*</span></label>
+    <select id="msec" style="width:100%">
+      <option value="">— Seleccionar sección —</option>
+      ${cursos.filter(cu=>!e||(cu.carrera_id===m.carrera_id&&cu.anio===m.anio)).map(cu=>`<option value="${cu.id}" ${e&&m.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — Secc. ${cu.division==='U'?'Única':cu.division}</option>`).join('')}
+    </select></div>
+  <div class="f"><label>Docente <span style="color:var(--red)">*</span></label>
+    <select id="mdoc" style="width:100%">
+      <option value="">— Seleccionar docente —</option>
+      ${docs.map(d=>`<option value="${d.docente_id}" ${e&&m.docente_id===d.docente_id?'selected':''}>${d.apellido||''}, ${d.nombre}${d.especialidad?' — '+d.especialidad:''}</option>`).join('')}
+    </select></div>
+  <div class="fr">
+    <div class="f"><label>Día de clase <span style="color:var(--red)">*</span></label>
+      <select id="mdia">
+        ${['Lunes','Martes','Miércoles','Jueves','Viernes'].map(d=>`<option value="${d}" ${e&&m.dia===d?'selected':''}>${d}</option>`).join('')}
+      </select></div>
+    <div class="f"><label>Turno <span style="color:var(--red)">*</span></label>
+      <select id="mtur">
+        <option value="1" ${e&&m.turno===1?'selected':''}>Turno 1 — 19:00 a 20:20</option>
+        <option value="2" ${e&&m.turno===2?'selected':''}>Turno 2 — 20:40 a 22:00</option>
+      </select></div>
+  </div>
+  <div class="f"><label>Horas semanales</label><input id="mh" type="number" value="${e?m.horas_semanales:4}" min="1" style="width:80px"/></div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button>
+  <button class="bn" onclick="previsualizarMateria('${e?m.id:''}')">Revisar y guardar →</button></div>`);
+  if(e) filtSeccionesMat();
+}
+function filtSeccionesMat(){
+  const carrId=v('mca'),anio=v('ma');
+  const sel=document.getElementById('msec');if(!sel)return;
+  const filt=(W._cursos||[]).filter(cu=>(!carrId||cu.carrera_id===carrId)&&(!anio||String(cu.anio)===anio));
+  sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — Secc. ${cu.division==='U'?'Única':cu.division}</option>`).join('');
+}
+async function previsualizarMateria(id){
+  const o={nombre:v('mn'),codigo:v('mc2'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),dia:v('mdia'),turno:parseInt(v('mtur')),horas_semanales:parseInt(v('mh'))||4};
+  if(!o.nombre||!o.carrera_id||!o.curso_id||!o.docente_id||!o.dia||!o.turno)return alert('Completar todos los campos obligatorios (*)');
+  const carNom=(W._carrs||[]).find(c=>c.id===o.carrera_id)?.nombre||'';
+  const docObj=(W._docsMat||[]).find(d=>d.docente_id===o.docente_id);
+  const docNom=docObj?`${docObj.apellido||''}, ${docObj.nombre}`:'—';
+  const secObj=(W._cursos||[]).find(s=>s.id===o.curso_id);
+  const secNom=secObj?`${secObj.anio}° Secc. ${secObj.division==='U'?'Única':secObj.division}`:'—';
+  let conflicto={tiene_conflicto:false};
+  try{conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${o.docente_id}&dia=${encodeURIComponent(o.dia)}&turno=${o.turno}&exclude_id=${id||''}`);}catch{}
+  modal(`<h4>📋 Confirmar materia</h4>
+  <div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+      <div><span style="font-size:10px;color:var(--t3)">Materia</span><br><strong>${o.nombre}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Carrera</span><br><strong>${carNom}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Año / Sección</span><br><strong>${o.anio}° — ${secNom}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Docente</span><br><strong>${docNom}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Día / Turno</span><br><strong>${o.dia} — T${o.turno} (${o.turno===1?'19:00':'20:40'})</strong></div>
+    </div>
+  </div>
+  ${conflicto.tiene_conflicto?`<div style="background:#fff3e0;border:2px solid #e65100;border-radius:8px;padding:10px;margin-bottom:10px">
+    <p style="font-weight:700;color:#e65100;font-size:12px">⚠ Conflicto de horario detectado</p>
+    <p style="font-size:12px"><strong>${docNom}</strong> ya tiene <strong>${conflicto.materia||'otra materia'}</strong> el <strong>${o.dia} T${o.turno}</strong>.</p>
+    <p style="font-size:11px;color:#777">El Director debe aprobar este conflicto para habilitarlo.</p>
+  </div>`:'<div style="background:#e8f5e9;border-radius:6px;padding:8px;font-size:12px;color:#2e7d32;margin-bottom:10px">✓ Sin conflictos de horario</div>'}
+  <div class="mf">
+    <button class="bs" onclick="cm()">← Modificar</button>
+    ${conflicto.tiene_conflicto
+      ?`<button class="bs o" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},true)">⚠ Guardar con conflicto</button>`
+      :`<button class="bn" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},false)">✓ Confirmar y guardar</button>`}
+  </div>`);
+}
+async function svMat(id,o,conConflicto){
+  try{
+    let matId=id;
+    if(id) await api('PUT','/api/materias/'+id,o);
+    else{const r=await api('POST','/api/materias',o);matId=r.id;}
+    // Crear/actualizar asignación automáticamente
+    if(o.docente_id&&o.curso_id&&matId){
+      const periodo=await api('GET','/api/periodos').then(ps=>ps.find(p=>p.activo)||ps[0]).catch(()=>null);
+      if(periodo){
+        const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${periodo.id}`).catch(()=>[]);
+        if(!existe||!existe.length){
+          await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:periodo.id,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
+        }
+      }
+    }
+    cm();
+    if(conConflicto)toast('⚠ Materia guardada con conflicto — pendiente de revisión del Director','warn',5000);
+    else toast('✓ Materia guardada y asignada automáticamente','ok');
+    go('materias');
+  }catch(e){alert('Error: '+e.message);}
 }
 
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────
 async function pgPeriodos(el){
   const d=await api('GET','/api/periodos');
-  el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3><button class="bn" onclick="mPer()">+ Nuevo período</button></div>
+  el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3>
+    <div class="ph-right">
+      <button class="bs o" onclick="mSegundoSemestre()">📅 2do Semestre</button>
+      <button class="bn" onclick="mPer()">+ Nuevo período</button>
+    </div></div>
   <div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>Año</th><th>Sem.</th><th>Inicio</th><th>Fin</th><th>Estado</th><th></th></tr></thead><tbody>
   ${d.map(p=>`<tr><td><strong>${p.nombre}</strong></td><td>${p.anio}</td><td>${p.semestre||'-'}</td>
     <td>${fmtFecha(p.fecha_inicio)}</td><td>${fmtFecha(p.fecha_fin)}</td>
@@ -677,6 +800,49 @@ async function pgPeriodos(el){
       <button class="bs d" onclick="del('${p.id}','periodos')">Eliminar</button>
     </div></td></tr>`).join('')}
   </tbody></table></div></div>`;
+}
+function mSegundoSemestre(){
+  modal(`<h4>📅 Crear 2do Semestre Académico</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">El 2do semestre mantiene los mismos alumnos pero importa nuevas materias, docentes y horarios desde un Excel.</p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Año <span style="color:var(--red)">*</span></label><input id="s2anio" type="number" value="${new Date().getFullYear()}" style="width:80px"/></div>
+      <div class="f"><label>Fecha inicio <span style="color:var(--red)">*</span></label><input id="s2inicio" type="date" value="${new Date().getFullYear()}-08-01"/></div>
+      <div class="f"><label>Fecha fin <span style="color:var(--red)">*</span></label><input id="s2fin" type="date" value="${new Date().getFullYear()}-11-30"/></div>
+    </div>
+    <div class="f"><label>Importar materias/docentes/horarios desde Excel (opcional)</label>
+      <label class="bs" style="cursor:pointer;width:100%;text-align:center;padding:10px">
+        📥 Seleccionar archivo Excel (.xlsx)
+        <input type="file" accept=".xlsx,.xls" id="s2file" style="display:none" onchange="previewSegundoSemestre(this)"/>
+      </label>
+      <div id="s2preview" style="margin-top:8px"></div>
+    </div>
+    <div style="background:#e8f5e9;border-radius:6px;padding:8px 12px;font-size:11px">
+      ✓ Los alumnos <strong>no se modifican</strong> — solo se crea el nuevo período y se importan las asignaciones del 2do semestre
+    </div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="crearSegundoSemestre()">Crear 2do Semestre</button></div>`);
+}
+async function previewSegundoSemestre(input){
+  const file=input.files[0];if(!file)return;
+  const el=document.getElementById('s2preview');
+  el.innerHTML='<div style="font-size:11px;color:var(--t2)">Leyendo archivo...</div>';
+  // Solo mostrar preview básico
+  el.innerHTML=`<div style="background:#f0f7ff;border-radius:6px;padding:8px;font-size:11px"><strong>✓ Archivo listo:</strong> ${file.name} (${(file.size/1024).toFixed(1)} KB)</div>`;
+}
+async function crearSegundoSemestre(){
+  const anio=v('s2anio'),inicio=v('s2inicio'),fin=v('s2fin');
+  if(!anio||!inicio)return alert('Completar año y fecha de inicio');
+  try{
+    const r=await api('POST','/api/periodos',{nombre:`${anio} — 2do Semestre`,anio:parseInt(anio),semestre:'2do',fecha_inicio:inicio,fecha_fin:fin||null});
+    // Si hay archivo, importar asignaciones
+    const fileInput=document.getElementById('s2file');
+    if(fileInput?.files?.length&&r.id){
+      const fd=new FormData();fd.append('archivo',fileInput.files[0]);fd.append('periodo_id',r.id);
+      await api('POST','/api/periodos/importar-asignaciones',fd,true).catch(e=>toast('Archivo importado con advertencias: '+e.message,'warn',4000));
+    }
+    cm();toast('✓ 2do Semestre creado correctamente','ok');go('periodos');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 function mPer(){modal(`<h4>Nuevo período académico</h4><div class="fg">
   <div class="f"><label>Nombre</label><input id="pn" placeholder="Ej: Año Lectivo 2027"/></div>
@@ -702,9 +868,9 @@ async function mPromover(periodoId, periodoNombre){
       <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Mueve alumnos de un curso a otro (ej: 1er año → 2do año).</p>
       <div class="fg">
         <div class="fr">
-          <div class="f"><label>Curso origen (año actual)</label>
+          <div class="f"><label>Sección origen (año actual)</label>
             <select id="prom_orig"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
-          <div class="f"><label>Curso destino (próximo año)</label>
+          <div class="f"><label>Sección destino (próximo año)</label>
             <select id="prom_dest"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
         </div>
       </div>
@@ -809,7 +975,7 @@ async function verMateriasDocente(docId, nombre){
   ${asigs.length?`<div style="overflow-x:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">
     <thead><tr style="background:#f5f5f5">
       <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--bdr)">Materia</th>
-      <th style="padding:7px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Carrera/Curso</th>
+      <th style="padding:7px 8px;text-align:left;border-bottom:1px solid var(--bdr)">Carrera/Sección</th>
       <th style="padding:7px 8px;text-align:center;border-bottom:1px solid var(--bdr)">Parciales</th>
       <th style="padding:7px 8px;text-align:center;border-bottom:1px solid var(--bdr)">Finales</th>
       <th style="padding:7px 8px;text-align:center;border-bottom:1px solid var(--bdr)">Completas</th>
@@ -842,7 +1008,7 @@ async function verMateriasDocente(docId, nombre){
         <td style="padding:8px 8px">
           <div class="abs">
             <button class="bs i" onclick="cm();setTimeout(()=>{go('notas');setTimeout(()=>W.loadNotas('${a.id||a.asignacion_id}'),600);},100)">Cargar notas</button>
-            <button class="bs o" onclick="W.imprimirActa('${a.id||a.asignacion_id}')">Acta</button>
+            ${me.rol==='director'?`<button class="bs o" onclick="W.imprimirActa('${a.id||a.asignacion_id}')">Acta</button>`:''}
           </div>
         </td>
       </tr>`;
@@ -868,10 +1034,10 @@ async function pgAlumnos(el){
     <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px"/>
     <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
     <select id="filtAlAnio" onchange="fAlAll()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
-    <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todos los cursos</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+    <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
     <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Curso</th><th>Est.</th><th></th></tr></thead>
+  <div class="card"><div class="tw"><table><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
   <tbody id="altb">${als.map(aRow).join('')}</tbody></table></div></div>`;
 }
 function filtAlCursos(){
@@ -879,7 +1045,7 @@ function filtAlCursos(){
   const sel=document.getElementById('filtAlCurso');
   if(!sel)return;
   const cursos=(W._cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}${cu.turno?' T'+cu.turno:''}</option>`).join('');
+  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}${cu.turno?' T'+cu.turno:''}</option>`).join('');
 }
 function fAlAll(){
   const bus=(v('filtAlBus')||'').toLowerCase().trim();
@@ -935,7 +1101,7 @@ function mAl(a){const e=!!a;modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div cla
   <div class="fr"><div class="f"><label>C.I.</label><input id="aci" value="${e?a.display_ci||'':''}" placeholder="0.000.000"/></div>
   <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':''}" placeholder="0981-000-000"/></div></div>
   <div class="fr"><div class="f"><label>Carrera</label><select id="acar">${(W._carrs||[]).map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}</select></div>
-  <div class="f"><label>Curso/Grupo</label><select id="acur"><option value="">Sin asignar</option>${(W._cursos||[]).map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div></div>
+  <div class="f"><label>Sección/Grupo</label><select id="acur"><option value="">Sin asignar</option>${(W._cursos||[]).map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div></div>
   <div class="fr"><div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':new Date().toISOString().split('T')[0]}"/></div>
   ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}</div>
   ${!e?`<div class="f"><label>Email (opcional — para acceso web)</label><input id="aem" type="email" placeholder="alumno@email.com"/></div>`:''}
@@ -972,7 +1138,7 @@ function mImp(){
     <div class="f"><label>1. Seleccionar Carrera <span style="color:var(--red)">*</span></label>
       <select id="impCarr" onchange="filtCursosImp()"><option value="">— Seleccionar carrera —</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
     <div class="f"><label>2. Seleccionar Curso/Sección</label>
-      <select id="impCurs"><option value="">Sin asignar curso</option></select></div>
+      <select id="impCurs"><option value="">Sin asignar sección</option></select></div>
     <div class="f"><label>3. Seleccionar archivo Excel</label>
       <div class="iz" onclick="document.getElementById('fxl').click()" style="margin-top:4px">Clic para seleccionar .xlsx
         <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div></div>
@@ -985,7 +1151,7 @@ function filtCursosImp(){
   const sel=document.getElementById('impCurs');
   if(!sel)return;
   const cursos=(W._cursos||[]).filter(cu=>cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Sin asignar curso</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 async function doImp(inp){
   const file=inp.files[0];if(!file)return;
@@ -1012,7 +1178,7 @@ async function pgAsig(el){
   W._adata={docs,mats,cursos,pers};
   el.innerHTML=`<div class="ph"><h3>Asignaciones</h3><button class="bn" onclick="mAsig()">+ Nueva</button></div>
   <p class="tip" style="margin-bottom:12px">Vincula docente → materia → curso → período.</p>
-  <div class="card"><div class="tw"><table><thead><tr><th>Docente</th><th>Materia</th><th>Curso</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
+  <div class="card"><div class="tw"><table><thead><tr><th>Docente</th><th>Materia</th><th>Sección</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
   ${asigs.map(a=>{
     const pct=a.total_alumnos?Math.round(a.notas_cargadas/a.total_alumnos*100):0;
     return `<tr>
@@ -1061,7 +1227,7 @@ function mAsig(){
     <div class="fr">
       <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
         <select id="asc_carr" onchange="filtCursosAsig()">${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
-      <div class="f"><label>Sección/Curso <span style="color:var(--red)">*</span></label>
+      <div class="f"><label>Sección <span style="color:var(--red)">*</span></label>
         <select id="asc">${(cursos||[]).map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
     </div>
     <div class="f"><label>Materia <span style="color:var(--red)">*</span></label>
@@ -1172,7 +1338,7 @@ async function pgExamenes(el){
       <option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
     <select id="filtExCurso" onchange="filtExAll()" style="min-width:150px">
-      <option value="">Todos los cursos</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+      <option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
     <select id="filtExTurno" onchange="filtExAll()" style="min-width:130px">
       <option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option>
@@ -1311,7 +1477,7 @@ function filtExCursos(){
   const carrId=v('filtExCarr');
   const sel=document.getElementById('filtExCurso');if(!sel)return;
   const cursos=(W._exData?.cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 function filtExAll(){
   const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno');
@@ -1700,7 +1866,7 @@ async function generarVentanaActa(ex, alumnos, inst, pMax, esFinal, excluidos){
     .obs{font-size:10px;margin:10px 0;text-align:justify}
     .firmas{display:flex;justify-content:space-between;margin-top:38px;text-align:center}
     .firma-box{min-width:190px}.firma-line{border-top:1px solid #000;margin:4px auto;width:170px}
-    @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+    @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
   </style></head><body>
   <div class="header">
     ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -2015,7 +2181,10 @@ async function pgNotas(el){
   const [asigs,carrs,cursos]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Registro de notas</h3></div>
+  el.innerHTML=`<div class="ph"><h3>Registro de notas</h3>
+    ${me.rol==='docente'?`<button class="bs o" onclick="mSolicitarAlumno()" title="Proponer un alumno para incorporar a esta materia">👤 Solicitar alumno</button>`:''}
+    ${me.rol==='director'?`<button class="bs" onclick="verSolicitudesAlumno()">📋 Solicitudes pendientes</button>`:''}
+  </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
       <option value="">Todas las carreras</option>
@@ -2031,6 +2200,67 @@ async function pgNotas(el){
     </select>
   </div>
   <div id="nc"></div>`;
+}
+function mSolicitarAlumno(){
+  const asigId=v('selAsigNotas');
+  const asigNom=document.getElementById('selAsigNotas')?.selectedOptions[0]?.text||'';
+  if(!asigId){toast('Seleccioná una materia primero','warn');return;}
+  modal(`<h4>👤 Solicitar incorporación de alumno</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Materia: <strong>${asigNom}</strong></p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="salNom" placeholder="Nombre del alumno"/></div>
+      <div class="f"><label>Apellido</label><input id="salApe" placeholder="Apellido"/></div>
+    </div>
+    <div class="f"><label>C.I.</label><input id="salCi" placeholder="Número de cédula (opcional)"/></div>
+    <div style="background:#fff3e0;border-radius:6px;padding:8px;font-size:11px;margin-top:6px">
+      ⚠ Quedará <strong>pendiente de aprobación del Director</strong>. Al aprobarse, el alumno será creado con acceso al sistema.
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="svSolicitudAlumno('${asigId}')">Enviar solicitud al Director</button>
+  </div>`);
+}
+async function svSolicitudAlumno(asigId){
+  const nombre=v('salNom'),apellido=v('salApe'),ci=v('salCi');
+  if(!nombre)return alert('Ingresar al menos el nombre');
+  try{
+    await api('POST','/api/solicitudes-alumno',{nombre,apellido,ci,asignacion_id:asigId});
+    cm();toast('✓ Solicitud enviada al Director','ok',4000);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function verSolicitudesAlumno(){
+  const sols=await api('GET','/api/solicitudes-alumno').catch(()=>[]);
+  const pend=sols.filter(s=>s.estado==='pendiente');
+  modal(`<h4>📋 Solicitudes de incorporación de alumnos (${pend.length} pendientes)</h4>
+  ${!pend.length?'<div class="es">Sin solicitudes pendientes</div>':
+  `<div style="max-height:60vh;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5f5f5">
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Alumno</th><th style="padding:6px 10px;border:1px solid var(--bdr)">CI</th>
+      <th style="padding:6px 10px;border:1px solid var(--bdr)">Materia</th><th style="padding:6px 10px;border:1px solid var(--bdr)">Docente</th><th></th>
+    </tr></thead><tbody>
+    ${pend.map(s=>`<tr>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)"><strong>${s.apellido?s.apellido+', ':''} ${s.nombre}</strong></td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.materia||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">
+        <div style="display:flex;gap:4px">
+          <button class="bs i" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓</button>
+          <button class="bs d" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✗</button>
+        </div>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div>`}
+  <div class="mf" style="margin-top:10px"><button class="bs" onclick="cm()">Cerrar</button></div>`,true);
+}
+async function resolverSolicitudAlumno(id,accion){
+  try{
+    await api('PUT','/api/solicitudes-alumno/'+id+'/resolver',{accion});
+    toast(accion==='aprobar'?'✓ Alumno incorporado al sistema':'Solicitud rechazada',accion==='aprobar'?'ok':'warn');
+    cm();
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 function filtNotasCursos(){
   filtNotasAsigs();
@@ -2619,7 +2849,7 @@ async function imprimirActaTP(asigId){
       .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
       .firma-box{min-width:180px}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+      @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}" style="height:55px;margin-bottom:4px;object-fit:contain"/><br>`:''}
@@ -2833,7 +3063,7 @@ async function pgPagos(el){
             <option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
           </select>
           <select id="filtPagoCurso" onchange="renderAlumnosPago()" style="font-size:12px;flex:2">
-            <option value="">Todos los cursos</option>
+            <option value="">Todas las secciones</option>
             ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
           </select>
         </div>
@@ -2881,7 +3111,7 @@ function filtPagoCursos(){
   let cursos=W._pagosCursos||[];
   if(carrId)cursos=cursos.filter(cu=>cu.carrera_id===carrId);
   if(anio)cursos=cursos.filter(cu=>String(cu.anio)===anio);
-  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 
 async function selAlumnoPago(alId){
@@ -3796,7 +4026,7 @@ async function imprimirInformeHon(){
     .total-row{background:#d4edda;font-weight:bold}
     .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
     .firma-box{min-width:180px}.firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-    @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+    @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
   </style></head><body>
   <div class="header">
     ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -3961,10 +4191,18 @@ async function mReemplazo(){
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svReemplazo()">Registrar (pendiente de aprobación)</button></div>`);
 }
 async function svReemplazo(){
-  const o={asignacion_id:v('repAsig'),docente_reemplazante_id:v('repDoc'),fecha:v('repFec'),motivo:v('repMot')};
-  if(!o.asignacion_id||!o.docente_reemplazante_id||!o.fecha)return alert('Completar campos obligatorios');
+  const asigId=v('repAsig'), repDocId=v('repDoc'), fecha=v('repFec'), motivo=v('repMot');
+  if(!asigId||!repDocId||!fecha)return alert('Completar campos obligatorios');
+  // Verificar conflicto de horario del reemplazante
   try{
-    await api('POST','/api/reemplazos',o);
+    const asig=W._repsData?.asigs?.find(a=>a.id===asigId);
+    if(asig){
+      const conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${repDocId}&dia=${encodeURIComponent(asig.dia||'')}&turno=${asig.turno||1}&exclude_id=`).catch(()=>({tiene_conflicto:false}));
+      if(conflicto?.tiene_conflicto){
+        if(!confirm(`⚠ Conflicto de horario:\nEl docente reemplazante ya tiene "${conflicto.materia}" ese mismo turno.\n\n¿El Director aprueba igualmente el reemplazo?`)){return;}
+      }
+    }
+    await api('POST','/api/reemplazos',{asignacion_id:asigId,docente_reemplazante_id:repDocId,fecha,motivo});
     toast('✓ Reemplazo registrado — pendiente de aprobación del director','info',5000);
     cm();go('reemplazos');
   }catch(e){toast('Error: '+e.message,'err');}
@@ -4309,7 +4547,7 @@ async function imprimirBoletin(alId){
       .resumen{background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:10px;margin:12px 0;display:flex;gap:20px;justify-content:center}
       .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
-      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+      @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -4481,7 +4719,7 @@ async function imprimirEstadoCuenta(alId){
       .total-row{background:#e8f5e9;font-weight:bold}.deuda-row{background:#ffebee;font-weight:bold}
       .firmas{display:flex;justify-content:space-between;margin-top:30px;text-align:center}
       .firma-line{border-top:1px solid #000;margin:4px auto;width:150px}
-      @page{size:A4;margin:15mm 12mm}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+      @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
     <div class="header">
       ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
@@ -4630,7 +4868,7 @@ async function pgUsuarios(el){
       ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
     <select id="filtUsCurso" onchange="filtUs()" style="min-width:150px">
-      <option value="">Todos los cursos</option>
+      <option value="">Todas las secciones</option>
       ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
     <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px"/>
@@ -4644,7 +4882,7 @@ function filtUsCursos(){
   const sel=document.getElementById('filtUsCurso');
   if(!sel)return;
   const cursos=(W._usData?.cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
-  sel.innerHTML='<option value="">Todos los cursos</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 function filtUs(){
   const rol=v('filtUsRol'), carrId=v('filtUsCarr'), anio=v('filtUsAnio');

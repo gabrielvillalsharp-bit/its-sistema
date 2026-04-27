@@ -345,10 +345,10 @@ function seedDatos() {
       .run('u_director', 'Director', 'Sistema', 'director@its.edu.py', bcrypt.hashSync('director123', 10), 'director');
   }
 
-  // Período lectivo 2025
-  if (!db.prepare('SELECT id FROM periodos WHERE anio=2025').get()) {
+  // Período lectivo 2026
+  if (!db.prepare('SELECT id FROM periodos WHERE anio=2026').get()) {
     db.prepare('INSERT INTO periodos (nombre,anio,semestre,fecha_inicio,fecha_fin,activo) VALUES (?,?,?,?,?,1)')
-      .run('Año Lectivo 2025', 2025, 1, '2025-03-01', '2025-11-30');
+      .run('Año Lectivo 2026', 2026, 1, '2026-03-01', '2026-11-30');
   }
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
 
@@ -662,9 +662,25 @@ function init() {
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN puntos_max INTEGER DEFAULT 50").run(); } catch {}
+  try { db.prepare("ALTER TABLE materias ADD COLUMN dia TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE materias ADD COLUMN turno INTEGER").run(); } catch {}
+  try { db.prepare("ALTER TABLE materias ADD COLUMN curso_id TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE materias ADD COLUMN docente_id TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_alumno (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    apellido TEXT,
+    ci TEXT,
+    asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+    docente_id TEXT NOT NULL REFERENCES docentes(id),
+    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','aprobado','rechazado')),
+    registrado_por TEXT NOT NULL REFERENCES usuarios(id),
+    fecha TEXT NOT NULL DEFAULT (datetime('now')),
+    observacion TEXT
+  )`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_egreso (
     id TEXT PRIMARY KEY,
     alumno_id TEXT NOT NULL REFERENCES alumnos(id),

@@ -270,18 +270,16 @@ app.get('/api/materias', auth(), (req, res) => {
   res.json(carrera_id ? db.prepare(q).all(carrera_id) : db.prepare(q).all());
 });
 app.post('/api/materias', auth(ADM), (req, res) => {
-  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final } = req.body;
+  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id } = req.body;
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
-  if (pt+pp+pf !== 100) return res.status(400).json({ error: 'Los pesos deben sumar 100' });
   const id = 'm_' + Date.now();
-  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf);
+  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null);
   res.json({ id });
 });
 app.put('/api/materias/:id', auth(ADM), (req, res) => {
-  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final } = req.body;
+  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id } = req.body;
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
-  if (pt+pp+pf !== 100) return res.status(400).json({ error: 'Los pesos deben sumar 100' });
-  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,req.params.id);
+  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id); res.json({ ok: true }); });
@@ -500,6 +498,18 @@ app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
 });
 
 // ── ASIGNACIONES ──────────────────────────────────────────────────────────────
+// Verificar conflicto de horario para un docente
+app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
+  const { docente_id, dia, turno, exclude_id } = req.query;
+  if (!docente_id || !dia || !turno) return res.json({ tiene_conflicto: false });
+  const q = exclude_id
+    ? `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.docente_id=? AND m.dia=? AND m.turno=? AND a.id!=? LIMIT 1`
+    : `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.docente_id=? AND m.dia=? AND m.turno=? LIMIT 1`;
+  const params = exclude_id ? [docente_id, dia, parseInt(turno), exclude_id] : [docente_id, dia, parseInt(turno)];
+  const conflicto = db.prepare(q).get(...params);
+  res.json({ tiene_conflicto: !!conflicto, materia: conflicto?.materia || null });
+});
+
 app.get('/api/asignaciones', auth(), (req, res) => {
   const { docente_id, curso_id, periodo_id } = req.query;
   let where = 'WHERE 1=1'; const params = [];
@@ -2244,7 +2254,82 @@ app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
   audit(req.user.id,'PAGO','pagos',pid,{concepto:'Constancia de estudios',alumno_id});
   res.json({ ok: true, pago_id: pid });
 });
-// ── PASAJE DE AÑO Y EGRESO ────────────────────────────────────────────────────
+// Importar asignaciones para 2do semestre desde Excel
+app.post('/api/periodos/importar-asignaciones', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
+    const { periodo_id } = req.body;
+    if (!periodo_id) return res.status(400).json({ error: 'periodo_id requerido' });
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+    let creadas = 0, errores = [];
+    rows.forEach((row, i) => {
+      try {
+        const docente_id = String(row.docente_id||'').trim();
+        const materia_id = String(row.materia_id||'').trim();
+        const curso_id = String(row.curso_id||'').trim();
+        if (!docente_id||!materia_id||!curso_id) { errores.push(`Fila ${i+2}: faltan docente_id, materia_id o curso_id`); return; }
+        const existe = db.prepare('SELECT id FROM asignaciones WHERE docente_id=? AND materia_id=? AND curso_id=? AND periodo_id=?').get(docente_id,materia_id,curso_id,parseInt(periodo_id));
+        if (!existe) {
+          db.prepare('INSERT INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?,?,?)').run('asig_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),docente_id,materia_id,curso_id,parseInt(periodo_id),row.turno||1,row.hora_inicio||'19:00',row.hora_fin||'20:20');
+          creadas++;
+        }
+      } catch(e) { errores.push(`Fila ${i+2}: ${e.message}`); }
+    });
+    audit(req.user.id,'IMPORTAR','asignaciones','2do_semestre',{creadas,periodo_id});
+    res.json({ ok: true, creadas, errores });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/api/solicitudes-alumno', auth(ADM), (req, res) => {
+  res.json(db.prepare(`SELECT s.*, u.nombre as docente_nombre, u.apellido as docente_apellido,
+    m.nombre as materia, ca.nombre as carrera
+    FROM solicitudes_alumno s
+    JOIN docentes d ON s.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+    JOIN asignaciones a ON s.asignacion_id=a.id JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+    ORDER BY s.fecha DESC`).all());
+});
+app.post('/api/solicitudes-alumno', auth(['director','docente']), (req, res) => {
+  const { nombre, apellido, ci, asignacion_id } = req.body;
+  if (!nombre || !asignacion_id) return res.status(400).json({ error: 'Nombre y asignación requeridos' });
+  const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+  const docId = doc?.id || req.body.docente_id;
+  if (!docId) return res.status(400).json({ error: 'No se pudo identificar al docente' });
+  const id = 'sal_'+Date.now();
+  db.prepare('INSERT INTO solicitudes_alumno (id,nombre,apellido,ci,asignacion_id,docente_id,registrado_por) VALUES (?,?,?,?,?,?,?)')
+    .run(id, nombre, apellido||'', ci||'', asignacion_id, docId, req.user.id);
+  audit(req.user.id,'SOLICITUD_ALUMNO','solicitudes_alumno',id,{nombre,ci});
+  res.json({ id, estado: 'pendiente' });
+});
+app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
+  const { accion } = req.body;
+  const sol = db.prepare('SELECT * FROM solicitudes_alumno WHERE id=?').get(req.params.id);
+  if (!sol) return res.status(404).json({ error: 'Solicitud no encontrada' });
+  db.prepare("UPDATE solicitudes_alumno SET estado=? WHERE id=?").run(accion==='aprobar'?'aprobado':'rechazado', req.params.id);
+  if (accion === 'aprobar') {
+    // Crear alumno real vinculado a la asignación
+    const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
+    if (asig) {
+      const carr = db.prepare('SELECT codigo FROM carreras ca JOIN cursos cu ON ca.id=cu.carrera_id WHERE cu.id=?').get(asig.curso_id);
+      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=(SELECT carrera_id FROM cursos WHERE id=?)').get(asig.curso_id).n;
+      const matricula = `${carr?.codigo||'ALU'}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
+      const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+      let emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}@its.edu.py`;
+      if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+        emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
+      const uid = 'u_a_'+Date.now();
+      db.transaction(() => {
+        db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
+        const aid = 'a_'+Date.now();
+        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,date("now"),?,?,?,?)').run(aid,uid,matricula,(asig.carrera_id||''),asig.curso_id,'Activo',ciRaw,sol.nombre,sol.apellido);
+        db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now(),aid,asig.id,'Pendiente');
+      })();
+    }
+  }
+  audit(req.user.id,'RESOLVER_ALUMNO','solicitudes_alumno',req.params.id,{accion});
+  res.json({ ok: true });
+});
 app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
   const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
   const alumnos = db.prepare(`
