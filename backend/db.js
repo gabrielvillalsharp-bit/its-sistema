@@ -276,6 +276,15 @@ function crearTablas() {
       activo INTEGER NOT NULL DEFAULT 1,
       fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS horarios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asignacion_id TEXT REFERENCES asignaciones(id),
+      dia TEXT NOT NULL CHECK(dia IN ('Lunes','Martes','Miércoles','Jueves','Viernes')),
+      turno INTEGER NOT NULL DEFAULT 1 CHECK(turno IN (1,2)),
+      hora_inicio TEXT NOT NULL DEFAULT '19:00',
+      hora_fin TEXT NOT NULL DEFAULT '20:20',
+      aula TEXT
+    );
   `);
 
   // Índices para consultas frecuentes
@@ -297,11 +306,13 @@ function crearTablas() {
     CREATE INDEX IF NOT EXISTS idx_examenes_periodo ON examenes(periodo_id);
     CREATE INDEX IF NOT EXISTS idx_materias_carrera ON materias(carrera_id);
     CREATE INDEX IF NOT EXISTS idx_cursos_carrera ON cursos(carrera_id);
-    CREATE INDEX IF NOT EXISTS idx_horarios_asignacion ON horarios(asignacion_id);
-    CREATE INDEX IF NOT EXISTS idx_horarios_dia ON horarios(dia);
     CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario_id);
     CREATE INDEX IF NOT EXISTS idx_auditoria_tabla ON auditoria(tabla);
     CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha);
+    CREATE INDEX IF NOT EXISTS idx_notas_asig_alumno ON notas(asignacion_id, alumno_id);
+    CREATE INDEX IF NOT EXISTS idx_asistencia_fecha_asig ON asistencia(fecha, asignacion_id);
+    CREATE INDEX IF NOT EXISTS idx_pagos_alumno_periodo ON pagos(alumno_id, periodo_id);
+    CREATE INDEX IF NOT EXISTS idx_honorarios_docente_fecha ON honorarios(docente_id, fecha);
   `);
 }
 
