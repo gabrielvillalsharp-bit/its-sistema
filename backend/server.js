@@ -381,6 +381,42 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE alumnos SET nombre=?,apellido=?,ci=?,telefono=?,direccion=?,estado=?,carrera_id=?,curso_id=? WHERE id=?').run(nombre,apellido,ci,telefono,direccion,estado,carrera_id,curso_id||null,req.params.id);
   res.json({ ok: true });
 });
+// ── CREAR/ACTUALIZAR ACCESOS MASIVOS ─────────────────────────────────────────
+app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
+  const sinAcceso = db.prepare(`
+    SELECT al.id, COALESCE(al.nombre,u2.nombre) as nombre,
+      COALESCE(al.apellido,u2.apellido) as apellido,
+      COALESCE(al.ci,u2.ci) as ci, al.usuario_id
+    FROM alumnos al
+    LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
+    WHERE al.estado NOT IN ('Inactivo','Retirado')`).all();
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  let creados=0, actualizados=0, errores=[];
+  sinAcceso.forEach(al => {
+    const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
+    if (!ciRaw) return;
+    try {
+      let emailFinal = `${norm(al.nombre)}.${norm(al.apellido)}@its.edu.py`;
+      const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(emailFinal, al.usuario_id||'');
+      if (conflicto) emailFinal = `${norm(al.nombre)}.${norm(al.apellido)}.${ciRaw.slice(-3)}@its.edu.py`;
+      if (!al.usuario_id) {
+        // Crear usuario nuevo
+        const uid = 'u_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+        db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+          .run(uid, al.nombre, al.apellido, ciRaw, emailFinal, bcrypt.hashSync(ciRaw, 10), 'alumno');
+        db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(uid, al.id);
+        creados++;
+      } else {
+        // Actualizar contraseña al CI actual (por si cambió)
+        db.prepare('UPDATE usuarios SET email=?,password_hash=?,ci=? WHERE id=?')
+          .run(emailFinal, bcrypt.hashSync(ciRaw, 10), ciRaw, al.usuario_id);
+        actualizados++;
+      }
+    } catch(e) { errores.push(al.nombre+': '+e.message); }
+  });
+  res.json({ creados, actualizados, errores: errores.slice(0,5) });
+});
+
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
   try {
     const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
@@ -470,22 +506,33 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
 
         try {
           const existente = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE ci=?').get(ciRaw);
+          const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+          let emailAuto = `${norm(nombre)}.${norm(apellido)}@its.edu.py`;
+          if (db.prepare('SELECT id FROM usuarios WHERE email=? AND ci!=?').get(emailAuto, ciRaw))
+            emailAuto = `${norm(nombre)}.${norm(apellido)}.${ciRaw.slice(-3)}@its.edu.py`;
+
           if (existente) {
             db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=?,nombre=?,apellido=? WHERE ci=?').run(carrera_id, curso_id||null, nombre, apellido, ciRaw);
+            // Actualizar/crear usuario si no tiene
+            if (!existente.usuario_id) {
+              const uid2='u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+              try{
+                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid2,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw,10),'alumno');
+                db.prepare('UPDATE alumnos SET usuario_id=? WHERE ci=?').run(uid2,ciRaw);
+              }catch{}
+            }
             results.actualizados++;
           } else {
             const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
             const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-            // Generar credenciales automáticas: usuario=CI, contraseña=últimos 3 dígitos CI
+            // Usuario: nombre.apellido@its.edu.py · Contraseña: CI completo
             let uid = null;
-            const passRaw = ciRaw.slice(-3);
-            const emailAuto = `${ciRaw}@its.edu.py`;
-            const usuExiste = db.prepare('SELECT id FROM usuarios WHERE ci=? OR email=?').get(ciRaw, emailAuto);
+            const usuExiste = db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw);
             if (!usuExiste) {
               uid = 'u_e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
               try {
-                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(passRaw, 10), 'alumno');
+                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(ciRaw, 10), 'alumno');
               } catch { uid = null; }
             } else { uid = usuExiste.id; }
             db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
@@ -495,9 +542,33 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
       });
     })();
 
+    audit(req.user.id, 'IMPORTAR', 'alumnos', 'bulk', { ok: results.ok, actualizados: results.actualizados, carrera: carr.nombre });
     res.json(results);
   } catch(e) { res.status(400).json({ error: 'Error procesando archivo: ' + e.message }); }
 });
+// Crear/actualizar accesos para todos los alumnos sin usuario
+app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
+  const alSinUsuario = db.prepare("SELECT * FROM alumnos WHERE usuario_id IS NULL AND ci IS NOT NULL AND ci!=''").all();
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  let creados=0, errores=[];
+  alSinUsuario.forEach(al => {
+    const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
+    if(!ciRaw) return;
+    let email = `${norm(al.nombre)}.${norm(al.apellido)}@its.edu.py`;
+    if(db.prepare('SELECT id FROM usuarios WHERE email=?').get(email))
+      email = `${norm(al.nombre)}.${norm(al.apellido)}.${ciRaw.slice(-3)}@its.edu.py`;
+    const uid='u_acc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+    try{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+        .run(uid,al.nombre,al.apellido,ciRaw,email,bcrypt.hashSync(ciRaw,10),'alumno');
+      db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(uid,al.id);
+      creados++;
+    }catch(e){errores.push(al.nombre+': '+e.message);}
+  });
+  audit(req.user.id,'CREAR_ACCESOS','usuarios','bulk',{creados});
+  res.json({creados,errores:errores.slice(0,10),mensaje:`Se crearon ${creados} accesos nuevos`});
+});
+
 app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet([
@@ -1430,15 +1501,20 @@ app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
 
 // ── HORARIOS ──────────────────────────────────────────────────────────────────
 app.get('/api/horarios', auth(), (req, res) => {
-  const { asignacion_id, dia } = req.query;
+  const { asignacion_id, dia, docente_id, docente_usuario_id } = req.query;
   let where = 'WHERE 1=1'; const params = [];
-  if (asignacion_id) { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
-  if (dia) { where += ' AND h.dia=?'; params.push(dia); }
+  if (asignacion_id)      { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
+  if (dia)                { where += ' AND h.dia=?';           params.push(dia); }
+  if (docente_id)         { where += ' AND a.docente_id=?';    params.push(docente_id); }
+  if (docente_usuario_id) { where += ' AND u.id=?';            params.push(docente_usuario_id); }
   res.json(db.prepare(`
     SELECT h.*,
-      m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      a.docente_id,
+      m.nombre as materia_nombre, m.dia as materia_dia, m.turno as materia_turno,
+      ca.nombre as carrera_nombre,
       cu.anio as curso_anio, cu.division as curso_division,
-      u.nombre as docente_nombre, u.apellido as docente_apellido
+      u.nombre as docente_nombre, u.apellido as docente_apellido, u.id as docente_usuario_id,
+      d.titulo as docente_titulo
     FROM horarios h
     LEFT JOIN asignaciones a ON h.asignacion_id=a.id
     LEFT JOIN materias m ON a.materia_id=m.id
@@ -1561,6 +1637,19 @@ app.post('/api/periodos/:id/promover', auth(ADM), (req, res) => {
 });
 
 // ── HABILITACIÓN ESPECIAL DE ALUMNO (ignorar bloqueo de mora) ─────────────────
+app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
+  const { asignacion_id } = req.body;
+  const hab = db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(req.params.id, asignacion_id);
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  if (hab) {
+    db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado_por=?,fecha=? WHERE alumno_id=? AND asignacion_id=?').run(req.user.id, fechaHoy, req.params.id, asignacion_id);
+  } else {
+    db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (alumno_id,asignacion_id,habilitado,habilitado_por,fecha,habilitado_recuperatorio) VALUES (?,?,1,?,?,1)').run(req.params.id, asignacion_id, req.user.id, fechaHoy);
+  }
+  audit(req.user.id,'HABILITAR_RECUPERATORIO','habilitaciones_examen',req.params.id,{asignacion_id});
+  res.json({ ok: true });
+});
+
 app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
   const { habilitado } = req.body;
   const al = db.prepare('SELECT nombre,apellido FROM alumnos WHERE id=?').get(req.params.id);

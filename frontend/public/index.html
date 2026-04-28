@@ -496,6 +496,15 @@ async function pgAvisos(el){
     }catch{}
   }
 
+  let avisos=avs||[];
+  // Docente no ve: avisos de reemplazos, ni avisos dirigidos solo al director
+  if(me.rol==='docente'){
+    avisos=avisos.filter(a=>{
+      const esReemplazo=a.titulo?.toLowerCase().includes('reemplazo');
+      const esSoloDirector=a.destinatario==='director'&&a.autor_id!==me.id;
+      return !esReemplazo&&!esSoloDirector;
+    });
+  }
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
@@ -556,60 +565,47 @@ async function svAvisoDirector(){
 function mAviso(){
   const esDirector=me.rol==='director';
   const esDocente=me.rol==='docente';
-  const asigs=W._notasAsigs||[];
+  const asigs=W._notasAsigs||W._misAsigsRep||[];
   const carreras=[...new Set(asigs.map(a=>a.carrera_nombre).filter(Boolean))].sort();
   const materias=[...new Set(asigs.map(a=>a.materia_nombre).filter(Boolean))].sort();
+  // Construir opciones fuera del template para evitar backticks anidados (causa SyntaxError)
+  const optsDestino=esDirector
+    ?'<option value="todos">Todos</option><option value="docentes">Solo docentes</option><option value="alumnos">Solo alumnos</option><option value="director">Solo Director y Secretaría</option>'
+    :esDocente
+      ?'<option value="mis-alumnos">Mis alumnos</option><option value="director">Solo al Director</option><option value="director-secretaria">Director y Secretaría</option>'
+      :'<option value="director">Solo al Director</option>';
+  const filtrosCarr=(esDocente&&carreras.length)
+    ?`<div class="fr">
+      <div class="f"><label>Carrera (opcional)</label><select id="avCarr"><option value="">Todas</option>${carreras.map(c=>'<option value="'+c+'">'+c+'</option>').join('')}</select></div>
+      <div class="f"><label>Materia (opcional)</label><select id="avMat"><option value="">Todas</option>${materias.map(m=>'<option value="'+m+'">'+m+'</option>').join('')}</select></div>
+    </div>`:'';
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
   <div class="fr">
-    <div class="f"><label>Tipo</label><select id="avtp">
-      <option value="info">Información general</option>
-      <option value="examen">Examen</option>
-      <option value="administrativo">Administrativo</option>
-      <option value="urgente">Urgente</option>
-    </select></div>
-    <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí — fijar</option></select></div>
+    <div class="f"><label>Tipo</label><select id="avtp"><option value="info">Información general</option><option value="examen">Examen</option><option value="administrativo">Administrativo</option><option value="urgente">Urgente</option></select></div>
+    <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí</option></select></div>
   </div>
-  <div class="f"><label>Público objetivo</label>
-    <select id="avdest">
-      ${esDirector?`
-        <option value="todos">Todos (docentes y alumnos)</option>
-        <option value="docentes">Solo docentes</option>
-        <option value="alumnos">Solo alumnos</option>
-        <option value="director">Solo Director y Secretaría</option>
-      `:esDocente?`
-        <option value="mis-alumnos">Mis alumnos (de mis materias)</option>
-        <option value="director">Solo al Director</option>
-        <option value="director-secretaria">Director y Secretaría</option>
-      `:`<option value="director">Solo al Director</option>`}
-    </select>
-  </div>
-  ${esDocente&&carreras.length?`
-  <div class="fr">
-    <div class="f"><label>Filtrar por carrera (opcional)</label>
-      <select id="avCarr">
-        <option value="">Todas mis carreras</option>
-        ${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}
-      </select>
-    </div>
-    <div class="f"><label>Filtrar por materia (opcional)</label>
-      <select id="avMat">
-        <option value="">Todas mis materias</option>
-        ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
-      </select>
-    </div>
-  </div>`:''}
+  <div class="f"><label>Público objetivo</label><select id="avdest">${optsDestino}</select></div>
+  ${filtrosCarr}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
 }
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
-  const carrera=v('avCarr'), materia=v('avMat');
+  const carrera=document.getElementById('avCarr')?.value||'';
+  const materia=document.getElementById('avMat')?.value||'';
   let titulo=t;
   if(carrera||materia){const ctx=[materia,carrera].filter(Boolean).join(' — ');titulo=`${t} [${ctx}]`;}
-  await api('POST','/api/avisos',{titulo,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1',destinatario:v('avdest')||'todos'});
-  cm();go('avisos');
+  const destinatario=document.getElementById('avdest')?.value||'todos';
+  const tipo=document.getElementById('avtp')?.value||'info';
+  const fijado=document.getElementById('avf')?.value==='1';
+  if(!destinatario){toast('Seleccioná un destinatario','warn');return;}
+  try{
+    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario});
+    cm();go('avisos');
+    toast('✓ Aviso publicado correctamente','ok',3000);
+  }catch(e){toast('Error al publicar: '+e.message,'err');}
 }
 
 // ── ESCALA ────────────────────────────────────────────────────────────────────
@@ -1101,12 +1097,30 @@ async function verMateriasDocente(docId, nombre){
 }
 
 // ── ALUMNOS ───────────────────────────────────────────────────────────────────
+async function crearAccesosMasivos(){
+  confirm2('🔑 Crear/Actualizar accesos al sistema',
+    `<p style="font-size:13px">Esta función:</p>
+    <ul style="font-size:12px;margin:8px 0;padding-left:18px;line-height:1.8">
+      <li>Crea usuarios para alumnos que aún no tienen acceso</li>
+      <li>Actualiza la contraseña al número de CI actual</li>
+      <li>Email: <code>nombre.apellido@its.edu.py</code></li>
+      <li>Contraseña: número de cédula</li>
+    </ul>`,
+    async function(){
+      try{
+        const r=await api('POST','/api/alumnos/crear-accesos',{});
+        toast(`✓ Accesos: ${r.creados} nuevos · ${r.actualizados} actualizados${r.errores?.length?' · '+r.errores.length+' errores':''}`, 'ok', 6000);
+        go('alumnos');
+      }catch(e){toast('Error: '+e.message,'err');}
+    }, null);
+}
 async function pgAlumnos(el){
   const [als,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._als=als;W._carrs=carrs;W._cursos=cursos;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Alumnos (${als.length})</h3>
     <div class="ph-right">
+      <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
       <button class="bs s" onclick="exportXls('alumnos')">⬇ Excel</button>
       <button class="bs" onclick="dPlant()">Plantilla</button>
       <button class="bs i" onclick="mImp()">Importar Excel</button>
@@ -1893,39 +1907,64 @@ function filtRepProgMats(){
 
 // ── REPOSITORIO: CONTENIDOS DE CLASE ──────────────────────────────────────────
 async function pgRepContenidos(el){
-  const [carrs,mats]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias')]);
-  W._repCarrs=carrs; W._repMats=mats;
+  const [carrs,mats,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')]);
+  W._repCarrs=carrs; W._repMats=mats; W._repCursos=cursos;
   const esDocente=me.rol==='docente';
+  const anios=[...new Set((cursos||[]).map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>a-b);
   el.innerHTML=`<div class="ph"><h3>📚 Contenidos de Clase</h3>
     ${esDocente||me.rol==='director'?`<label class="bn" style="cursor:pointer">📎 Subir contenido<input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" style="display:none" onchange="subirRepositorio(this,'contenido')"/></label>`:''}
   </div>
-  <p class="tip" style="margin-bottom:12px">
-    ${esDocente?'Subí el material de tus clases para que los alumnos puedan descargarlo.':me.rol==='alumno'?'Materiales de clase disponibles para descargar.':'Contenidos de clase cargados por los docentes.'}
+  <p class="tip" style="margin-bottom:10px">
+    ${esDocente?'Subí el material de tus clases especificando el día y la unidad desarrollada.':me.rol==='alumno'?'Materiales de clase disponibles para descargar.':'Contenidos de clase cargados por los docentes.'}
   </p>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    ${me.rol!=='alumno'?`<select id="repContCarr" onchange="cargarRepositorio('contenido')" style="min-width:180px">
+    ${me.rol!=='alumno'?`
+    <select id="repContCarr" onchange="filtRepContMats();cargarRepositorio('contenido')" style="min-width:160px">
       <option value="">Todas las carreras</option>
-      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      ${carrs.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('')}
     </select>
-    <select id="repContMat" onchange="cargarRepositorio('contenido')" style="min-width:180px">
+    <select id="repContAnio" onchange="filtRepContMats();cargarRepositorio('contenido')" style="min-width:90px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>'<option value="'+a+'">'+a+'° año</option>').join('')}
+    </select>
+    <select id="repContTurno" onchange="cargarRepositorio('contenido')" style="min-width:110px">
+      <option value="">Ambos turnos</option>
+      <option value="1">T1 — 19:00</option>
+      <option value="2">T2 — 20:40</option>
+    </select>
+    <select id="repContMat" onchange="cargarRepositorio('contenido')" style="min-width:160px">
       <option value="">Todas las materias</option>
-      ${mats.map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre}</option>`).join('')}
+      ${mats.map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('')}
     </select>`:''}
   </div>
   <div id="listaRepContenidos"><div class="es">Cargando...</div></div>`;
   cargarRepositorio('contenido');
 }
+function filtRepContMats(){
+  const carrId=v('repContCarr'), anio=v('repContAnio');
+  const sel=document.getElementById('repContMat'); if(!sel)return;
+  const mats=W._repMats||[], cursos=W._repCursos||[];
+  let filtradas=mats;
+  if(carrId) filtradas=filtradas.filter(m=>m.carrera_id===carrId);
+  if(anio){
+    const csAnio=new Set(cursos.filter(cu=>String(cu.anio)===anio&&(!carrId||cu.carrera_id===carrId)).map(cu=>cu.id));
+    filtradas=filtradas.filter(m=>!m.curso_id||csAnio.has(m.curso_id)||String(m.anio)===anio);
+  }
+  sel.innerHTML='<option value="">Todas las materias</option>'+filtradas.map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('');
+}
 
 async function cargarRepositorio(tipo){
   const esPrograma=tipo==='programa';
   const carId=v(esPrograma?'repProgCarr':'repContCarr')||'';
-  const anio=v(esPrograma?'repProgAnio':'')||'';
+  const anio=v(esPrograma?'repProgAnio':'repContAnio')||'';
+  const turno=esPrograma?'':v('repContTurno')||'';
   const matId=v(esPrograma?'repProgMat':'repContMat')||'';
-  let url=`/api/repositorio/${esPrograma?'programas':'contenidos'}`;
+  let url='/api/repositorio/'+(esPrograma?'programas':'contenidos');
   const q=[];
   if(carId)q.push('carrera_id='+carId);
   if(matId)q.push('materia_id='+matId);
   if(anio)q.push('anio='+anio);
+  if(turno)q.push('turno='+turno);
   if(q.length)url+='?'+q.join('&');
   const lista=await api('GET',url).catch(()=>[]);
   const elId=esPrograma?'listaRepProgramas':'listaRepContenidos';
@@ -1968,34 +2007,45 @@ async function subirRepositorio(input,tipo){
   // Solicitar metadatos antes de subir
   const carrs=W._repCarrs||[], mats=W._repMats||[], cursos=W._repCursos||[];
   const anios=[...new Set((cursos||[]).map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>a-b);
+  const optsAnio=anios.map(a=>'<option value="'+a+'">'+a+'° año</option>').join('');
+  const optsMat=mats.map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('');
+  const optsCarr=carrs.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('');
+  const camposDia=tipo==='contenido'?`
+    <div class="fr">
+      <div class="f"><label>Día de la clase <span style="color:var(--red)">*</span></label>
+        <select id="repUpDia">
+          <option value="">— Seleccionar —</option>
+          <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
+          <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
+          <option value="Viernes">Viernes</option>
+        </select></div>
+      <div class="f"><label>Turno</label>
+        <select id="repUpTurno">
+          <option value="1">T1 — 19:00</option><option value="2">T2 — 20:40</option>
+        </select></div>
+    </div>
+    <div class="f"><label>Unidad desarrollada <span style="color:var(--red)">*</span></label>
+      <input id="repUpUnidad" placeholder="Ej: Unidad 3 — Sistema nervioso, Capítulo 2..."/></div>`:'';
   modal(`<h4>📎 Subir ${tipo==='programa'?'Programa de Materia':'Contenido de Clase'}</h4>
   <div class="fg">
-    <div class="f"><label>Archivo seleccionado</label>
+    <div class="f"><label>Archivo</label>
       <div style="background:#f0f4f8;padding:8px 12px;border-radius:6px;font-size:12px">📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</div>
     </div>
     <div class="fr">
       <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
-        <select id="repUpCarr" onchange="filtRepMats()">
-          <option value="">— Seleccionar —</option>
-          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-        </select></div>
+        <select id="repUpCarr" onchange="filtRepMats()">${'<option value="">— Seleccionar —</option>'+optsCarr}</select></div>
       ${tipo==='programa'?`<div class="f"><label>Año</label>
-        <select id="repUpAnio" onchange="filtRepMats()" style="min-width:90px">
-          <option value="">Todos</option>
-          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-        </select></div>`:''}
+        <select id="repUpAnio" onchange="filtRepMats()">${'<option value="">Todos</option>'+optsAnio}</select></div>`:''}
     </div>
     <div class="f"><label>Materia</label>
-      <select id="repUpMat">
-        <option value="">— Seleccionar —</option>
-        ${mats.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}
-      </select></div>
-    <div class="f"><label>Descripción (opcional)</label>
-      <input id="repUpDesc" placeholder="Ej: Programa 2026, Clase 3 — Anatomía..."/></div>
+      <select id="repUpMat">${'<option value="">— Seleccionar —</option>'+optsMat}</select></div>
+    ${camposDia}
+    <div class="f"><label>Descripción</label>
+      <input id="repUpDesc" placeholder="Descripción adicional (opcional)"/></div>
   </div>
   <div class="mf">
     <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="confirmarSubirRepo(${JSON.stringify(tipo)})">⬆ Subir</button>
+    <button class="bn" id="btnSubirRepo" onclick="confirmarSubirRepo('${tipo}')">⬆ Subir</button>
   </div>`);
   window._repFile=file;
 }
@@ -2014,20 +2064,35 @@ function filtRepMats(){
 async function confirmarSubirRepo(tipo){
   const file=window._repFile;
   if(!file){toast('Sin archivo seleccionado','err');return;}
-  const carrId=v('repUpCarr'), matId=v('repUpMat'), desc=v('repUpDesc');
+  const carrId=v('repUpCarr'), matId=v('repUpMat');
+  const desc=v('repUpDesc'), dia=v('repUpDia'), turno=v('repUpTurno'), unidad=v('repUpUnidad');
   if(!carrId)return alert('Seleccioná una carrera');
+  if(tipo==='contenido'&&!dia)return alert('Especificá el día de la clase');
+  if(tipo==='contenido'&&!unidad)return alert('Especificá la unidad desarrollada');
   const fd=new FormData();
   fd.append('archivo',file);
   fd.append('tipo',tipo);
   if(carrId)fd.append('carrera_id',carrId);
   if(matId)fd.append('materia_id',matId);
-  if(desc)fd.append('descripcion',desc);
+  // Armar descripción enriquecida para contenidos
+  let descFinal=desc||'';
+  if(tipo==='contenido'){
+    descFinal=`[${dia}${turno?' T'+turno:''}] ${unidad}${desc?' — '+desc:''}`;
+    fd.append('dia',dia);
+    fd.append('turno',turno||'1');
+  }
+  if(descFinal)fd.append('descripcion',descFinal);
+  const btn=document.getElementById('btnSubirRepo');
+  if(btn){btn.disabled=true;btn.textContent='Subiendo...';}
   try{
     await api('POST','/api/repositorio',fd,true);
     cm();
     toast(`✓ ${tipo==='programa'?'Programa':'Contenido'} subido correctamente`,'ok',3000);
     go(tipo==='programa'?'repositorio-programas':'repositorio-contenidos');
-  }catch(e){toast('Error: '+e.message,'err');}
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='⬆ Subir';}
+    toast('Error: '+e.message,'err');
+  }
 }
 async function delRepositorio(id,tipo){
   confirm2('🗑 Eliminar archivo','¿Eliminar este archivo del repositorio? Esta acción no se puede deshacer.',
@@ -2282,11 +2347,20 @@ async function imprimirActaExamen(examenId, tipoOverride){
 // ── EDITAR REGISTRO DE ASISTENCIA INDIVIDUAL ──────────────────────────────────
 // ── HORARIO SEMANAL DE CLASES ─────────────────────────────────────────────────
 async function pgCalClases(el){
-  const horarios=await api('GET','/api/horarios');
-  // Docente: filtrar solo sus materias
+  // Para docente: solicitar solo sus horarios directo desde el servidor
+  let url='/api/horarios';
+  if(me.rol==='docente'){
+    // Intentar con docenteId (id de tabla docentes) y también con usuario id
+    if(me.docenteId) url+='?docente_id='+me.docenteId;
+    else url+='?docente_usuario_id='+me.id;
+  }
+  const horarios=await api('GET',url);
   let h=horarios||[];
-  if(me.rol==='docente'&&me.docenteId){
-    h=h.filter(x=>x.docente_id===me.docenteId||x.docente_usuario_id===me.id);
+  // Fallback extra: si el docente tiene docenteId, filtrar también por docente_usuario_id
+  if(me.rol==='docente'&&h.length===0&&me.docenteId){
+    // El docenteId puede ser el ID de usuario, intentar buscar por usuario_id
+    const todosH=await api('GET','/api/horarios').catch(()=>[]);
+    h=(todosH||[]).filter(x=>x.docente_usuario_id===me.id||x.docente_id===me.docenteId);
   }
   W._horarios=h;
   const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
@@ -2557,7 +2631,7 @@ async function pgNotas(el){
       <option value="">Todos los años</option>
       ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    <select id="selAsigNotas" onchange="W.loadNotas(this.value)" style="min-width:240px;flex:1">
+    <select id="selAsigNotas" onchange="cambiarAsigNotas(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
     </select>
@@ -2625,6 +2699,10 @@ async function resolverSolicitudAlumno(id,accion){
     cm();
   }catch(e){toast('Error: '+e.message,'err');}
 }
+function cambiarAsigNotas(asigId){
+  if(!asigId)return;
+  W.loadNotas(asigId);
+}
 function filtNotasCursos(){
   filtNotasAsigs();
 }
@@ -2640,6 +2718,23 @@ function filtNotasAsigs(){
   const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
 }
 
+async function guardarTodasNotas(asigId){
+  const btn=document.getElementById('btnGuardarNotas');
+  if(btn){btn.disabled=true;btn.textContent='💾 Guardando...';}
+  const nc=W._nc||{};
+  let guardados=0, errores=0;
+  for(const alId of Object.keys(nc)){
+    try{
+      await api('PUT',`/api/notas/${alId}/${asigId}`,nc[alId]);
+      guardados++;
+    }catch{errores++;}
+  }
+  if(btn){btn.disabled=false;btn.textContent='💾 Guardar notas';}
+  if(errores>0){toast(`⚠ ${guardados} guardados, ${errores} con error`,'warn',4000);}
+  else{toast(`✓ ${guardados} registros de notas guardados`,'ok',3000);}
+  W.loadNotas(asigId);
+}
+W.guardarTodasNotas=guardarTodasNotas;
 W.loadNotas=async(asigId,_tipo)=>{
   if(!asigId)return;
   const sel=document.getElementById('selAsigNotas');
@@ -2678,8 +2773,16 @@ W.loadNotas=async(asigId,_tipo)=>{
       <span class="bx bgr">⏳ ${pendientes} pendientes</span>
       ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
-    <div class="abs">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>`:''}
+      <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 24px;font-weight:700">💾 Guardar notas</button>
+    </div>
+  </div>
+  <!-- Barra sticky guardar — visible al hacer scroll -->
+  <div id="barraGuardar" style="position:sticky;bottom:0;background:#1a5fa8;color:#fff;padding:8px 16px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;z-index:100;margin-top:8px">
+    <span style="font-size:12px">💡 Ingresá los puntajes y guardá al terminar</span>
+    <button onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;font-weight:700;cursor:pointer">💾 Guardar notas</button>
+  </div>
     </div>
   </div>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
@@ -2720,9 +2823,12 @@ W.loadNotas=async(asigId,_tipo)=>{
     const hab=habMap[a.id];
     const bloqueado=hab&&!hab.habilitado;
     // REGLA: bloqueo por mora solo aplica a finales y extraordinario
-    // TPs, parcial ordinario y parcial recuperatorio siempre habilitados
-    const disabledFinal=ausente||bloqueado;   // finales bloqueados por mora
-    const disabledBase=ausente;               // TPs y parciales: solo si está ausente
+    const disabledFinal=ausente||bloqueado;
+    const disabledBase=ausente;
+    // Parcial recuperatorio: requiere habilitación explícita del director
+    // Si el docente intenta cargarlo sin habilitación, se bloquea
+    const habRecup=hab?.habilitado_recuperatorio||false;
+    const disabledRecup=me.rol==='docente'&&!habRecup;
     const cuotasFalt=hab?.cuotas_faltantes||[];
     // Columna mora: solo director la ve. Docente recibe aviso al intentar guardar final.
     const celdaMora=me.rol==='director'?`<td style="border:1px solid #ffcdd2;text-align:center;padding:5px 4px;background:${bloqueado?'#fff3f3':'#f9fff9'};min-width:95px;vertical-align:middle" id="mora-${a.id}">
@@ -2756,8 +2862,9 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
       ${ni('parcial',25,a.parcial,'#e3f2fd')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="—" ${disabledBase?'disabled':''}
-          onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledRecup?'🔒 Sin habilitación':'—'}" ${(disabledBase||disabledRecup)?'disabled':''}
+          onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:${disabledRecup?'#fff8e1':'transparent'};padding:3px 2px;font-size:12px" title="${disabledRecup?'El director debe habilitar el recuperatorio para este alumno':''}"/>
+        ${disabledRecup&&me.rol==='director'?`<button onclick="habilitarRecuperatorio('${a.id}','${asigId}')" style="font-size:8px;padding:1px 4px;border:1px solid #1976d2;border-radius:3px;background:#e3f2fd;color:#1565c0;cursor:pointer;margin-top:1px;display:block;width:100%">Habilitar</button>`:''}
         ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       ${niFinal('final_ord',50,a.final_ord,'#fff3e0')}
@@ -2790,6 +2897,17 @@ W.loadNotas=async(asigId,_tipo)=>{
   }).join('')}
   </tbody></table></div>`;
 };
+async function habilitarRecuperatorio(alId, asigId){
+  confirm2('✅ Habilitar Parcial Recuperatorio',
+    '<p>¿Habilitar al alumno para rendir el <strong>Parcial Recuperatorio</strong>?</p><p style="font-size:12px;color:var(--t2);margin-top:6px">El alumno debe haber abonado el concepto "Parcial Recuperatorio". Esta habilitación queda registrada.</p>',
+    async function(){
+      try{
+        await api('PUT','/api/alumnos/'+alId+'/habilitar-recuperatorio',{asignacion_id:asigId});
+        toast('✓ Recuperatorio habilitado para este alumno','ok',3000);
+        W.loadNotas(asigId);
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
 async function habilitarAlumno(alId,asigId){
   if(!confirm('¿Habilitar a este alumno para cargar notas a pesar de la mora de pago? Esta acción queda registrada.'))return;
   try{
@@ -4018,7 +4136,7 @@ async function pgMisMat(el){
         <div class="abs">
           <button class="bs i" onclick="go('notas');setTimeout(()=>W.loadNotas('${a.id}'),500)">📝 Cargar notas</button>
           <button class="bs s" onclick="go('asistencia');setTimeout(()=>W.loadAsist('${a.id}'),500)">✓ Asistencia</button>
-          <button class="bs o" onclick="imprimirActa('${a.id}')">🖨 Acta</button>
+          ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${a.id}')">🖨 Acta</button>`:''}
         </div>
       </div>
       <div style="margin-top:12px;font-size:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
@@ -4600,7 +4718,7 @@ async function mReemplazo(){
       </select>
     </div>
     <div class="f"><label>Fecha del reemplazo <span style="color:var(--red)">*</span></label>
-      <input id="repFec" type="date" onchange="validarFechaReemplazo()"/>
+      <input id="repFec" type="date" min="${new Date().toISOString().split('T')[0]}" onchange="validarFechaReemplazo()"/>
       <p id="repFecMsg" style="font-size:11px;margin-top:3px"></p>
     </div>
     <div class="f"><label>Docente reemplazante <span style="color:var(--red)">*</span></label>
@@ -4651,7 +4769,14 @@ function validarFechaReemplazo(){
   const msg=document.getElementById('repFecMsg');
   if(!fecInput?.value)return;
   const fechaSel=new Date(fecInput.value+'T12:00:00');
-  if(fechaSel.getDay()!==diasNum[dia]){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  // Bloquear fechas pasadas
+  if(fechaSel<hoy){
+    fecInput.value='';
+    if(msg){msg.textContent='⚠ No podés pedir reemplazo de un día que ya pasó';msg.style.color='#c62828';}
+    return;
+  }
+  if(dia&&fechaSel.getDay()!==diasNum[dia]){
     if(msg){msg.textContent=`⚠ ${fechaSel.toLocaleDateString('es',{weekday:'long'})} no es día de clase (${dia})`;msg.style.color='#c62828';}
   } else {
     if(msg){msg.textContent=`✓ Fecha válida — ${dia}`;msg.style.color='#2e7d32';}
@@ -4660,6 +4785,10 @@ function validarFechaReemplazo(){
 async function svReemplazo(){
   const asigId=v('repAsig'),repDocId=v('repDoc'),fecha=v('repFec'),motivo=v('repMot');
   if(!asigId||!repDocId||!fecha)return alert('Completar todos los campos obligatorios');
+  // Bloquear fecha pasada
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const fechaSel=new Date(fecha+'T12:00:00');
+  if(fechaSel<hoy)return alert('⛔ No podés registrar un reemplazo en una fecha pasada.');
   const opt=document.getElementById('repAsig')?.selectedOptions[0];
   const dia=opt?.dataset?.dia||'';
   if(dia){
@@ -5410,33 +5539,13 @@ function renderTbUsuarios(lista){
   </tbody></table></div></div>`;
 }
 async function crearAccesosAlumnos(){
-  const als=W._usData?.als||[];
-  const sinUsuario=als.filter(a=>!a.usuario_id);
-  if(!sinUsuario.length){toast('Todos los alumnos ya tienen usuario asignado','info');return;}
-  if(!confirm(`¿Crear acceso para ${sinUsuario.length} alumno${sinUsuario.length!==1?'s':''} sin usuario?\nContraseña inicial: N° de cédula del alumno`))return;
-  let creados=0,errores=0;
-  for(const al of sinUsuario){
-    try{
-      const ci=(al.display_ci||al.ci||'').replace(/[^0-9]/g,'');
-      const nombre=(al.display_nombre||al.nombre||'').toLowerCase().replace(/\s+/g,'.');
-      const apellido=(al.display_apellido||al.apellido||'').toLowerCase().replace(/\s+/g,'.');
-      // Email: nombre.apellido@its.edu.py — usuario memorable
-      // Contraseña: CI del alumno
-      const email=ci?`${ci}@its.edu.py`:`${nombre}.${apellido}@its.edu.py`;
-      const r=await api('POST','/api/usuarios/directores',{
-        nombre:al.display_nombre||al.nombre||'',
-        apellido:al.display_apellido||al.apellido||'',
-        ci:al.display_ci||al.ci||'',
-        email,
-        password:ci||'alumno123',
-        rol:'alumno'
-      });
-      await api('PUT','/api/alumnos/'+al.id,{usuario_id:r.id}).catch(()=>{});
-      creados++;
-    }catch{errores++;}
-  }
-  toast(`✓ ${creados} accesos creados${errores?` · ${errores} errores`:''}`, creados?'ok':'warn', 5000);
-  go('usuarios');
+  if(!confirm('¿Crear/actualizar accesos para todos los alumnos sin usuario?\n\n✓ Usuario: nombre.apellido@its.edu.py\n✓ Contraseña: número de cédula (CI)\n\nLos alumnos que ya tienen acceso no serán modificados.'))return;
+  try{
+    const r=await api('POST','/api/alumnos/crear-accesos',{});
+    toast(`✓ ${r.creados} accesos creados/actualizados${r.errores?.length?' · '+r.errores.length+' errores':''}`, r.creados?'ok':'warn', 6000);
+    if(r.errores?.length) console.warn('Errores al crear accesos:', r.errores);
+    go('alumnos');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function reseedDocentes(){
   if(!confirm('¿Crear usuarios de acceso para todos los docentes que no tienen usuario?\nContraseña inicial: docente123'))return;
