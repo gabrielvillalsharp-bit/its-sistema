@@ -497,12 +497,11 @@ async function pgAvisos(el){
   }
 
   let avisos=avs||[];
-  // Docente no ve: avisos de reemplazos ni avisos de otros dirigidos solo al director
+  // Docente no ve: avisos de reemplazos, ni avisos dirigidos solo al director
   if(me.rol==='docente'){
     avisos=avisos.filter(a=>{
       const esReemplazo=a.titulo?.toLowerCase().includes('reemplazo');
-      // a.usuario_id es el campo correcto (no autor_id)
-      const esSoloDirector=a.destinatario==='director'&&a.usuario_id!==me.id;
+      const esSoloDirector=a.destinatario==='director'&&a.autor_id!==me.id;
       return !esReemplazo&&!esSoloDirector;
     });
   }
@@ -1314,22 +1313,10 @@ async function doImp(inp){
   try{
     const r=await api('POST','/api/alumnos/importar',fd,true);
     const carr=r.carrera||'';
-    document.getElementById('ires').innerHTML='<div class="ir ok">'+msg+'</div>'
-      +'<div style="margin-top:10px;padding:10px;background:#fff3e0;border-radius:8px;border:1px solid #ffcc02">'
-      +'<p style="font-size:12px;font-weight:700;margin-bottom:6px">⚠ Paso importante: activar accesos al sistema</p>'
-      +'<p style="font-size:11px;margin-bottom:8px">Usuario: <strong>nombre.apellido@its.edu.py</strong> · Contraseña: <strong>N° de cédula</strong></p>'
-      +'<button class="bn" style="background:#e65100;font-size:12px;padding:6px 16px" onclick="crearAccesosAlumnos()">🔑 Crear/Actualizar usuarios y accesos</button>'
-      +'</div>'
-      +(r.errores&&r.errores.length?'<div class="ir err" style="margin-top:6px;font-size:12px">'+r.errores.slice(0,5).join('<br>')+'</div>':'')
-    if((r.ok+r.actualizados)>0)setTimeout(()=>go('alumnos'),3500);
+    const msg=`✓ ${r.ok} nuevos · ${r.actualizados||0} actualizados en <strong>${carr}</strong>`;
+    document.getElementById('ires').innerHTML=`<div class="ir ok">${msg}</div>${r.errores?.length?`<div class="ir err" style="margin-top:6px;font-size:12px">${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
+    if((r.ok+r.actualizados)>0)setTimeout(()=>{cm();go('alumnos');},2200);
   }catch(e){document.getElementById('ires').innerHTML=`<div class="ir err">${e.message}</div>`;}
-}
-async function crearAccesosAlumnos(){
-  try{
-    toast('Creando accesos...','info',2000);
-    const r=await api('POST','/api/alumnos/crear-accesos');
-    toast('✓ '+r.creados+' accesos creados · '+r.actualizados+' actualizados','ok',5000);
-  }catch(e){toast('Error: '+e.message,'err');}
 }
 function dPlant(){window.open('/api/alumnos/plantilla','_blank');}
 
@@ -4776,20 +4763,20 @@ function calcFechasHabilitadas(){
 function validarFechaReemplazo(){
   const opt=document.getElementById('repAsig')?.selectedOptions[0];
   const dia=opt?.dataset?.dia||'';
+  if(!dia)return;
   const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
   const fecInput=document.getElementById('repFec');
   const msg=document.getElementById('repFecMsg');
   if(!fecInput?.value)return;
-  const hoyStr=new Date().toISOString().split('T')[0];
-  // Bloquear fechas pasadas (comparar strings YYYY-MM-DD directamente)
-  if(fecInput.value<hoyStr){
+  const fechaSel=new Date(fecInput.value+'T12:00:00');
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  // Bloquear fechas pasadas
+  if(fechaSel<hoy){
     fecInput.value='';
     if(msg){msg.textContent='⚠ No podés pedir reemplazo de un día que ya pasó';msg.style.color='#c62828';}
     return;
   }
-  if(!dia)return;
-  const fechaSel=new Date(fecInput.value+'T12:00:00');
-  if(fechaSel.getDay()!==diasNum[dia]){
+  if(dia&&fechaSel.getDay()!==diasNum[dia]){
     if(msg){msg.textContent=`⚠ ${fechaSel.toLocaleDateString('es',{weekday:'long'})} no es día de clase (${dia})`;msg.style.color='#c62828';}
   } else {
     if(msg){msg.textContent=`✓ Fecha válida — ${dia}`;msg.style.color='#2e7d32';}
@@ -4798,9 +4785,10 @@ function validarFechaReemplazo(){
 async function svReemplazo(){
   const asigId=v('repAsig'),repDocId=v('repDoc'),fecha=v('repFec'),motivo=v('repMot');
   if(!asigId||!repDocId||!fecha)return alert('Completar todos los campos obligatorios');
-  // Bloquear fecha pasada — comparar strings YYYY-MM-DD para evitar errores de zona horaria
-  const hoyStr=new Date().toISOString().split('T')[0];
-  if(fecha<hoyStr)return alert('⛔ No podés registrar un reemplazo para una fecha que ya pasó. Solo se permite desde hoy en adelante.');
+  // Bloquear fecha pasada
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  const fechaSel=new Date(fecha+'T12:00:00');
+  if(fechaSel<hoy)return alert('⛔ No podés registrar un reemplazo en una fecha pasada.');
   const opt=document.getElementById('repAsig')?.selectedOptions[0];
   const dia=opt?.dataset?.dia||'';
   if(dia){
