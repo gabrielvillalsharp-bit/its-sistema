@@ -339,6 +339,10 @@ function navFor(r){
       {id:'mi-asistencia',l:'Mi asistencia',c:'#1D9E75',r:['alumno']},
       {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
     ]},
+    {g:'Recursos',i:[
+      {id:'repositorio-programas',l:'📁 Programas de Materias',c:'#185FA5',r:['director','docente']},
+      {id:'repositorio-contenidos',l:'📚 Contenidos de Clase',c:'#1D9E75',r:['director','docente','alumno']},
+    ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
@@ -368,7 +372,8 @@ function go(p){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
-    egreso:pgEgreso,
+    'repositorio-programas':pgRepProgramas,
+    'repositorio-contenidos':pgRepContenidos,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
@@ -1844,6 +1849,196 @@ async function imprimirActaEgreso(alId){
     ven.document.close();
   }catch(e){toast('Error: '+e.message,'err');}
 }
+// ── REPOSITORIO: PROGRAMAS DE MATERIAS ────────────────────────────────────────
+async function pgRepProgramas(el){
+  const [carrs,mats,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')]);
+  W._repCarrs=carrs; W._repMats=mats; W._repCursos=cursos;
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>a-b);
+  el.innerHTML=`<div class="ph"><h3>📁 Programas de Materias</h3>
+    ${me.rol==='director'?`<label class="bn" style="cursor:pointer">📎 Subir programa<input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirRepositorio(this,'programa')"/></label>`:''}
+  </div>
+  <p class="tip" style="margin-bottom:12px">El Director adjunta los programas de cada materia. Docentes pueden visualizarlos y descargarlos.</p>
+  <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="repProgCarr" onchange="filtRepProgMats();cargarRepositorio('programa')" style="min-width:180px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="repProgAnio" onchange="filtRepProgMats();cargarRepositorio('programa')" style="min-width:100px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
+    <select id="repProgMat" onchange="cargarRepositorio('programa')" style="min-width:180px">
+      <option value="">Todas las materias</option>
+      ${mats.map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre}</option>`).join('')}
+    </select>
+  </div>
+  <div id="listaRepProgramas"><div class="es">Cargando...</div></div>`;
+  cargarRepositorio('programa');
+}
+function filtRepProgMats(){
+  const carrId=v('repProgCarr'), anio=v('repProgAnio');
+  const mats=W._repMats||[];
+  const cursos=W._repCursos||[];
+  const sel=document.getElementById('repProgMat');
+  if(!sel)return;
+  let filtradas=mats;
+  if(carrId) filtradas=filtradas.filter(m=>m.carrera_id===carrId);
+  if(anio){
+    // Filtrar materias por año — las que tienen asignaciones en cursos de ese año
+    const cursosAnio=new Set(cursos.filter(cu=>String(cu.anio)===anio&&(!carrId||cu.carrera_id===carrId)).map(cu=>cu.id));
+    filtradas=filtradas.filter(m=>!m.curso_id||cursosAnio.has(m.curso_id)||String(m.anio)===anio);
+  }
+  sel.innerHTML='<option value="">Todas las materias</option>'+filtradas.map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre}</option>`).join('');
+}
+
+// ── REPOSITORIO: CONTENIDOS DE CLASE ──────────────────────────────────────────
+async function pgRepContenidos(el){
+  const [carrs,mats]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias')]);
+  W._repCarrs=carrs; W._repMats=mats;
+  const esDocente=me.rol==='docente';
+  el.innerHTML=`<div class="ph"><h3>📚 Contenidos de Clase</h3>
+    ${esDocente||me.rol==='director'?`<label class="bn" style="cursor:pointer">📎 Subir contenido<input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" style="display:none" onchange="subirRepositorio(this,'contenido')"/></label>`:''}
+  </div>
+  <p class="tip" style="margin-bottom:12px">
+    ${esDocente?'Subí el material de tus clases para que los alumnos puedan descargarlo.':me.rol==='alumno'?'Materiales de clase disponibles para descargar.':'Contenidos de clase cargados por los docentes.'}
+  </p>
+  <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    ${me.rol!=='alumno'?`<select id="repContCarr" onchange="cargarRepositorio('contenido')" style="min-width:180px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="repContMat" onchange="cargarRepositorio('contenido')" style="min-width:180px">
+      <option value="">Todas las materias</option>
+      ${mats.map(m=>`<option value="${m.id}">${m.nombre} — ${m.carrera_nombre}</option>`).join('')}
+    </select>`:''}
+  </div>
+  <div id="listaRepContenidos"><div class="es">Cargando...</div></div>`;
+  cargarRepositorio('contenido');
+}
+
+async function cargarRepositorio(tipo){
+  const esPrograma=tipo==='programa';
+  const carId=v(esPrograma?'repProgCarr':'repContCarr')||'';
+  const anio=v(esPrograma?'repProgAnio':'')||'';
+  const matId=v(esPrograma?'repProgMat':'repContMat')||'';
+  let url=`/api/repositorio/${esPrograma?'programas':'contenidos'}`;
+  const q=[];
+  if(carId)q.push('carrera_id='+carId);
+  if(matId)q.push('materia_id='+matId);
+  if(anio)q.push('anio='+anio);
+  if(q.length)url+='?'+q.join('&');
+  const lista=await api('GET',url).catch(()=>[]);
+  const elId=esPrograma?'listaRepProgramas':'listaRepContenidos';
+  const el=document.getElementById(elId);
+  if(!el)return;
+  if(!lista.length){el.innerHTML='<div class="es">Sin archivos disponibles</div>';return;}
+  el.innerHTML=`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Archivo</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Carrera</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Descripción</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Subido por</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)"></th>
+    </tr></thead><tbody>
+    ${lista.map(r=>{
+      const ext=(r.nombre_archivo||'').split('.').pop().toLowerCase();
+      const ico=ext==='pdf'?'📄':ext==='pptx'||ext==='ppt'?'📊':'📝';
+      return`<tr>
+        <td style="padding:6px 10px;border:1px solid var(--bdr)"><strong>${ico} ${r.nombre_archivo||'—'}</strong></td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px">${r.materia_nombre||'—'}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px">${r.carrera_nombre||'—'} ${r.anio?r.anio+'°':''} ${r.division&&r.division!=='U'?r.division:''}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px;color:var(--t2)">${r.descripcion||'—'}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px">${r.subido_por_nombre||''} ${r.subido_por_apellido||''}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px;white-space:nowrap">${fmtFecha(r.fecha)}</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr)">
+          <div style="display:flex;gap:4px">
+            <a href="/api/repositorio/${r.id}/archivo" download="${r.nombre_archivo}" class="bs" style="font-size:10px;text-decoration:none;padding:2px 7px;border-radius:4px;background:#e8f5e9;color:#2e7d32">⬇ Descargar</a>
+            ${me.rol==='director'||me.rol==='docente'?`<button class="bs d" style="font-size:10px;padding:2px 5px" onclick="delRepositorio('${r.id}','${tipo}')">✕</button>`:''}
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div></div>`;
+}
+
+async function subirRepositorio(input,tipo){
+  const file=input.files[0];if(!file)return;input.value='';
+  // Solicitar metadatos antes de subir
+  const carrs=W._repCarrs||[], mats=W._repMats||[], cursos=W._repCursos||[];
+  const anios=[...new Set((cursos||[]).map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>a-b);
+  modal(`<h4>📎 Subir ${tipo==='programa'?'Programa de Materia':'Contenido de Clase'}</h4>
+  <div class="fg">
+    <div class="f"><label>Archivo seleccionado</label>
+      <div style="background:#f0f4f8;padding:8px 12px;border-radius:6px;font-size:12px">📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</div>
+    </div>
+    <div class="fr">
+      <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+        <select id="repUpCarr" onchange="filtRepMats()">
+          <option value="">— Seleccionar —</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select></div>
+      ${tipo==='programa'?`<div class="f"><label>Año</label>
+        <select id="repUpAnio" onchange="filtRepMats()" style="min-width:90px">
+          <option value="">Todos</option>
+          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+        </select></div>`:''}
+    </div>
+    <div class="f"><label>Materia</label>
+      <select id="repUpMat">
+        <option value="">— Seleccionar —</option>
+        ${mats.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('')}
+      </select></div>
+    <div class="f"><label>Descripción (opcional)</label>
+      <input id="repUpDesc" placeholder="Ej: Programa 2026, Clase 3 — Anatomía..."/></div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="confirmarSubirRepo(${JSON.stringify(tipo)})">⬆ Subir</button>
+  </div>`);
+  window._repFile=file;
+}
+function filtRepMats(){
+  const carrId=v('repUpCarr'), anio=v('repUpAnio');
+  const mats=W._repMats||[], cursos=W._repCursos||[];
+  const sel=document.getElementById('repUpMat');if(!sel)return;
+  let filtradas=mats;
+  if(carrId) filtradas=filtradas.filter(m=>m.carrera_id===carrId);
+  if(anio){
+    const cursosAnio=new Set(cursos.filter(cu=>String(cu.anio)===anio&&(!carrId||cu.carrera_id===carrId)).map(cu=>cu.id));
+    filtradas=filtradas.filter(m=>!m.curso_id||cursosAnio.has(m.curso_id)||String(m.anio)===anio);
+  }
+  sel.innerHTML='<option value="">— Seleccionar —</option>'+filtradas.map(m=>`<option value="${m.id}">${m.nombre}</option>`).join('');
+}
+async function confirmarSubirRepo(tipo){
+  const file=window._repFile;
+  if(!file){toast('Sin archivo seleccionado','err');return;}
+  const carrId=v('repUpCarr'), matId=v('repUpMat'), desc=v('repUpDesc');
+  if(!carrId)return alert('Seleccioná una carrera');
+  const fd=new FormData();
+  fd.append('archivo',file);
+  fd.append('tipo',tipo);
+  if(carrId)fd.append('carrera_id',carrId);
+  if(matId)fd.append('materia_id',matId);
+  if(desc)fd.append('descripcion',desc);
+  try{
+    await api('POST','/api/repositorio',fd,true);
+    cm();
+    toast(`✓ ${tipo==='programa'?'Programa':'Contenido'} subido correctamente`,'ok',3000);
+    go(tipo==='programa'?'repositorio-programas':'repositorio-contenidos');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function delRepositorio(id,tipo){
+  confirm2('🗑 Eliminar archivo','¿Eliminar este archivo del repositorio? Esta acción no se puede deshacer.',
+    async function(){
+      try{
+        await api('DELETE','/api/repositorio/'+id);
+        toast('✓ Archivo eliminado','ok');
+        cargarRepositorio(tipo);
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
 async function delExamen(id){
   confirm2('🗑 Eliminar examen','¿Eliminar este examen programado? Esta acción no se puede deshacer.',
     async function(){
@@ -3222,8 +3417,8 @@ async function pgPagos(el){
     </div></div>
 
   <div style="display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start">
-    <!-- Panel izquierdo: lista de alumnos sincronizada -->
-    <div>
+    <!-- Panel izquierdo: lista de alumnos -->
+    <div id="panelBusquedaPago">
       <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--t1)">👥 Alumnos (${als.length})</div>
       <div style="margin-bottom:8px;display:flex;flex-direction:column;gap:6px">
         <input id="filtPagoBus" placeholder="🔍 CI o nombre..." oninput="renderAlumnosPago()" style="font-size:12px"/>
@@ -3243,8 +3438,12 @@ async function pgPagos(el){
       </div>
       <div id="listaAlumnosPago" style="max-height:70vh;overflow-y:auto;border:1px solid var(--bdr);border-radius:8px;background:#fff"></div>
     </div>
-    <!-- Panel derecho: historial del alumno seleccionado o tabla de pagos -->
-    <div id="panelHistorialPago">
+    <!-- Panel derecho: historial del alumno seleccionado -->
+    <div>
+      <div id="btnVolverListaPago" style="display:none;margin-bottom:10px">
+        <button class="bs" onclick="volverListaPago()">← Volver a lista de alumnos</button>
+      </div>
+      <div id="panelHistorialPago">
       <div style="border:1px solid var(--bdr);border-radius:8px;padding:24px;text-align:center;color:var(--t3);background:#fafaf8">
         <div style="font-size:32px;margin-bottom:8px">👆</div>
         <p style="font-size:13px">Seleccioná un alumno para ver su historial de pagos detallado</p>
@@ -3253,6 +3452,18 @@ async function pgPagos(el){
   </div>`;
 
   renderAlumnosPago();
+}
+function volverListaPago(){
+  const panelIzq=document.getElementById('panelBusquedaPago');
+  if(panelIzq) panelIzq.style.display='block';
+  const btnVolver=document.getElementById('btnVolverListaPago');
+  if(btnVolver) btnVolver.style.display='none';
+  const panel=document.getElementById('panelHistorialPago');
+  if(panel) panel.innerHTML=`<div style="border:1px solid var(--bdr);border-radius:8px;padding:24px;text-align:center;color:var(--t3);background:#fafaf8">
+    <div style="font-size:32px;margin-bottom:8px">👆</div>
+    <p style="font-size:13px">Seleccioná un alumno para ver su historial de pagos</p>
+  </div>`;
+  document.querySelectorAll('.al-pago-item').forEach(el=>el.style.background='');
 }
 
 function renderAlumnosPago(){
@@ -3288,6 +3499,13 @@ function filtPagoCursos(){
 }
 
 async function selAlumnoPago(alId){
+  // Ocultar panel de búsqueda y mostrar solo el historial del alumno
+  const panelIzq=document.getElementById('panelBusquedaPago');
+  if(panelIzq) panelIzq.style.display='none';
+  // Mostrar botón para volver a la lista
+  const btnVolver=document.getElementById('btnVolverListaPago');
+  if(btnVolver) btnVolver.style.display='flex';
+
   // Resaltar selección
   document.querySelectorAll('.al-pago-item').forEach(el=>el.style.background='');
   const selEl=document.getElementById('alpi-'+alId);
@@ -3522,6 +3740,7 @@ function filtrarAlPago(){
 async function svPago(){
   const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
+  window._pagoData=o; // guardar referencia segura para confirm2
   const al=(W._pdata?.als||[]).find(a=>a.id===o.alumno_id);
   const nom=al?`${al.display_apellido||''}, ${al.display_nombre||''}`:'—';
   confirm2(
@@ -3534,7 +3753,8 @@ async function svPago(){
     </div>
     <p style="font-size:12px;color:var(--t2);margin-top:8px">Verificá que el monto y concepto sean correctos.</p>`,
     async function(){
-      try{await api('POST','/api/pagos',o);cm();go('pagos');toast('✓ Pago registrado','ok');}
+      const pd=window._pagoData;
+      try{await api('POST','/api/pagos',pd);cm();go('pagos');toast('✓ Pago registrado','ok');}
       catch(e){toast('Error: '+e.message,'err');}
     },
     function(){toast('Podés corregir los datos del pago','info');}

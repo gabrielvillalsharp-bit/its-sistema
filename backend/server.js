@@ -2371,10 +2371,11 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
       if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
         emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
       const uid = 'u_a_'+Date.now();
+      const fechaHoy = new Date().toISOString().split('T')[0];
       db.transaction(() => {
         db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
         const aid = 'a_'+Date.now();
-        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,date("now"),?,?,?,?)').run(aid,uid,matricula,(asig.carrera_id||''),asig.curso_id,'Activo',ciRaw,sol.nombre,sol.apellido);
+        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid,uid,matricula,(asig.carrera_id||''),asig.curso_id,fechaHoy,'Activo',ciRaw,sol.nombre,sol.apellido);
         db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now(),aid,asig.id,'Pendiente');
       })();
     }
@@ -2465,6 +2466,93 @@ app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) =>
 
 app.delete('/api/examenes/:id/archivo', auth(ADM), (req, res) => {
   db.prepare('UPDATE examenes SET archivo_nombre=NULL, archivo_data=NULL, archivo_tipo=NULL WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── REPOSITORIO DE ARCHIVOS ───────────────────────────────────────────────────
+// Tabla repositorio: id, tipo (programa|contenido), materia_id, carrera_id, curso_id,
+//   docente_id, nombre_archivo, datos, mime_tipo, subido_por, fecha, descripcion
+
+// GET programas (director + docente)
+app.get('/api/repositorio/programas', auth(['director','docente']), (req, res) => {
+  const { carrera_id, curso_id, materia_id, anio } = req.query;
+  let where = "WHERE r.tipo='programa'"; const params = [];
+  if (carrera_id) { where += ' AND r.carrera_id=?'; params.push(carrera_id); }
+  if (curso_id)   { where += ' AND r.curso_id=?';   params.push(curso_id); }
+  if (materia_id) { where += ' AND r.materia_id=?'; params.push(materia_id); }
+  if (anio)       { where += ' AND (cu.anio=? OR m.anio=?)'; params.push(parseInt(anio), parseInt(anio)); }
+  const rows = db.prepare(`
+    SELECT r.id, r.nombre_archivo, r.mime_tipo, r.descripcion, r.fecha,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio, cu.division,
+      u.nombre as subido_por_nombre, u.apellido as subido_por_apellido
+    FROM repositorio r
+    LEFT JOIN materias m ON r.materia_id=m.id
+    LEFT JOIN carreras ca ON r.carrera_id=ca.id
+    LEFT JOIN cursos cu ON r.curso_id=cu.id
+    LEFT JOIN usuarios u ON r.subido_por=u.id
+    ${where} ORDER BY r.fecha DESC`).all(...params);
+  res.json(rows);
+});
+
+// GET contenidos (director + docente + alumno)
+app.get('/api/repositorio/contenidos', auth(), (req, res) => {
+  const { carrera_id, materia_id } = req.query;
+  let where = "WHERE r.tipo='contenido'"; const params = [];
+  // Alumno: solo ve contenidos de sus materias
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (al?.curso_id) { where += ' AND r.curso_id=?'; params.push(al.curso_id); }
+    else return res.json([]);
+  }
+  if (carrera_id) { where += ' AND r.carrera_id=?'; params.push(carrera_id); }
+  if (materia_id) { where += ' AND r.materia_id=?'; params.push(materia_id); }
+  const rows = db.prepare(`
+    SELECT r.id, r.nombre_archivo, r.mime_tipo, r.descripcion, r.fecha,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio, cu.division,
+      u.nombre as subido_por_nombre, u.apellido as subido_por_apellido
+    FROM repositorio r
+    LEFT JOIN materias m ON r.materia_id=m.id
+    LEFT JOIN carreras ca ON r.carrera_id=ca.id
+    LEFT JOIN cursos cu ON r.curso_id=cu.id
+    LEFT JOIN usuarios u ON r.subido_por=u.id
+    ${where} ORDER BY r.fecha DESC`).all(...params);
+  res.json(rows);
+});
+
+// POST: subir archivo al repositorio
+app.post('/api/repositorio', auth(['director','docente']), upload.single('archivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
+  const { tipo, materia_id, carrera_id, curso_id, descripcion } = req.body;
+  if (!['programa','contenido'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
+  if (req.file.size > 20*1024*1024) return res.status(400).json({ error: 'El archivo no puede superar 20 MB' });
+  const id = 'rep_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  db.prepare('INSERT INTO repositorio (id,tipo,materia_id,carrera_id,curso_id,nombre_archivo,datos,mime_tipo,subido_por,fecha,descripcion) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, tipo, materia_id||null, carrera_id||null, curso_id||null, req.file.originalname, req.file.buffer, req.file.mimetype, req.user.id, fechaHoy, descripcion||null);
+  audit(req.user.id,'UPLOAD_REPOSITORIO','repositorio',id,{tipo,archivo:req.file.originalname});
+  res.json({ ok: true, id });
+});
+
+// GET: descargar/ver archivo
+app.get('/api/repositorio/:id/archivo', auth(), (req, res) => {
+  const r = db.prepare('SELECT * FROM repositorio WHERE id=?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Archivo no encontrado' });
+  // Alumno: verificar que sea de su curso
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (!al || (r.curso_id && al.curso_id !== r.curso_id)) return res.status(403).json({ error: 'Sin acceso' });
+  }
+  res.set('Content-Type', r.mime_tipo||'application/octet-stream');
+  res.set('Content-Disposition', `attachment; filename="${r.nombre_archivo}"`);
+  res.send(Buffer.from(r.datos));
+});
+
+// DELETE: eliminar archivo (solo director o el docente que lo subió)
+app.delete('/api/repositorio/:id', auth(['director','docente']), (req, res) => {
+  const r = db.prepare('SELECT * FROM repositorio WHERE id=?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'No encontrado' });
+  if (req.user.rol === 'docente' && r.subido_por !== req.user.id) return res.status(403).json({ error: 'Solo podés eliminar tus propios archivos' });
+  db.prepare('DELETE FROM repositorio WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
 

@@ -669,6 +669,19 @@ function init() {
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS repositorio (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK(tipo IN ('programa','contenido')),
+    materia_id TEXT REFERENCES materias(id),
+    carrera_id TEXT REFERENCES carreras(id),
+    curso_id TEXT REFERENCES cursos(id),
+    nombre_archivo TEXT NOT NULL,
+    datos BLOB NOT NULL,
+    mime_tipo TEXT,
+    subido_por TEXT REFERENCES usuarios(id),
+    fecha TEXT NOT NULL,
+    descripcion TEXT
+  )`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_alumno (
     id TEXT PRIMARY KEY,
     nombre TEXT NOT NULL,
