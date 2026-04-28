@@ -1172,22 +1172,61 @@ function filtM(){
   // turno viene de asignaciones, no de materias directamente — filtrar por materias que tienen asignaciones con ese turno
   tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';
 }
-function mAl(a){const e=!!a;modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
-  <div class="fr"><div class="f"><label>Nombre</label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
-  <div class="f"><label>Apellido</label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div></div>
-  <div class="fr"><div class="f"><label>C.I.</label><input id="aci" value="${e?a.display_ci||'':''}" placeholder="0.000.000"/></div>
-  <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':''}" placeholder="0981-000-000"/></div></div>
-  <div class="fr"><div class="f"><label>Carrera</label><select id="acar">${(W._carrs||[]).map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}</select></div>
-  <div class="f"><label>Sección/Grupo</label><select id="acur"><option value="">Sin asignar</option>${(W._cursos||[]).map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div></div>
-  <div class="fr"><div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':new Date().toISOString().split('T')[0]}"/></div>
-  ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}</div>
-  ${!e?`<div class="f"><label>Email (opcional — para acceso web)</label><input id="aem" type="email" placeholder="alumno@email.com"/></div>`:''}
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);}
+function mAl(a){
+  const e=!!a;
+  const carrs=W._carrs||[], cursos=W._cursos||[];
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
+  <div class="fr">
+    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
+    <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div>
+  </div>
+  <div class="fr">
+    <div class="f"><label>C.I. <span style="color:var(--t2);font-size:11px">(opcional)</span></label>
+      <input id="aci" value="${e?a.display_ci||'':''}" placeholder="Sin CI → estado Pendiente"/>
+    </div>
+    <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':''}" placeholder="0981-000-000"/></div>
+  </div>
+  <div class="fr">
+    <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+      <select id="acar" onchange="filtCursosAl()">
+        <option value="">— Seleccionar —</option>
+        ${carrs.map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
+      </select></div>
+    <div class="f"><label>Año</label>
+      <select id="aAnio" onchange="filtCursosAl()" style="min-width:80px">
+        <option value="">Año</option>
+        ${anios.map(n=>`<option value="${n}" ${e&&a.curso_anio===n?'selected':''}>${n}°</option>`).join('')}
+      </select></div>
+  </div>
+  <div class="f"><label>Sección</label>
+    <select id="acur">
+      <option value="">Sin asignar</option>
+      ${cursos.map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — Secc. ${cu.division==='U'?'Única':cu.division}</option>`).join('')}
+    </select></div>
+  <div class="fr">
+    <div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':new Date().toISOString().split('T')[0]}"/></div>
+    ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Pendiente','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
+  </div>
+  ${!e?'<p style="font-size:10px;color:var(--t2);margin-top:-4px">ℹ Si no tiene CI, el alumno quedará en estado <strong>Pendiente</strong> hasta completar el dato.</p>':''}
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);
+}
+function filtCursosAl(){
+  const carrId=v('acar'), anio=v('aAnio');
+  const sel=document.getElementById('acur'); if(!sel)return;
+  let cs=(W._cursos||[]);
+  if(carrId) cs=cs.filter(cu=>cu.carrera_id===carrId);
+  if(anio)   cs=cs.filter(cu=>String(cu.anio)===anio);
+  sel.innerHTML='<option value="">Sin asignar</option>'+cs.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — Secc. ${cu.division==='U'?'Única':cu.division}</option>`).join('');
+}
 async function svAl(id){
-  const o={nombre:v('an'),apellido:v('aap'),ci:v('aci'),telefono:v('atel'),carrera_id:v('acar'),curso_id:v('acur')||null,fecha_ingreso:v('aing')};
-  if(!o.nombre||!o.apellido||!o.ci)return alert('Completar nombre, apellido y CI');
+  const o={nombre:v('an'),apellido:v('aap'),ci:v('aci')||'',telefono:v('atel'),carrera_id:v('acar'),curso_id:v('acur')||null,fecha_ingreso:v('aing')};
+  if(!o.nombre||!o.apellido)return alert('Completar nombre y apellido');
+  if(!o.carrera_id)return alert('Seleccionar una carrera');
+  // Si no tiene CI → estado Pendiente
+  if(!o.ci) o.estado='Pendiente';
   try{
-    if(id){o.estado=v('aest');await api('PUT','/api/alumnos/'+id,o);cm();go('alumnos');}
+    if(id){o.estado=v('aest')||o.estado;await api('PUT','/api/alumnos/'+id,o);cm();go('alumnos');}
     else{
       const r=await api('POST','/api/alumnos',o);
       cm();
@@ -4466,13 +4505,14 @@ async function svFeriado(){
 }
 
 async function pgAuditoria(el){
-  const hoy=new Date();
-  const anio=hoy.getFullYear(), mes=String(hoy.getMonth()+1).padStart(2,'0');
   el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
     <div class="ph-right">
       <button class="bs s" onclick="exportAuditoria()">⬇ Exportar CSV</button>
       <button class="bs d" onclick="limpiarAuditoria()">🗑 Purgar antiguos</button>
     </div></div>
+  <div style="background:#e8f5e9;border-radius:6px;padding:8px 12px;font-size:11px;color:#2e7d32;margin-bottom:10px">
+    📋 Mostrando todas las acciones del sistema. Usá los filtros para acotar los resultados.
+  </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <select id="audAccion" onchange="cargarAuditoria()">
       <option value="">Todas las acciones</option>
@@ -4499,19 +4539,24 @@ async function pgAuditoria(el){
       <option value="examenes">Exámenes</option>
       <option value="sistema">Sistema</option>
     </select>
-    <input id="audDesde" type="date" value="${anio}-${mes}-01" onchange="cargarAuditoria()" style="width:auto"/>
-    <input id="audHasta" type="date" value="${anio}-${mes}-${String(new Date(anio,parseInt(mes),0).getDate()).padStart(2,'0')}" onchange="cargarAuditoria()" style="width:auto"/>
+    <input id="audDesde" type="date" placeholder="Desde" onchange="cargarAuditoria()" style="width:auto"/>
+    <input id="audHasta" type="date" placeholder="Hasta" onchange="cargarAuditoria()" style="width:auto"/>
     <input id="audBus" placeholder="🔍 Buscar en detalle..." oninput="filtAudit()" style="min-width:180px"/>
     <select id="audLim" onchange="cargarAuditoria()" style="width:auto">
-      <option value="100">100 registros</option>
-      <option value="200" selected>200 registros</option>
+      <option value="200">200 registros</option>
       <option value="500">500 registros</option>
-      <option value="1000">1000 registros</option>
+      <option value="1000" selected>1000 registros</option>
+      <option value="9999">Todos</option>
     </select>
+    <button class="bs" onclick="limpFiltrosAudit()">✕ Limpiar filtros</button>
   </div>
-  <div id="audStats" style="margin-bottom:12px"></div>
-  <div id="audTbl"><div class="es">Cargando...</div></div>`;
-  await cargarAuditoria();
+  <div id="audTbl"><div class="es">Cargando historial...</div></div>`;
+  cargarAuditoria();
+}
+function limpFiltrosAudit(){
+  ['audAccion','audTabla','audDesde','audHasta'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const b=document.getElementById('audBus');if(b)b.value='';
+  cargarAuditoria();
 }
 async function cargarAuditoria(){
   const accion=v('audAccion'), tabla=v('audTabla');
@@ -4837,14 +4882,19 @@ async function imprimirConstancia(alId){
     </div>`);
     return;
   }
-  // Solicitar "a quién va dirigido"
+  // Solicitar "a quién va dirigido" + cuerpo
   modal(`<h4>📄 Constancia de estudios</h4>
-  <div class="f"><label>A quién va dirigido (opcional)</label>
-    <input id="constDirig" placeholder="Ej: A quien corresponda, Banco Continental..." style="width:100%"/>
+  <div class="fg">
+    <div class="f"><label>A quién va dirigido <span style="color:var(--t2);font-size:11px">(se insertará "Presente" debajo)</span></label>
+      <input id="constDirig" placeholder="Ej: Señores Banco Continental, A quien corresponda..."/>
+    </div>
+    <div class="f"><label>Cuerpo / Motivo <span style="color:var(--t2);font-size:11px">(opcional)</span></label>
+      <textarea id="constCuerpo" rows="3" placeholder="Ej: Se expide la presente a efectos de tramitar..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea>
+    </div>
   </div>
   <div class="mf">
     <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="generarConstanciaImpresion('${alId}',v('constDirig'))">🖨 Generar constancia</button>
+    <button class="bn" onclick="generarConstanciaImpresion('${alId}',v('constDirig'),v('constCuerpo'))">🖨 Generar constancia</button>
   </div>`);
 }
 async function registrarPagoConstancia(alId,arancel){
@@ -4855,7 +4905,7 @@ async function registrarPagoConstancia(alId,arancel){
     setTimeout(()=>imprimirConstancia(alId),500);
   }catch(e){toast('Error: '+e.message,'err');}
 }
-async function generarConstanciaImpresion(alId,dirigido){
+async function generarConstanciaImpresion(alId,dirigido,cuerpo){
   cm();
   try{
     const {alumno,institucion:inst,constancia_id,fecha}=await api('GET','/api/alumnos/'+alId+'/constancia');
@@ -4886,13 +4936,14 @@ async function generarConstanciaImpresion(alId,dirigido){
       <p class="res">RESOLUCIÓN DGUISITS N°452/2024</p>
     </div>
     <div class="titulo">CONSTANCIA DE ESTUDIOS</div>
-    ${dirigido?`<p class="dirigido"><strong>Señores:</strong> ${dirigido}</p>`:'<p class="dirigido"><strong>A quien corresponda:</strong></p>'}
+    ${dirigido?`<p class="dirigido"><strong>${dirigido}</strong><br><em style="font-size:12px">Presente.-</em></p>`:'<p class="dirigido"><strong>A quien corresponda:</strong><br><em style="font-size:12px">Presente.-</em></p>'}
     <div class="cuerpo">
       <p>El Director General del <strong>Instituto Técnico Superior Santísima Trinidad</strong>, <strong>Abg. Gustavo Armando Echeverría</strong>, hace constar por medio de la presente que:</p>
       <br>
       <p style="text-align:center;font-weight:bold;font-size:14px;letter-spacing:1px">${(alumno.disp_apellido||'').toUpperCase()}, ${(alumno.disp_nombre||'').toUpperCase()}</p>
       <p style="text-align:center;font-size:11px;color:#555">C.I.: ${alumno.disp_ci||'—'}</p>
       <br>
+      ${cuerpo?`<p>${cuerpo}</p><br>`:''}
       <p>es alumno/a <strong>regular</strong> de esta institución, cursando actualmente el <strong>${alumno.curso_anio||''}° año</strong> de la carrera de <strong>${alumno.carrera_nombre||''}</strong>, período lectivo <strong>${alumno.periodo_anio||new Date().getFullYear()}</strong>.</p>
       <br>
       <p>Se expide la presente constancia a solicitud del/la interesado/a, en la ciudad de <strong>Pedro Juan Caballero</strong>, a los <strong>${d.getDate()}</strong> días del mes de <strong>${meses[d.getMonth()]}</strong> del año <strong>${d.getFullYear()}</strong>.</p>

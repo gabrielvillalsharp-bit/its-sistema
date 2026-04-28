@@ -319,7 +319,7 @@ app.get('/api/alumnos', auth(), (req, res) => {
   const { ci, carrera_id, curso_id } = req.query;
   // Alumnos solo pueden buscar por CI (su propio estado de cuenta)
   if (req.user.rol === 'alumno' && !ci) return res.status(403).json({ error: 'Sin acceso' });
-  let where = "WHERE al.estado='Activo'"; const params = [];
+  let where = req.user.rol==='director'||req.user.rol==='secretaria' ? 'WHERE 1=1' : "WHERE al.estado NOT IN ('Inactivo','Retirado')"; const params = [];
   if (ci)         { where += ' AND (al.ci LIKE ? OR u.ci LIKE ?)'; params.push('%'+ci+'%','%'+ci+'%'); }
   if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
   if (curso_id)   { where += ' AND al.curso_id=?';   params.push(curso_id); }
@@ -382,10 +382,23 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
-  const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
-  db.prepare('DELETE FROM alumnos WHERE id=?').run(req.params.id);
-  if (a?.usuario_id) db.prepare('DELETE FROM usuarios WHERE id=?').run(a.usuario_id);
-  res.json({ ok: true });
+  try {
+    const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
+    if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
+    db.transaction(() => {
+      // Eliminar dependencias primero
+      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(req.params.id);
+      if (a.usuario_id) db.prepare('DELETE FROM usuarios WHERE id=?').run(a.usuario_id);
+    })();
+    audit(req.user.id,'DELETE','alumnos',req.params.id,{});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
 });
 app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
@@ -944,7 +957,7 @@ app.delete('/api/feriados/:id', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
-// ── RESUMEN HONORARIOS POR DOCENTE/MES (para informe) ─────────────────────────
+// ── RESUMEN HONORARIOS POR DOCENTE/MES ────────────────────────────────────────
 app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
   const { docente_id, mes, anio } = req.query;
   let dId = docente_id;
@@ -956,8 +969,16 @@ app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
   const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
   const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
 
-  // Todos los días hábiles del mes (L-V sin feriados)
+  // Feriados del mes
   const feriados = new Set(db.prepare("SELECT fecha FROM feriados WHERE fecha>=? AND fecha<=? AND activo=1").all(desde, hasta).map(f=>f.fecha));
+
+  // Días donde el docente fue reemplazado (titular ausente → no cobra)
+  const diasReemplazado = new Set(db.prepare(`
+    SELECT DISTINCT r.fecha FROM reemplazos r
+    WHERE r.docente_titular_id=? AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'
+  `).all(dId, desde, hasta).map(r=>r.fecha));
+
+  // Días hábiles del mes (L-V, sin feriados)
   const diasHabiles = [];
   const cur = new Date(desde+'T12:00:00');
   const finDate = new Date(hasta+'T12:00:00');
@@ -967,7 +988,7 @@ app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
     cur.setDate(cur.getDate()+1);
   }
 
-  // Honorarios del docente en ese mes
+  // Honorarios generados (clases + reemplazos realizados), excluyendo anulados
   const hons = db.prepare(`
     SELECT h.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso,
       a.turno, a.hora_inicio, a.hora_fin
@@ -979,15 +1000,14 @@ app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
     WHERE h.docente_id=? AND h.fecha>=? AND h.fecha<=? AND h.estado!='anulado'
     ORDER BY h.fecha, h.turno`).all(dId, desde, hasta);
 
-  // Asignaciones del docente en el mes
+  // Asignaciones del docente
   const asigs = db.prepare(`
-    SELECT a.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso
+    SELECT a.*, m.nombre as materia, m.dia, ca.nombre as carrera, cu.anio as anio_curso
     FROM asignaciones a
     JOIN materias m ON a.materia_id=m.id
     JOIN cursos cu ON a.curso_id=cu.id
     JOIN carreras ca ON cu.carrera_id=ca.id
     WHERE a.docente_id=?`).all(dId);
-  const horarios = db.prepare('SELECT * FROM horarios WHERE asignacion_id IN ('+asigs.map(()=>'?').join(',')+')').all(...asigs.map(a=>a.id));
 
   // Reemplazos que involucran al docente ese mes
   const reemplazos = db.prepare(`
@@ -1001,12 +1021,39 @@ app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
     JOIN carreras ca ON cu.carrera_id=ca.id
     JOIN docentes dt ON r.docente_titular_id=dt.id JOIN usuarios ut ON dt.usuario_id=ut.id
     JOIN docentes dr ON r.docente_reemplazante_id=dr.id JOIN usuarios ur ON dr.usuario_id=ur.id
-    WHERE (r.docente_titular_id=? OR r.docente_reemplazante_id=?) AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'`).all(dId, dId, desde, hasta);
+    WHERE (r.docente_titular_id=? OR r.docente_reemplazante_id=?) AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'
+  `).all(dId, dId, desde, hasta);
 
   const docInfo = db.prepare('SELECT u.nombre,u.apellido,d.titulo FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(dId);
   const totalGanado = hons.reduce((s,h)=>s+h.monto, 0);
 
-  res.json({ docente: docInfo, diasHabiles, honorarios: hons, asignaciones: asigs, reemplazos, totalGanado, desde, hasta, mes, anio });
+  // Calcular clases esperadas del mes (días hábiles × asignaciones activas, excluyendo feriados y reemplazos)
+  const diasNum = {Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+  let clasesEsperadas = 0;
+  let clasesReemplazadas = 0;
+  let clasesFeriado = 0;
+  asigs.forEach(a => {
+    const numDia = diasNum[a.dia] || 0;
+    if (!numDia) return;
+    diasHabiles.forEach(fecha => {
+      const f = new Date(fecha+'T12:00:00');
+      if (f.getDay() === numDia) {
+        clasesEsperadas++;
+        if (diasReemplazado.has(fecha)) clasesReemplazadas++;
+      }
+    });
+    // Contar feriados en días de clase
+    feriados.forEach(fFecha => {
+      const fF = new Date(fFecha+'T12:00:00');
+      if (fF.getDay() === numDia) clasesFeriado++;
+    });
+  });
+
+  res.json({
+    docente: docInfo, diasHabiles, honorarios: hons, asignaciones: asigs,
+    reemplazos, totalGanado, desde, hasta, mes, anio,
+    resumen: { clasesEsperadas, clasesReemplazadas, clasesFeriado, clasesEfectivas: clasesEsperadas - clasesReemplazadas }
+  });
 });
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
@@ -1875,7 +1922,7 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
   if (usuario_id) { where += ' AND a.usuario_id=?';  params.push(usuario_id); }
   if (desde)      { where += ' AND a.fecha>=?';      params.push(desde); }
   if (hasta)      { where += " AND a.fecha<=?";      params.push(hasta+' 23:59:59'); }
-  const lim = Math.min(parseInt(limite)||200, 1000);
+  const lim = Math.min(parseInt(limite)||1000, 9999);
   const rows = db.prepare(`
     SELECT a.*, u.nombre as user_nombre, u.apellido as user_apellido, u.rol
     FROM auditoria a
