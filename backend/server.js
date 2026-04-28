@@ -99,6 +99,7 @@ function auth(roles = []) {
   };
 }
 const ADM = ['director'];
+const ADM_SEC = ['director','secretaria'];
 
 // ── ENDPOINT DE EMERGENCIA: recrear director si no existe ─────────────────────
 app.get('/api/setup', (req, res) => {

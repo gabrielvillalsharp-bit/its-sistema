@@ -38,6 +38,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .rp-director{background:var(--bl);color:var(--bld)}
 .rp-docente{background:var(--gl);color:var(--green)}
 .rp-alumno{background:var(--al);color:var(--amb)}
+.rp-secretaria{background:#ede9ff;color:#5b4fcf}
 .xb{font-size:12px;padding:5px 10px;border:1px solid var(--bdr);border-radius:8px;background:none;color:var(--t2);cursor:pointer}
 .xb:hover{background:#f1f0ec}
 .ly{display:flex;flex:1}
@@ -294,7 +295,7 @@ function startApp(){
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
-  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':'dashboard';
+  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':me.rol==='secretaria'?'alumnos':'dashboard';
   go(inicio);
 }
 
@@ -303,26 +304,25 @@ function navFor(r){
     {g:'General',i:[
       {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director']},
       {id:'dashboard-analitico',l:'Análisis y estadísticas',c:'#185FA5',r:['director']},
-      {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
-      {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno','secretaria']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','secretaria']},
+      {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno','secretaria']},
     ]},
     {g:'Estructura',i:[
-      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
-      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
-      {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
-      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director']},
+      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director','secretaria']},
+      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director','secretaria']},
+      {id:'materias',l:'Materias',c:'#BA7517',r:['director','secretaria']},
+      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director','secretaria']},
     ]},
     {g:'Personas',i:[
-      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
-      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
-      {id:'egreso',l:'🎓 Pasaje de año / Egreso',c:'#7F77DD',r:['director']},
-      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
+      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director','secretaria']},
+      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director','secretaria']},
+      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director','secretaria']},
     ]},
     {g:'Académico',i:[
-      {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director']},
-      {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente']},
-      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
+      {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente','secretaria']},
+      {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente','secretaria']},
+      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente','secretaria']},
     ]},
     {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
@@ -331,7 +331,7 @@ function navFor(r){
     ]},
     {g:'Honorarios',i:[
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
-      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
+      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente','secretaria']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#185FA5',r:['docente']},
@@ -387,6 +387,17 @@ function notaCls(n){return n?'n'+Math.min(5,Math.max(1,n)):'n-';}
 function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
+function delPagoAlumno(pagoId, alId){
+  confirm2('🗑 Eliminar pago',
+    '<p>¿Eliminar este registro de pago?</p><p style="font-size:12px;color:#c62828;margin-top:8px;font-weight:600">⚠ Esta acción no se puede deshacer.</p>',
+    async function(){
+      try{
+        await api('DELETE','/api/pagos/'+pagoId);
+        toast('✓ Pago eliminado','ok');
+        if(alId) selAlumnoPago(alId);
+      }catch(e){toast('Error al eliminar: '+e.message,'err');}
+    }, null);
+}
 async function del(id,tipo){
   const labels={notas:'nota',pagos:'pago',examenes:'examen programado',alumnos:'alumno',docentes:'docente',asistencia:'registro de asistencia',avisos:'aviso',actividades:'actividad',feriados:'feriado',usuarios:'usuario',reemplazos:'reemplazo',carreras:'carrera',cursos:'sección',materias:'materia',asignaciones:'asignación',becas:'beca',periodos:'período'};
   const label=labels[tipo]||'registro';
@@ -728,7 +739,7 @@ async function mMateria(m){
   <div class="f"><label>Docente <span style="color:var(--red)">*</span></label>
     <select id="mdoc" style="width:100%">
       <option value="">— Seleccionar docente —</option>
-      ${docs.map(d=>`<option value="${d.docente_id}" ${e&&m.docente_id===d.docente_id?'selected':''}>${d.apellido||''}, ${d.nombre}${d.especialidad?' — '+d.especialidad:''}</option>`).join('')}
+      ${docs.map(d=>`<option value="${d.docente_id}" ${e&&m.docente_id===d.docente_id?'selected':''}>${d.titulo?d.titulo+' ':''}${d.apellido||''}, ${d.nombre}</option>`).join('')}
     </select></div>
   <div class="fr">
     <div class="f"><label>Día de clase <span style="color:var(--red)">*</span></label>
@@ -950,7 +961,7 @@ async function pgDocentes(el){
   <div style="margin-bottom:12px"><input id="filtDocs" placeholder="🔍 Buscar por nombre, CI o especialidad..." oninput="renderDocentes()" style="max-width:380px"/></div>
   <div id="tablaDocentes"><div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
-    <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
+    <td><span class="bx ba">${d2.titulo||'—'}</span></td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
     <td><div class="abs">
       <button class="bs i" onclick="mDoc(DJ(this.dataset.j))" data-j="${J(d2)}">Editar</button>
@@ -963,13 +974,13 @@ async function pgDocentes(el){
 function renderDocentes(){
   const q=(document.getElementById('filtDocs')?.value||'').toLowerCase().trim();
   const d=q?(W._docsAll||[]).filter(x=>{
-    return (x.nombre+' '+x.apellido).toLowerCase().includes(q)||(x.ci||'').toLowerCase().includes(q)||(x.especialidad||'').toLowerCase().includes(q);
+    return (x.nombre+' '+x.apellido).toLowerCase().includes(q)||(x.ci||'').toLowerCase().includes(q);
   }):W._docsAll||[];
   const el=document.getElementById('tablaDocentes');
   if(!el)return;
   el.innerHTML=`<div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
-    <td>${d2.especialidad||'-'}</td><td>${d2.titulo||'-'}</td>
+    <td><span class="bx ba">${d2.titulo||'—'}</span></td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
     <td><div class="abs">
       <button class="bs i" onclick="mDoc(DJ(this.dataset.j))" data-j="${J(d2)}">Editar</button>
@@ -1258,7 +1269,7 @@ function mAsig(){
   <div class="fg">
     <div class="fr" style="align-items:flex-end">
       <div class="f" style="flex:1"><label>Docente <span style="color:var(--red)">*</span></label>
-        <select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('')}</select></div>
+        <select id="asd">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}</option>`).join('')}</select></div>
       <button class="bs i" onclick="toggleNuevoDoc()" style="margin-bottom:0;white-space:nowrap;height:36px">+ Nuevo docente</button>
     </div>
     <div id="nuevoDocPanel" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-top:-4px">
@@ -1318,7 +1329,7 @@ async function crearDocInline(){
     W._adata.docs=docs;
     const sel=document.getElementById('asd');
     if(sel){
-      sel.innerHTML=docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido} ${d.especialidad?'— '+d.especialidad:''}</option>`).join('');
+      sel.innerHTML=docs.map(d=>`<option value="${d.docente_id}">${d.nombre} ${d.apellido}</option>`).join('');
       // Seleccionar el docente recién creado
       if(r.docente_id)sel.value=r.docente_id;
     }
@@ -1429,7 +1440,7 @@ function exRow(e){
     <td>
       <div class="abs">
         ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
-        ${e.id?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
+        ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
         <label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen PDF/Word">
           📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓</span>`:'Adjuntar'}
           <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
@@ -1963,7 +1974,7 @@ async function generarVentanaActa(ex, alumnos, inst, pMax, esFinal, excluidos){
   <div class="info-line">Recibido por: ................................................. &nbsp;&nbsp; Fecha: ....../....../${fecha.getFullYear()}</div>
   <div class="firmas">
     <div class="firma-box"><div class="firma-line"></div><div>PROFESOR</div></div>
-    <div class="firma-box"><div class="firma-line"></div><div>DIRECTOR GENERAL</div></div>
+    <div class="firma-box"><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px">Director General</div></div>
   </div>
   <div style="text-align:center;margin-top:18px">
     <button onclick="window.print()" style="padding:8px 22px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir acta</button>
@@ -1987,31 +1998,32 @@ async function imprimirActaExamen(examenId, tipoOverride){
 // ── HORARIO SEMANAL DE CLASES ─────────────────────────────────────────────────
 async function pgCalClases(el){
   const horarios=await api('GET','/api/horarios');
-  W._horarios=horarios;
+  // Docente: filtrar solo sus materias
+  let h=horarios||[];
+  if(me.rol==='docente'&&me.docenteId){
+    h=h.filter(x=>x.docente_id===me.docenteId||x.docente_usuario_id===me.id);
+  }
+  W._horarios=h;
   const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
-  const colores={
-    'Agropecuaria':'#e8f5e9','Contabilidad':'#e3f2fd','Cosmiatría':'#fce4ec',
-    'Criminalística':'#fff3e0','Electricidad':'#f3e5f5','Enfermería':'#e0f7fa',
-    'Farmacia':'#fff8e1','Instrumentación':'#ede7f6','Radiología':'#e8eaf6'
-  };
-  const getColor=nombre=>{
-    const k=Object.keys(colores).find(k=>nombre?.includes(k));
-    return k?colores[k]:'#f5f5f5';
-  };
-  // Filtros
-  const carreras=[...new Set(horarios.filter(h=>h.carrera_nombre).map(h=>h.carrera_nombre))].sort();
+  const carreras=[...new Set(h.filter(x=>x.carrera_nombre).map(x=>x.carrera_nombre))].sort();
+  const anios=[...new Set(h.filter(x=>x.curso_anio).map(x=>x.curso_anio))].sort((a,b)=>a-b);
+  const esDocente=me.rol==='docente';
   el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases</h3>
-    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs · Inicio: 01 mayo 2026</p>
+    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs</p>
   </div>
-  <div class="fb" style="margin-bottom:16px">
-    <select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
+  <div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
+    ${!esDocente?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}
+    </select>`:''}
+    <select id="filtHorAnio" onchange="renderHorario()" style="min-width:110px">
+      <option value="">Todos los años</option>
+      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    <select id="filtHorDoc" onchange="renderHorario()" style="min-width:180px">
+    ${!esDocente?`<select id="filtHorDoc" onchange="renderHorario()" style="min-width:180px">
       <option value="">Todos los docentes</option>
-      ${[...new Set(horarios.filter(h=>h.docente_apellido).map(h=>h.docente_nombre+' '+h.docente_apellido))].sort().map(d=>`<option value="${d}">${d}</option>`).join('')}
-    </select>
+      ${[...new Set(h.filter(x=>x.docente_apellido).map(x=>x.docente_nombre+' '+x.docente_apellido))].sort().map(d=>`<option value="${d}">${d}</option>`).join('')}
+    </select>`:''}
   </div>
   <div id="tablaHorario" style="overflow-x:auto"></div>`;
   renderHorario();
@@ -2022,8 +2034,10 @@ function renderHorario(){
   const getColor=n=>{const k=Object.keys(colores).find(k=>n?.includes(k));return k?colores[k]:'#e0e0e0';};
   let h=W._horarios||[];
   const fc=document.getElementById('filtHorCarr')?.value||'';
+  const fa=document.getElementById('filtHorAnio')?.value||'';
   const fd=document.getElementById('filtHorDoc')?.value||'';
   if(fc)h=h.filter(x=>x.carrera_nombre?.includes(fc));
+  if(fa)h=h.filter(x=>String(x.curso_anio)===fa);
   if(fd)h=h.filter(x=>(x.docente_nombre+' '+x.docente_apellido)===fd);
   const turno1=h.filter(x=>x.turno===1);
   const turno2=h.filter(x=>x.turno===2);
@@ -2034,7 +2048,7 @@ function renderHorario(){
       ${items.map(i=>`<div style="background:${getColor(i.carrera_nombre)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px">
         <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin asignar'}</div>
         <div style="color:#555;margin-top:1px">${i.carrera_nombre||''} ${i.curso_anio?i.curso_anio+'°':''}</div>
-        <div style="color:#777;font-size:10px;margin-top:2px">${i.docente_nombre?i.docente_nombre+' '+i.docente_apellido:'Sin docente'}</div>
+        ${me.rol!=='docente'?`<div style="color:#777;font-size:10px;margin-top:2px">${i.titulo?i.titulo+' ':''}${i.docente_nombre?i.docente_nombre+' '+i.docente_apellido:'Sin docente'}</div>`:''}
       </div>`).join('')}
     </td>`;
   };
@@ -2046,18 +2060,16 @@ function renderHorario(){
       ${dias.map(d=>`<th style="padding:8px 10px;background:#185FA5;color:#fff;border:1px solid #1565c0;text-align:center">${d}</th>`).join('')}</tr>
     </thead>
     <tbody>
-      <tr style="background:#e8f5e9">
+      <tr>
         <td style="border:1px solid var(--bdr);padding:8px 10px;font-weight:700;white-space:nowrap;background:#c8e6c9">
-          <div style="font-size:13px">1er Turno</div>
-          <div style="font-size:11px;color:#555">19:00 – 20:20</div>
+          <div style="font-size:13px">1er Turno</div><div style="font-size:11px;color:#555">19:00 – 20:20</div>
         </td>
         ${dias.map(d=>cell(turno1,d)).join('')}
       </tr>
-      <tr style="background:#fff8e1"><td colspan="6" style="border:1px solid var(--bdr);padding:6px 10px;text-align:center;font-size:11px;color:var(--t2);font-style:italic">✦ RECESO — 20:20 a 20:40 hs ✦</td></tr>
+      <tr><td colspan="6" style="border:1px solid var(--bdr);padding:6px 10px;text-align:center;font-size:11px;color:var(--t2);font-style:italic">✦ RECESO — 20:20 a 20:40 hs ✦</td></tr>
       <tr>
         <td style="border:1px solid var(--bdr);padding:8px 10px;font-weight:700;white-space:nowrap;background:#fff3e0">
-          <div style="font-size:13px">2do Turno</div>
-          <div style="font-size:11px;color:#555">20:40 – 22:00</div>
+          <div style="font-size:13px">2do Turno</div><div style="font-size:11px;color:#555">20:40 – 22:00</div>
         </td>
         ${dias.map(d=>cell(turno2,d)).join('')}
       </tr>
@@ -2936,7 +2948,7 @@ async function imprimirActaTP(asigId){
     </table>
     <div class="firmas">
       <div class="firma-box"><div class="firma-line"></div><div>PROFESOR</div></div>
-      <div class="firma-box"><div class="firma-line"></div><div>DIRECTOR GENERAL</div></div>
+      <div class="firma-box"><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px">Director General</div></div>
     </div>
     <div style="text-align:center;margin-top:16px">
       <button onclick="window.print()" style="padding:8px 20px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir acta</button>
@@ -3265,7 +3277,7 @@ async function selAlumnoPago(alId){
                   <td style="padding:4px 8px;border:1px solid var(--bdr);text-align:right;font-weight:700">Gs. ${Number(p.monto).toLocaleString()}</td>
                   <td style="padding:4px 8px;border:1px solid var(--bdr)">${p.medio_pago||'Efectivo'}</td>
                   <td style="padding:4px 8px;border:1px solid var(--bdr)">${p.comprobante||'-'}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)"><button class="bs d" style="font-size:10px;padding:1px 5px" onclick="del('${p.id}','pagos').then(()=>selAlumnoPago('${alId}'))">✕</button></td>
+                  <td style="padding:4px 8px;border:1px solid var(--bdr)"><button class="bs d" style="font-size:10px;padding:1px 5px" onclick="delPagoAlumno('${p.id}','${alId}')">✕</button></td>
                 </tr>`).join('')}
               </tbody>
             </table>
@@ -3916,7 +3928,7 @@ async function pgHonorarios(el){
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <select id="filtHonDoc" style="min-width:220px">
       <option value="">Todos los docentes</option>
-      ${docs.map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre} — ${d.especialidad||''}</option>`).join('')}
+      ${docs.map(d=>`<option value="${d.docente_id}">${d.titulo?d.titulo+' ':''}${d.apellido||''}, ${d.nombre}</option>`).join('')}
     </select>
     <select id="filtHonMes" style="min-width:130px">
       ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}
@@ -4122,7 +4134,7 @@ async function imprimirInformeHon(){
   </div>
   <div class="firmas">
     <div class="firma-box"><div class="firma-line"></div><div>${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</div><div style="font-size:9px;color:#666">Firma del Docente</div></div>
-    <div class="firma-box"><div class="firma-line"></div><div>Director/a</div><div style="font-size:9px;color:#666">Firma y Sello</div></div>
+    <div class="firma-box"><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px;color:#666">Director General</div></div>
   </div>
   <div style="text-align:center;margin-top:16px">
     <button onclick="window.print()" style="padding:8px 22px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir informe</button>
@@ -4227,41 +4239,120 @@ async function pgReemplazos(el){
   W._repsData={docs,asigs};
 }
 async function mReemplazo(){
-  const {docs,asigs}=W._repsData||await Promise.all([api('GET','/api/docentes'),api('GET','/api/asignaciones')]).then(([d,a])=>({docs:d,asigs:a}));
-  // Si es docente, solo puede registrar reemplazo de sus propias materias
-  let misAsigs=asigs;
-  if(me.rol==='docente'){
-    const doc=(docs||[]).find(d=>d.usuario_id===me.id);
-    if(doc)misAsigs=asigs.filter(a=>a.docente_id===doc.docente_id);
+  const [docs,asigs]=await Promise.all([api('GET','/api/docentes'),api('GET','/api/asignaciones')]);
+  W._repsData={docs,asigs};
+  let misAsigs=asigs||[];
+  if(me.rol==='docente'&&me.docenteId){
+    misAsigs=misAsigs.filter(a=>a.docente_id===me.docenteId);
+    if(!misAsigs.length){toast('No tenés materias asignadas para solicitar reemplazos','warn');return;}
   }
-  modal(`<h4>🔄 Registrar reemplazo</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Solo el titular de la cátedra o el director pueden registrar un reemplazo. El director debe aprobarlo.</p>
+  W._misAsigsRep=misAsigs;
+  const carrs=[...new Set(misAsigs.map(a=>a.carrera_nombre).filter(Boolean))].sort();
+  const anios=[...new Set(misAsigs.map(a=>a.curso_anio).filter(Boolean))].sort((a,b)=>a-b);
+  modal(`<h4>🔄 Solicitar reemplazo</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Solo podés solicitar reemplazo para tus materias en los días que tenés clase (habilitado 24 hs antes).</p>
   <div class="fg">
-    <div class="f"><label>Materia (asignación) <span style="color:var(--red)">*</span></label>
-      <select id="repAsig">${misAsigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (${a.turno===1?'T1 19:00':'T2 20:40'})</option>`).join('')}</select></div>
+    <div style="background:#f0f4f8;border-radius:8px;padding:10px;margin-bottom:8px">
+      <p style="font-size:11px;font-weight:700;color:#1565c0;margin-bottom:6px">🔍 Filtrar materia:</p>
+      <div class="fb" style="gap:6px;flex-wrap:wrap">
+        <select id="repFiltCarr" onchange="filtRepAsigs()" style="font-size:12px;flex:1;min-width:130px">
+          <option value="">Todas las carreras</option>
+          ${carrs.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <select id="repFiltAnio" onchange="filtRepAsigs()" style="font-size:12px;flex:0 0 80px">
+          <option value="">Año</option>
+          ${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
+        </select>
+        <select id="repFiltTurno" onchange="filtRepAsigs()" style="font-size:12px;flex:0 0 110px">
+          <option value="">Turno</option>
+          <option value="1">T1 — 19:00</option>
+          <option value="2">T2 — 20:40</option>
+        </select>
+      </div>
+    </div>
+    <div class="f"><label>Materia <span style="color:var(--red)">*</span></label>
+      <select id="repAsig" onchange="calcFechasHabilitadas()">
+        <option value="">— Seleccionar —</option>
+        ${misAsigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'?'} T${a.turno||1})</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Fecha del reemplazo <span style="color:var(--red)">*</span></label>
+      <input id="repFec" type="date" onchange="validarFechaReemplazo()"/>
+      <p id="repFecMsg" style="font-size:11px;margin-top:3px"></p>
+    </div>
     <div class="f"><label>Docente reemplazante <span style="color:var(--red)">*</span></label>
-      <select id="repDoc">${(docs||[]).map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre} — ${d.especialidad||''}</option>`).join('')}</select></div>
-    <div class="fr">
-      <div class="f"><label>Fecha del reemplazo <span style="color:var(--red)">*</span></label><input id="repFec" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+      <select id="repDoc">
+        <option value="">— Seleccionar docente —</option>
+        ${(docs||[]).filter(d=>d.docente_id!==me.docenteId).map(d=>`<option value="${d.docente_id}">${d.titulo?d.titulo+' ':''}${d.apellido||''}, ${d.nombre}</option>`).join('')}
+      </select>
     </div>
     <div class="f"><label>Motivo (opcional)</label><input id="repMot" placeholder="Ej: Enfermedad, viaje..."/></div>
   </div>
-  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svReemplazo()">Registrar (pendiente de aprobación)</button></div>`);
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svReemplazo()">Registrar</button></div>`);
+}
+function filtRepAsigs(){
+  const carr=v('repFiltCarr'),anio=v('repFiltAnio'),turno=v('repFiltTurno');
+  let asigs=W._misAsigsRep||[];
+  if(carr) asigs=asigs.filter(a=>a.carrera_nombre===carr);
+  if(anio) asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
+  const sel=document.getElementById('repAsig');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— Seleccionar —</option>'+asigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'?'} T${a.turno||1})</option>`).join('');
+}
+function calcFechasHabilitadas(){
+  const opt=document.getElementById('repAsig')?.selectedOptions[0];
+  const dia=opt?.dataset?.dia||'';
+  const fecInput=document.getElementById('repFec');
+  const msg=document.getElementById('repFecMsg');
+  if(!dia||!fecInput)return;
+  const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+  const numDia=diasNum[dia]||0;
+  const hoy=new Date();
+  let fecha=new Date(hoy);
+  for(let i=0;i<14;i++){if(fecha.getDay()===numDia)break;fecha.setDate(fecha.getDate()+1);}
+  fecInput.value=fecha.toISOString().split('T')[0];
+  fecInput.min=hoy.toISOString().split('T')[0];
+  const diffH=(fecha-hoy)/3600000;
+  if(msg){
+    msg.textContent=diffH<=24?`✓ Habilitado — clase el ${dia} (dentro de 24 hs)`:`Clase los ${dia}. Fecha sugerida: ${fecha.toISOString().split('T')[0]}`;
+    msg.style.color=diffH<=24?'#2e7d32':'#e65100';
+  }
+}
+function validarFechaReemplazo(){
+  const opt=document.getElementById('repAsig')?.selectedOptions[0];
+  const dia=opt?.dataset?.dia||'';
+  if(!dia)return;
+  const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+  const fecInput=document.getElementById('repFec');
+  const msg=document.getElementById('repFecMsg');
+  if(!fecInput?.value)return;
+  const fechaSel=new Date(fecInput.value+'T12:00:00');
+  if(fechaSel.getDay()!==diasNum[dia]){
+    if(msg){msg.textContent=`⚠ ${fechaSel.toLocaleDateString('es',{weekday:'long'})} no es día de clase (${dia})`;msg.style.color='#c62828';}
+  } else {
+    if(msg){msg.textContent=`✓ Fecha válida — ${dia}`;msg.style.color='#2e7d32';}
+  }
 }
 async function svReemplazo(){
-  const asigId=v('repAsig'), repDocId=v('repDoc'), fecha=v('repFec'), motivo=v('repMot');
-  if(!asigId||!repDocId||!fecha)return alert('Completar campos obligatorios');
-  // Verificar conflicto de horario del reemplazante
+  const asigId=v('repAsig'),repDocId=v('repDoc'),fecha=v('repFec'),motivo=v('repMot');
+  if(!asigId||!repDocId||!fecha)return alert('Completar todos los campos obligatorios');
+  const opt=document.getElementById('repAsig')?.selectedOptions[0];
+  const dia=opt?.dataset?.dia||'';
+  if(dia){
+    const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+    const fechaSel=new Date(fecha+'T12:00:00');
+    if(fechaSel.getDay()!==diasNum[dia])
+      return alert(`⚠ La fecha seleccionada no corresponde al día de clase (${dia}).`);
+  }
   try{
-    const asig=W._repsData?.asigs?.find(a=>a.id===asigId);
+    const asig=(W._repsData?.asigs||[]).find(a=>a.id===asigId);
     if(asig){
-      const conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${repDocId}&dia=${encodeURIComponent(asig.dia||'')}&turno=${asig.turno||1}&exclude_id=`).catch(()=>({tiene_conflicto:false}));
-      if(conflicto?.tiene_conflicto){
-        if(!confirm(`⚠ Conflicto de horario:\nEl docente reemplazante ya tiene "${conflicto.materia}" ese mismo turno.\n\n¿El Director aprueba igualmente el reemplazo?`)){return;}
-      }
+      const c=await api('GET',`/api/asignaciones/conflicto?docente_id=${repDocId}&dia=${encodeURIComponent(asig.dia||'')}&turno=${asig.turno||1}&exclude_id=`).catch(()=>({tiene_conflicto:false}));
+      if(c?.tiene_conflicto&&!confirm(`⚠ El reemplazante ya tiene "${c.materia}" ese turno. ¿Confirmar igual? El Director decidirá.`))return;
     }
     await api('POST','/api/reemplazos',{asignacion_id:asigId,docente_reemplazante_id:repDocId,fecha,motivo});
-    toast('✓ Reemplazo registrado — pendiente de aprobación del director','info',5000);
+    toast('✓ Reemplazo registrado — pendiente de aprobación del Director','ok',5000);
     cm();go('reemplazos');
   }catch(e){toast('Error: '+e.message,'err');}
 }
@@ -4652,7 +4743,7 @@ async function imprimirBoletin(alId){
     </div>
     <div class="firmas">
       <div><div class="firma-line"></div><div>Alumno/a</div></div>
-      <div><div class="firma-line"></div><div style="font-weight:700">Docente</div><div style="font-size:9px;color:#666">Firma y sello</div></div>
+      <div><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px;color:#666">Director General</div></div>
     </div>
     <div style="text-align:center;margin-top:16px">
       <button onclick="window.print()" style="padding:8px 22px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir boletín</button>
@@ -4821,6 +4912,7 @@ async function imprimirEstadoCuenta(alId){
     <div class="firmas">
       <div><div class="firma-line"></div><div>Alumno/a</div></div>
       <div><div class="firma-line"></div><div>Tesorería / Administración</div></div>
+      <div><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px;color:#666">Director General</div></div>
       <div><div class="firma-line"></div><div>Director/a General</div></div>
     </div>
     <p style="font-size:9px;text-align:center;color:#888;margin-top:14px">Emitido el ${new Date().toLocaleDateString('es-PY')} — Sistema ITS</p>
@@ -5033,6 +5125,7 @@ function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><d
   </div>`:''}
   <div class="f"><label>Rol</label><select id="urol" onchange="onCambioRolU()">
     <option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option>
+    <option value="secretaria" ${e&&u.rol==='secretaria'?'selected':''}>Secretaría — gestión académica sin pagos</option>
     <option value="docente" ${e&&u.rol==='docente'?'selected':''}>Docente — cargar notas y asistencia</option>
     <option value="alumno" ${e&&u.rol==='alumno'?'selected':''}>Alumno — ver sus propios datos</option>
   </select></div>
