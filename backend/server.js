@@ -957,6 +957,13 @@ app.get('/api/reemplazos', auth(['director','docente']), (req, res) => {
 app.post('/api/reemplazos', auth(['director','docente']), (req, res) => {
   const { asignacion_id, docente_reemplazante_id, fecha, motivo } = req.body;
   if (!asignacion_id || !docente_reemplazante_id || !fecha) return res.status(400).json({ error: 'Datos incompletos' });
+  // Bloquear fechas pasadas: solo el director puede registrar reemplazos retroactivos
+  if (req.user.rol === 'docente') {
+    const hoyStr = new Date().toISOString().split('T')[0];
+    if (fecha < hoyStr) {
+      return res.status(400).json({ error: '⛔ No podés registrar un reemplazo para una fecha que ya pasó. Solo se permite desde el día de hoy en adelante.' });
+    }
+  }
   const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(asignacion_id);
   if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
   // Verificar que quien registra es el director o el titular
@@ -1218,10 +1225,18 @@ app.get('/api/avisos', auth(), (req, res) => {
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 50`).all());
 });
-app.post('/api/avisos', auth(ADM), (req, res) => {
+app.post('/api/avisos', auth(['director','docente']), (req, res) => {
   const { titulo, contenido, tipo, fijado, destinatario } = req.body;
+  // Docente solo puede publicar avisos para alumnos o al director
+  let dest = destinatario || 'todos';
+  if (req.user.rol === 'docente') {
+    // Mapear 'mis-alumnos' a 'alumnos', limitar destinos permitidos
+    if (dest === 'mis-alumnos') dest = 'alumnos';
+    if (!['alumnos','director'].includes(dest)) dest = 'alumnos';
+  }
   const id = 'av_' + Date.now();
-  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destinatario||'todos',req.user.id);
+  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,dest,req.user.id);
+  audit(req.user.id,'CREATE','avisos',id,{titulo,destinatario:dest});
   res.json({ id });
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
@@ -1507,7 +1522,8 @@ app.get('/api/horarios', auth(), (req, res) => {
   if (dia)                { where += ' AND h.dia=?';           params.push(dia); }
   if (docente_id)         { where += ' AND a.docente_id=?';    params.push(docente_id); }
   if (docente_usuario_id) { where += ' AND u.id=?';            params.push(docente_usuario_id); }
-  res.json(db.prepare(`
+
+  let rows = db.prepare(`
     SELECT h.*,
       a.docente_id,
       m.nombre as materia_nombre, m.dia as materia_dia, m.turno as materia_turno,
@@ -1522,7 +1538,36 @@ app.get('/api/horarios', auth(), (req, res) => {
     LEFT JOIN carreras ca ON cu.carrera_id=ca.id
     LEFT JOIN docentes d ON a.docente_id=d.id
     LEFT JOIN usuarios u ON d.usuario_id=u.id
-    ${where} ORDER BY h.dia, h.turno, ca.nombre`).all(...params));
+    ${where} ORDER BY h.dia, h.turno, ca.nombre`).all(...params);
+
+  // Si el docente no encontró horarios en la tabla horarios,
+  // buscar directamente en asignaciones que tienen dia/turno asignados
+  if (rows.length === 0 && (docente_id || docente_usuario_id)) {
+    let whereAsig = 'WHERE a.dia IS NOT NULL';
+    const paramsAsig = [];
+    if (docente_id) { whereAsig += ' AND a.docente_id=?'; paramsAsig.push(docente_id); }
+    if (docente_usuario_id) { whereAsig += ' AND u.id=?'; paramsAsig.push(docente_usuario_id); }
+    rows = db.prepare(`
+      SELECT
+        a.id as id, a.id as asignacion_id,
+        a.docente_id,
+        a.dia, a.turno, a.hora_inicio, a.hora_fin, a.aula,
+        m.nombre as materia_nombre, m.dia as materia_dia, m.turno as materia_turno,
+        ca.nombre as carrera_nombre,
+        cu.anio as curso_anio, cu.division as curso_division,
+        u.nombre as docente_nombre, u.apellido as docente_apellido, u.id as docente_usuario_id,
+        d.titulo as docente_titulo
+      FROM asignaciones a
+      JOIN materias m ON a.materia_id=m.id
+      JOIN cursos cu ON a.curso_id=cu.id
+      JOIN carreras ca ON cu.carrera_id=ca.id
+      JOIN docentes d ON a.docente_id=d.id
+      JOIN usuarios u ON d.usuario_id=u.id
+      ${whereAsig}
+      ORDER BY a.dia, a.turno, ca.nombre`).all(...paramsAsig);
+  }
+
+  res.json(rows);
 });
 
 // ── NOTAS FILTRADAS POR CARRERA/CURSO ─────────────────────────────────────────
