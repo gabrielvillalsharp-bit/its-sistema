@@ -2398,8 +2398,8 @@ app.get('/api/alumnos/:id/acta-egreso', auth(ADM), (req, res) => {
 // ── EXAMENES: adjuntar archivo PDF/Word ───────────────────────────────────────
 app.post('/api/examenes/:id/archivo', auth(['director','docente']), upload.single('archivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
-  const ok = ['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  if (!ok.includes(req.file.mimetype)) return res.status(400).json({ error: 'Solo PDF o Word (.doc, .docx)' });
+  const ok = ['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  if (!ok.includes(req.file.mimetype)) return res.status(400).json({ error: 'Solo se permiten archivos Word (.doc, .docx)' });
   if (req.file.size > 10*1024*1024) return res.status(400).json({ error: 'El archivo no puede superar 10 MB' });
   try {
     db.prepare('UPDATE examenes SET archivo_nombre=?, archivo_data=?, archivo_tipo=? WHERE id=?').run(req.file.originalname, req.file.buffer, req.file.mimetype, req.params.id);

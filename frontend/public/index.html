@@ -550,6 +550,10 @@ async function svAvisoDirector(){
 }
 function mAviso(){
   const esDirector=me.rol==='director';
+  const esDocente=me.rol==='docente';
+  const asigs=W._notasAsigs||[];
+  const carreras=[...new Set(asigs.map(a=>a.carrera_nombre).filter(Boolean))].sort();
+  const materias=[...new Set(asigs.map(a=>a.materia_nombre).filter(Boolean))].sort();
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
@@ -568,21 +572,38 @@ function mAviso(){
         <option value="todos">Todos (docentes y alumnos)</option>
         <option value="docentes">Solo docentes</option>
         <option value="alumnos">Solo alumnos</option>
-      `:`
+        <option value="director">Solo Director y Secretaría</option>
+      `:esDocente?`
         <option value="mis-alumnos">Mis alumnos (de mis materias)</option>
         <option value="director">Solo al Director</option>
-      `}
+        <option value="director-secretaria">Director y Secretaría</option>
+      `:`<option value="director">Solo al Director</option>`}
     </select>
-    <p style="font-size:11px;color:var(--t2);margin-top:3px">
-      ${esDirector?'Los avisos "Solo docentes" no son visibles para alumnos.':'Los avisos de docentes solo llegan a sus propios alumnos o al Director.'}
-    </p>
   </div>
+  ${esDocente&&carreras.length?`
+  <div class="fr">
+    <div class="f"><label>Filtrar por carrera (opcional)</label>
+      <select id="avCarr">
+        <option value="">Todas mis carreras</option>
+        ${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Filtrar por materia (opcional)</label>
+      <select id="avMat">
+        <option value="">Todas mis materias</option>
+        ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      </select>
+    </div>
+  </div>`:''}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
 }
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
-  await api('POST','/api/avisos',{titulo:t,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1',destinatario:v('avdest')||'todos'});
+  const carrera=v('avCarr'), materia=v('avMat');
+  let titulo=t;
+  if(carrera||materia){const ctx=[materia,carrera].filter(Boolean).join(' — ');titulo=`${t} [${ctx}]`;}
+  await api('POST','/api/avisos',{titulo,contenido:c,tipo:v('avtp'),fijado:v('avf')==='1',destinatario:v('avdest')||'todos'});
   cm();go('avisos');
 }
 
@@ -1376,15 +1397,21 @@ async function svAsig(){
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
 async function pgExamenes(el){
-  const [exs,pers,carrs,cursos]=await Promise.all([api('GET','/api/examenes'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  const [exsAll,pers,carrs,cursos]=await Promise.all([api('GET','/api/examenes'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  // Docente solo ve sus propios exámenes
+  let exs=exsAll||[];
+  if(me.rol==='docente'&&me.docenteId){
+    exs=exs.filter(e=>e.docente_id===me.docenteId);
+  }
   W._exData={pers,carrs,cursos}; W._exs=exs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  const esDir=me.rol==='director'||me.rol==='secretaria';
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      <button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla</button>
-      <label class="bs" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>
-      <button class="bn" onclick="mExamen()">+ Programar examen</button>
+      ${esDir?`<button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla</button>`:''}
+      ${esDir?`<label class="bs" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
+      ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
     <select id="filtExGrupo" onchange="filtExAll()" style="min-width:160px">
@@ -1422,6 +1449,33 @@ async function pgExamenes(el){
 function exRow(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
   const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
+  // Calcular estado del examen y habilitación de adjunto
+  const hoy=new Date();
+  const fechaEx=e.fecha?new Date(e.fecha+'T12:00:00'):null;
+  const yaOcurrio=fechaEx&&fechaEx<hoy;
+  const hs72=(fechaEx&&!yaOcurrio)?(fechaEx-hoy)/3600000:0;
+  const puedeAdjuntar=!yaOcurrio&&hs72<=72&&hs72>=0||me.rol==='director';
+  const fueraDe72=!yaOcurrio&&hs72>72;
+  // Botón adjuntar: solo Word, solo docente propietario o director, solo dentro de 72hs
+  const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
+  let btnAdjuntar='';
+  if(esDocumentoPropietario){
+    if(yaOcurrio){
+      btnAdjuntar=`<span style="font-size:10px;color:#999" title="El examen ya ocurrió">🔒 Cerrado</span>`;
+    } else if(fueraDe72){
+      const hsFalt=Math.round(hs72-72);
+      btnAdjuntar=`<span style="font-size:10px;color:#e65100" title="Habilitado 72hs antes del examen">⏳ En ${Math.round(hs72-72)}h</span>`;
+    } else {
+      btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word (.doc/.docx) — habilitado hasta la fecha del examen">
+        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${e.archivo_nombre.slice(0,15)}${e.archivo_nombre.length>15?'…':''}</span>`:'Adjuntar Word'}
+        <input type="file" accept=".doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+      </label>`;
+    }
+  }
+  // Ver/descargar: director descarga, docente ve
+  const btnVer=e.archivo_nombre?(me.rol==='director'
+    ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px" title="Descargar ${e.archivo_nombre}">⬇ Bajar</a>`
+    :`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
   return `<tr>
     <td style="white-space:nowrap;font-weight:600">${e.fecha?fmtFecha(e.fecha):'—'}</td>
     <td style="white-space:nowrap">${e.hora||'—'}</td>
@@ -1441,13 +1495,10 @@ function exRow(e){
       <div class="abs">
         ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
         ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
-        <label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen PDF/Word">
-          📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓</span>`:'Adjuntar'}
-          <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
-        </label>
-        ${e.archivo_nombre?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`:''}
-        ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#e3f2fd;color:#1565c0" onclick="enviarRecordatorio('${e.id}')" title="Enviar recordatorio por email al docente">✉ Aviso</button>`:''}
-        <button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>
+        ${btnAdjuntar}
+        ${btnVer}
+        ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#e3f2fd;color:#1565c0" onclick="enviarRecordatorio('${e.id}')" title="Enviar recordatorio">✉</button>`:''}
+        ${me.rol==='director'?`<button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>`:''}
       </div>
     </td>
   </tr>`;
@@ -2188,11 +2239,19 @@ function verDia(fecha){
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
-          ${e.archivo_nombre?`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`:''}
-          <label class="bs" style="font-size:11px;cursor:pointer" title="Adjuntar examen PDF/Word">
-            📎 ${e.archivo_nombre?'Reemplazar':'Adjuntar examen'}
-            <input type="file" accept=".pdf,.doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
-          </label>
+          ${e.archivo_nombre?(me.rol==='director'
+            ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px">⬇ Bajar Word</a>`
+            :`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`):''}
+          ${(()=>{
+            const hoy2=new Date();const fx=e.fecha?new Date(e.fecha+'T12:00:00'):null;
+            const paso=fx&&fx<hoy2;const hs=fx&&!paso?(fx-hoy2)/3600000:0;
+            if(paso)return `<span style="font-size:10px;color:#999">🔒 Cerrado</span>`;
+            if(hs>72)return `<span style="font-size:10px;color:#e65100">⏳ Habilita en ${Math.round(hs-72)}h</span>`;
+            return `<label class="bs" style="font-size:11px;cursor:pointer" title="Adjuntar examen Word — habilitado hasta la fecha del examen">
+              📎 ${e.archivo_nombre?'Reemplazar':'Adjuntar Word'}
+              <input type="file" accept=".doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+            </label>`;
+          })()}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">
@@ -2383,7 +2442,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       <span class="bx bg">✓ ${aprobados} aprobados</span>
       <span class="bx br">✗ ${reprobados} reprobados</span>
       <span class="bx bgr">⏳ ${pendientes} pendientes</span>
-      ${bloqueados?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
+      ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div class="abs">
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>`:''}
@@ -2727,8 +2786,8 @@ W.loadAsist=async(asigId)=>{
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
-      <button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>
-      <button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>
+      ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
+      ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
@@ -2803,6 +2862,10 @@ async function guardarEditAsist(regId, alId){
 // ── MODAL DE CONFIRMACIÓN RICO (reemplaza confirm() nativo) ──────────────────
 function confirm2(titulo, cuerpo, onAceptar, onModificar){
   const id='cfm_'+Date.now();
+  // Guardar callbacks en objeto global para evitar toString() que rompe con async functions
+  window._cfm=window._cfm||{};
+  window._cfm[id+'_ok']=async function(){document.getElementById(id)?.remove();await onAceptar();};
+  window._cfm[id+'_mod']=onModificar?function(){document.getElementById(id)?.remove();onModificar();}:null;
   const div=document.createElement('div');
   div.id=id;
   div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;display:flex;align-items:center;justify-content:center';
@@ -2810,8 +2873,8 @@ function confirm2(titulo, cuerpo, onAceptar, onModificar){
     <h4 style="font-size:15px;font-weight:700;color:#1a2a4a;margin-bottom:10px">${titulo}</h4>
     <div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:16px">${cuerpo}</div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-      ${onModificar?`<button onclick="document.getElementById('${id}').remove();(${onModificar.toString()})()" style="padding:8px 16px;border:1px solid var(--bdr);border-radius:7px;background:#fff;color:#333;cursor:pointer;font-size:13px;font-weight:600">✏ Modificar</button>`:''}
-      <button onclick="document.getElementById('${id}').remove();(${onAceptar.toString()})()" style="padding:8px 20px;border:none;border-radius:7px;background:#1a5fa8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✓ Confirmar</button>
+      ${onModificar?`<button onclick="window._cfm['${id}_mod']()" style="padding:8px 16px;border:1px solid var(--bdr);border-radius:7px;background:#fff;color:#333;cursor:pointer;font-size:13px;font-weight:600">✏ Modificar</button>`:''}
+      <button onclick="window._cfm['${id}_ok']()" style="padding:8px 20px;border:none;border-radius:7px;background:#1a5fa8;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✓ Confirmar</button>
     </div>
   </div>`;
   document.body.appendChild(div);
@@ -2826,7 +2889,8 @@ async function grdAsist(){
   const presentes=registros.filter(r=>r.estado==='P').length;
   const ausentes=registros.filter(r=>r.estado==='A').length;
   const justif=registros.filter(r=>r.estado==='J').length;
-  const hon=presentes>0?'<br><span style="color:#2e7d32;font-size:12px">💰 Se generará honorario de Gs. 80.000 por esta clase</span>':'<br><span style="color:#e65100;font-size:12px">⚠ Sin alumnos presentes — no se genera honorario</span>';
+  const esDir=me.rol==='director';
+  const hon=esDir?(presentes>0?'<br><span style="color:#2e7d32;font-size:12px">💰 Se generará honorario de Gs. 80.000 por esta clase</span>':'<br><span style="color:#e65100;font-size:12px">⚠ Sin alumnos presentes — no se genera honorario</span>'):'';
   confirm2(
     '💾 Confirmar registro de asistencia',
     `<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:8px">
