@@ -3737,44 +3737,58 @@ async function selAlumnoPago(alId){
       <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:18px;font-weight:800">${al.display_apellido||al.apellido||''}, ${al.display_nombre||al.nombre||''}</div>
-          <div style="font-size:12px;opacity:.85;margin-top:2px">C.I.: ${al.display_ci||al.ci||'-'} · ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}</div>
+          <div style="font-size:12px;opacity:.85;margin-top:2px">C.I.: ${al.display_ci||al.ci||'—'} · ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}</div>
+          <div style="font-size:11px;opacity:.75;margin-top:2px">Matrícula: ${al.matricula||'—'}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:22px;font-weight:900">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
-          <div style="font-size:11px;opacity:.8">Total acumulado</div>
+          <div style="font-size:24px;font-weight:900">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
+          <div style="font-size:11px;opacity:.8">Total pagado</div>
+          <button class="bs" onclick="mPagoParaAlumno('${alId}')" style="margin-top:6px;background:#fff;color:#185FA5;font-size:12px;font-weight:700;border:none;border-radius:6px;padding:5px 12px;cursor:pointer">+ Registrar pago</button>
         </div>
       </div>
       <!-- Estado habilitación y beca -->
       <div style="padding:10px 16px;background:#f9f9f9;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:600">Habilitación:</span>${habEstado}
+        <span style="font-size:12px;font-weight:600">Estado:</span>${habEstado}
         ${becasActivas.length?`<span style="font-size:11px;padding:3px 8px;background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;color:#2e7d32">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
-        <button class="bs i" onclick="mPagoParaAlumno('${alId}')" style="margin-left:auto">+ Registrar pago</button>
+      </div>
+      <!-- Resumen rápido de cuotas -->
+      <div style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--bdr)">
+        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Cuotas del período</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'].map(cuota=>{
+            const pagado=(pagos||[]).some(p=>p.concepto===cuota||p.concepto?.includes(cuota));
+            return`<div style="padding:6px 10px;border-radius:7px;border:1.5px solid ${pagado?'#4caf50':'#e0e0e0'};background:${pagado?'#e8f5e9':'#fafafa'};text-align:center;min-width:65px">
+              <div style="font-size:10px;color:${pagado?'#2e7d32':'#999'}">${pagado?'✓':'✗'}</div>
+              <div style="font-size:11px;font-weight:700;color:${pagado?'#1b5e20':'#bbb'}">${cuota}</div>
+            </div>`;
+          }).join('')}
+        </div>
       </div>
       <!-- Historial por categorías -->
       <div style="padding:14px 16px">
         ${Object.entries(grupos).filter(([,g])=>g.pagos.length>0).map(([key,g])=>`
-          <div style="margin-bottom:14px">
-            <div style="font-weight:700;font-size:12px;padding:5px 10px;background:${g.color};border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between">
-              <span>${g.label}</span>
-              <span>Gs. ${g.pagos.reduce((s,p)=>s+Number(p.monto||0),0).toLocaleString()}</span>
+          <div style="margin-bottom:16px">
+            <div style="font-weight:700;font-size:12px;padding:6px 12px;background:${g.color};border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+              <span>📋 ${g.label}</span>
+              <span style="font-weight:900">Gs. ${g.pagos.reduce((s,p)=>s+Number(p.monto||0),0).toLocaleString()}</span>
             </div>
             <table style="width:100%;border-collapse:collapse;font-size:12px">
               <thead><tr style="background:#f5f5f5">
-                <th style="padding:4px 8px;border:1px solid var(--bdr);text-align:left">Fecha</th>
-                <th style="padding:4px 8px;border:1px solid var(--bdr);text-align:left">Concepto</th>
-                <th style="padding:4px 8px;border:1px solid var(--bdr);text-align:right">Monto</th>
-                <th style="padding:4px 8px;border:1px solid var(--bdr);text-align:left">Medio</th>
-                <th style="padding:4px 8px;border:1px solid var(--bdr);text-align:left">Comp.</th>
-                <th style="padding:4px 8px;border:1px solid var(--bdr)"></th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left">Fecha</th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left">Concepto</th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:right">Monto</th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left">Medio</th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:left">Comp.</th>
+                <th style="padding:5px 8px;border:1px solid var(--bdr)"></th>
               </tr></thead>
               <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map(p=>`
-                <tr>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)">${fmtFecha(p.fecha_pago)}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)">${p.concepto}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr);text-align:right;font-weight:700">Gs. ${Number(p.monto).toLocaleString()}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)">${p.medio_pago||'Efectivo'}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)">${p.comprobante||'-'}</td>
-                  <td style="padding:4px 8px;border:1px solid var(--bdr)"><button class="bs d" style="font-size:10px;padding:1px 5px" onclick="delPagoAlumno('${p.id}','${alId}')">✕</button></td>
+                <tr style="background:${p.estado==='Pagado'?'':'#fffde7'}">
+                  <td style="padding:5px 8px;border:1px solid var(--bdr);white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
+                  <td style="padding:5px 8px;border:1px solid var(--bdr)">${p.concepto}</td>
+                  <td style="padding:5px 8px;border:1px solid var(--bdr);text-align:right;font-weight:700;color:#1b5e20">Gs. ${Number(p.monto).toLocaleString()}</td>
+                  <td style="padding:5px 8px;border:1px solid var(--bdr)">${p.medio_pago||'Efectivo'}</td>
+                  <td style="padding:5px 8px;border:1px solid var(--bdr);font-size:11px">${p.comprobante||'—'}</td>
+                  <td style="padding:5px 8px;border:1px solid var(--bdr)"><button class="bs d" style="font-size:10px;padding:1px 5px" onclick="delPagoAlumno('${p.id}','${alId}')">✕</button></td>
                 </tr>`).join('')}
               </tbody>
             </table>

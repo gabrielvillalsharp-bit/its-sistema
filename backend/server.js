@@ -2482,8 +2482,9 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
     // Crear alumno real vinculado a la asignación
     const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
     if (asig) {
-      const carr = db.prepare('SELECT codigo FROM carreras ca JOIN cursos cu ON ca.id=cu.carrera_id WHERE cu.id=?').get(asig.curso_id);
-      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=(SELECT carrera_id FROM cursos WHERE id=?)').get(asig.curso_id).n;
+      const curso = db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id);
+      const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(curso?.carrera_id);
+      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(curso?.carrera_id||'').n;
       const matricula = `${carr?.codigo||'ALU'}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
@@ -2492,10 +2493,11 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
         emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
       const uid = 'u_a_'+Date.now();
       const fechaHoy = new Date().toISOString().split('T')[0];
+      const carreraId = curso?.carrera_id || null;
       db.transaction(() => {
         db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
         const aid = 'a_'+Date.now();
-        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid,uid,matricula,(asig.carrera_id||''),asig.curso_id,fechaHoy,'Activo',ciRaw,sol.nombre,sol.apellido);
+        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid,uid,matricula,carreraId,asig.curso_id,fechaHoy,'Activo',ciRaw,sol.nombre,sol.apellido);
         db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now(),aid,asig.id,'Pendiente');
       })();
     }
