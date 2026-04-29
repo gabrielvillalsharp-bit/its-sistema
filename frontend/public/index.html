@@ -295,15 +295,13 @@ function startApp(){
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
-  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':me.rol==='secretaria'?'alumnos':'dashboard';
+  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':me.rol==='secretaria'?'alumnos':'alumnos';
   go(inicio);
 }
 
 function navFor(r){
   return [
     {g:'General',i:[
-      {id:'dashboard',l:'Dashboard',c:'#185FA5',r:['director']},
-      {id:'dashboard-analitico',l:'Análisis y estadísticas',c:'#185FA5',r:['director']},
       {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno','secretaria']},
       {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','secretaria']},
       {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno','secretaria']},
@@ -1464,11 +1462,12 @@ async function pgExamenes(el){
   W._exData={pers,carrs,cursos}; W._exs=exs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   const esDir=me.rol==='director'||me.rol==='secretaria';
+  const esDocente=me.rol==='docente';
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      ${esDir?`<button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla</button>`:''}
-      ${esDir?`<label class="bs" style="cursor:pointer">📥 Importar<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
+      ${esDir||esDocente?`<button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla Excel</button>`:''}
+      ${esDir||esDocente?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100" title="Importar calendario de exámenes desde Excel">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -1569,49 +1568,74 @@ async function enviarRecordatorio(exId){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 function descargarPlantillaExamenes(){
-  const a=document.createElement('a');
-  a.href='/api/examenes/plantilla';
-  a.download='plantilla_examenes_ITS.xlsx';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  toast('Descargando plantilla...','info');
+  // Crear plantilla Excel con las columnas necesarias + datos de referencia
+  const XLSX_lib=window.XLSX||null;
+  if(!XLSX_lib){
+    // Si no hay XLSX disponible, descargar desde servidor
+    const a=document.createElement('a');
+    a.href='/api/examenes/plantilla';
+    a.download='plantilla_examenes_ITS.xlsx';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    return;
+  }
+  const wb=XLSX_lib.utils.book_new();
+  // Hoja principal de datos
+  const datos=[
+    ['docente_id','carrera_nombre','anio','seccion','turno','materia_nombre','tipo','fecha','hora','aula','puntos_max','observacion'],
+    ['doc_001','Enfermería','1','A','1','Anatomía','Parcial','2026-06-15','19:00','Aula 1','25',''],
+    ['','','','','','','Final','2026-07-20','19:00','Aula 1','50',''],
+  ];
+  const ws=XLSX_lib.utils.aoa_to_sheet(datos);
+  XLSX_lib.utils.book_append_sheet(wb,'Exámenes',ws);
+  XLSX_lib.writeFile(wb,'plantilla_examenes_ITS.xlsx');
+  toast('✓ Plantilla descargada','ok',3000);
 }
 async function importarExamenes(input){
   const file=input.files[0];if(!file)return;
   input.value='';
-  toast('Leyendo archivo Excel...','info',2000);
+  toast('Analizando archivo Excel...','info',2000);
   const fd=new FormData();fd.append('archivo',file);
   try{
     const r=await api('POST','/api/examenes/importar',fd,true);
     if(!r||!r.preview||!r.preview.length){toast('No se encontraron filas válidas en el Excel','warn');return;}
-    // Mostrar previsualización para confirmar o modificar
+    // Clasificar conflictos
+    const sinConflicto=r.preview.filter(x=>!x.error&&!x.conflicto);
+    const conConflicto=r.preview.filter(x=>x.conflicto&&!x.error);
+    const conError=r.preview.filter(x=>x.error);
     modal(`<h4>📥 Importar exámenes desde Excel</h4>
-    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Se encontraron <strong>${r.preview.length}</strong> exámenes. Revisá los datos antes de confirmar:</p>
-    <div style="max-height:55vh;overflow-y:auto">
+    <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Se encontraron <strong>${r.preview.length}</strong> filas. Revisá antes de confirmar:</p>
+    ${conConflicto.length?`<div style="background:#fff3e0;border:2px solid #e65100;border-radius:8px;padding:10px;margin-bottom:8px">
+      <p style="font-weight:700;color:#e65100;font-size:12px">⚠ ${conConflicto.length} conflicto(s) detectado(s)</p>
+      ${conConflicto.map(x=>`<p style="font-size:11px;margin:2px 0">· ${x.materia_nombre||x.materia||'?'} — ${x.docente||'?'}: ${x.conflicto}</p>`).join('')}
+    </div>`:''}
+    <div style="max-height:50vh;overflow-y:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr style="background:#f0f4f8">
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Docente</th>
         <th style="padding:5px 8px;border:1px solid var(--bdr)">Materia</th>
+        <th style="padding:5px 8px;border:1px solid var(--bdr)">Carrera/Año</th>
         <th style="padding:5px 8px;border:1px solid var(--bdr)">Tipo</th>
         <th style="padding:5px 8px;border:1px solid var(--bdr)">Fecha</th>
-        <th style="padding:5px 8px;border:1px solid var(--bdr)">Hora</th>
-        <th style="padding:5px 8px;border:1px solid var(--bdr)">Aula</th>
         <th style="padding:5px 8px;border:1px solid var(--bdr)">Estado</th>
       </tr></thead>
-      <tbody>${r.preview.map(ex=>`<tr style="background:${ex.error?'#fff3f3':''}">
-        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.materia_nombre||ex.materia||'—'}<br><span style="font-size:10px;color:var(--t3)">${ex.carrera||''} ${ex.anio?ex.anio+'°':''}</span></td>
+      <tbody>${r.preview.map(ex=>`<tr style="background:${ex.error?'#fff3f3':ex.conflicto?'#fff8e1':''}">
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.docente||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.materia_nombre||ex.materia||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr);font-size:10px">${ex.carrera||''} ${ex.anio?ex.anio+'°':''} ${ex.seccion?'Secc.'+ex.seccion:''} ${ex.turno?'T'+ex.turno:''}</td>
         <td style="padding:4px 8px;border:1px solid var(--bdr)"><span class="bx ${ex.tipo?.startsWith('Parc')?'bb':'br'}" style="font-size:10px">${ex.tipo||'—'}</span></td>
-        <td style="padding:4px 8px;border:1px solid var(--bdr);white-space:nowrap;font-weight:600">${ex.fecha||'—'}</td>
-        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.hora||'—'}</td>
-        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.aula||'—'}</td>
-        <td style="padding:4px 8px;border:1px solid var(--bdr)">${ex.error?`<span style="color:#c62828;font-size:10px">⚠ ${ex.error}</span>`:'<span style="color:#2e7d32;font-size:10px">✓ OK</span>'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr);font-weight:600">${ex.fecha||'—'}</td>
+        <td style="padding:4px 8px;border:1px solid var(--bdr)">
+          ${ex.error?`<span style="color:#c62828;font-size:10px">⛔ ${ex.error}</span>`:
+            ex.conflicto?`<span style="color:#e65100;font-size:10px">⚠ ${ex.conflicto}</span>`:
+            '<span style="color:#2e7d32;font-size:10px">✓ OK</span>'}
+        </td>
       </tr>`).join('')}
       </tbody>
     </table></div>
-    ${r.errores?.length?`<div style="background:#fff3e0;border-radius:6px;padding:8px;margin-top:8px;font-size:11px">⚠ ${r.errores.length} fila(s) con errores no se importarán</div>`:''}
-    <div class="mf" style="margin-top:12px">
+    <div class="mf" style="margin-top:10px">
       <button class="bs" onclick="cm()">Cancelar</button>
-      <button class="bn" onclick="confirmarImportarExamenes(${JSON.stringify(r.ids).replace(/"/g,'&quot;')})">✓ Confirmar importación (${r.preview.filter(x=>!x.error).length} válidos)</button>
+      ${conConflicto.length&&sinConflicto.length?`<button class="bs o" onclick="confirmarImportarExamenes(${JSON.stringify(sinConflicto.map(x=>x.id)).replace(/"/g,'&quot;')})">✓ Importar solo los válidos (${sinConflicto.length})</button>`:''}
+      ${sinConflicto.length||conConflicto.length?`<button class="bn" onclick="confirmarImportarExamenes(${JSON.stringify([...sinConflicto,...conConflicto].map(x=>x.id)).replace(/"/g,'&quot;')})">✓ Confirmar todo (${sinConflicto.length+conConflicto.length} válidos)</button>`:''}
     </div>`,true);
   }catch(e){toast('Error al leer el archivo: '+e.message,'err',5000);}
 }
@@ -2547,19 +2571,9 @@ function verDia(fecha){
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
-          ${e.archivo_nombre?(me.rol==='director'
-            ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px">⬇ Bajar Word</a>`
+          ${e.archivo_nombre?(me.rol==='director'||me.rol==='secretaria'
+            ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px">⬇ Descargar Word</a>`
             :`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`):''}
-          ${(()=>{
-            const hoy2=new Date();const fx=e.fecha?new Date(e.fecha+'T12:00:00'):null;
-            const paso=fx&&fx<hoy2;const hs=fx&&!paso?(fx-hoy2)/3600000:0;
-            if(paso)return `<span style="font-size:10px;color:#999">🔒 Cerrado</span>`;
-            if(hs>72)return `<span style="font-size:10px;color:#e65100">⏳ Habilita en ${Math.round(hs-72)}h</span>`;
-            return `<label class="bs" style="font-size:11px;cursor:pointer" title="Adjuntar examen Word — habilitado hasta la fecha del examen">
-              📎 ${e.archivo_nombre?'Reemplazar':'Adjuntar Word'}
-              <input type="file" accept=".doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
-            </label>`;
-          })()}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-size:12px">
@@ -2993,17 +3007,61 @@ async function pgAsist(el){
       <option value="">Todos los años</option>
       ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    <select id="selAsistAsig" onchange="W.loadAsist(this.value)" style="min-width:240px;flex:1">
+    <select id="selAsistAsig" onchange="cargarFechasAsist(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
         const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
-        return `<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
+        return `<option value="${a.id}" data-dia="${a.dia||h?.dia||''}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
       }).join('')}
     </select>
-    <input type="date" id="fecAsist" value="${hoyStr}" style="width:auto" onchange="if(W._asistId)W.loadAsist(W._asistId)"/>
+    <select id="fecAsist" onchange="if(W._asistId)W.loadAsist(W._asistId)" style="min-width:160px">
+      <option value="">— Seleccioná la materia primero —</option>
+    </select>
   </div>
   <div id="ac"></div>`;
+}
+function cargarFechasAsist(asigId){
+  if(!asigId){W._asistId=null;return;}
+  W._asistId=asigId;
+  const sel=document.getElementById('selAsistAsig');
+  const opt=sel?.selectedOptions[0];
+  // Buscar el día de clase de esta asignación
+  const asig=(W._asistAsigs||[]).find(a=>a.id===asigId);
+  const horario=(W._asistHorarios||[]).find(h=>h.asignacion_id===asigId);
+  const dia=asig?.dia||horario?.dia||opt?.dataset?.dia||'';
+  const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+  const numDia=diasNum[dia]||0;
+  // Generar todas las fechas del mes actual que coincidan con ese día
+  const hoy=new Date();
+  const anio=hoy.getFullYear(), mes=hoy.getMonth();
+  const fechas=[];
+  const cursor=new Date(anio,mes,1);
+  while(cursor.getMonth()===mes){
+    if(!numDia||cursor.getDay()===numDia){fechas.push(new Date(cursor));}
+    cursor.setDate(cursor.getDate()+1);
+  }
+  const fecSel=document.getElementById('fecAsist');
+  if(!fecSel)return;
+  const hoyStr=hoy.toISOString().split('T')[0];
+  if(numDia===0){
+    // Sin día configurado: mostrar todas las fechas del mes
+    fecSel.innerHTML='<option value="">Sin día configurado — todas las fechas</option>';
+    for(let d=1;d<=31;d++){
+      const f=new Date(anio,mes,d);
+      if(f.getMonth()!==mes)break;
+      const fs=f.toISOString().split('T')[0];
+      fecSel.innerHTML+=`<option value="${fs}" ${fs===hoyStr?'selected':''}>${f.toLocaleDateString('es',{weekday:'short',day:'numeric',month:'short'})}</option>`;
+    }
+  }else{
+    fecSel.innerHTML=`<option value="">— Seleccionar fecha (${dia}s) —</option>`;
+    fechas.forEach(f=>{
+      const fs=f.toISOString().split('T')[0];
+      fecSel.innerHTML+=`<option value="${fs}" ${fs===hoyStr||(!fechas.some(x=>x.toISOString().split('T')[0]===hoyStr)&&f===fechas[0])?'selected':''}>${f.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})}</option>`;
+    });
+  }
+  // Cargar asistencia con la fecha seleccionada
+  W.loadAsist(asigId);
 }
 function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
@@ -4599,47 +4657,109 @@ async function cargarMisHon(){
   const mes=v('mhMes'), anio=v('mhAnio');
   const el=document.getElementById('panelMisHon');
   if(!el)return;
-  el.innerHTML=skeletonTable(5,5);
+  el.innerHTML=skeletonTable(6,8);
   try{
     const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}`);
     W._honResumen=r;
-    // Docente NO ve los montos — solo ve sus clases dictadas
-    const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
-    const honMap={};r.honorarios.forEach(h=>{if(!honMap[h.fecha])honMap[h.fecha]=[];honMap[h.fecha].push(h);});
+    const diasN={0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado'};
+    // Construir mapa honorario por fecha
+    const honMap={};
+    (r.honorarios||[]).forEach(h=>{
+      const k=h.fecha+(h.asignacion_id||'');
+      if(!honMap[h.fecha])honMap[h.fecha]=[];
+      honMap[h.fecha].push(h);
+    });
+    // Mapa de reemplazos del mes
+    const repMap={};
+    (r.reemplazos||[]).forEach(rep=>{
+      if(!repMap[rep.fecha])repMap[rep.fecha]=[];
+      repMap[rep.fecha].push(rep);
+    });
+    // Solo mostrar fechas en que el docente TENÍA que dar clases
+    const miDocId=r.docente?.id||me.docenteId;
+    const asigs=r.asignaciones||[];
+    const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5};
+    // Generar todas las fechas del mes que corresponden a días de clase del docente
+    const desde=new Date(r.desde+'T12:00:00');
+    const hasta=new Date(r.hasta+'T12:00:00');
+    const fechasClase=[];
+    const cur=new Date(desde);
+    while(cur<=hasta){
+      const numDia=cur.getDay();
+      const fechaStr=cur.toISOString().split('T')[0];
+      // Ver si hay alguna asignación del docente en ese día
+      const asigsDia=asigs.filter(a=>{
+        const dNum=diasNum[a.dia||a.dia_semana]||0;
+        return dNum===numDia;
+      });
+      if(asigsDia.length>0) fechasClase.push({fecha:fechaStr,dia:diasN[numDia],asigs:asigsDia});
+      cur.setDate(cur.getDate()+1);
+    }
+    const totalClases=fechasClase.reduce((s,f)=>s+f.asigs.length,0);
+    const clasesDadas=(r.honorarios||[]).filter(h=>h.tipo==='clase').length;
     el.innerHTML=`
     <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-      <div class="card card-p" style="flex:1;min-width:150px">
-        <div style="font-size:12px;color:var(--t2)">Clases dictadas</div>
-        <div style="font-size:28px;font-weight:900;color:#1a5fa8">${r.honorarios.length}</div>
+      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+        <div style="font-size:11px;color:var(--t2)">Clases esperadas</div>
+        <div style="font-size:26px;font-weight:900;color:#e65100">${totalClases}</div>
       </div>
-      <div class="card card-p" style="flex:1;min-width:150px">
-        <div style="font-size:12px;color:var(--t2)">Días hábiles del mes</div>
-        <div style="font-size:28px;font-weight:700;color:#e65100">${r.diasHabiles.length}</div>
+      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+        <div style="font-size:11px;color:var(--t2)">Clases dictadas</div>
+        <div style="font-size:26px;font-weight:900;color:#2e7d32">${clasesDadas}</div>
+      </div>
+      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+        <div style="font-size:11px;color:var(--t2)">Ausencias</div>
+        <div style="font-size:26px;font-weight:900;color:#c62828">${totalClases-clasesDadas-(r.reemplazos||[]).filter(x=>x.docente_reemplazante_id===miDocId).length}</div>
+      </div>
+      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+        <div style="font-size:11px;color:var(--t2)">Reemplazos realizados</div>
+        <div style="font-size:26px;font-weight:700;color:#7F77DD">${(r.honorarios||[]).filter(h=>h.tipo==='reemplazo').length}</div>
       </div>
     </div>
-    <div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
-      <thead><tr style="background:#f0f4f8">
-        <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
-        <th style="padding:7px 10px;border:1px solid var(--bdr)">Día</th>
-        <th style="padding:7px 10px;border:1px solid var(--bdr)">Carrera / Materia</th>
-        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Turno</th>
-        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Tipo</th>
-        <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
+    <div class="card"><div class="tw"><table style="font-size:11px;width:100%;border-collapse:collapse">
+      <thead><tr style="background:#1a5fa8;color:#fff">
+        <th style="padding:7px 10px;border:1px solid #1565c0">Fecha</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0">Día</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0">Materia</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0">Carrera</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Turno</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Estado</th>
+        <th style="padding:7px 10px;border:1px solid #1565c0">Detalle</th>
       </tr></thead>
       <tbody>
-      ${r.diasHabiles.map(fecha=>{
-        const dNombre=diasN[new Date(fecha+'T12:00:00').getDay()];
-        const hons=honMap[fecha]||[];
-        if(!hons.length)return`<tr style="color:#ccc"><td style="padding:5px 10px;border:1px solid var(--bdr)">${fmtFecha(fecha)}</td><td style="border:1px solid var(--bdr)">${dNombre}</td><td colspan="3" style="border:1px solid var(--bdr);font-style:italic">Sin asistencia registrada</td><td style="border:1px solid var(--bdr);text-align:center"><span class="bx br" style="font-size:10px">Ausente</span></td></tr>`;
-        return hons.map(h=>`<tr>
-          <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600">${fmtFecha(fecha)}</td>
-          <td style="border:1px solid var(--bdr)">${dNombre}</td>
-          <td style="border:1px solid var(--bdr)">${h.carrera_nombre||''}<br><span style="font-size:10px;color:var(--t2)">${h.materia_nombre||''} ${h.curso_anio?h.curso_anio+'°':''}</span></td>
-          <td style="border:1px solid var(--bdr);text-align:center">${h.turno===1?'T1 19:00':'T2 20:40'}</td>
-          <td style="border:1px solid var(--bdr);text-align:center"><span class="bx ${h.tipo==='reemplazo'?'ba':'bb'}" style="font-size:10px">${h.tipo==='reemplazo'?'🔄 Reemplazo':'📚 Clase'}</span></td>
-          <td style="border:1px solid var(--bdr);text-align:center"><span class="bx ${h.estado==='generado'?'bg':h.estado==='pagado'?'bb':'br'}" style="font-size:10px">${h.estado}</span></td>
-        </tr>`).join('');
-      }).join('')}
+      ${fechasClase.map(fc=>fc.asigs.map(asig=>{
+        const hons=honMap[fc.fecha]||[];
+        const honAsig=hons.find(h=>h.asignacion_id===asig.id||h.tipo==='clase');
+        // Ver si hubo reemplazo en esta fecha y asignación
+        const repFecha=(repMap[fc.fecha]||[]).find(rep=>rep.asignacion_id===asig.id);
+        let estado='', detalle='', bgRow='';
+        if(repFecha&&repFecha.docente_titular_id===miDocId){
+          estado='<span class="bx ba" style="font-size:10px">🔄 Reemplazado</span>';
+          detalle=`Reemplazado por: <strong>${repFecha.rep_nombre||''} ${repFecha.rep_apellido||''}</strong>`;
+          bgRow='background:#fff8e1';
+        }else if(repFecha&&repFecha.docente_reemplazante_id===miDocId){
+          estado='<span class="bx bb" style="font-size:10px">🔄 Reemplazante</span>';
+          detalle=`Reemplazó a: <strong>${repFecha.titular_nombre||''} ${repFecha.titular_apellido||''}</strong><br><span style="font-size:10px">${repFecha.materia||asig.materia_nombre||''} — ${repFecha.carrera||asig.carrera_nombre||''}</span>`;
+          bgRow='background:#e8f5e9';
+        }else if(honAsig){
+          estado='<span class="bx bg" style="font-size:10px">✓ Presente</span>';
+          detalle='Asistencia registrada';
+          bgRow='';
+        }else{
+          estado='<span class="bx br" style="font-size:10px">✗ Ausente</span>';
+          detalle='Sin asistencia registrada';
+          bgRow='background:#fff5f5';
+        }
+        return`<tr style="${bgRow}">
+          <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600;white-space:nowrap">${fmtFecha(fc.fecha)}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr)">${fc.dia}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr)">${asig.materia_nombre||honAsig?.materia_nombre||'—'}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px">${asig.carrera_nombre||honAsig?.carrera_nombre||'—'} ${asig.anio_curso?asig.anio_curso+'°':''}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${asig.turno===1||honAsig?.asig_turno===1?'T1 19:00':'T2 20:40'}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${estado}</td>
+          <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px;color:var(--t2)">${detalle}</td>
+        </tr>`;
+      }).join('')).join('')}
       </tbody>
     </table></div></div>`;
   }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}

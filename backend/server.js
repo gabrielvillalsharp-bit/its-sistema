@@ -78,11 +78,12 @@ init();
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
-    db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha) VALUES (?,?,?,?,?,?,datetime("now"))').run(
+    const fechaHora = new Date().toISOString().replace('T',' ').slice(0,19);
+    db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha) VALUES (?,?,?,?,?,?,?)').run(
       'aud_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-      usuario_id, accion, tabla, registro_id, detalle ? JSON.stringify(detalle) : null
+      usuario_id, accion, tabla, String(registro_id||''), detalle ? JSON.stringify(detalle) : null, fechaHora
     );
-  } catch {} // nunca romper la app por un log fallido
+  } catch(e) { console.error('Audit error:', e.message); }
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -880,10 +881,9 @@ app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
       }
     }
   })();
+  audit(req.user.id, 'UPDATE_ASISTENCIA', 'asistencia', asignacion_id, { fecha, total: registros.length });
   res.json({ ok: true });
 });
-
-// ── HONORARIOS: endpoints ──────────────────────────────────────────────────────
 app.get('/api/honorarios', auth(['director','docente']), (req, res) => {
   const { docente_id, mes, anio, estado } = req.query;
   // Docente solo ve los suyos
@@ -962,7 +962,7 @@ app.post('/api/reemplazos', auth(['director','docente']), (req, res) => {
   // Verificar que quien registra es el director o el titular
   if (req.user.rol === 'docente') {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
-    if (!doc || doc.id !== asig.docente_id) return res.status(403).json({ error: 'Solo el titular o el director pueden registrar un reemplazo' });
+    if (!doc || doc.id !== asig.docente_id) return res.status(403).json({ error: 'La materia seleccionada no coincide con la carrera o no está asignada a este docente' });
   }
   // El reemplazante no puede ser el mismo titular
   if (docente_reemplazante_id === asig.docente_id) return res.status(400).json({ error: 'El reemplazante no puede ser el mismo docente titular' });
@@ -1208,20 +1208,26 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 app.get('/api/avisos', auth(), (req, res) => {
-  // Filtrar por destinatario según rol
   const rol = req.user.rol;
+  const uid = req.user.id;
   let whereDestino = '';
-  if (rol === 'alumno') whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos')";
-  else if (rol === 'docente') whereDestino = "AND (av.destinatario='todos' OR av.destinatario='docentes')";
-  // director ve todos
-  res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido
+  if (rol === 'alumno') {
+    whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos') AND u.rol NOT IN ('docente')";
+  } else if (rol === 'docente') {
+    // Docente SOLO ve: sus propios avisos + avisos de director/secretaria
+    // NUNCA ve avisos de otros docentes
+    whereDestino = `AND (av.usuario_id='${uid}' OR u.rol IN ('director','secretaria'))`;
+  }
+  // director/secretaria ven todos
+  res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido,u.rol as autor_rol
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
-    WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 50`).all());
+    WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
 });
-app.post('/api/avisos', auth(ADM), (req, res) => {
+app.post('/api/avisos', auth(['director','docente','secretaria']), (req, res) => {
   const { titulo, contenido, tipo, fijado, destinatario } = req.body;
   const id = 'av_' + Date.now();
   db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destinatario||'todos',req.user.id);
+  audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario});
   res.json({ id });
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
@@ -1444,36 +1450,61 @@ app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, re
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:'' });
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
     const preview = [], errores = [], pendientes = [];
+    const TIPOS_OK = ['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
     rows.forEach((row, i) => {
-      const asig_id = String(row.asignacion_id||'').trim();
+      // Soporte para columnas por nombre (carrera, año, sección, turno, profesor, materia)
+      // o por asignacion_id directamente
+      let asig_id = String(row.asignacion_id||'').trim();
       const tipo = String(row.tipo||'Parcial').trim();
-      const fecha = String(row.fecha||'').trim();
-      const TIPOS_OK = ['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
-      if (!asig_id || !fecha) {
-        const err = `Fila ${i+2}: asignacion_id y fecha son obligatorios`;
-        preview.push({ ...row, error: err }); errores.push(err); return;
+      const fecha = String(row.fecha||row.Fecha||'').trim();
+      // Si no hay asignacion_id, buscar por docente + materia + carrera + año + turno + sección
+      if (!asig_id) {
+        const docNombre = String(row.profesor||row.docente||'').trim();
+        const matNombre = String(row.materia||row.materia_nombre||'').trim();
+        const carrNombre = String(row.carrera||'').trim();
+        const anioVal = String(row.anio||row.año||'').trim();
+        const turnoVal = String(row.turno||'').trim();
+        if (docNombre && matNombre) {
+          const found = db.prepare(`
+            SELECT a.id FROM asignaciones a
+            JOIN materias m ON a.materia_id=m.id
+            JOIN cursos cu ON a.curso_id=cu.id
+            JOIN carreras ca ON cu.carrera_id=ca.id
+            JOIN docentes d ON a.docente_id=d.id
+            JOIN usuarios u ON d.usuario_id=u.id
+            WHERE (u.apellido||', '||u.nombre LIKE ? OR u.nombre||' '||u.apellido LIKE ?)
+              AND m.nombre LIKE ?
+              ${carrNombre?`AND ca.nombre LIKE '%${carrNombre}%'`:''}
+              ${anioVal?`AND cu.anio=${parseInt(anioVal)||0}`:''}
+              ${turnoVal?`AND a.turno=${parseInt(turnoVal)||0}`:''}
+            LIMIT 1`).get('%'+docNombre+'%','%'+docNombre+'%','%'+matNombre+'%');
+          if (found) asig_id = found.id;
+        }
       }
-      const asig = db.prepare(`
-        SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio
-        FROM asignaciones a
-        JOIN materias m ON a.materia_id=m.id
-        JOIN cursos cu ON a.curso_id=cu.id
-        JOIN carreras ca ON cu.carrera_id=ca.id
-        WHERE a.id=?`).get(asig_id);
-      if (!asig) {
-        const err = `Fila ${i+2}: asignacion_id "${asig_id}" no encontrado`;
-        preview.push({ ...row, error: err }); errores.push(err); return;
+      if (!fecha) { const err=`Fila ${i+2}: fecha es obligatoria`; preview.push({...row,error:err}); errores.push(err); return; }
+      if (!TIPOS_OK.includes(tipo)) { const err=`Fila ${i+2}: tipo "${tipo}" inválido. Opciones: ${TIPOS_OK.join(', ')}`; preview.push({...row,error:err}); errores.push(err); return; }
+      let asig = null;
+      if (asig_id) {
+        asig = db.prepare(`SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio, a.turno,
+          u.nombre as doc_nombre, u.apellido as doc_apellido
+          FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id
+          JOIN carreras ca ON cu.carrera_id=ca.id JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+          WHERE a.id=?`).get(asig_id);
       }
-      if (!TIPOS_OK.includes(tipo)) {
-        const err = `Fila ${i+2}: tipo "${tipo}" inválido`;
-        preview.push({ ...row, error: err }); errores.push(err); return;
-      }
+      if (!asig) { const err=`Fila ${i+2}: no se encontró la asignación para los datos indicados`; preview.push({...row,error:err,materia_nombre:row.materia,carrera:row.carrera,anio:row.anio,tipo,fecha}); errores.push(err); return; }
+      // Detectar conflicto: mismo docente, misma fecha, mismo turno pero diferente materia
+      const conflictoExistente = db.prepare(`SELECT e.id, m2.nombre as materia FROM examenes e JOIN asignaciones a2 ON e.asignacion_id=a2.id JOIN materias m2 ON a2.materia_id=m2.id WHERE a2.docente_id=? AND e.fecha=? AND a2.turno=? AND e.asignacion_id!=?`).get(asig.docente_id, fecha, asig.turno, asig_id);
       const pMax = tipo === 'Extraordinario' ? 100 : (tipo === 'Parcial' || tipo === 'Recuperatorio') ? 25 : 50;
       const id = 'ex_import_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-      pendientes.push({ id, asig_id, tipo, fecha, hora: row.hora||null, aula: row.aula||null, periodo_id: periodo?.id||null, observacion: row.observacion||null, puntos_max: pMax });
-      preview.push({ materia_nombre: asig.materia_nombre, carrera: asig.carrera_nombre, anio: asig.anio, tipo, fecha, hora: row.hora||'', aula: row.aula||'', id });
+      const previewItem = {
+        id, materia_nombre: asig.materia_nombre, carrera: asig.carrera_nombre, anio: asig.anio,
+        tipo, fecha, hora: row.hora||null, aula: row.aula||null, seccion: row.seccion||null,
+        turno: asig.turno, docente: (asig.doc_apellido||'')+', '+(asig.doc_nombre||''),
+        conflicto: conflictoExistente ? `Ya tiene examen "${conflictoExistente.materia}" ese día/turno` : null
+      };
+      pendientes.push({ id, asig_id, tipo, fecha, hora: row.hora||null, aula: row.aula||null, periodo_id: periodo?.id||null, observacion: row.observacion||null, puntos_max: pMax, tiene_conflicto: !!conflictoExistente });
+      preview.push(previewItem);
     });
-    // Guardar pendientes en memoria temporal (sesión simple via header)
     req.app.locals._importPendiente = pendientes;
     res.json({ preview, errores, ids: pendientes.map(p=>p.id) });
   } catch(e) { res.status(400).json({ error:'Error procesando archivo: '+e.message }); }
