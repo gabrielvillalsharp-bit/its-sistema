@@ -772,1178 +772,1688 @@ module.exports = { db, init, calcularPuntaje, seedHorarios, DB_PATH };
 
 // ── SEED HORARIOS — generado desde Excel actualizado ──────────────────────────
 // 82 clases | 9 carreras | 25 docentes | 54 materias | Turno Nocturno
+// ════════════════════════════════════════════════════════════
+// SEED HORARIO ITS — 82 clases | 9 carreras | 25 docentes | 54 materias
+// ════════════════════════════════════════════════════════════
 function seedHorarios() {
+  if (db.prepare('SELECT COUNT(*) as n FROM horarios').get().n > 0) {
+    console.log('Horarios ya cargados — seed omitido');
+    return;
+  }
   const bcrypt = require('bcryptjs');
-
-  console.log('🌱 Iniciando seed horario ITS...');
   const carrMap = {}, cursoMap = {}, docMap = {}, matMap = {};
+  let asigN = 0, horN = 0;
 
   // ── CARRERAS ──────────────────────────────────────────────
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Agropecuaria"); if(ex){carrMap["Agropecuaria"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_agropecuaria","Agropecuaria","AGR",4,'Nocturno');
-    carrMap["Agropecuaria"]="carr_agropecuaria"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Contabilidad"); if(ex){carrMap["Contabilidad"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_contabilidad","Contabilidad","CON",4,'Nocturno');
-    carrMap["Contabilidad"]="carr_contabilidad"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Cosmiatr\u00eda"); if(ex){carrMap["Cosmiatr\u00eda"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_cosmiatria","Cosmiatr\u00eda","COS",4,'Nocturno');
-    carrMap["Cosmiatr\u00eda"]="carr_cosmiatria"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Criminal\u00edstica"); if(ex){carrMap["Criminal\u00edstica"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_criminalistica","Criminal\u00edstica","CRI",4,'Nocturno');
-    carrMap["Criminal\u00edstica"]="carr_criminalistica"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Electricidad"); if(ex){carrMap["Electricidad"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_electricidad","Electricidad","ELE",4,'Nocturno');
-    carrMap["Electricidad"]="carr_electricidad"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Enfermer\u00eda"); if(ex){carrMap["Enfermer\u00eda"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_enfermeria","Enfermer\u00eda","ENF",4,'Nocturno');
-    carrMap["Enfermer\u00eda"]="carr_enfermeria"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Farmacia"); if(ex){carrMap["Farmacia"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_farmacia","Farmacia","FAR",4,'Nocturno');
-    carrMap["Farmacia"]="carr_farmacia"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Instrumentaci\u00f3n Quir\u00fargica"); if(ex){carrMap["Instrumentaci\u00f3n Quir\u00fargica"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_instrumentacion_quirurgica","Instrumentaci\u00f3n Quir\u00fargica","INQ",4,'Nocturno');
-    carrMap["Instrumentaci\u00f3n Quir\u00fargica"]="carr_instrumentacion_quirurgica"; } }
-  { const ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get("Radiolog\u00eda"); if(ex){carrMap["Radiolog\u00eda"]=ex.id;}else{
-    db.prepare('INSERT INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run("carr_radiologia","Radiolog\u00eda","RAD",4,'Nocturno');
-    carrMap["Radiolog\u00eda"]="carr_radiologia"; } }
+  { const _cid='carr_agropecuaria';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Agropecuaria');
+    if(_ex){carrMap['Agropecuaria']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Agropecuaria','AGR',4,'Nocturno');
+      carrMap['Agropecuaria']=_cid; } }
+  { const _cid='carr_contabilidad';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Contabilidad');
+    if(_ex){carrMap['Contabilidad']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Contabilidad','CON',4,'Nocturno');
+      carrMap['Contabilidad']=_cid; } }
+  { const _cid='carr_cosmiatria';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Cosmiatría');
+    if(_ex){carrMap['Cosmiatría']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Cosmiatría','COS',4,'Nocturno');
+      carrMap['Cosmiatría']=_cid; } }
+  { const _cid='carr_criminalistica';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Criminalística');
+    if(_ex){carrMap['Criminalística']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Criminalística','CRI',4,'Nocturno');
+      carrMap['Criminalística']=_cid; } }
+  { const _cid='carr_electricidad';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Electricidad');
+    if(_ex){carrMap['Electricidad']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Electricidad','ELE',4,'Nocturno');
+      carrMap['Electricidad']=_cid; } }
+  { const _cid='carr_enfermeria';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Enfermería');
+    if(_ex){carrMap['Enfermería']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Enfermería','ENF',4,'Nocturno');
+      carrMap['Enfermería']=_cid; } }
+  { const _cid='carr_farmacia';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Farmacia');
+    if(_ex){carrMap['Farmacia']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Farmacia','FAR',4,'Nocturno');
+      carrMap['Farmacia']=_cid; } }
+  { const _cid='carr_instrumentacion_quirurgica';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Instrumentación Quirúrgica');
+    if(_ex){carrMap['Instrumentación Quirúrgica']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Instrumentación Quirúrgica','INQ',4,'Nocturno');
+      carrMap['Instrumentación Quirúrgica']=_cid; } }
+  { const _cid='carr_radiologia';
+    const _ex=db.prepare('SELECT id FROM carreras WHERE nombre=?').get('Radiología');
+    if(_ex){carrMap['Radiología']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO carreras (id,nombre,codigo,semestres,turno) VALUES (?,?,?,?,?)').run(_cid,'Radiología','RAD',4,'Nocturno');
+      carrMap['Radiología']=_cid; } }
 
   // ── CURSOS/SECCIONES ──────────────────────────────────────
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Agropecuaria"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Agropecuaria|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_agropecuaria_1_u",carrMap["Agropecuaria"],1,"U");
-    cursoMap["Agropecuaria|1|U"]="cu_agropecuaria_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Agropecuaria"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Agropecuaria|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_agropecuaria_2_u",carrMap["Agropecuaria"],2,"U");
-    cursoMap["Agropecuaria|2|U"]="cu_agropecuaria_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Contabilidad"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Contabilidad|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_contabilidad_1_u",carrMap["Contabilidad"],1,"U");
-    cursoMap["Contabilidad|1|U"]="cu_contabilidad_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=? AND division=?').get(1,"A"); if(ex){cursoMap["Cosmiatr\u00eda|1|A"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_cosmiatria_1_a",carrMap["Cosmiatr\u00eda"],1,"A");
-    cursoMap["Cosmiatr\u00eda|1|A"]="cu_cosmiatria_1_a"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=? AND division=?').get(1,"B"); if(ex){cursoMap["Cosmiatr\u00eda|1|B"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_cosmiatria_1_b",carrMap["Cosmiatr\u00eda"],1,"B");
-    cursoMap["Cosmiatr\u00eda|1|B"]="cu_cosmiatria_1_b"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Cosmiatr\u00eda|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_cosmiatria_1_u",carrMap["Cosmiatr\u00eda"],1,"U");
-    cursoMap["Cosmiatr\u00eda|1|U"]="cu_cosmiatria_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Cosmiatr\u00eda|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_cosmiatria_2_u",carrMap["Cosmiatr\u00eda"],2,"U");
-    cursoMap["Cosmiatr\u00eda|2|U"]="cu_cosmiatria_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Criminal\u00edstica"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Criminal\u00edstica|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_criminalistica_1_u",carrMap["Criminal\u00edstica"],1,"U");
-    cursoMap["Criminal\u00edstica|1|U"]="cu_criminalistica_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Criminal\u00edstica"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Criminal\u00edstica|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_criminalistica_2_u",carrMap["Criminal\u00edstica"],2,"U");
-    cursoMap["Criminal\u00edstica|2|U"]="cu_criminalistica_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Electricidad"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Electricidad|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_electricidad_2_u",carrMap["Electricidad"],2,"U");
-    cursoMap["Electricidad|2|U"]="cu_electricidad_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Enfermer\u00eda"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Enfermer\u00eda|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_enfermeria_1_u",carrMap["Enfermer\u00eda"],1,"U");
-    cursoMap["Enfermer\u00eda|1|U"]="cu_enfermeria_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Enfermer\u00eda"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Enfermer\u00eda|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_enfermeria_2_u",carrMap["Enfermer\u00eda"],2,"U");
-    cursoMap["Enfermer\u00eda|2|U"]="cu_enfermeria_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Farmacia"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Farmacia|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_farmacia_1_u",carrMap["Farmacia"],1,"U");
-    cursoMap["Farmacia|1|U"]="cu_farmacia_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Farmacia"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Farmacia|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_farmacia_2_u",carrMap["Farmacia"],2,"U");
-    cursoMap["Farmacia|2|U"]="cu_farmacia_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_instrumentacion_quirurgica_1_u",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],1,"U");
-    cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"]="cu_instrumentacion_quirurgica_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_instrumentacion_quirurgica_2_u",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],2,"U");
-    cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"]="cu_instrumentacion_quirurgica_2_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Radiolog\u00eda"] AND anio=? AND division=?').get(1,"U"); if(ex){cursoMap["Radiolog\u00eda|1|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_radiologia_1_u",carrMap["Radiolog\u00eda"],1,"U");
-    cursoMap["Radiolog\u00eda|1|U"]="cu_radiologia_1_u"; } }
-  { const ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=carrMap["Radiolog\u00eda"] AND anio=? AND division=?').get(2,"U"); if(ex){cursoMap["Radiolog\u00eda|2|U"]=ex.id;}else{
-    db.prepare('INSERT INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run("cu_radiologia_2_u",carrMap["Radiolog\u00eda"],2,"U");
-    cursoMap["Radiolog\u00eda|2|U"]="cu_radiologia_2_u"; } }
+  { const _cid='cu_agropecuaria_1_u'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Agropecuaria|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Agropecuaria|1|U']=_cid; } }
+  { const _cid='cu_agropecuaria_2_u'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Agropecuaria|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Agropecuaria|2|U']=_cid; } }
+  { const _cid='cu_contabilidad_1_u'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Contabilidad|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Contabilidad|1|U']=_cid; } }
+  { const _cid='cu_cosmiatria_1_a'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'A');
+    if(_ex){cursoMap['Cosmiatría|1|A']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'A');
+      cursoMap['Cosmiatría|1|A']=_cid; } }
+  { const _cid='cu_cosmiatria_1_b'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'B');
+    if(_ex){cursoMap['Cosmiatría|1|B']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'B');
+      cursoMap['Cosmiatría|1|B']=_cid; } }
+  { const _cid='cu_cosmiatria_1_u'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Cosmiatría|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Cosmiatría|1|U']=_cid; } }
+  { const _cid='cu_cosmiatria_2_u'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Cosmiatría|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Cosmiatría|2|U']=_cid; } }
+  { const _cid='cu_criminalistica_1_u'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Criminalística|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Criminalística|1|U']=_cid; } }
+  { const _cid='cu_criminalistica_2_u'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Criminalística|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Criminalística|2|U']=_cid; } }
+  { const _cid='cu_electricidad_2_u'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Electricidad|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Electricidad|2|U']=_cid; } }
+  { const _cid='cu_enfermeria_1_u'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Enfermería|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Enfermería|1|U']=_cid; } }
+  { const _cid='cu_enfermeria_2_u'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Enfermería|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Enfermería|2|U']=_cid; } }
+  { const _cid='cu_farmacia_1_u'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Farmacia|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Farmacia|1|U']=_cid; } }
+  { const _cid='cu_farmacia_2_u'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Farmacia|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Farmacia|2|U']=_cid; } }
+  { const _cid='cu_instrumentacion_quirurgica_1_u'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Instrumentación Quirúrgica|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Instrumentación Quirúrgica|1|U']=_cid; } }
+  { const _cid='cu_instrumentacion_quirurgica_2_u'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Instrumentación Quirúrgica|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Instrumentación Quirúrgica|2|U']=_cid; } }
+  { const _cid='cu_radiologia_1_u'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,1,'U');
+    if(_ex){cursoMap['Radiología|1|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,1,'U');
+      cursoMap['Radiología|1|U']=_cid; } }
+  { const _cid='cu_radiologia_2_u'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(_carr,2,'U');
+    if(_ex){cursoMap['Radiología|2|U']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division) VALUES (?,?,?,?)').run(_cid,_carr,2,'U');
+      cursoMap['Radiología|2|U']=_cid; } }
 
   // ── DOCENTES ─────────────────────────────────────────────
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("cesar.alum@its.edu.py"); if(ex){docMap["Abg. C\u00e9sar Alum"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_abg_cesar_alum","C\u00e9sar","Alum","cesar.alum@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_abg_cesar_alum","u_doc_abg_cesar_alum","Abg.");
-    docMap["Abg. C\u00e9sar Alum"]="doc_abg_cesar_alum"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("gabriel.sharp@its.edu.py"); if(ex){docMap["Abg. Gabriel Sharp"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_abg_gabriel_sharp","Gabriel","Sharp","gabriel.sharp@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_abg_gabriel_sharp","u_doc_abg_gabriel_sharp","Abg.");
-    docMap["Abg. Gabriel Sharp"]="doc_abg_gabriel_sharp"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("maria.paz_ocampos@its.edu.py"); if(ex){docMap["Abg. Mar\u00eda Paz Ocampos"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_abg_maria_paz_ocampos","Mar\u00eda","Paz Ocampos","maria.paz_ocampos@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_abg_maria_paz_ocampos","u_doc_abg_maria_paz_ocampos","Abg.");
-    docMap["Abg. Mar\u00eda Paz Ocampos"]="doc_abg_maria_paz_ocampos"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("myrian.carrillo@its.edu.py"); if(ex){docMap["Abg. Myrian Carrillo"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_abg_myrian_carrillo","Myrian","Carrillo","myrian.carrillo@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_abg_myrian_carrillo","u_doc_abg_myrian_carrillo","Abg.");
-    docMap["Abg. Myrian Carrillo"]="doc_abg_myrian_carrillo"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("favio.rojas@its.edu.py"); if(ex){docMap["Dr. Favio Rojas"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_dr_favio_rojas","Favio","Rojas","favio.rojas@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_dr_favio_rojas","u_doc_dr_favio_rojas","Dr.");
-    docMap["Dr. Favio Rojas"]="doc_dr_favio_rojas"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("cinthia.espinola@its.edu.py"); if(ex){docMap["Dra. Cinthia Esp\u00ednola"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_dra_cinthia_espinola","Cinthia","Esp\u00ednola","cinthia.espinola@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_dra_cinthia_espinola","u_doc_dra_cinthia_espinola","Dra.");
-    docMap["Dra. Cinthia Esp\u00ednola"]="doc_dra_cinthia_espinola"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("natalia.valenzuela@its.edu.py"); if(ex){docMap["Dra. Natalia Valenzuela"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_dra_natalia_valenzuela","Natalia","Valenzuela","natalia.valenzuela@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_dra_natalia_valenzuela","u_doc_dra_natalia_valenzuela","Dra.");
-    docMap["Dra. Natalia Valenzuela"]="doc_dra_natalia_valenzuela"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("oscar.mareco@its.edu.py"); if(ex){docMap["Ing. Oscar Mareco"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_ing_oscar_mareco","Oscar","Mareco","oscar.mareco@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_ing_oscar_mareco","u_doc_ing_oscar_mareco","Ing.");
-    docMap["Ing. Oscar Mareco"]="doc_ing_oscar_mareco"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("karen.gonzalez@its.edu.py"); if(ex){docMap["Inst. Karen Gonz\u00e1lez"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_inst_karen_gonzalez","Karen","Gonz\u00e1lez","karen.gonzalez@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_inst_karen_gonzalez","u_doc_inst_karen_gonzalez","Inst.");
-    docMap["Inst. Karen Gonz\u00e1lez"]="doc_inst_karen_gonzalez"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("ana.ayala@its.edu.py"); if(ex){docMap["Lic. Ana Ayala"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_ana_ayala","Ana","Ayala","ana.ayala@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_ana_ayala","u_doc_lic_ana_ayala","Lic.");
-    docMap["Lic. Ana Ayala"]="doc_lic_ana_ayala"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("angela.aranda@its.edu.py"); if(ex){docMap["Lic. Angela Aranda"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_angela_aranda","Angela","Aranda","angela.aranda@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_angela_aranda","u_doc_lic_angela_aranda","Lic.");
-    docMap["Lic. Angela Aranda"]="doc_lic_angela_aranda"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("blanca.villar@its.edu.py"); if(ex){docMap["Lic. Blanca Villar"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_blanca_villar","Blanca","Villar","blanca.villar@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_blanca_villar","u_doc_lic_blanca_villar","Lic.");
-    docMap["Lic. Blanca Villar"]="doc_lic_blanca_villar"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("gabriela.aguero@its.edu.py"); if(ex){docMap["Lic. Gabriela Ag\u00fcero"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_gabriela_aguero","Gabriela","Ag\u00fcero","gabriela.aguero@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_gabriela_aguero","u_doc_lic_gabriela_aguero","Lic.");
-    docMap["Lic. Gabriela Ag\u00fcero"]="doc_lic_gabriela_aguero"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("jannyne.torales@its.edu.py"); if(ex){docMap["Lic. Jannyne Torales"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_jannyne_torales","Jannyne","Torales","jannyne.torales@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_jannyne_torales","u_doc_lic_jannyne_torales","Lic.");
-    docMap["Lic. Jannyne Torales"]="doc_lic_jannyne_torales"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("marcial.palacios@its.edu.py"); if(ex){docMap["Lic. Marcial Palacios"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_marcial_palacios","Marcial","Palacios","marcial.palacios@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_marcial_palacios","u_doc_lic_marcial_palacios","Lic.");
-    docMap["Lic. Marcial Palacios"]="doc_lic_marcial_palacios"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("maria.elena_perez_de_cantero@its.edu.py"); if(ex){docMap["Lic. Maria Elena Perez de Cantero"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_maria_elena_perez_de_can","Maria","Elena Perez de Cantero","maria.elena_perez_de_cantero@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_maria_elena_perez_de_can","u_doc_lic_maria_elena_perez_de_can","Lic.");
-    docMap["Lic. Maria Elena Perez de Cantero"]="doc_lic_maria_elena_perez_de_can"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("micheli.romero@its.edu.py"); if(ex){docMap["Lic. Micheli Romero"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_micheli_romero","Micheli","Romero","micheli.romero@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_micheli_romero","u_doc_lic_micheli_romero","Lic.");
-    docMap["Lic. Micheli Romero"]="doc_lic_micheli_romero"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("mirta.gimenez@its.edu.py"); if(ex){docMap["Lic. Mirta Gim\u00e9nez"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_mirta_gimenez","Mirta","Gim\u00e9nez","mirta.gimenez@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_mirta_gimenez","u_doc_lic_mirta_gimenez","Lic.");
-    docMap["Lic. Mirta Gim\u00e9nez"]="doc_lic_mirta_gimenez"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("natalia.martinez@its.edu.py"); if(ex){docMap["Lic. Natalia Mart\u00ednez"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_natalia_martinez","Natalia","Mart\u00ednez","natalia.martinez@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_natalia_martinez","u_doc_lic_natalia_martinez","Lic.");
-    docMap["Lic. Natalia Mart\u00ednez"]="doc_lic_natalia_martinez"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("nelly.carmona@its.edu.py"); if(ex){docMap["Lic. Nelly Carmona"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_nelly_carmona","Nelly","Carmona","nelly.carmona@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_nelly_carmona","u_doc_lic_nelly_carmona","Lic.");
-    docMap["Lic. Nelly Carmona"]="doc_lic_nelly_carmona"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("nelson.dominguez@its.edu.py"); if(ex){docMap["Lic. Nelson Dom\u00ednguez"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_nelson_dominguez","Nelson","Dom\u00ednguez","nelson.dominguez@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_nelson_dominguez","u_doc_lic_nelson_dominguez","Lic.");
-    docMap["Lic. Nelson Dom\u00ednguez"]="doc_lic_nelson_dominguez"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("noelia.ayala@its.edu.py"); if(ex){docMap["Lic. Noelia Ayala"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_noelia_ayala","Noelia","Ayala","noelia.ayala@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_noelia_ayala","u_doc_lic_noelia_ayala","Lic.");
-    docMap["Lic. Noelia Ayala"]="doc_lic_noelia_ayala"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("pamela.jimenez@its.edu.py"); if(ex){docMap["Lic. Pamela Jim\u00e9nez"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_pamela_jimenez","Pamela","Jim\u00e9nez","pamela.jimenez@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_pamela_jimenez","u_doc_lic_pamela_jimenez","Lic.");
-    docMap["Lic. Pamela Jim\u00e9nez"]="doc_lic_pamela_jimenez"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("raqueline.carballo@its.edu.py"); if(ex){docMap["Lic. Raqueline Carballo"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_lic_raqueline_carballo","Raqueline","Carballo","raqueline.carballo@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_lic_raqueline_carballo","u_doc_lic_raqueline_carballo","Lic.");
-    docMap["Lic. Raqueline Carballo"]="doc_lic_raqueline_carballo"; } }
-  { const ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get("paulo.higuchi@its.edu.py"); if(ex){docMap["Rad. Paulo Higuchi"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run("u_doc_rad_paulo_higuchi","Paulo","Higuchi","paulo.higuchi@its.edu.py",bcrypt.hashSync('docente123',10),'docente');
-    db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run("doc_rad_paulo_higuchi","u_doc_rad_paulo_higuchi","Rad.");
-    docMap["Rad. Paulo Higuchi"]="doc_rad_paulo_higuchi"; } }
+  { const _did='doc_abg_cesar_alum'; const _uid='u_doc_abg_cesar_alum';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('cesar.alum@its.edu.py');
+    if(_ex){docMap['Abg. César Alum']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'César','Alum','cesar.alum@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Abg.');
+      docMap['Abg. César Alum']=_did; } }
+  { const _did='doc_abg_gabriel_sharp'; const _uid='u_doc_abg_gabriel_sharp';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('gabriel.sharp@its.edu.py');
+    if(_ex){docMap['Abg. Gabriel Sharp']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Gabriel','Sharp','gabriel.sharp@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Abg.');
+      docMap['Abg. Gabriel Sharp']=_did; } }
+  { const _did='doc_abg_maria_paz_ocampos'; const _uid='u_doc_abg_maria_paz_ocampos';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('maria.paz_ocampos@its.edu.py');
+    if(_ex){docMap['Abg. María Paz Ocampos']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'María','Paz Ocampos','maria.paz_ocampos@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Abg.');
+      docMap['Abg. María Paz Ocampos']=_did; } }
+  { const _did='doc_abg_myrian_carrillo'; const _uid='u_doc_abg_myrian_carrillo';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('myrian.carrillo@its.edu.py');
+    if(_ex){docMap['Abg. Myrian Carrillo']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Myrian','Carrillo','myrian.carrillo@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Abg.');
+      docMap['Abg. Myrian Carrillo']=_did; } }
+  { const _did='doc_dr_favio_rojas'; const _uid='u_doc_dr_favio_rojas';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('favio.rojas@its.edu.py');
+    if(_ex){docMap['Dr. Favio Rojas']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Favio','Rojas','favio.rojas@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Dr.');
+      docMap['Dr. Favio Rojas']=_did; } }
+  { const _did='doc_dra_cinthia_espinola'; const _uid='u_doc_dra_cinthia_espinola';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('cinthia.espinola@its.edu.py');
+    if(_ex){docMap['Dra. Cinthia Espínola']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Cinthia','Espínola','cinthia.espinola@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Dra.');
+      docMap['Dra. Cinthia Espínola']=_did; } }
+  { const _did='doc_dra_natalia_valenzuela'; const _uid='u_doc_dra_natalia_valenzuela';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('natalia.valenzuela@its.edu.py');
+    if(_ex){docMap['Dra. Natalia Valenzuela']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Natalia','Valenzuela','natalia.valenzuela@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Dra.');
+      docMap['Dra. Natalia Valenzuela']=_did; } }
+  { const _did='doc_ing_oscar_mareco'; const _uid='u_doc_ing_oscar_mareco';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('oscar.mareco@its.edu.py');
+    if(_ex){docMap['Ing. Oscar Mareco']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Oscar','Mareco','oscar.mareco@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Ing.');
+      docMap['Ing. Oscar Mareco']=_did; } }
+  { const _did='doc_inst_karen_gonzalez'; const _uid='u_doc_inst_karen_gonzalez';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('karen.gonzalez@its.edu.py');
+    if(_ex){docMap['Inst. Karen González']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Karen','González','karen.gonzalez@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Inst.');
+      docMap['Inst. Karen González']=_did; } }
+  { const _did='doc_lic_ana_ayala'; const _uid='u_doc_lic_ana_ayala';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('ana.ayala@its.edu.py');
+    if(_ex){docMap['Lic. Ana Ayala']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Ana','Ayala','ana.ayala@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Ana Ayala']=_did; } }
+  { const _did='doc_lic_angela_aranda'; const _uid='u_doc_lic_angela_aranda';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('angela.aranda@its.edu.py');
+    if(_ex){docMap['Lic. Angela Aranda']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Angela','Aranda','angela.aranda@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Angela Aranda']=_did; } }
+  { const _did='doc_lic_blanca_villar'; const _uid='u_doc_lic_blanca_villar';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('blanca.villar@its.edu.py');
+    if(_ex){docMap['Lic. Blanca Villar']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Blanca','Villar','blanca.villar@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Blanca Villar']=_did; } }
+  { const _did='doc_lic_gabriela_aguero'; const _uid='u_doc_lic_gabriela_aguero';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('gabriela.aguero@its.edu.py');
+    if(_ex){docMap['Lic. Gabriela Agüero']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Gabriela','Agüero','gabriela.aguero@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Gabriela Agüero']=_did; } }
+  { const _did='doc_lic_jannyne_torales'; const _uid='u_doc_lic_jannyne_torales';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('jannyne.torales@its.edu.py');
+    if(_ex){docMap['Lic. Jannyne Torales']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Jannyne','Torales','jannyne.torales@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Jannyne Torales']=_did; } }
+  { const _did='doc_lic_marcial_palacios'; const _uid='u_doc_lic_marcial_palacios';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('marcial.palacios@its.edu.py');
+    if(_ex){docMap['Lic. Marcial Palacios']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Marcial','Palacios','marcial.palacios@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Marcial Palacios']=_did; } }
+  { const _did='doc_lic_maria_elena_perez_de_can'; const _uid='u_doc_lic_maria_elena_perez_de_can';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('maria.elena_perez_de_cantero@its.edu.py');
+    if(_ex){docMap['Lic. Maria Elena Perez de Cantero']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Maria','Elena Perez de Cantero','maria.elena_perez_de_cantero@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Maria Elena Perez de Cantero']=_did; } }
+  { const _did='doc_lic_micheli_romero'; const _uid='u_doc_lic_micheli_romero';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('micheli.romero@its.edu.py');
+    if(_ex){docMap['Lic. Micheli Romero']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Micheli','Romero','micheli.romero@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Micheli Romero']=_did; } }
+  { const _did='doc_lic_mirta_gimenez'; const _uid='u_doc_lic_mirta_gimenez';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('mirta.gimenez@its.edu.py');
+    if(_ex){docMap['Lic. Mirta Giménez']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Mirta','Giménez','mirta.gimenez@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Mirta Giménez']=_did; } }
+  { const _did='doc_lic_natalia_martinez'; const _uid='u_doc_lic_natalia_martinez';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('natalia.martinez@its.edu.py');
+    if(_ex){docMap['Lic. Natalia Martínez']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Natalia','Martínez','natalia.martinez@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Natalia Martínez']=_did; } }
+  { const _did='doc_lic_nelly_carmona'; const _uid='u_doc_lic_nelly_carmona';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('nelly.carmona@its.edu.py');
+    if(_ex){docMap['Lic. Nelly Carmona']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Nelly','Carmona','nelly.carmona@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Nelly Carmona']=_did; } }
+  { const _did='doc_lic_nelson_dominguez'; const _uid='u_doc_lic_nelson_dominguez';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('nelson.dominguez@its.edu.py');
+    if(_ex){docMap['Lic. Nelson Domínguez']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Nelson','Domínguez','nelson.dominguez@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Nelson Domínguez']=_did; } }
+  { const _did='doc_lic_noelia_ayala'; const _uid='u_doc_lic_noelia_ayala';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('noelia.ayala@its.edu.py');
+    if(_ex){docMap['Lic. Noelia Ayala']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Noelia','Ayala','noelia.ayala@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Noelia Ayala']=_did; } }
+  { const _did='doc_lic_pamela_jimenez'; const _uid='u_doc_lic_pamela_jimenez';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('pamela.jimenez@its.edu.py');
+    if(_ex){docMap['Lic. Pamela Jiménez']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Pamela','Jiménez','pamela.jimenez@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Pamela Jiménez']=_did; } }
+  { const _did='doc_lic_raqueline_carballo'; const _uid='u_doc_lic_raqueline_carballo';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('raqueline.carballo@its.edu.py');
+    if(_ex){docMap['Lic. Raqueline Carballo']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Raqueline','Carballo','raqueline.carballo@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Lic.');
+      docMap['Lic. Raqueline Carballo']=_did; } }
+  { const _did='doc_rad_paulo_higuchi'; const _uid='u_doc_rad_paulo_higuchi';
+    const _ex=db.prepare('SELECT d.id FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE u.email=?').get('paulo.higuchi@its.edu.py');
+    if(_ex){docMap['Rad. Paulo Higuchi']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,1)').run(_uid,'Paulo','Higuchi','paulo.higuchi@its.edu.py',bcrypt.hashSync('docente123',10),'docente');
+      db.prepare('INSERT OR IGNORE INTO docentes (id,usuario_id,titulo) VALUES (?,?,?)').run(_did,_uid,'Rad.');
+      docMap['Rad. Paulo Higuchi']=_did; } }
 
   // ── MATERIAS ─────────────────────────────────────────────
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Accidentolog\u00eda Vial",2); if(ex){matMap["Accidentolog\u00eda Vial|Criminal\u00edstica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_accidentologia_vial_criminalistica_2",carrMap["Criminal\u00edstica"],"Accidentolog\u00eda Vial",2,2);
-    matMap["Accidentolog\u00eda Vial|Criminal\u00edstica|2"]="mat_accidentologia_vial_criminalistica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Administraci\u00f3n Hospitalaria",2); if(ex){matMap["Administraci\u00f3n Hospitalaria|Radiolog\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_administracion_hospitalaria_radiologia_2",carrMap["Radiolog\u00eda"],"Administraci\u00f3n Hospitalaria",2,2);
-    matMap["Administraci\u00f3n Hospitalaria|Radiolog\u00eda|2"]="mat_administracion_hospitalaria_radiologia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Anatom\u00eda y Fisiolog\u00eda Humana",1); if(ex){matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_anatomia_y_fisiologia_humana_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Anatom\u00eda y Fisiolog\u00eda Humana",1,2);
-    matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"]="mat_anatomia_y_fisiologia_humana_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Anatom\u00eda y Fisiolog\u00eda Humana",1); if(ex){matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Enfermer\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_anatomia_y_fisiologia_humana_enfermeria_1",carrMap["Enfermer\u00eda"],"Anatom\u00eda y Fisiolog\u00eda Humana",1,2);
-    matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Enfermer\u00eda|1"]="mat_anatomia_y_fisiologia_humana_enfermeria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Anatom\u00eda y Fisiolog\u00eda Humana",1); if(ex){matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Farmacia|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_anatomia_y_fisiologia_humana_farmacia_1",carrMap["Farmacia"],"Anatom\u00eda y Fisiolog\u00eda Humana",1,2);
-    matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Farmacia|1"]="mat_anatomia_y_fisiologia_humana_farmacia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Anatom\u00eda y Fisiolog\u00eda Humana",1); if(ex){matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Instrumentaci\u00f3n Quir\u00fargica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Anatom\u00eda y Fisiolog\u00eda Humana",1,2);
-    matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Instrumentaci\u00f3n Quir\u00fargica|1"]="mat_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Anatom\u00eda y Fisiolog\u00eda Humana",1); if(ex){matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Radiolog\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_anatomia_y_fisiologia_humana_radiologia_1",carrMap["Radiolog\u00eda"],"Anatom\u00eda y Fisiolog\u00eda Humana",1,2);
-    matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Radiolog\u00eda|1"]="mat_anatomia_y_fisiologia_humana_radiologia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Apicultura",1); if(ex){matMap["Apicultura|Agropecuaria|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_apicultura_agropecuaria_1",carrMap["Agropecuaria"],"Apicultura",1,2);
-    matMap["Apicultura|Agropecuaria|1"]="mat_apicultura_agropecuaria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Aspectos Legales del Peritaje",1); if(ex){matMap["Aspectos Legales del Peritaje|Criminal\u00edstica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_aspectos_legales_del_peritaj_criminalistica_1",carrMap["Criminal\u00edstica"],"Aspectos Legales del Peritaje",1,2);
-    matMap["Aspectos Legales del Peritaje|Criminal\u00edstica|1"]="mat_aspectos_legales_del_peritaj_criminalistica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Biolog\u00eda de la Piel I / II",1); if(ex){matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_biologia_de_la_piel_i_ii_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Biolog\u00eda de la Piel I / II",1,2);
-    matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"]="mat_biologia_de_la_piel_i_ii_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Calidad en Salud",1); if(ex){matMap["Calidad en Salud|Farmacia|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_calidad_en_salud_farmacia_1",carrMap["Farmacia"],"Calidad en Salud",1,2);
-    matMap["Calidad en Salud|Farmacia|1"]="mat_calidad_en_salud_farmacia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Calidad en Salud",1); if(ex){matMap["Calidad en Salud|Instrumentaci\u00f3n Quir\u00fargica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_calidad_en_salud_instrumentacion_quirurgica_1",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Calidad en Salud",1,2);
-    matMap["Calidad en Salud|Instrumentaci\u00f3n Quir\u00fargica|1"]="mat_calidad_en_salud_instrumentacion_quirurgica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Contabilidad"] AND anio=?').get("Castellano",1); if(ex){matMap["Castellano|Contabilidad|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_castellano_contabilidad_1",carrMap["Contabilidad"],"Castellano",1,2);
-    matMap["Castellano|Contabilidad|1"]="mat_castellano_contabilidad_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Competencias Socioemocionales",2); if(ex){matMap["Competencias Socioemocionales|Cosmiatr\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_competencias_socioemocionale_cosmiatria_2",carrMap["Cosmiatr\u00eda"],"Competencias Socioemocionales",2,2);
-    matMap["Competencias Socioemocionales|Cosmiatr\u00eda|2"]="mat_competencias_socioemocionale_cosmiatria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed",1); if(ex){matMap["Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed|Criminal\u00edstica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_comunicacion_escrita_y_oral__criminalistica_1",carrMap["Criminal\u00edstica"],"Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed",1,2);
-    matMap["Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed|Criminal\u00edstica|1"]="mat_comunicacion_escrita_y_oral__criminalistica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Contabilidad"] AND anio=?').get("Contabilidad B\u00e1sica",1); if(ex){matMap["Contabilidad B\u00e1sica|Contabilidad|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_contabilidad_basica_contabilidad_1",carrMap["Contabilidad"],"Contabilidad B\u00e1sica",1,2);
-    matMap["Contabilidad B\u00e1sica|Contabilidad|1"]="mat_contabilidad_basica_contabilidad_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Cosmetolog\u00eda B\u00e1sica",2); if(ex){matMap["Cosmetolog\u00eda B\u00e1sica|Farmacia|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_cosmetologia_basica_farmacia_2",carrMap["Farmacia"],"Cosmetolog\u00eda B\u00e1sica",2,2);
-    matMap["Cosmetolog\u00eda B\u00e1sica|Farmacia|2"]="mat_cosmetologia_basica_farmacia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Criminolog\u00eda y Victimolog\u00eda",2); if(ex){matMap["Criminolog\u00eda y Victimolog\u00eda|Criminal\u00edstica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_criminologia_y_victimologia_criminalistica_2",carrMap["Criminal\u00edstica"],"Criminolog\u00eda y Victimolog\u00eda",2,2);
-    matMap["Criminolog\u00eda y Victimolog\u00eda|Criminal\u00edstica|2"]="mat_criminologia_y_victimologia_criminalistica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Cultivos, Forrajes y Pasturas",2); if(ex){matMap["Cultivos, Forrajes y Pasturas|Agropecuaria|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_cultivos_forrajes_y_pasturas_agropecuaria_2",carrMap["Agropecuaria"],"Cultivos, Forrajes y Pasturas",2,2);
-    matMap["Cultivos, Forrajes y Pasturas|Agropecuaria|2"]="mat_cultivos_forrajes_y_pasturas_agropecuaria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Deontolog\u00eda y \u00c9tica Profesional",1); if(ex){matMap["Deontolog\u00eda y \u00c9tica Profesional|Agropecuaria|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_deontologia_y_etica_profesio_agropecuaria_1",carrMap["Agropecuaria"],"Deontolog\u00eda y \u00c9tica Profesional",1,2);
-    matMap["Deontolog\u00eda y \u00c9tica Profesional|Agropecuaria|1"]="mat_deontologia_y_etica_profesio_agropecuaria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Deontolog\u00eda y \u00c9tica Profesional",1); if(ex){matMap["Deontolog\u00eda y \u00c9tica Profesional|Criminal\u00edstica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_deontologia_y_etica_profesio_criminalistica_1",carrMap["Criminal\u00edstica"],"Deontolog\u00eda y \u00c9tica Profesional",1,2);
-    matMap["Deontolog\u00eda y \u00c9tica Profesional|Criminal\u00edstica|1"]="mat_deontologia_y_etica_profesio_criminalistica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales",1); if(ex){matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_dermatologia_basica_tecnicas_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales",1,2);
-    matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"]="mat_dermatologia_basica_tecnicas_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Dibujo T\u00e9cnico y Pericial",2); if(ex){matMap["Dibujo T\u00e9cnico y Pericial|Criminal\u00edstica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_dibujo_tecnico_y_pericial_criminalistica_2",carrMap["Criminal\u00edstica"],"Dibujo T\u00e9cnico y Pericial",2,2);
-    matMap["Dibujo T\u00e9cnico y Pericial|Criminal\u00edstica|2"]="mat_dibujo_tecnico_y_pericial_criminalistica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Electricidad"] AND anio=?').get("Electrotecnia I",2); if(ex){matMap["Electrotecnia I|Electricidad|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_electrotecnia_i_electricidad_2",carrMap["Electricidad"],"Electrotecnia I",2,2);
-    matMap["Electrotecnia I|Electricidad|2"]="mat_electrotecnia_i_electricidad_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Electricidad"] AND anio=?').get("Electr\u00f3nica Anal\u00f3gica",2); if(ex){matMap["Electr\u00f3nica Anal\u00f3gica|Electricidad|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_electronica_analogica_electricidad_2",carrMap["Electricidad"],"Electr\u00f3nica Anal\u00f3gica",2,2);
-    matMap["Electr\u00f3nica Anal\u00f3gica|Electricidad|2"]="mat_electronica_analogica_electricidad_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Enfermer\u00eda Materno Infantil I",2); if(ex){matMap["Enfermer\u00eda Materno Infantil I|Enfermer\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_enfermeria_materno_infantil__enfermeria_2",carrMap["Enfermer\u00eda"],"Enfermer\u00eda Materno Infantil I",2,2);
-    matMap["Enfermer\u00eda Materno Infantil I|Enfermer\u00eda|2"]="mat_enfermeria_materno_infantil__enfermeria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Enfermer\u00eda en Salud del Adulto I / II",2); if(ex){matMap["Enfermer\u00eda en Salud del Adulto I / II|Enfermer\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_enfermeria_en_salud_del_adul_enfermeria_2",carrMap["Enfermer\u00eda"],"Enfermer\u00eda en Salud del Adulto I / II",2,2);
-    matMap["Enfermer\u00eda en Salud del Adulto I / II|Enfermer\u00eda|2"]="mat_enfermeria_en_salud_del_adul_enfermeria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Equipos y Maquinarias Agropecuarias",2); if(ex){matMap["Equipos y Maquinarias Agropecuarias|Agropecuaria|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_equipos_y_maquinarias_agrope_agropecuaria_2",carrMap["Agropecuaria"],"Equipos y Maquinarias Agropecuarias",2,2);
-    matMap["Equipos y Maquinarias Agropecuarias|Agropecuaria|2"]="mat_equipos_y_maquinarias_agrope_agropecuaria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Farmacolog\u00eda",1); if(ex){matMap["Farmacolog\u00eda|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Farmacolog\u00eda",1,2);
-    matMap["Farmacolog\u00eda|Cosmiatr\u00eda|1"]="mat_farmacologia_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Farmacolog\u00eda",1); if(ex){matMap["Farmacolog\u00eda|Enfermer\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_enfermeria_1",carrMap["Enfermer\u00eda"],"Farmacolog\u00eda",1,2);
-    matMap["Farmacolog\u00eda|Enfermer\u00eda|1"]="mat_farmacologia_enfermeria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Farmacolog\u00eda",1); if(ex){matMap["Farmacolog\u00eda|Farmacia|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_farmacia_1",carrMap["Farmacia"],"Farmacolog\u00eda",1,2);
-    matMap["Farmacolog\u00eda|Farmacia|1"]="mat_farmacologia_farmacia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Farmacolog\u00eda",1); if(ex){matMap["Farmacolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_instrumentacion_quirurgica_1",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Farmacolog\u00eda",1,2);
-    matMap["Farmacolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|1"]="mat_farmacologia_instrumentacion_quirurgica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Farmacolog\u00eda",1); if(ex){matMap["Farmacolog\u00eda|Radiolog\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_radiologia_1",carrMap["Radiolog\u00eda"],"Farmacolog\u00eda",1,2);
-    matMap["Farmacolog\u00eda|Radiolog\u00eda|1"]="mat_farmacologia_radiologia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Farmacolog\u00eda en Cosmiatr\u00eda",1); if(ex){matMap["Farmacolog\u00eda en Cosmiatr\u00eda|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacologia_en_cosmiatria_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Farmacolog\u00eda en Cosmiatr\u00eda",1,2);
-    matMap["Farmacolog\u00eda en Cosmiatr\u00eda|Cosmiatr\u00eda|1"]="mat_farmacologia_en_cosmiatria_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Farmacot\u00e9cnia II",2); if(ex){matMap["Farmacot\u00e9cnia II|Farmacia|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_farmacotecnia_ii_farmacia_2",carrMap["Farmacia"],"Farmacot\u00e9cnia II",2,2);
-    matMap["Farmacot\u00e9cnia II|Farmacia|2"]="mat_farmacotecnia_ii_farmacia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("F\u00edsica Radiol\u00f3gica",2); if(ex){matMap["F\u00edsica Radiol\u00f3gica|Radiolog\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_fisica_radiologica_radiologia_2",carrMap["Radiolog\u00eda"],"F\u00edsica Radiol\u00f3gica",2,2);
-    matMap["F\u00edsica Radiol\u00f3gica|Radiolog\u00eda|2"]="mat_fisica_radiologica_radiologia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Ingl\u00e9s",1); if(ex){matMap["Ingl\u00e9s|Agropecuaria|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_ingles_agropecuaria_1",carrMap["Agropecuaria"],"Ingl\u00e9s",1,2);
-    matMap["Ingl\u00e9s|Agropecuaria|1"]="mat_ingles_agropecuaria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Ingl\u00e9s",2); if(ex){matMap["Ingl\u00e9s|Agropecuaria|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_ingles_agropecuaria_2",carrMap["Agropecuaria"],"Ingl\u00e9s",2,2);
-    matMap["Ingl\u00e9s|Agropecuaria|2"]="mat_ingles_agropecuaria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Contabilidad"] AND anio=?').get("Ingl\u00e9s",1); if(ex){matMap["Ingl\u00e9s|Contabilidad|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_ingles_contabilidad_1",carrMap["Contabilidad"],"Ingl\u00e9s",1,2);
-    matMap["Ingl\u00e9s|Contabilidad|1"]="mat_ingles_contabilidad_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Electricidad"] AND anio=?').get("Ingl\u00e9s",2); if(ex){matMap["Ingl\u00e9s|Electricidad|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_ingles_electricidad_2",carrMap["Electricidad"],"Ingl\u00e9s",2,2);
-    matMap["Ingl\u00e9s|Electricidad|2"]="mat_ingles_electricidad_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Contabilidad"] AND anio=?').get("Introducci\u00f3n a la Administraci\u00f3n",1); if(ex){matMap["Introducci\u00f3n a la Administraci\u00f3n|Contabilidad|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_introduccion_a_la_administra_contabilidad_1",carrMap["Contabilidad"],"Introducci\u00f3n a la Administraci\u00f3n",1,2);
-    matMap["Introducci\u00f3n a la Administraci\u00f3n|Contabilidad|1"]="mat_introduccion_a_la_administra_contabilidad_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Introducci\u00f3n a la Criminal\u00edstica",1); if(ex){matMap["Introducci\u00f3n a la Criminal\u00edstica|Criminal\u00edstica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_introduccion_a_la_criminalis_criminalistica_1",carrMap["Criminal\u00edstica"],"Introducci\u00f3n a la Criminal\u00edstica",1,2);
-    matMap["Introducci\u00f3n a la Criminal\u00edstica|Criminal\u00edstica|1"]="mat_introduccion_a_la_criminalis_criminalistica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Introducci\u00f3n al Derecho",1); if(ex){matMap["Introducci\u00f3n al Derecho|Criminal\u00edstica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_introduccion_al_derecho_criminalistica_1",carrMap["Criminal\u00edstica"],"Introducci\u00f3n al Derecho",1,2);
-    matMap["Introducci\u00f3n al Derecho|Criminal\u00edstica|1"]="mat_introduccion_al_derecho_criminalistica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Lengua Extranjera \u2013 Ingl\u00e9s",2); if(ex){matMap["Lengua Extranjera \u2013 Ingl\u00e9s|Farmacia|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_lengua_extranjera_ingles_farmacia_2",carrMap["Farmacia"],"Lengua Extranjera \u2013 Ingl\u00e9s",2,2);
-    matMap["Lengua Extranjera \u2013 Ingl\u00e9s|Farmacia|2"]="mat_lengua_extranjera_ingles_farmacia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Electricidad"] AND anio=?').get("Maquinarias El\u00e9ctricas",2); if(ex){matMap["Maquinarias El\u00e9ctricas|Electricidad|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_maquinarias_electricas_electricidad_2",carrMap["Electricidad"],"Maquinarias El\u00e9ctricas",2,2);
-    matMap["Maquinarias El\u00e9ctricas|Electricidad|2"]="mat_maquinarias_electricas_electricidad_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Contabilidad"] AND anio=?').get("Matematica",1); if(ex){matMap["Matematica|Contabilidad|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_matematica_contabilidad_1",carrMap["Contabilidad"],"Matematica",1,2);
-    matMap["Matematica|Contabilidad|1"]="mat_matematica_contabilidad_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Medicina Legal y \u00c9tica",2); if(ex){matMap["Medicina Legal y \u00c9tica|Instrumentaci\u00f3n Quir\u00fargica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_medicina_legal_y_etica_instrumentacion_quirurgica_2",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Medicina Legal y \u00c9tica",2,2);
-    matMap["Medicina Legal y \u00c9tica|Instrumentaci\u00f3n Quir\u00fargica|2"]="mat_medicina_legal_y_etica_instrumentacion_quirurgica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Patolog\u00eda Quir\u00fargica",2); if(ex){matMap["Patolog\u00eda Quir\u00fargica|Instrumentaci\u00f3n Quir\u00fargica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_patologia_quirurgica_instrumentacion_quirurgica_2",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Patolog\u00eda Quir\u00fargica",2,2);
-    matMap["Patolog\u00eda Quir\u00fargica|Instrumentaci\u00f3n Quir\u00fargica|2"]="mat_patologia_quirurgica_instrumentacion_quirurgica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Primeros Auxilios",1); if(ex){matMap["Primeros Auxilios|Enfermer\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_primeros_auxilios_enfermeria_1",carrMap["Enfermer\u00eda"],"Primeros Auxilios",1,2);
-    matMap["Primeros Auxilios|Enfermer\u00eda|1"]="mat_primeros_auxilios_enfermeria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Primeros Auxilios",1); if(ex){matMap["Primeros Auxilios|Radiolog\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_primeros_auxilios_radiologia_1",carrMap["Radiolog\u00eda"],"Primeros Auxilios",1,2);
-    matMap["Primeros Auxilios|Radiolog\u00eda|1"]="mat_primeros_auxilios_radiologia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Producci\u00f3n Porcina",1); if(ex){matMap["Producci\u00f3n Porcina|Agropecuaria|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_produccion_porcina_agropecuaria_1",carrMap["Agropecuaria"],"Producci\u00f3n Porcina",1,2);
-    matMap["Producci\u00f3n Porcina|Agropecuaria|1"]="mat_produccion_porcina_agropecuaria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Producci\u00f3n Porcina",2); if(ex){matMap["Producci\u00f3n Porcina|Agropecuaria|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_produccion_porcina_agropecuaria_2",carrMap["Agropecuaria"],"Producci\u00f3n Porcina",2,2);
-    matMap["Producci\u00f3n Porcina|Agropecuaria|2"]="mat_produccion_porcina_agropecuaria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Productividad Agropecuaria",1); if(ex){matMap["Productividad Agropecuaria|Agropecuaria|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_productividad_agropecuaria_agropecuaria_1",carrMap["Agropecuaria"],"Productividad Agropecuaria",1,2);
-    matMap["Productividad Agropecuaria|Agropecuaria|1"]="mat_productividad_agropecuaria_agropecuaria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Pr\u00e1cticas Radiol\u00f3gicas III",2); if(ex){matMap["Pr\u00e1cticas Radiol\u00f3gicas III|Radiolog\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_practicas_radiologicas_iii_radiologia_2",carrMap["Radiolog\u00eda"],"Pr\u00e1cticas Radiol\u00f3gicas III",2,2);
-    matMap["Pr\u00e1cticas Radiol\u00f3gicas III|Radiolog\u00eda|2"]="mat_practicas_radiologicas_iii_radiologia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Psicolog\u00eda",2); if(ex){matMap["Psicolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_psicologia_instrumentacion_quirurgica_2",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Psicolog\u00eda",2,2);
-    matMap["Psicolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|2"]="mat_psicologia_instrumentacion_quirurgica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Psicolog\u00eda",2); if(ex){matMap["Psicolog\u00eda|Radiolog\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_psicologia_radiologia_2",carrMap["Radiolog\u00eda"],"Psicolog\u00eda",2,2);
-    matMap["Psicolog\u00eda|Radiolog\u00eda|2"]="mat_psicologia_radiologia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Psicolog\u00eda General",2); if(ex){matMap["Psicolog\u00eda General|Instrumentaci\u00f3n Quir\u00fargica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_psicologia_general_instrumentacion_quirurgica_2",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Psicolog\u00eda General",2,2);
-    matMap["Psicolog\u00eda General|Instrumentaci\u00f3n Quir\u00fargica|2"]="mat_psicologia_general_instrumentacion_quirurgica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Criminal\u00edstica"] AND anio=?').get("Qu\u00edmica Aplicada a la Criminal\u00edstica",2); if(ex){matMap["Qu\u00edmica Aplicada a la Criminal\u00edstica|Criminal\u00edstica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_quimica_aplicada_a_la_crimin_criminalistica_2",carrMap["Criminal\u00edstica"],"Qu\u00edmica Aplicada a la Criminal\u00edstica",2,2);
-    matMap["Qu\u00edmica Aplicada a la Criminal\u00edstica|Criminal\u00edstica|2"]="mat_quimica_aplicada_a_la_crimin_criminalistica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Qu\u00edmica Cosm\u00e9tica",2); if(ex){matMap["Qu\u00edmica Cosm\u00e9tica|Cosmiatr\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_quimica_cosmetica_cosmiatria_2",carrMap["Cosmiatr\u00eda"],"Qu\u00edmica Cosm\u00e9tica",2,2);
-    matMap["Qu\u00edmica Cosm\u00e9tica|Cosmiatr\u00eda|2"]="mat_quimica_cosmetica_cosmiatria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Qu\u00edmica Inorg\u00e1nica",2); if(ex){matMap["Qu\u00edmica Inorg\u00e1nica|Farmacia|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_quimica_inorganica_farmacia_2",carrMap["Farmacia"],"Qu\u00edmica Inorg\u00e1nica",2,2);
-    matMap["Qu\u00edmica Inorg\u00e1nica|Farmacia|2"]="mat_quimica_inorganica_farmacia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Salud P\u00fablica",1); if(ex){matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_salud_publica_cosmiatria_1",carrMap["Cosmiatr\u00eda"],"Salud P\u00fablica",1,2);
-    matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"]="mat_salud_publica_cosmiatria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("Salud P\u00fablica",1); if(ex){matMap["Salud P\u00fablica|Enfermer\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_salud_publica_enfermeria_1",carrMap["Enfermer\u00eda"],"Salud P\u00fablica",1,2);
-    matMap["Salud P\u00fablica|Enfermer\u00eda|1"]="mat_salud_publica_enfermeria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("Salud P\u00fablica",1); if(ex){matMap["Salud P\u00fablica|Farmacia|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_salud_publica_farmacia_1",carrMap["Farmacia"],"Salud P\u00fablica",1,2);
-    matMap["Salud P\u00fablica|Farmacia|1"]="mat_salud_publica_farmacia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("Salud P\u00fablica",1); if(ex){matMap["Salud P\u00fablica|Instrumentaci\u00f3n Quir\u00fargica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_salud_publica_instrumentacion_quirurgica_1",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"Salud P\u00fablica",1,2);
-    matMap["Salud P\u00fablica|Instrumentaci\u00f3n Quir\u00fargica|1"]="mat_salud_publica_instrumentacion_quirurgica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("Salud P\u00fablica",1); if(ex){matMap["Salud P\u00fablica|Radiolog\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_salud_publica_radiologia_1",carrMap["Radiolog\u00eda"],"Salud P\u00fablica",1,2);
-    matMap["Salud P\u00fablica|Radiolog\u00eda|1"]="mat_salud_publica_radiologia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("Semiolog\u00eda de la Piel I",2); if(ex){matMap["Semiolog\u00eda de la Piel I|Cosmiatr\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_semiologia_de_la_piel_i_cosmiatria_2",carrMap["Cosmiatr\u00eda"],"Semiolog\u00eda de la Piel I",2,2);
-    matMap["Semiolog\u00eda de la Piel I|Cosmiatr\u00eda|2"]="mat_semiologia_de_la_piel_i_cosmiatria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Electricidad"] AND anio=?').get("Sistema de Potencia",2); if(ex){matMap["Sistema de Potencia|Electricidad|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_sistema_de_potencia_electricidad_2",carrMap["Electricidad"],"Sistema de Potencia",2,2);
-    matMap["Sistema de Potencia|Electricidad|2"]="mat_sistema_de_potencia_electricidad_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("T\u00e9cnicas Cosm\u00e9ticas",2); if(ex){matMap["T\u00e9cnicas Cosm\u00e9ticas|Cosmiatr\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_tecnicas_cosmeticas_cosmiatria_2",carrMap["Cosmiatr\u00eda"],"T\u00e9cnicas Cosm\u00e9ticas",2,2);
-    matMap["T\u00e9cnicas Cosm\u00e9ticas|Cosmiatr\u00eda|2"]="mat_tecnicas_cosmeticas_cosmiatria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("T\u00e9cnicas Quir\u00fargicas General y Especializada",2); if(ex){matMap["T\u00e9cnicas Quir\u00fargicas General y Especializada|Instrumentaci\u00f3n Quir\u00fargica|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"T\u00e9cnicas Quir\u00fargicas General y Especializada",2,2);
-    matMap["T\u00e9cnicas Quir\u00fargicas General y Especializada|Instrumentaci\u00f3n Quir\u00fargica|2"]="mat_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("T\u00e9cnicas Radiol\u00f3gicas III",2); if(ex){matMap["T\u00e9cnicas Radiol\u00f3gicas III|Radiolog\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_tecnicas_radiologicas_iii_radiologia_2",carrMap["Radiolog\u00eda"],"T\u00e9cnicas Radiol\u00f3gicas III",2,2);
-    matMap["T\u00e9cnicas Radiol\u00f3gicas III|Radiolog\u00eda|2"]="mat_tecnicas_radiologicas_iii_radiologia_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Cosmiatr\u00eda"] AND anio=?').get("T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico",2); if(ex){matMap["T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico|Cosmiatr\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_tecnicas_de_masajes_y_drenaj_cosmiatria_2",carrMap["Cosmiatr\u00eda"],"T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico",2,2);
-    matMap["T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico|Cosmiatr\u00eda|2"]="mat_tecnicas_de_masajes_y_drenaj_cosmiatria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Agropecuaria"] AND anio=?').get("Zootecnia",2); if(ex){matMap["Zootecnia|Agropecuaria|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_zootecnia_agropecuaria_2",carrMap["Agropecuaria"],"Zootecnia",2,2);
-    matMap["Zootecnia|Agropecuaria|2"]="mat_zootecnia_agropecuaria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("\u00c9tica Profesional",1); if(ex){matMap["\u00c9tica Profesional|Enfermer\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_profesional_enfermeria_1",carrMap["Enfermer\u00eda"],"\u00c9tica Profesional",1,2);
-    matMap["\u00c9tica Profesional|Enfermer\u00eda|1"]="mat_etica_profesional_enfermeria_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("\u00c9tica Profesional",1); if(ex){matMap["\u00c9tica Profesional|Farmacia|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_profesional_farmacia_1",carrMap["Farmacia"],"\u00c9tica Profesional",1,2);
-    matMap["\u00c9tica Profesional|Farmacia|1"]="mat_etica_profesional_farmacia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Instrumentaci\u00f3n Quir\u00fargica"] AND anio=?').get("\u00c9tica Profesional",1); if(ex){matMap["\u00c9tica Profesional|Instrumentaci\u00f3n Quir\u00fargica|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_profesional_instrumentacion_quirurgica_1",carrMap["Instrumentaci\u00f3n Quir\u00fargica"],"\u00c9tica Profesional",1,2);
-    matMap["\u00c9tica Profesional|Instrumentaci\u00f3n Quir\u00fargica|1"]="mat_etica_profesional_instrumentacion_quirurgica_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Radiolog\u00eda"] AND anio=?').get("\u00c9tica Profesional",1); if(ex){matMap["\u00c9tica Profesional|Radiolog\u00eda|1"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_profesional_radiologia_1",carrMap["Radiolog\u00eda"],"\u00c9tica Profesional",1,2);
-    matMap["\u00c9tica Profesional|Radiolog\u00eda|1"]="mat_etica_profesional_radiologia_1"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Enfermer\u00eda"] AND anio=?').get("\u00c9tica y Legislaci\u00f3n",2); if(ex){matMap["\u00c9tica y Legislaci\u00f3n|Enfermer\u00eda|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_y_legislacion_enfermeria_2",carrMap["Enfermer\u00eda"],"\u00c9tica y Legislaci\u00f3n",2,2);
-    matMap["\u00c9tica y Legislaci\u00f3n|Enfermer\u00eda|2"]="mat_etica_y_legislacion_enfermeria_2"; } }
-  { const ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=carrMap["Farmacia"] AND anio=?').get("\u00c9tica y Legislaci\u00f3n",2); if(ex){matMap["\u00c9tica y Legislaci\u00f3n|Farmacia|2"]=ex.id;}else{
-    db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run("mat_etica_y_legislacion_farmacia_2",carrMap["Farmacia"],"\u00c9tica y Legislaci\u00f3n",2,2);
-    matMap["\u00c9tica y Legislaci\u00f3n|Farmacia|2"]="mat_etica_y_legislacion_farmacia_2"; } }
+  { const _mid='mat_accidentologia_vial_criminalistica_2'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Accidentología Vial',_carr,2);
+    if(_ex){matMap['Accidentología Vial|Criminalística|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Accidentología Vial',2,2);
+      matMap['Accidentología Vial|Criminalística|2']=_mid; } }
+  { const _mid='mat_administracion_hospitalaria_radiologia_2'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Administración Hospitalaria',_carr,2);
+    if(_ex){matMap['Administración Hospitalaria|Radiología|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Administración Hospitalaria',2,2);
+      matMap['Administración Hospitalaria|Radiología|2']=_mid; } }
+  { const _mid='mat_anatomia_y_fisiologia_humana_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Anatomía y Fisiología Humana',_carr,1);
+    if(_ex){matMap['Anatomía y Fisiología Humana|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Anatomía y Fisiología Humana',1,2);
+      matMap['Anatomía y Fisiología Humana|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_anatomia_y_fisiologia_humana_enfermeria_1'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Anatomía y Fisiología Humana',_carr,1);
+    if(_ex){matMap['Anatomía y Fisiología Humana|Enfermería|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Anatomía y Fisiología Humana',1,2);
+      matMap['Anatomía y Fisiología Humana|Enfermería|1']=_mid; } }
+  { const _mid='mat_anatomia_y_fisiologia_humana_farmacia_1'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Anatomía y Fisiología Humana',_carr,1);
+    if(_ex){matMap['Anatomía y Fisiología Humana|Farmacia|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Anatomía y Fisiología Humana',1,2);
+      matMap['Anatomía y Fisiología Humana|Farmacia|1']=_mid; } }
+  { const _mid='mat_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Anatomía y Fisiología Humana',_carr,1);
+    if(_ex){matMap['Anatomía y Fisiología Humana|Instrumentación Quirúrgica|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Anatomía y Fisiología Humana',1,2);
+      matMap['Anatomía y Fisiología Humana|Instrumentación Quirúrgica|1']=_mid; } }
+  { const _mid='mat_anatomia_y_fisiologia_humana_radiologia_1'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Anatomía y Fisiología Humana',_carr,1);
+    if(_ex){matMap['Anatomía y Fisiología Humana|Radiología|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Anatomía y Fisiología Humana',1,2);
+      matMap['Anatomía y Fisiología Humana|Radiología|1']=_mid; } }
+  { const _mid='mat_apicultura_agropecuaria_1'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Apicultura',_carr,1);
+    if(_ex){matMap['Apicultura|Agropecuaria|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Apicultura',1,2);
+      matMap['Apicultura|Agropecuaria|1']=_mid; } }
+  { const _mid='mat_aspectos_legales_del_peritaj_criminalistica_1'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Aspectos Legales del Peritaje',_carr,1);
+    if(_ex){matMap['Aspectos Legales del Peritaje|Criminalística|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Aspectos Legales del Peritaje',1,2);
+      matMap['Aspectos Legales del Peritaje|Criminalística|1']=_mid; } }
+  { const _mid='mat_biologia_de_la_piel_i_ii_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Biología de la Piel I / II',_carr,1);
+    if(_ex){matMap['Biología de la Piel I / II|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Biología de la Piel I / II',1,2);
+      matMap['Biología de la Piel I / II|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_calidad_en_salud_farmacia_1'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Calidad en Salud',_carr,1);
+    if(_ex){matMap['Calidad en Salud|Farmacia|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Calidad en Salud',1,2);
+      matMap['Calidad en Salud|Farmacia|1']=_mid; } }
+  { const _mid='mat_calidad_en_salud_instrumentacion_quirurgica_1'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Calidad en Salud',_carr,1);
+    if(_ex){matMap['Calidad en Salud|Instrumentación Quirúrgica|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Calidad en Salud',1,2);
+      matMap['Calidad en Salud|Instrumentación Quirúrgica|1']=_mid; } }
+  { const _mid='mat_castellano_contabilidad_1'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Castellano',_carr,1);
+    if(_ex){matMap['Castellano|Contabilidad|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Castellano',1,2);
+      matMap['Castellano|Contabilidad|1']=_mid; } }
+  { const _mid='mat_competencias_socioemocionale_cosmiatria_2'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Competencias Socioemocionales',_carr,2);
+    if(_ex){matMap['Competencias Socioemocionales|Cosmiatría|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Competencias Socioemocionales',2,2);
+      matMap['Competencias Socioemocionales|Cosmiatría|2']=_mid; } }
+  { const _mid='mat_comunicacion_escrita_y_oral__criminalistica_1'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Comunicación Escrita y Oral y Lengua Guaraní',_carr,1);
+    if(_ex){matMap['Comunicación Escrita y Oral y Lengua Guaraní|Criminalística|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Comunicación Escrita y Oral y Lengua Guaraní',1,2);
+      matMap['Comunicación Escrita y Oral y Lengua Guaraní|Criminalística|1']=_mid; } }
+  { const _mid='mat_contabilidad_basica_contabilidad_1'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Contabilidad Básica',_carr,1);
+    if(_ex){matMap['Contabilidad Básica|Contabilidad|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Contabilidad Básica',1,2);
+      matMap['Contabilidad Básica|Contabilidad|1']=_mid; } }
+  { const _mid='mat_cosmetologia_basica_farmacia_2'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Cosmetología Básica',_carr,2);
+    if(_ex){matMap['Cosmetología Básica|Farmacia|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Cosmetología Básica',2,2);
+      matMap['Cosmetología Básica|Farmacia|2']=_mid; } }
+  { const _mid='mat_criminologia_y_victimologia_criminalistica_2'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Criminología y Victimología',_carr,2);
+    if(_ex){matMap['Criminología y Victimología|Criminalística|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Criminología y Victimología',2,2);
+      matMap['Criminología y Victimología|Criminalística|2']=_mid; } }
+  { const _mid='mat_cultivos_forrajes_y_pasturas_agropecuaria_2'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Cultivos, Forrajes y Pasturas',_carr,2);
+    if(_ex){matMap['Cultivos, Forrajes y Pasturas|Agropecuaria|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Cultivos, Forrajes y Pasturas',2,2);
+      matMap['Cultivos, Forrajes y Pasturas|Agropecuaria|2']=_mid; } }
+  { const _mid='mat_deontologia_y_etica_profesio_agropecuaria_1'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Deontología y Ética Profesional',_carr,1);
+    if(_ex){matMap['Deontología y Ética Profesional|Agropecuaria|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Deontología y Ética Profesional',1,2);
+      matMap['Deontología y Ética Profesional|Agropecuaria|1']=_mid; } }
+  { const _mid='mat_deontologia_y_etica_profesio_criminalistica_1'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Deontología y Ética Profesional',_carr,1);
+    if(_ex){matMap['Deontología y Ética Profesional|Criminalística|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Deontología y Ética Profesional',1,2);
+      matMap['Deontología y Ética Profesional|Criminalística|1']=_mid; } }
+  { const _mid='mat_dermatologia_basica_tecnicas_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Dermatología Básica / Técnicas Faciales',_carr,1);
+    if(_ex){matMap['Dermatología Básica / Técnicas Faciales|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Dermatología Básica / Técnicas Faciales',1,2);
+      matMap['Dermatología Básica / Técnicas Faciales|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_dibujo_tecnico_y_pericial_criminalistica_2'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Dibujo Técnico y Pericial',_carr,2);
+    if(_ex){matMap['Dibujo Técnico y Pericial|Criminalística|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Dibujo Técnico y Pericial',2,2);
+      matMap['Dibujo Técnico y Pericial|Criminalística|2']=_mid; } }
+  { const _mid='mat_electrotecnia_i_electricidad_2'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Electrotecnia I',_carr,2);
+    if(_ex){matMap['Electrotecnia I|Electricidad|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Electrotecnia I',2,2);
+      matMap['Electrotecnia I|Electricidad|2']=_mid; } }
+  { const _mid='mat_electronica_analogica_electricidad_2'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Electrónica Analógica',_carr,2);
+    if(_ex){matMap['Electrónica Analógica|Electricidad|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Electrónica Analógica',2,2);
+      matMap['Electrónica Analógica|Electricidad|2']=_mid; } }
+  { const _mid='mat_enfermeria_materno_infantil__enfermeria_2'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Enfermería Materno Infantil I',_carr,2);
+    if(_ex){matMap['Enfermería Materno Infantil I|Enfermería|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Enfermería Materno Infantil I',2,2);
+      matMap['Enfermería Materno Infantil I|Enfermería|2']=_mid; } }
+  { const _mid='mat_enfermeria_en_salud_del_adul_enfermeria_2'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Enfermería en Salud del Adulto I / II',_carr,2);
+    if(_ex){matMap['Enfermería en Salud del Adulto I / II|Enfermería|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Enfermería en Salud del Adulto I / II',2,2);
+      matMap['Enfermería en Salud del Adulto I / II|Enfermería|2']=_mid; } }
+  { const _mid='mat_equipos_y_maquinarias_agrope_agropecuaria_2'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Equipos y Maquinarias Agropecuarias',_carr,2);
+    if(_ex){matMap['Equipos y Maquinarias Agropecuarias|Agropecuaria|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Equipos y Maquinarias Agropecuarias',2,2);
+      matMap['Equipos y Maquinarias Agropecuarias|Agropecuaria|2']=_mid; } }
+  { const _mid='mat_farmacologia_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología',_carr,1);
+    if(_ex){matMap['Farmacología|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología',1,2);
+      matMap['Farmacología|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_farmacologia_enfermeria_1'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología',_carr,1);
+    if(_ex){matMap['Farmacología|Enfermería|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología',1,2);
+      matMap['Farmacología|Enfermería|1']=_mid; } }
+  { const _mid='mat_farmacologia_farmacia_1'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología',_carr,1);
+    if(_ex){matMap['Farmacología|Farmacia|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología',1,2);
+      matMap['Farmacología|Farmacia|1']=_mid; } }
+  { const _mid='mat_farmacologia_instrumentacion_quirurgica_1'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología',_carr,1);
+    if(_ex){matMap['Farmacología|Instrumentación Quirúrgica|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología',1,2);
+      matMap['Farmacología|Instrumentación Quirúrgica|1']=_mid; } }
+  { const _mid='mat_farmacologia_radiologia_1'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología',_carr,1);
+    if(_ex){matMap['Farmacología|Radiología|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología',1,2);
+      matMap['Farmacología|Radiología|1']=_mid; } }
+  { const _mid='mat_farmacologia_en_cosmiatria_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacología en Cosmiatría',_carr,1);
+    if(_ex){matMap['Farmacología en Cosmiatría|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacología en Cosmiatría',1,2);
+      matMap['Farmacología en Cosmiatría|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_farmacotecnia_ii_farmacia_2'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Farmacotécnia II',_carr,2);
+    if(_ex){matMap['Farmacotécnia II|Farmacia|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Farmacotécnia II',2,2);
+      matMap['Farmacotécnia II|Farmacia|2']=_mid; } }
+  { const _mid='mat_fisica_radiologica_radiologia_2'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Física Radiológica',_carr,2);
+    if(_ex){matMap['Física Radiológica|Radiología|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Física Radiológica',2,2);
+      matMap['Física Radiológica|Radiología|2']=_mid; } }
+  { const _mid='mat_ingles_agropecuaria_1'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Inglés',_carr,1);
+    if(_ex){matMap['Inglés|Agropecuaria|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Inglés',1,2);
+      matMap['Inglés|Agropecuaria|1']=_mid; } }
+  { const _mid='mat_ingles_agropecuaria_2'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Inglés',_carr,2);
+    if(_ex){matMap['Inglés|Agropecuaria|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Inglés',2,2);
+      matMap['Inglés|Agropecuaria|2']=_mid; } }
+  { const _mid='mat_ingles_contabilidad_1'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Inglés',_carr,1);
+    if(_ex){matMap['Inglés|Contabilidad|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Inglés',1,2);
+      matMap['Inglés|Contabilidad|1']=_mid; } }
+  { const _mid='mat_ingles_electricidad_2'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Inglés',_carr,2);
+    if(_ex){matMap['Inglés|Electricidad|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Inglés',2,2);
+      matMap['Inglés|Electricidad|2']=_mid; } }
+  { const _mid='mat_introduccion_a_la_administra_contabilidad_1'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Introducción a la Administración',_carr,1);
+    if(_ex){matMap['Introducción a la Administración|Contabilidad|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Introducción a la Administración',1,2);
+      matMap['Introducción a la Administración|Contabilidad|1']=_mid; } }
+  { const _mid='mat_introduccion_a_la_criminalis_criminalistica_1'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Introducción a la Criminalística',_carr,1);
+    if(_ex){matMap['Introducción a la Criminalística|Criminalística|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Introducción a la Criminalística',1,2);
+      matMap['Introducción a la Criminalística|Criminalística|1']=_mid; } }
+  { const _mid='mat_introduccion_al_derecho_criminalistica_1'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Introducción al Derecho',_carr,1);
+    if(_ex){matMap['Introducción al Derecho|Criminalística|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Introducción al Derecho',1,2);
+      matMap['Introducción al Derecho|Criminalística|1']=_mid; } }
+  { const _mid='mat_lengua_extranjera_ingles_farmacia_2'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Lengua Extranjera – Inglés',_carr,2);
+    if(_ex){matMap['Lengua Extranjera – Inglés|Farmacia|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Lengua Extranjera – Inglés',2,2);
+      matMap['Lengua Extranjera – Inglés|Farmacia|2']=_mid; } }
+  { const _mid='mat_maquinarias_electricas_electricidad_2'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Maquinarias Eléctricas',_carr,2);
+    if(_ex){matMap['Maquinarias Eléctricas|Electricidad|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Maquinarias Eléctricas',2,2);
+      matMap['Maquinarias Eléctricas|Electricidad|2']=_mid; } }
+  { const _mid='mat_matematica_contabilidad_1'; const _carr=carrMap['Contabilidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Matematica',_carr,1);
+    if(_ex){matMap['Matematica|Contabilidad|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Matematica',1,2);
+      matMap['Matematica|Contabilidad|1']=_mid; } }
+  { const _mid='mat_medicina_legal_y_etica_instrumentacion_quirurgica_2'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Medicina Legal y Ética',_carr,2);
+    if(_ex){matMap['Medicina Legal y Ética|Instrumentación Quirúrgica|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Medicina Legal y Ética',2,2);
+      matMap['Medicina Legal y Ética|Instrumentación Quirúrgica|2']=_mid; } }
+  { const _mid='mat_patologia_quirurgica_instrumentacion_quirurgica_2'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Patología Quirúrgica',_carr,2);
+    if(_ex){matMap['Patología Quirúrgica|Instrumentación Quirúrgica|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Patología Quirúrgica',2,2);
+      matMap['Patología Quirúrgica|Instrumentación Quirúrgica|2']=_mid; } }
+  { const _mid='mat_primeros_auxilios_enfermeria_1'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Primeros Auxilios',_carr,1);
+    if(_ex){matMap['Primeros Auxilios|Enfermería|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Primeros Auxilios',1,2);
+      matMap['Primeros Auxilios|Enfermería|1']=_mid; } }
+  { const _mid='mat_primeros_auxilios_radiologia_1'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Primeros Auxilios',_carr,1);
+    if(_ex){matMap['Primeros Auxilios|Radiología|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Primeros Auxilios',1,2);
+      matMap['Primeros Auxilios|Radiología|1']=_mid; } }
+  { const _mid='mat_produccion_porcina_agropecuaria_1'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Producción Porcina',_carr,1);
+    if(_ex){matMap['Producción Porcina|Agropecuaria|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Producción Porcina',1,2);
+      matMap['Producción Porcina|Agropecuaria|1']=_mid; } }
+  { const _mid='mat_produccion_porcina_agropecuaria_2'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Producción Porcina',_carr,2);
+    if(_ex){matMap['Producción Porcina|Agropecuaria|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Producción Porcina',2,2);
+      matMap['Producción Porcina|Agropecuaria|2']=_mid; } }
+  { const _mid='mat_productividad_agropecuaria_agropecuaria_1'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Productividad Agropecuaria',_carr,1);
+    if(_ex){matMap['Productividad Agropecuaria|Agropecuaria|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Productividad Agropecuaria',1,2);
+      matMap['Productividad Agropecuaria|Agropecuaria|1']=_mid; } }
+  { const _mid='mat_practicas_radiologicas_iii_radiologia_2'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Prácticas Radiológicas III',_carr,2);
+    if(_ex){matMap['Prácticas Radiológicas III|Radiología|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Prácticas Radiológicas III',2,2);
+      matMap['Prácticas Radiológicas III|Radiología|2']=_mid; } }
+  { const _mid='mat_psicologia_instrumentacion_quirurgica_2'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Psicología',_carr,2);
+    if(_ex){matMap['Psicología|Instrumentación Quirúrgica|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Psicología',2,2);
+      matMap['Psicología|Instrumentación Quirúrgica|2']=_mid; } }
+  { const _mid='mat_psicologia_radiologia_2'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Psicología',_carr,2);
+    if(_ex){matMap['Psicología|Radiología|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Psicología',2,2);
+      matMap['Psicología|Radiología|2']=_mid; } }
+  { const _mid='mat_psicologia_general_instrumentacion_quirurgica_2'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Psicología General',_carr,2);
+    if(_ex){matMap['Psicología General|Instrumentación Quirúrgica|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Psicología General',2,2);
+      matMap['Psicología General|Instrumentación Quirúrgica|2']=_mid; } }
+  { const _mid='mat_quimica_aplicada_a_la_crimin_criminalistica_2'; const _carr=carrMap['Criminalística'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Química Aplicada a la Criminalística',_carr,2);
+    if(_ex){matMap['Química Aplicada a la Criminalística|Criminalística|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Química Aplicada a la Criminalística',2,2);
+      matMap['Química Aplicada a la Criminalística|Criminalística|2']=_mid; } }
+  { const _mid='mat_quimica_cosmetica_cosmiatria_2'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Química Cosmética',_carr,2);
+    if(_ex){matMap['Química Cosmética|Cosmiatría|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Química Cosmética',2,2);
+      matMap['Química Cosmética|Cosmiatría|2']=_mid; } }
+  { const _mid='mat_quimica_inorganica_farmacia_2'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Química Inorgánica',_carr,2);
+    if(_ex){matMap['Química Inorgánica|Farmacia|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Química Inorgánica',2,2);
+      matMap['Química Inorgánica|Farmacia|2']=_mid; } }
+  { const _mid='mat_salud_publica_cosmiatria_1'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Salud Pública',_carr,1);
+    if(_ex){matMap['Salud Pública|Cosmiatría|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Salud Pública',1,2);
+      matMap['Salud Pública|Cosmiatría|1']=_mid; } }
+  { const _mid='mat_salud_publica_enfermeria_1'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Salud Pública',_carr,1);
+    if(_ex){matMap['Salud Pública|Enfermería|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Salud Pública',1,2);
+      matMap['Salud Pública|Enfermería|1']=_mid; } }
+  { const _mid='mat_salud_publica_farmacia_1'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Salud Pública',_carr,1);
+    if(_ex){matMap['Salud Pública|Farmacia|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Salud Pública',1,2);
+      matMap['Salud Pública|Farmacia|1']=_mid; } }
+  { const _mid='mat_salud_publica_instrumentacion_quirurgica_1'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Salud Pública',_carr,1);
+    if(_ex){matMap['Salud Pública|Instrumentación Quirúrgica|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Salud Pública',1,2);
+      matMap['Salud Pública|Instrumentación Quirúrgica|1']=_mid; } }
+  { const _mid='mat_salud_publica_radiologia_1'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Salud Pública',_carr,1);
+    if(_ex){matMap['Salud Pública|Radiología|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Salud Pública',1,2);
+      matMap['Salud Pública|Radiología|1']=_mid; } }
+  { const _mid='mat_semiologia_de_la_piel_i_cosmiatria_2'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Semiología de la Piel I',_carr,2);
+    if(_ex){matMap['Semiología de la Piel I|Cosmiatría|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Semiología de la Piel I',2,2);
+      matMap['Semiología de la Piel I|Cosmiatría|2']=_mid; } }
+  { const _mid='mat_sistema_de_potencia_electricidad_2'; const _carr=carrMap['Electricidad'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Sistema de Potencia',_carr,2);
+    if(_ex){matMap['Sistema de Potencia|Electricidad|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Sistema de Potencia',2,2);
+      matMap['Sistema de Potencia|Electricidad|2']=_mid; } }
+  { const _mid='mat_tecnicas_cosmeticas_cosmiatria_2'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Técnicas Cosméticas',_carr,2);
+    if(_ex){matMap['Técnicas Cosméticas|Cosmiatría|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Técnicas Cosméticas',2,2);
+      matMap['Técnicas Cosméticas|Cosmiatría|2']=_mid; } }
+  { const _mid='mat_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Técnicas Quirúrgicas General y Especializada',_carr,2);
+    if(_ex){matMap['Técnicas Quirúrgicas General y Especializada|Instrumentación Quirúrgica|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Técnicas Quirúrgicas General y Especializada',2,2);
+      matMap['Técnicas Quirúrgicas General y Especializada|Instrumentación Quirúrgica|2']=_mid; } }
+  { const _mid='mat_tecnicas_radiologicas_iii_radiologia_2'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Técnicas Radiológicas III',_carr,2);
+    if(_ex){matMap['Técnicas Radiológicas III|Radiología|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Técnicas Radiológicas III',2,2);
+      matMap['Técnicas Radiológicas III|Radiología|2']=_mid; } }
+  { const _mid='mat_tecnicas_de_masajes_y_drenaj_cosmiatria_2'; const _carr=carrMap['Cosmiatría'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Técnicas de Masajes y Drenaje Linfático',_carr,2);
+    if(_ex){matMap['Técnicas de Masajes y Drenaje Linfático|Cosmiatría|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Técnicas de Masajes y Drenaje Linfático',2,2);
+      matMap['Técnicas de Masajes y Drenaje Linfático|Cosmiatría|2']=_mid; } }
+  { const _mid='mat_zootecnia_agropecuaria_2'; const _carr=carrMap['Agropecuaria'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Zootecnia',_carr,2);
+    if(_ex){matMap['Zootecnia|Agropecuaria|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Zootecnia',2,2);
+      matMap['Zootecnia|Agropecuaria|2']=_mid; } }
+  { const _mid='mat_etica_profesional_enfermeria_1'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética Profesional',_carr,1);
+    if(_ex){matMap['Ética Profesional|Enfermería|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética Profesional',1,2);
+      matMap['Ética Profesional|Enfermería|1']=_mid; } }
+  { const _mid='mat_etica_profesional_farmacia_1'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética Profesional',_carr,1);
+    if(_ex){matMap['Ética Profesional|Farmacia|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética Profesional',1,2);
+      matMap['Ética Profesional|Farmacia|1']=_mid; } }
+  { const _mid='mat_etica_profesional_instrumentacion_quirurgica_1'; const _carr=carrMap['Instrumentación Quirúrgica'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética Profesional',_carr,1);
+    if(_ex){matMap['Ética Profesional|Instrumentación Quirúrgica|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética Profesional',1,2);
+      matMap['Ética Profesional|Instrumentación Quirúrgica|1']=_mid; } }
+  { const _mid='mat_etica_profesional_radiologia_1'; const _carr=carrMap['Radiología'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética Profesional',_carr,1);
+    if(_ex){matMap['Ética Profesional|Radiología|1']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética Profesional',1,2);
+      matMap['Ética Profesional|Radiología|1']=_mid; } }
+  { const _mid='mat_etica_y_legislacion_enfermeria_2'; const _carr=carrMap['Enfermería'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética y Legislación',_carr,2);
+    if(_ex){matMap['Ética y Legislación|Enfermería|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética y Legislación',2,2);
+      matMap['Ética y Legislación|Enfermería|2']=_mid; } }
+  { const _mid='mat_etica_y_legislacion_farmacia_2'; const _carr=carrMap['Farmacia'];
+    const _ex=db.prepare('SELECT id FROM materias WHERE nombre=? AND carrera_id=? AND anio=?').get('Ética y Legislación',_carr,2);
+    if(_ex){matMap['Ética y Legislación|Farmacia|2']=_ex.id;}else{
+      db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,anio,horas_semanales) VALUES (?,?,?,?,?)').run(_mid,_carr,'Ética y Legislación',2,2);
+      matMap['Ética y Legislación|Farmacia|2']=_mid; } }
 
   // ── ASIGNACIONES + HORARIOS ─────────────────────────────
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-  if (!periodo) { console.log('⚠ Sin período activo'); return; }
-  let asigN=0, horN=0;
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_ingles_contabilidad_1_lun_1",docMap["Lic. Pamela Jim\u00e9nez"],matMap["Ingl\u00e9s|Contabilidad|1"],cursoMap["Contabilidad|1|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_ingles_contabilidad_1_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_ingles_contabilidad_1_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Salud P\u00fablica|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_enfermeria_1_lun_1",docMap["Lic. Ana Ayala"],matMap["Salud P\u00fablica|Enfermer\u00eda|1"],cursoMap["Enfermer\u00eda|1|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Salud P\u00fablica|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_enfermeria_1_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_enfermeria_1_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Enfermer\u00eda Materno Infantil I|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_enfermeria_materno_infantil__enfermeria_2_lun_1",docMap["Lic. Micheli Romero"],matMap["Enfermer\u00eda Materno Infantil I|Enfermer\u00eda|2"],cursoMap["Enfermer\u00eda|2|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Enfermer\u00eda Materno Infantil I|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_enfermeria_materno_infantil__enfermeria_2_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_enfermeria_materno_infantil__enfermeria_2_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Salud P\u00fablica|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_farmacia_1_lun_1",docMap["Lic. Angela Aranda"],matMap["Salud P\u00fablica|Farmacia|1"],cursoMap["Farmacia|1|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Salud P\u00fablica|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_farmacia_1_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_farmacia_1_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Lengua Extranjera \u2013 Ingl\u00e9s|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_lengua_extranjera_ingles_farmacia_2_lun_1",docMap["Lic. Pamela Jim\u00e9nez"],matMap["Lengua Extranjera \u2013 Ingl\u00e9s|Farmacia|2"],cursoMap["Farmacia|2|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Lengua Extranjera \u2013 Ingl\u00e9s|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_lengua_extranjera_ingles_farmacia_2_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_lengua_extranjera_ingles_farmacia_2_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Salud P\u00fablica|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_instrumentacion_quirurgica_1_lun_1",docMap["Lic. Angela Aranda"],matMap["Salud P\u00fablica|Instrumentaci\u00f3n Quir\u00fargica|1"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Salud P\u00fablica|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_instrumentacion_quirurgica_1_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_instrumentacion_quirurgica_1_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Patolog\u00eda Quir\u00fargica|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_patologia_quirurgica_instrumentacion_quirurgica_2_lun_1",docMap["Dr. Favio Rojas"],matMap["Patolog\u00eda Quir\u00fargica|Instrumentaci\u00f3n Quir\u00fargica|2"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Patolog\u00eda Quir\u00fargica|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_patologia_quirurgica_instrumentacion_quirurgica_2_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_patologia_quirurgica_instrumentacion_quirurgica_2_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Salud P\u00fablica|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_radiologia_1_lun_1",docMap["Lic. Ana Ayala"],matMap["Salud P\u00fablica|Radiolog\u00eda|1"],cursoMap["Radiolog\u00eda|1|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Salud P\u00fablica|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_radiologia_1_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_radiologia_1_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["F\u00edsica Radiol\u00f3gica|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_fisica_radiologica_radiologia_2_lun_1",docMap["Rad. Paulo Higuchi"],matMap["F\u00edsica Radiol\u00f3gica|Radiolog\u00eda|2"],cursoMap["Radiolog\u00eda|2|U"],periodo.id,1,"19:00","20:20","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["F\u00edsica Radiol\u00f3gica|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_fisica_radiologica_radiologia_2_lun_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_fisica_radiologica_radiologia_2_lun_1",asigId,"Lunes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_enfermeria_1_lun_2",docMap["Rad. Paulo Higuchi"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Enfermer\u00eda|1"],cursoMap["Enfermer\u00eda|1|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_enfermeria_1_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_enfermeria_1_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Enfermer\u00eda en Salud del Adulto I / II|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_enfermeria_en_salud_del_adul_enfermeria_2_lun_2",docMap["Lic. Ana Ayala"],matMap["Enfermer\u00eda en Salud del Adulto I / II|Enfermer\u00eda|2"],cursoMap["Enfermer\u00eda|2|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Ana Ayala"] AND materia_id=matMap["Enfermer\u00eda en Salud del Adulto I / II|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_enfermeria_en_salud_del_adul_enfermeria_2_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_enfermeria_en_salud_del_adul_enfermeria_2_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_farmacia_1_lun_2",docMap["Dr. Favio Rojas"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Farmacia|1"],cursoMap["Farmacia|1|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_farmacia_1_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_farmacia_1_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Qu\u00edmica Inorg\u00e1nica|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_quimica_inorganica_farmacia_2_lun_2",docMap["Lic. Angela Aranda"],matMap["Qu\u00edmica Inorg\u00e1nica|Farmacia|2"],cursoMap["Farmacia|2|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Qu\u00edmica Inorg\u00e1nica|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_quimica_inorganica_farmacia_2_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_quimica_inorganica_farmacia_2_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_lun_2",docMap["Dr. Favio Rojas"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Instrumentaci\u00f3n Quir\u00fargica|1"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Medicina Legal y \u00c9tica|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_lun_2",docMap["Abg. C\u00e9sar Alum"],matMap["Medicina Legal y \u00c9tica|Instrumentaci\u00f3n Quir\u00fargica|2"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Medicina Legal y \u00c9tica|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_radiologia_1_lun_2",docMap["Rad. Paulo Higuchi"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Radiolog\u00eda|1"],cursoMap["Radiolog\u00eda|1|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_radiologia_1_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_radiologia_1_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Marcial Palacios"] AND materia_id=matMap["T\u00e9cnicas Radiol\u00f3gicas III|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_tecnicas_radiologicas_iii_radiologia_2_lun_2",docMap["Lic. Marcial Palacios"],matMap["T\u00e9cnicas Radiol\u00f3gicas III|Radiolog\u00eda|2"],cursoMap["Radiolog\u00eda|2|U"],periodo.id,2,"20:40","22:00","Lunes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Marcial Palacios"] AND materia_id=matMap["T\u00e9cnicas Radiol\u00f3gicas III|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_tecnicas_radiologicas_iii_radiologia_2_lun_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_tecnicas_radiologicas_iii_radiologia_2_lun_2",asigId,"Lunes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelly Carmona"] AND materia_id=matMap["Apicultura|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_apicultura_agropecuaria_1_mar_1",docMap["Lic. Nelly Carmona"],matMap["Apicultura|Agropecuaria|1"],cursoMap["Agropecuaria|1|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelly Carmona"] AND materia_id=matMap["Apicultura|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_apicultura_agropecuaria_1_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_apicultura_agropecuaria_1_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Equipos y Maquinarias Agropecuarias|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_equipos_y_maquinarias_agrope_agropecuaria_2_mar_1",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Equipos y Maquinarias Agropecuarias|Agropecuaria|2"],cursoMap["Agropecuaria|2|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Equipos y Maquinarias Agropecuarias|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_equipos_y_maquinarias_agrope_agropecuaria_2_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_equipos_y_maquinarias_agrope_agropecuaria_2_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_1",docMap["Lic. Raqueline Carballo"],matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|A"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()?.id||"asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Qu\u00edmica Cosm\u00e9tica|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_quimica_cosmetica_cosmiatria_2_mar_1",docMap["Lic. Noelia Ayala"],matMap["Qu\u00edmica Cosm\u00e9tica|Cosmiatr\u00eda|2"],cursoMap["Cosmiatr\u00eda|2|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Qu\u00edmica Cosm\u00e9tica|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_quimica_cosmetica_cosmiatria_2_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_quimica_cosmetica_cosmiatria_2_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_cosmiatria_1_mar_1",docMap["Rad. Paulo Higuchi"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|B"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Rad. Paulo Higuchi"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_cosmiatria_1_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_cosmiatria_1_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Mar\u00eda Paz Ocampos"] AND materia_id=matMap["Aspectos Legales del Peritaje|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_aspectos_legales_del_peritaj_criminalistica_1_mar_1",docMap["Abg. Mar\u00eda Paz Ocampos"],matMap["Aspectos Legales del Peritaje|Criminal\u00edstica|1"],cursoMap["Criminal\u00edstica|1|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Mar\u00eda Paz Ocampos"] AND materia_id=matMap["Aspectos Legales del Peritaje|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_aspectos_legales_del_peritaj_criminalistica_1_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_aspectos_legales_del_peritaj_criminalistica_1_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Dibujo T\u00e9cnico y Pericial|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_dibujo_tecnico_y_pericial_criminalistica_2_mar_1",docMap["Lic. Nelson Dom\u00ednguez"],matMap["Dibujo T\u00e9cnico y Pericial|Criminal\u00edstica|2"],cursoMap["Criminal\u00edstica|2|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Dibujo T\u00e9cnico y Pericial|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_dibujo_tecnico_y_pericial_criminalistica_2_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_dibujo_tecnico_y_pericial_criminalistica_2_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Electr\u00f3nica Anal\u00f3gica|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_electronica_analogica_electricidad_2_mar_1",docMap["Ing. Oscar Mareco"],matMap["Electr\u00f3nica Anal\u00f3gica|Electricidad|2"],cursoMap["Electricidad|2|U"],periodo.id,1,"19:00","20:20","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Electr\u00f3nica Anal\u00f3gica|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_electronica_analogica_electricidad_2_mar_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_electronica_analogica_electricidad_2_mar_1",asigId,"Martes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Deontolog\u00eda y \u00c9tica Profesional|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_deontologia_y_etica_profesio_agropecuaria_1_mar_2",docMap["Abg. C\u00e9sar Alum"],matMap["Deontolog\u00eda y \u00c9tica Profesional|Agropecuaria|1"],cursoMap["Agropecuaria|1|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Deontolog\u00eda y \u00c9tica Profesional|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_deontologia_y_etica_profesio_agropecuaria_1_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_deontologia_y_etica_profesio_agropecuaria_1_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Cultivos, Forrajes y Pasturas|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_cultivos_forrajes_y_pasturas_agropecuaria_2_mar_2",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Cultivos, Forrajes y Pasturas|Agropecuaria|2"],cursoMap["Agropecuaria|2|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Cultivos, Forrajes y Pasturas|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_cultivos_forrajes_y_pasturas_agropecuaria_2_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_cultivos_forrajes_y_pasturas_agropecuaria_2_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_biologia_de_la_piel_i_ii_cosmiatria_1_mar_2",docMap["Lic. Noelia Ayala"],matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|A"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()?.id||"asig_biologia_de_la_piel_i_ii_cosmiatria_1_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_biologia_de_la_piel_i_ii_cosmiatria_1_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Semiolog\u00eda de la Piel I|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_semiologia_de_la_piel_i_cosmiatria_2_mar_2",docMap["Dr. Favio Rojas"],matMap["Semiolog\u00eda de la Piel I|Cosmiatr\u00eda|2"],cursoMap["Cosmiatr\u00eda|2|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Semiolog\u00eda de la Piel I|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_semiologia_de_la_piel_i_cosmiatria_2_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_semiologia_de_la_piel_i_cosmiatria_2_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_2",docMap["Lic. Raqueline Carballo"],matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|B"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["Dermatolog\u00eda B\u00e1sica / T\u00e9cnicas Faciales|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()?.id||"asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Deontolog\u00eda y \u00c9tica Profesional|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_deontologia_y_etica_profesio_criminalistica_1_mar_2",docMap["Abg. C\u00e9sar Alum"],matMap["Deontolog\u00eda y \u00c9tica Profesional|Criminal\u00edstica|1"],cursoMap["Criminal\u00edstica|1|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. C\u00e9sar Alum"] AND materia_id=matMap["Deontolog\u00eda y \u00c9tica Profesional|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_deontologia_y_etica_profesio_criminalistica_1_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_deontologia_y_etica_profesio_criminalistica_1_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Criminolog\u00eda y Victimolog\u00eda|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_criminologia_y_victimologia_criminalistica_2_mar_2",docMap["Lic. Nelson Dom\u00ednguez"],matMap["Criminolog\u00eda y Victimolog\u00eda|Criminal\u00edstica|2"],cursoMap["Criminal\u00edstica|2|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Criminolog\u00eda y Victimolog\u00eda|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_criminologia_y_victimologia_criminalistica_2_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_criminologia_y_victimologia_criminalistica_2_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Electrotecnia I|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_electrotecnia_i_electricidad_2_mar_2",docMap["Ing. Oscar Mareco"],matMap["Electrotecnia I|Electricidad|2"],cursoMap["Electricidad|2|U"],periodo.id,2,"20:40","22:00","Martes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Electrotecnia I|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_electrotecnia_i_electricidad_2_mar_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_electrotecnia_i_electricidad_2_mar_2",asigId,"Martes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_ingles_agropecuaria_1_mi\u00e9_1",docMap["Lic. Pamela Jim\u00e9nez"],matMap["Ingl\u00e9s|Agropecuaria|1"],cursoMap["Agropecuaria|1|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_ingles_agropecuaria_1_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_ingles_agropecuaria_1_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_ingles_agropecuaria_2_mi\u00e9_1",docMap["Lic. Pamela Jim\u00e9nez"],matMap["Ingl\u00e9s|Agropecuaria|2"],cursoMap["Agropecuaria|2|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_ingles_agropecuaria_2_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_ingles_agropecuaria_2_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Maria Elena Perez de Cantero"] AND materia_id=matMap["Castellano|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_castellano_contabilidad_1_mi\u00e9_1",docMap["Lic. Maria Elena Perez de Cantero"],matMap["Castellano|Contabilidad|1"],cursoMap["Contabilidad|1|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Maria Elena Perez de Cantero"] AND materia_id=matMap["Castellano|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_castellano_contabilidad_1_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_castellano_contabilidad_1_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Cinthia Esp\u00ednola"] AND materia_id=matMap["Farmacolog\u00eda en Cosmiatr\u00eda|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_en_cosmiatria_cosmiatria_1_mi\u00e9_1",docMap["Dra. Cinthia Esp\u00ednola"],matMap["Farmacolog\u00eda en Cosmiatr\u00eda|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|A"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Cinthia Esp\u00ednola"] AND materia_id=matMap["Farmacolog\u00eda en Cosmiatr\u00eda|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_en_cosmiatria_cosmiatria_1_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_en_cosmiatria_cosmiatria_1_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Jannyne Torales"] AND materia_id=matMap["Competencias Socioemocionales|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_competencias_socioemocionale_cosmiatria_2_mi\u00e9_1",docMap["Lic. Jannyne Torales"],matMap["Competencias Socioemocionales|Cosmiatr\u00eda|2"],cursoMap["Cosmiatr\u00eda|2|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Jannyne Torales"] AND materia_id=matMap["Competencias Socioemocionales|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_competencias_socioemocionale_cosmiatria_2_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_competencias_socioemocionale_cosmiatria_2_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_biologia_de_la_piel_i_ii_cosmiatria_1_mi\u00e9_1",docMap["Lic. Noelia Ayala"],matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|B"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Biolog\u00eda de la Piel I / II|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()?.id||"asig_biologia_de_la_piel_i_ii_cosmiatria_1_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_biologia_de_la_piel_i_ii_cosmiatria_1_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Maria Elena Perez de Cantero"] AND materia_id=matMap["Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_comunicacion_escrita_y_oral__criminalistica_1_mi\u00e9_1",docMap["Lic. Maria Elena Perez de Cantero"],matMap["Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed|Criminal\u00edstica|1"],cursoMap["Criminal\u00edstica|1|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Maria Elena Perez de Cantero"] AND materia_id=matMap["Comunicaci\u00f3n Escrita y Oral y Lengua Guaran\u00ed|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_comunicacion_escrita_y_oral__criminalistica_1_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_comunicacion_escrita_y_oral__criminalistica_1_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Qu\u00edmica Aplicada a la Criminal\u00edstica|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_quimica_aplicada_a_la_crimin_criminalistica_2_mi\u00e9_1",docMap["Lic. Angela Aranda"],matMap["Qu\u00edmica Aplicada a la Criminal\u00edstica|Criminal\u00edstica|2"],cursoMap["Criminal\u00edstica|2|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Qu\u00edmica Aplicada a la Criminal\u00edstica|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_quimica_aplicada_a_la_crimin_criminalistica_2_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_quimica_aplicada_a_la_crimin_criminalistica_2_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_ingles_electricidad_2_mi\u00e9_1",docMap["Lic. Pamela Jim\u00e9nez"],matMap["Ingl\u00e9s|Electricidad|2"],cursoMap["Electricidad|2|U"],periodo.id,1,"19:00","20:20","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Pamela Jim\u00e9nez"] AND materia_id=matMap["Ingl\u00e9s|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_ingles_electricidad_2_mi\u00e9_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_ingles_electricidad_2_mi\u00e9_1",asigId,"Mi\u00e9rcoles",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Contabilidad B\u00e1sica|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_contabilidad_basica_contabilidad_1_mi\u00e9_2",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Contabilidad B\u00e1sica|Contabilidad|1"],cursoMap["Contabilidad|1|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Contabilidad B\u00e1sica|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_contabilidad_basica_contabilidad_1_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_contabilidad_basica_contabilidad_1_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Primeros Auxilios|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_primeros_auxilios_enfermeria_1_mi\u00e9_2",docMap["Lic. Micheli Romero"],matMap["Primeros Auxilios|Enfermer\u00eda|1"],cursoMap["Enfermer\u00eda|1|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Primeros Auxilios|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_primeros_auxilios_enfermeria_1_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_primeros_auxilios_enfermeria_1_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica y Legislaci\u00f3n|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_y_legislacion_enfermeria_2_mi\u00e9_2",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica y Legislaci\u00f3n|Enfermer\u00eda|2"],cursoMap["Enfermer\u00eda|2|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica y Legislaci\u00f3n|Enfermer\u00eda|2"] AND curso_id=cursoMap["Enfermer\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_y_legislacion_enfermeria_2_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_y_legislacion_enfermeria_2_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Blanca Villar"] AND materia_id=matMap["Calidad en Salud|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_calidad_en_salud_farmacia_1_mi\u00e9_2",docMap["Lic. Blanca Villar"],matMap["Calidad en Salud|Farmacia|1"],cursoMap["Farmacia|1|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Blanca Villar"] AND materia_id=matMap["Calidad en Salud|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_calidad_en_salud_farmacia_1_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_calidad_en_salud_farmacia_1_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica y Legislaci\u00f3n|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_y_legislacion_farmacia_2_mi\u00e9_2",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica y Legislaci\u00f3n|Farmacia|2"],cursoMap["Farmacia|2|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica y Legislaci\u00f3n|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_y_legislacion_farmacia_2_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_y_legislacion_farmacia_2_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Blanca Villar"] AND materia_id=matMap["Calidad en Salud|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_calidad_en_salud_instrumentacion_quirurgica_1_mi\u00e9_2",docMap["Lic. Blanca Villar"],matMap["Calidad en Salud|Instrumentaci\u00f3n Quir\u00fargica|1"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Blanca Villar"] AND materia_id=matMap["Calidad en Salud|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_calidad_en_salud_instrumentacion_quirurgica_1_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_calidad_en_salud_instrumentacion_quirurgica_1_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Inst. Karen Gonz\u00e1lez"] AND materia_id=matMap["T\u00e9cnicas Quir\u00fargicas General y Especializada|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_mi\u00e9_2",docMap["Inst. Karen Gonz\u00e1lez"],matMap["T\u00e9cnicas Quir\u00fargicas General y Especializada|Instrumentaci\u00f3n Quir\u00fargica|2"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Inst. Karen Gonz\u00e1lez"] AND materia_id=matMap["T\u00e9cnicas Quir\u00fargicas General y Especializada|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Primeros Auxilios|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_primeros_auxilios_radiologia_1_mi\u00e9_2",docMap["Lic. Micheli Romero"],matMap["Primeros Auxilios|Radiolog\u00eda|1"],cursoMap["Radiolog\u00eda|1|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Micheli Romero"] AND materia_id=matMap["Primeros Auxilios|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_primeros_auxilios_radiologia_1_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_primeros_auxilios_radiologia_1_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Administraci\u00f3n Hospitalaria|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_administracion_hospitalaria_radiologia_2_mi\u00e9_2",docMap["Lic. Angela Aranda"],matMap["Administraci\u00f3n Hospitalaria|Radiolog\u00eda|2"],cursoMap["Radiolog\u00eda|2|U"],periodo.id,2,"20:40","22:00","Mi\u00e9rcoles");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Angela Aranda"] AND materia_id=matMap["Administraci\u00f3n Hospitalaria|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_administracion_hospitalaria_radiologia_2_mi\u00e9_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_administracion_hospitalaria_radiologia_2_mi\u00e9_2",asigId,"Mi\u00e9rcoles",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Productividad Agropecuaria|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_productividad_agropecuaria_agropecuaria_1_jue_1",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Productividad Agropecuaria|Agropecuaria|1"],cursoMap["Agropecuaria|1|U"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Productividad Agropecuaria|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_productividad_agropecuaria_agropecuaria_1_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_productividad_agropecuaria_agropecuaria_1_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelly Carmona"] AND materia_id=matMap["Zootecnia|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_zootecnia_agropecuaria_2_jue_1",docMap["Lic. Nelly Carmona"],matMap["Zootecnia|Agropecuaria|2"],cursoMap["Agropecuaria|2|U"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelly Carmona"] AND materia_id=matMap["Zootecnia|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_zootecnia_agropecuaria_2_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_zootecnia_agropecuaria_2_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_anatomia_y_fisiologia_humana_cosmiatria_1_jue_1",docMap["Dr. Favio Rojas"],matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|A"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Anatom\u00eda y Fisiolog\u00eda Humana|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()?.id||"asig_anatomia_y_fisiologia_humana_cosmiatria_1_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_anatomia_y_fisiologia_humana_cosmiatria_1_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_jue_1",docMap["Lic. Raqueline Carballo"],matMap["T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico|Cosmiatr\u00eda|2"],cursoMap["Cosmiatr\u00eda|2|U"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["T\u00e9cnicas de Masajes y Drenaje Linf\u00e1tico|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Natalia Valenzuela"] AND materia_id=matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_cosmiatria_1_jue_1",docMap["Dra. Natalia Valenzuela"],matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|B"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Natalia Valenzuela"] AND materia_id=matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|B"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_cosmiatria_1_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_cosmiatria_1_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Introducci\u00f3n a la Criminal\u00edstica|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_introduccion_a_la_criminalis_criminalistica_1_jue_1",docMap["Lic. Nelson Dom\u00ednguez"],matMap["Introducci\u00f3n a la Criminal\u00edstica|Criminal\u00edstica|1"],cursoMap["Criminal\u00edstica|1|U"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Introducci\u00f3n a la Criminal\u00edstica|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_introduccion_a_la_criminalis_criminalistica_1_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_introduccion_a_la_criminalis_criminalistica_1_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Maquinarias El\u00e9ctricas|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_maquinarias_electricas_electricidad_2_jue_1",docMap["Ing. Oscar Mareco"],matMap["Maquinarias El\u00e9ctricas|Electricidad|2"],cursoMap["Electricidad|2|U"],periodo.id,1,"19:00","20:20","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Maquinarias El\u00e9ctricas|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_maquinarias_electricas_electricidad_2_jue_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_maquinarias_electricas_electricidad_2_jue_1",asigId,"Jueves",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Producci\u00f3n Porcina|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_produccion_porcina_agropecuaria_1_jue_2",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Producci\u00f3n Porcina|Agropecuaria|1"],cursoMap["Agropecuaria|1|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Producci\u00f3n Porcina|Agropecuaria|1"] AND curso_id=cursoMap["Agropecuaria|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_produccion_porcina_agropecuaria_1_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_produccion_porcina_agropecuaria_1_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Producci\u00f3n Porcina|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_produccion_porcina_agropecuaria_2_jue_2",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Producci\u00f3n Porcina|Agropecuaria|2"],cursoMap["Agropecuaria|2|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Producci\u00f3n Porcina|Agropecuaria|2"] AND curso_id=cursoMap["Agropecuaria|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_produccion_porcina_agropecuaria_2_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_produccion_porcina_agropecuaria_2_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_salud_publica_cosmiatria_1_jue_2",docMap["Dr. Favio Rojas"],matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|A"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Salud P\u00fablica|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|A"] AND periodo_id=periodo.id').get()?.id||"asig_salud_publica_cosmiatria_1_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_salud_publica_cosmiatria_1_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["T\u00e9cnicas Cosm\u00e9ticas|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_tecnicas_cosmeticas_cosmiatria_2_jue_2",docMap["Lic. Raqueline Carballo"],matMap["T\u00e9cnicas Cosm\u00e9ticas|Cosmiatr\u00eda|2"],cursoMap["Cosmiatr\u00eda|2|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Raqueline Carballo"] AND materia_id=matMap["T\u00e9cnicas Cosm\u00e9ticas|Cosmiatr\u00eda|2"] AND curso_id=cursoMap["Cosmiatr\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_tecnicas_cosmeticas_cosmiatria_2_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_tecnicas_cosmeticas_cosmiatria_2_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Cinthia Esp\u00ednola"] AND materia_id=matMap["Farmacolog\u00eda|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_cosmiatria_1_jue_2",docMap["Dra. Cinthia Esp\u00ednola"],matMap["Farmacolog\u00eda|Cosmiatr\u00eda|1"],cursoMap["Cosmiatr\u00eda|1|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dra. Cinthia Esp\u00ednola"] AND materia_id=matMap["Farmacolog\u00eda|Cosmiatr\u00eda|1"] AND curso_id=cursoMap["Cosmiatr\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_cosmiatria_1_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_cosmiatria_1_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Gabriel Sharp"] AND materia_id=matMap["Introducci\u00f3n al Derecho|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_introduccion_al_derecho_criminalistica_1_jue_2",docMap["Abg. Gabriel Sharp"],matMap["Introducci\u00f3n al Derecho|Criminal\u00edstica|1"],cursoMap["Criminal\u00edstica|1|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Gabriel Sharp"] AND materia_id=matMap["Introducci\u00f3n al Derecho|Criminal\u00edstica|1"] AND curso_id=cursoMap["Criminal\u00edstica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_introduccion_al_derecho_criminalistica_1_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_introduccion_al_derecho_criminalistica_1_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Accidentolog\u00eda Vial|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_accidentologia_vial_criminalistica_2_jue_2",docMap["Lic. Nelson Dom\u00ednguez"],matMap["Accidentolog\u00eda Vial|Criminal\u00edstica|2"],cursoMap["Criminal\u00edstica|2|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Nelson Dom\u00ednguez"] AND materia_id=matMap["Accidentolog\u00eda Vial|Criminal\u00edstica|2"] AND curso_id=cursoMap["Criminal\u00edstica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_accidentologia_vial_criminalistica_2_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_accidentologia_vial_criminalistica_2_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Sistema de Potencia|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_sistema_de_potencia_electricidad_2_jue_2",docMap["Ing. Oscar Mareco"],matMap["Sistema de Potencia|Electricidad|2"],cursoMap["Electricidad|2|U"],periodo.id,2,"20:40","22:00","Jueves");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Ing. Oscar Mareco"] AND materia_id=matMap["Sistema de Potencia|Electricidad|2"] AND curso_id=cursoMap["Electricidad|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_sistema_de_potencia_electricidad_2_jue_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_sistema_de_potencia_electricidad_2_jue_2",asigId,"Jueves",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_profesional_enfermeria_1_vie_1",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica Profesional|Enfermer\u00eda|1"],cursoMap["Enfermer\u00eda|1|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_profesional_enfermeria_1_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_profesional_enfermeria_1_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacolog\u00eda|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_farmacia_1_vie_1",docMap["Lic. Gabriela Ag\u00fcero"],matMap["Farmacolog\u00eda|Farmacia|1"],cursoMap["Farmacia|1|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacolog\u00eda|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_farmacia_1_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_farmacia_1_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Cosmetolog\u00eda B\u00e1sica|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_cosmetologia_basica_farmacia_2_vie_1",docMap["Lic. Noelia Ayala"],matMap["Cosmetolog\u00eda B\u00e1sica|Farmacia|2"],cursoMap["Farmacia|2|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Noelia Ayala"] AND materia_id=matMap["Cosmetolog\u00eda B\u00e1sica|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_cosmetologia_basica_farmacia_2_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_cosmetologia_basica_farmacia_2_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_instrumentacion_quirurgica_1_vie_1",docMap["Lic. Gabriela Ag\u00fcero"],matMap["Farmacolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|1"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_instrumentacion_quirurgica_1_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_instrumentacion_quirurgica_1_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_psicologia_instrumentacion_quirurgica_2_vie_1",docMap["Lic. Natalia Mart\u00ednez"],matMap["Psicolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|2"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_psicologia_instrumentacion_quirurgica_2_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_psicologia_instrumentacion_quirurgica_2_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_profesional_radiologia_1_vie_1",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica Profesional|Radiolog\u00eda|1"],cursoMap["Radiolog\u00eda|1|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_profesional_radiologia_1_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_profesional_radiologia_1_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_psicologia_radiologia_2_vie_1",docMap["Lic. Natalia Mart\u00ednez"],matMap["Psicolog\u00eda|Radiolog\u00eda|2"],cursoMap["Radiolog\u00eda|2|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_psicologia_radiologia_2_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_psicologia_radiologia_2_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Gabriel Sharp"] AND materia_id=matMap["Matematica|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_matematica_contabilidad_1_vie_1",docMap["Abg. Gabriel Sharp"],matMap["Matematica|Contabilidad|1"],cursoMap["Contabilidad|1|U"],periodo.id,1,"19:00","20:20","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Gabriel Sharp"] AND materia_id=matMap["Matematica|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_matematica_contabilidad_1_vie_1";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_matematica_contabilidad_1_vie_1",asigId,"Viernes",1,"19:00","20:20");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Introducci\u00f3n a la Administraci\u00f3n|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_introduccion_a_la_administra_contabilidad_1_vie_2",docMap["Lic. Mirta Gim\u00e9nez"],matMap["Introducci\u00f3n a la Administraci\u00f3n|Contabilidad|1"],cursoMap["Contabilidad|1|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Mirta Gim\u00e9nez"] AND materia_id=matMap["Introducci\u00f3n a la Administraci\u00f3n|Contabilidad|1"] AND curso_id=cursoMap["Contabilidad|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_introduccion_a_la_administra_contabilidad_1_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_introduccion_a_la_administra_contabilidad_1_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Farmacolog\u00eda|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_enfermeria_1_vie_2",docMap["Dr. Favio Rojas"],matMap["Farmacolog\u00eda|Enfermer\u00eda|1"],cursoMap["Enfermer\u00eda|1|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Farmacolog\u00eda|Enfermer\u00eda|1"] AND curso_id=cursoMap["Enfermer\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_enfermeria_1_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_enfermeria_1_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_profesional_farmacia_1_vie_2",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica Profesional|Farmacia|1"],cursoMap["Farmacia|1|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Farmacia|1"] AND curso_id=cursoMap["Farmacia|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_profesional_farmacia_1_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_profesional_farmacia_1_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacot\u00e9cnia II|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacotecnia_ii_farmacia_2_vie_2",docMap["Lic. Gabriela Ag\u00fcero"],matMap["Farmacot\u00e9cnia II|Farmacia|2"],cursoMap["Farmacia|2|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Gabriela Ag\u00fcero"] AND materia_id=matMap["Farmacot\u00e9cnia II|Farmacia|2"] AND curso_id=cursoMap["Farmacia|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacotecnia_ii_farmacia_2_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacotecnia_ii_farmacia_2_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_etica_profesional_instrumentacion_quirurgica_1_vie_2",docMap["Abg. Myrian Carrillo"],matMap["\u00c9tica Profesional|Instrumentaci\u00f3n Quir\u00fargica|1"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Abg. Myrian Carrillo"] AND materia_id=matMap["\u00c9tica Profesional|Instrumentaci\u00f3n Quir\u00fargica|1"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_etica_profesional_instrumentacion_quirurgica_1_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_etica_profesional_instrumentacion_quirurgica_1_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda General|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_psicologia_general_instrumentacion_quirurgica_2_vie_2",docMap["Lic. Natalia Mart\u00ednez"],matMap["Psicolog\u00eda General|Instrumentaci\u00f3n Quir\u00fargica|2"],cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Natalia Mart\u00ednez"] AND materia_id=matMap["Psicolog\u00eda General|Instrumentaci\u00f3n Quir\u00fargica|2"] AND curso_id=cursoMap["Instrumentaci\u00f3n Quir\u00fargica|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_psicologia_general_instrumentacion_quirurgica_2_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_psicologia_general_instrumentacion_quirurgica_2_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Farmacolog\u00eda|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_farmacologia_radiologia_1_vie_2",docMap["Dr. Favio Rojas"],matMap["Farmacolog\u00eda|Radiolog\u00eda|1"],cursoMap["Radiolog\u00eda|1|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Dr. Favio Rojas"] AND materia_id=matMap["Farmacolog\u00eda|Radiolog\u00eda|1"] AND curso_id=cursoMap["Radiolog\u00eda|1|U"] AND periodo_id=periodo.id').get()?.id||"asig_farmacologia_radiologia_1_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_farmacologia_radiologia_1_vie_2",asigId,"Viernes",2,"20:40","22:00");
-      horN++;
-    } }
-  if(!db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Marcial Palacios"] AND materia_id=matMap["Pr\u00e1cticas Radiol\u00f3gicas III|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()){
-    db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run("asig_practicas_radiologicas_iii_radiologia_2_vie_2",docMap["Lic. Marcial Palacios"],matMap["Pr\u00e1cticas Radiol\u00f3gicas III|Radiolog\u00eda|2"],cursoMap["Radiolog\u00eda|2|U"],periodo.id,2,"20:40","22:00","Viernes");
-    asigN++;
-  }
-  { const asigId=db.prepare('SELECT id FROM asignaciones WHERE docente_id=docMap["Lic. Marcial Palacios"] AND materia_id=matMap["Pr\u00e1cticas Radiol\u00f3gicas III|Radiolog\u00eda|2"] AND curso_id=cursoMap["Radiolog\u00eda|2|U"] AND periodo_id=periodo.id').get()?.id||"asig_practicas_radiologicas_iii_radiologia_2_vie_2";
-    if(!db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(asigId)){
-      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run("hor_asig_practicas_radiologicas_iii_radiologia_2_vie_2",asigId,"Viernes",2,"20:40","22:00");
+  if (!periodo) { console.log('⚠ Sin período activo — crear período primero'); return; }
+  { const _dk=docMap['Lic. Pamela Jiménez']; const _mk=matMap['Inglés|Contabilidad|1']; const _ck=cursoMap['Contabilidad|1|U'];
+    const _aid='asig_ingles_contabilidad_1_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_ingles_contabilidad_1_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Ana Ayala']; const _mk=matMap['Salud Pública|Enfermería|1']; const _ck=cursoMap['Enfermería|1|U'];
+    const _aid='asig_salud_publica_enfermeria_1_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_enfermeria_1_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Micheli Romero']; const _mk=matMap['Enfermería Materno Infantil I|Enfermería|2']; const _ck=cursoMap['Enfermería|2|U'];
+    const _aid='asig_enfermeria_materno_infantil__enfermeria_2_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_enfermeria_materno_infantil__enfermeria_2_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Angela Aranda']; const _mk=matMap['Salud Pública|Farmacia|1']; const _ck=cursoMap['Farmacia|1|U'];
+    const _aid='asig_salud_publica_farmacia_1_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_farmacia_1_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Pamela Jiménez']; const _mk=matMap['Lengua Extranjera – Inglés|Farmacia|2']; const _ck=cursoMap['Farmacia|2|U'];
+    const _aid='asig_lengua_extranjera_ingles_farmacia_2_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_lengua_extranjera_ingles_farmacia_2_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Angela Aranda']; const _mk=matMap['Salud Pública|Instrumentación Quirúrgica|1']; const _ck=cursoMap['Instrumentación Quirúrgica|1|U'];
+    const _aid='asig_salud_publica_instrumentacion_quirurgica_1_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_instrumentacion_quirurgica_1_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Patología Quirúrgica|Instrumentación Quirúrgica|2']; const _ck=cursoMap['Instrumentación Quirúrgica|2|U'];
+    const _aid='asig_patologia_quirurgica_instrumentacion_quirurgica_2_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_patologia_quirurgica_instrumentacion_quirurgica_2_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Ana Ayala']; const _mk=matMap['Salud Pública|Radiología|1']; const _ck=cursoMap['Radiología|1|U'];
+    const _aid='asig_salud_publica_radiologia_1_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_radiologia_1_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Rad. Paulo Higuchi']; const _mk=matMap['Física Radiológica|Radiología|2']; const _ck=cursoMap['Radiología|2|U'];
+    const _aid='asig_fisica_radiologica_radiologia_2_lun_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_fisica_radiologica_radiologia_2_lun_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Rad. Paulo Higuchi']; const _mk=matMap['Anatomía y Fisiología Humana|Enfermería|1']; const _ck=cursoMap['Enfermería|1|U'];
+    const _aid='asig_anatomia_y_fisiologia_humana_enfermeria_1_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_enfermeria_1_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Ana Ayala']; const _mk=matMap['Enfermería en Salud del Adulto I / II|Enfermería|2']; const _ck=cursoMap['Enfermería|2|U'];
+    const _aid='asig_enfermeria_en_salud_del_adul_enfermeria_2_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_enfermeria_en_salud_del_adul_enfermeria_2_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Anatomía y Fisiología Humana|Farmacia|1']; const _ck=cursoMap['Farmacia|1|U'];
+    const _aid='asig_anatomia_y_fisiologia_humana_farmacia_1_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_farmacia_1_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Angela Aranda']; const _mk=matMap['Química Inorgánica|Farmacia|2']; const _ck=cursoMap['Farmacia|2|U'];
+    const _aid='asig_quimica_inorganica_farmacia_2_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_quimica_inorganica_farmacia_2_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Anatomía y Fisiología Humana|Instrumentación Quirúrgica|1']; const _ck=cursoMap['Instrumentación Quirúrgica|1|U'];
+    const _aid='asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. César Alum']; const _mk=matMap['Medicina Legal y Ética|Instrumentación Quirúrgica|2']; const _ck=cursoMap['Instrumentación Quirúrgica|2|U'];
+    const _aid='asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Rad. Paulo Higuchi']; const _mk=matMap['Anatomía y Fisiología Humana|Radiología|1']; const _ck=cursoMap['Radiología|1|U'];
+    const _aid='asig_anatomia_y_fisiologia_humana_radiologia_1_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_radiologia_1_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Marcial Palacios']; const _mk=matMap['Técnicas Radiológicas III|Radiología|2']; const _ck=cursoMap['Radiología|2|U'];
+    const _aid='asig_tecnicas_radiologicas_iii_radiologia_2_lun_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Lunes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_tecnicas_radiologicas_iii_radiologia_2_lun_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Lunes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelly Carmona']; const _mk=matMap['Apicultura|Agropecuaria|1']; const _ck=cursoMap['Agropecuaria|1|U'];
+    const _aid='asig_apicultura_agropecuaria_1_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_apicultura_agropecuaria_1_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Equipos y Maquinarias Agropecuarias|Agropecuaria|2']; const _ck=cursoMap['Agropecuaria|2|U'];
+    const _aid='asig_equipos_y_maquinarias_agrope_agropecuaria_2_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_equipos_y_maquinarias_agrope_agropecuaria_2_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Raqueline Carballo']; const _mk=matMap['Dermatología Básica / Técnicas Faciales|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|A'];
+    const _aid='asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Noelia Ayala']; const _mk=matMap['Química Cosmética|Cosmiatría|2']; const _ck=cursoMap['Cosmiatría|2|U'];
+    const _aid='asig_quimica_cosmetica_cosmiatria_2_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_quimica_cosmetica_cosmiatria_2_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Rad. Paulo Higuchi']; const _mk=matMap['Anatomía y Fisiología Humana|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|B'];
+    const _aid='asig_anatomia_y_fisiologia_humana_cosmiatria_1_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_cosmiatria_1_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. María Paz Ocampos']; const _mk=matMap['Aspectos Legales del Peritaje|Criminalística|1']; const _ck=cursoMap['Criminalística|1|U'];
+    const _aid='asig_aspectos_legales_del_peritaj_criminalistica_1_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_aspectos_legales_del_peritaj_criminalistica_1_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelson Domínguez']; const _mk=matMap['Dibujo Técnico y Pericial|Criminalística|2']; const _ck=cursoMap['Criminalística|2|U'];
+    const _aid='asig_dibujo_tecnico_y_pericial_criminalistica_2_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_dibujo_tecnico_y_pericial_criminalistica_2_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Ing. Oscar Mareco']; const _mk=matMap['Electrónica Analógica|Electricidad|2']; const _ck=cursoMap['Electricidad|2|U'];
+    const _aid='asig_electronica_analogica_electricidad_2_mar_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_electronica_analogica_electricidad_2_mar_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. César Alum']; const _mk=matMap['Deontología y Ética Profesional|Agropecuaria|1']; const _ck=cursoMap['Agropecuaria|1|U'];
+    const _aid='asig_deontologia_y_etica_profesio_agropecuaria_1_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_deontologia_y_etica_profesio_agropecuaria_1_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Cultivos, Forrajes y Pasturas|Agropecuaria|2']; const _ck=cursoMap['Agropecuaria|2|U'];
+    const _aid='asig_cultivos_forrajes_y_pasturas_agropecuaria_2_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_cultivos_forrajes_y_pasturas_agropecuaria_2_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Noelia Ayala']; const _mk=matMap['Biología de la Piel I / II|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|A'];
+    const _aid='asig_biologia_de_la_piel_i_ii_cosmiatria_1_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_biologia_de_la_piel_i_ii_cosmiatria_1_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Semiología de la Piel I|Cosmiatría|2']; const _ck=cursoMap['Cosmiatría|2|U'];
+    const _aid='asig_semiologia_de_la_piel_i_cosmiatria_2_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_semiologia_de_la_piel_i_cosmiatria_2_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Raqueline Carballo']; const _mk=matMap['Dermatología Básica / Técnicas Faciales|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|B'];
+    const _aid='asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_dermatologia_basica_tecnicas_cosmiatria_1_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. César Alum']; const _mk=matMap['Deontología y Ética Profesional|Criminalística|1']; const _ck=cursoMap['Criminalística|1|U'];
+    const _aid='asig_deontologia_y_etica_profesio_criminalistica_1_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_deontologia_y_etica_profesio_criminalistica_1_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelson Domínguez']; const _mk=matMap['Criminología y Victimología|Criminalística|2']; const _ck=cursoMap['Criminalística|2|U'];
+    const _aid='asig_criminologia_y_victimologia_criminalistica_2_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_criminologia_y_victimologia_criminalistica_2_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Ing. Oscar Mareco']; const _mk=matMap['Electrotecnia I|Electricidad|2']; const _ck=cursoMap['Electricidad|2|U'];
+    const _aid='asig_electrotecnia_i_electricidad_2_mar_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Martes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_electrotecnia_i_electricidad_2_mar_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Martes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Pamela Jiménez']; const _mk=matMap['Inglés|Agropecuaria|1']; const _ck=cursoMap['Agropecuaria|1|U'];
+    const _aid='asig_ingles_agropecuaria_1_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_ingles_agropecuaria_1_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Pamela Jiménez']; const _mk=matMap['Inglés|Agropecuaria|2']; const _ck=cursoMap['Agropecuaria|2|U'];
+    const _aid='asig_ingles_agropecuaria_2_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_ingles_agropecuaria_2_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Maria Elena Perez de Cantero']; const _mk=matMap['Castellano|Contabilidad|1']; const _ck=cursoMap['Contabilidad|1|U'];
+    const _aid='asig_castellano_contabilidad_1_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_castellano_contabilidad_1_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Dra. Cinthia Espínola']; const _mk=matMap['Farmacología en Cosmiatría|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|A'];
+    const _aid='asig_farmacologia_en_cosmiatria_cosmiatria_1_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_en_cosmiatria_cosmiatria_1_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Jannyne Torales']; const _mk=matMap['Competencias Socioemocionales|Cosmiatría|2']; const _ck=cursoMap['Cosmiatría|2|U'];
+    const _aid='asig_competencias_socioemocionale_cosmiatria_2_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_competencias_socioemocionale_cosmiatria_2_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Noelia Ayala']; const _mk=matMap['Biología de la Piel I / II|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|B'];
+    const _aid='asig_biologia_de_la_piel_i_ii_cosmiatria_1_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_biologia_de_la_piel_i_ii_cosmiatria_1_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Maria Elena Perez de Cantero']; const _mk=matMap['Comunicación Escrita y Oral y Lengua Guaraní|Criminalística|1']; const _ck=cursoMap['Criminalística|1|U'];
+    const _aid='asig_comunicacion_escrita_y_oral__criminalistica_1_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_comunicacion_escrita_y_oral__criminalistica_1_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Angela Aranda']; const _mk=matMap['Química Aplicada a la Criminalística|Criminalística|2']; const _ck=cursoMap['Criminalística|2|U'];
+    const _aid='asig_quimica_aplicada_a_la_crimin_criminalistica_2_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_quimica_aplicada_a_la_crimin_criminalistica_2_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Pamela Jiménez']; const _mk=matMap['Inglés|Electricidad|2']; const _ck=cursoMap['Electricidad|2|U'];
+    const _aid='asig_ingles_electricidad_2_mié_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_ingles_electricidad_2_mié_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Contabilidad Básica|Contabilidad|1']; const _ck=cursoMap['Contabilidad|1|U'];
+    const _aid='asig_contabilidad_basica_contabilidad_1_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_contabilidad_basica_contabilidad_1_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Micheli Romero']; const _mk=matMap['Primeros Auxilios|Enfermería|1']; const _ck=cursoMap['Enfermería|1|U'];
+    const _aid='asig_primeros_auxilios_enfermeria_1_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_primeros_auxilios_enfermeria_1_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética y Legislación|Enfermería|2']; const _ck=cursoMap['Enfermería|2|U'];
+    const _aid='asig_etica_y_legislacion_enfermeria_2_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_y_legislacion_enfermeria_2_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Blanca Villar']; const _mk=matMap['Calidad en Salud|Farmacia|1']; const _ck=cursoMap['Farmacia|1|U'];
+    const _aid='asig_calidad_en_salud_farmacia_1_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_calidad_en_salud_farmacia_1_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética y Legislación|Farmacia|2']; const _ck=cursoMap['Farmacia|2|U'];
+    const _aid='asig_etica_y_legislacion_farmacia_2_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_y_legislacion_farmacia_2_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Blanca Villar']; const _mk=matMap['Calidad en Salud|Instrumentación Quirúrgica|1']; const _ck=cursoMap['Instrumentación Quirúrgica|1|U'];
+    const _aid='asig_calidad_en_salud_instrumentacion_quirurgica_1_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_calidad_en_salud_instrumentacion_quirurgica_1_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Inst. Karen González']; const _mk=matMap['Técnicas Quirúrgicas General y Especializada|Instrumentación Quirúrgica|2']; const _ck=cursoMap['Instrumentación Quirúrgica|2|U'];
+    const _aid='asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Micheli Romero']; const _mk=matMap['Primeros Auxilios|Radiología|1']; const _ck=cursoMap['Radiología|1|U'];
+    const _aid='asig_primeros_auxilios_radiologia_1_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_primeros_auxilios_radiologia_1_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Angela Aranda']; const _mk=matMap['Administración Hospitalaria|Radiología|2']; const _ck=cursoMap['Radiología|2|U'];
+    const _aid='asig_administracion_hospitalaria_radiologia_2_mié_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Miércoles');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_administracion_hospitalaria_radiologia_2_mié_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Miércoles',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Productividad Agropecuaria|Agropecuaria|1']; const _ck=cursoMap['Agropecuaria|1|U'];
+    const _aid='asig_productividad_agropecuaria_agropecuaria_1_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_productividad_agropecuaria_agropecuaria_1_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelly Carmona']; const _mk=matMap['Zootecnia|Agropecuaria|2']; const _ck=cursoMap['Agropecuaria|2|U'];
+    const _aid='asig_zootecnia_agropecuaria_2_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_zootecnia_agropecuaria_2_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Anatomía y Fisiología Humana|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|A'];
+    const _aid='asig_anatomia_y_fisiologia_humana_cosmiatria_1_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_anatomia_y_fisiologia_humana_cosmiatria_1_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Raqueline Carballo']; const _mk=matMap['Técnicas de Masajes y Drenaje Linfático|Cosmiatría|2']; const _ck=cursoMap['Cosmiatría|2|U'];
+    const _aid='asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Dra. Natalia Valenzuela']; const _mk=matMap['Salud Pública|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|B'];
+    const _aid='asig_salud_publica_cosmiatria_1_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_cosmiatria_1_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelson Domínguez']; const _mk=matMap['Introducción a la Criminalística|Criminalística|1']; const _ck=cursoMap['Criminalística|1|U'];
+    const _aid='asig_introduccion_a_la_criminalis_criminalistica_1_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_introduccion_a_la_criminalis_criminalistica_1_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Ing. Oscar Mareco']; const _mk=matMap['Maquinarias Eléctricas|Electricidad|2']; const _ck=cursoMap['Electricidad|2|U'];
+    const _aid='asig_maquinarias_electricas_electricidad_2_jue_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_maquinarias_electricas_electricidad_2_jue_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Producción Porcina|Agropecuaria|1']; const _ck=cursoMap['Agropecuaria|1|U'];
+    const _aid='asig_produccion_porcina_agropecuaria_1_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_produccion_porcina_agropecuaria_1_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Producción Porcina|Agropecuaria|2']; const _ck=cursoMap['Agropecuaria|2|U'];
+    const _aid='asig_produccion_porcina_agropecuaria_2_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_produccion_porcina_agropecuaria_2_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Salud Pública|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|A'];
+    const _aid='asig_salud_publica_cosmiatria_1_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_salud_publica_cosmiatria_1_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Raqueline Carballo']; const _mk=matMap['Técnicas Cosméticas|Cosmiatría|2']; const _ck=cursoMap['Cosmiatría|2|U'];
+    const _aid='asig_tecnicas_cosmeticas_cosmiatria_2_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_tecnicas_cosmeticas_cosmiatria_2_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dra. Cinthia Espínola']; const _mk=matMap['Farmacología|Cosmiatría|1']; const _ck=cursoMap['Cosmiatría|1|U'];
+    const _aid='asig_farmacologia_cosmiatria_1_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_cosmiatria_1_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Gabriel Sharp']; const _mk=matMap['Introducción al Derecho|Criminalística|1']; const _ck=cursoMap['Criminalística|1|U'];
+    const _aid='asig_introduccion_al_derecho_criminalistica_1_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_introduccion_al_derecho_criminalistica_1_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Nelson Domínguez']; const _mk=matMap['Accidentología Vial|Criminalística|2']; const _ck=cursoMap['Criminalística|2|U'];
+    const _aid='asig_accidentologia_vial_criminalistica_2_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_accidentologia_vial_criminalistica_2_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Ing. Oscar Mareco']; const _mk=matMap['Sistema de Potencia|Electricidad|2']; const _ck=cursoMap['Electricidad|2|U'];
+    const _aid='asig_sistema_de_potencia_electricidad_2_jue_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Jueves');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_sistema_de_potencia_electricidad_2_jue_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Jueves',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética Profesional|Enfermería|1']; const _ck=cursoMap['Enfermería|1|U'];
+    const _aid='asig_etica_profesional_enfermeria_1_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_profesional_enfermeria_1_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Gabriela Agüero']; const _mk=matMap['Farmacología|Farmacia|1']; const _ck=cursoMap['Farmacia|1|U'];
+    const _aid='asig_farmacologia_farmacia_1_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_farmacia_1_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Noelia Ayala']; const _mk=matMap['Cosmetología Básica|Farmacia|2']; const _ck=cursoMap['Farmacia|2|U'];
+    const _aid='asig_cosmetologia_basica_farmacia_2_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_cosmetologia_basica_farmacia_2_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Gabriela Agüero']; const _mk=matMap['Farmacología|Instrumentación Quirúrgica|1']; const _ck=cursoMap['Instrumentación Quirúrgica|1|U'];
+    const _aid='asig_farmacologia_instrumentacion_quirurgica_1_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_instrumentacion_quirurgica_1_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Natalia Martínez']; const _mk=matMap['Psicología|Instrumentación Quirúrgica|2']; const _ck=cursoMap['Instrumentación Quirúrgica|2|U'];
+    const _aid='asig_psicologia_instrumentacion_quirurgica_2_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_psicologia_instrumentacion_quirurgica_2_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética Profesional|Radiología|1']; const _ck=cursoMap['Radiología|1|U'];
+    const _aid='asig_etica_profesional_radiologia_1_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_profesional_radiologia_1_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Natalia Martínez']; const _mk=matMap['Psicología|Radiología|2']; const _ck=cursoMap['Radiología|2|U'];
+    const _aid='asig_psicologia_radiologia_2_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_psicologia_radiologia_2_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Gabriel Sharp']; const _mk=matMap['Matematica|Contabilidad|1']; const _ck=cursoMap['Contabilidad|1|U'];
+    const _aid='asig_matematica_contabilidad_1_vie_1';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,1,'19:00','20:20','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_matematica_contabilidad_1_vie_1';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',1,'19:00','20:20');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Mirta Giménez']; const _mk=matMap['Introducción a la Administración|Contabilidad|1']; const _ck=cursoMap['Contabilidad|1|U'];
+    const _aid='asig_introduccion_a_la_administra_contabilidad_1_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_introduccion_a_la_administra_contabilidad_1_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Farmacología|Enfermería|1']; const _ck=cursoMap['Enfermería|1|U'];
+    const _aid='asig_farmacologia_enfermeria_1_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_enfermeria_1_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética Profesional|Farmacia|1']; const _ck=cursoMap['Farmacia|1|U'];
+    const _aid='asig_etica_profesional_farmacia_1_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_profesional_farmacia_1_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Gabriela Agüero']; const _mk=matMap['Farmacotécnia II|Farmacia|2']; const _ck=cursoMap['Farmacia|2|U'];
+    const _aid='asig_farmacotecnia_ii_farmacia_2_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacotecnia_ii_farmacia_2_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Abg. Myrian Carrillo']; const _mk=matMap['Ética Profesional|Instrumentación Quirúrgica|1']; const _ck=cursoMap['Instrumentación Quirúrgica|1|U'];
+    const _aid='asig_etica_profesional_instrumentacion_quirurgica_1_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_etica_profesional_instrumentacion_quirurgica_1_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Natalia Martínez']; const _mk=matMap['Psicología General|Instrumentación Quirúrgica|2']; const _ck=cursoMap['Instrumentación Quirúrgica|2|U'];
+    const _aid='asig_psicologia_general_instrumentacion_quirurgica_2_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_psicologia_general_instrumentacion_quirurgica_2_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Dr. Favio Rojas']; const _mk=matMap['Farmacología|Radiología|1']; const _ck=cursoMap['Radiología|1|U'];
+    const _aid='asig_farmacologia_radiologia_1_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_farmacologia_radiologia_1_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
+      horN++;
+    } }
+  { const _dk=docMap['Lic. Marcial Palacios']; const _mk=matMap['Prácticas Radiológicas III|Radiología|2']; const _ck=cursoMap['Radiología|2|U'];
+    const _aid='asig_practicas_radiologicas_iii_radiologia_2_vie_2';
+    if(_dk&&_mk&&_ck&&!db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)){
+      db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,turno,hora_inicio,hora_fin,dia) VALUES (?,?,?,?,?,?,?,?,?)').run(_aid,_dk,_mk,_ck,periodo.id,2,'20:40','22:00','Viernes');
+      asigN++;
+    }
+    const _asigId=db.prepare('SELECT id FROM asignaciones WHERE id=?').get(_aid)?.id||_aid;
+    const _hid='hor_asig_practicas_radiologicas_iii_radiologia_2_vie_2';
+    if(!db.prepare('SELECT id FROM horarios WHERE id=?').get(_hid)){
+      db.prepare('INSERT OR IGNORE INTO horarios (id,asignacion_id,dia,turno,hora_inicio,hora_fin) VALUES (?,?,?,?,?,?)').run(_hid,_asigId,'Viernes',2,'20:40','22:00');
       horN++;
     } }
 
-  console.log(`✅ Seed ITS: ${asigN} asignaciones nuevas, ${horN} horarios nuevos`);
-
+  console.log(`✅ Seed ITS completado: ${asigN} asignaciones, ${horN} horarios`);
 }
