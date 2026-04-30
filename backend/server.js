@@ -1199,10 +1199,43 @@ app.get('/api/examenes', auth(), (req, res) => {
 });
 
 app.post('/api/examenes', auth(ADM), (req, res) => {
-  const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
-  const id = 'ex_' + Date.now();
-  db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id,asignacion_id,tipo,fecha,hora||null,aula||null,periodo_id,observacion||null,puntos_max||50);
-  res.json({ id });
+  const { asignacion_id, asignaciones_unif, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
+  if (!asignacion_id) return res.status(400).json({ error: 'Asignación requerida' });
+  if (!fecha) return res.status(400).json({ error: 'Fecha requerida' });
+
+  // Verificar duplicado: mismo examen ya programado (misma asignación, tipo y fecha)
+  const yaExiste = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asignacion_id, tipo, fecha);
+  if (yaExiste) return res.status(409).json({ error: `Ya existe un examen de tipo "${tipo}" para esta materia en la fecha ${fecha}.`, duplicado: true, examen_id: yaExiste.id });
+
+  // Verificar conflicto de docente (mismo docente, misma fecha, mismo turno, distinta materia)
+  const asig = db.prepare('SELECT a.docente_id, a.turno FROM asignaciones a WHERE a.id=?').get(asignacion_id);
+  const conflictoDocente = asig ? db.prepare(`
+    SELECT e.id, m.nombre as materia FROM examenes e
+    JOIN asignaciones a2 ON e.asignacion_id=a2.id
+    JOIN materias m ON a2.materia_id=m.id
+    WHERE a2.docente_id=? AND e.fecha=? AND a2.turno=? AND e.asignacion_id!=?`
+  ).get(asig.docente_id, fecha, asig.turno, asignacion_id) : null;
+
+  try {
+    const id = 'ex_' + Date.now();
+    db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
+
+    // Procesar unificaciones: crear el mismo examen para otras asignaciones
+    const unif_creados = [];
+    if (Array.isArray(asignaciones_unif) && asignaciones_unif.length > 0) {
+      asignaciones_unif.forEach(asig2_id => {
+        if (asig2_id === asignacion_id) return;
+        const yaEx2 = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asig2_id, tipo, fecha);
+        if (!yaEx2) {
+          const id2 = 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+          db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
+          unif_creados.push(id2);
+        }
+      });
+    }
+    audit(req.user.id, 'CREATE', 'examenes', id, { tipo, fecha, asignacion_id, unificados: unif_creados.length });
+    res.json({ id, unif_creados, advertencia: conflictoDocente ? `El docente ya tiene examen "${conflictoDocente.materia}" ese día/turno` : null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.put('/api/examenes/:id', auth(ADM), (req, res) => {
   const { asignacion_id, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
@@ -1216,6 +1249,15 @@ app.put('/api/examenes/:id', auth(ADM), (req, res) => {
 app.delete('/api/examenes/:id', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM examenes WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// Limpiar todos los exámenes de un tipo (para reset del cronograma)
+app.delete('/api/examenes/bulk/tipo', auth(['director']), (req, res) => {
+  const { tipo } = req.body;
+  if (!tipo) return res.status(400).json({ error: 'Indicar tipo' });
+  const n = db.prepare('DELETE FROM examenes WHERE tipo=?').run(tipo);
+  audit(req.user.id, 'DELETE_BULK', 'examenes', tipo, { eliminados: n.changes });
+  res.json({ ok: true, eliminados: n.changes });
 });
 
 // Exámenes del día / semana para el calendario
@@ -1499,84 +1541,133 @@ app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, re
     const wb = XLSX.read(req.file.buffer, { type:'buffer' });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:'' });
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-    const preview = [], errores = [], pendientes = [];
+    const preview = [], pendientes = [];
     const TIPOS_OK = ['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
+
+    // Para detectar unificaciones: agrupar por fecha+tipo+docente+turno
+    const grupoUnif = {}; // key → [asig_ids]
+
     rows.forEach((row, i) => {
-      // Soporte para columnas por nombre (carrera, año, sección, turno, profesor, materia)
-      // o por asignacion_id directamente
       let asig_id = String(row.asignacion_id||'').trim();
       const tipo = String(row.tipo||'Parcial').trim();
       const fecha = String(row.fecha||row.Fecha||'').trim();
-      // Si no hay asignacion_id, buscar por docente + materia + carrera + año + turno + sección
+      const hora_col = String(row.hora||row.Hora||'').trim();
+      const aula_col = String(row.aula||row.Aula||'').trim();
+      const obs_col  = String(row.observacion||row.Observacion||'').trim();
+
+      // Buscar asignación por docente+materia+carrera+año si no hay asig_id
       if (!asig_id) {
-        const docNombre = String(row.profesor||row.docente||'').trim();
-        const matNombre = String(row.materia||row.materia_nombre||'').trim();
-        const carrNombre = String(row.carrera||'').trim();
-        const anioVal = String(row.anio||row.año||'').trim();
-        const turnoVal = String(row.turno||'').trim();
-        if (docNombre && matNombre) {
-          const found = db.prepare(`
+        const docNombre = String(row.profesor||row.docente||row.Docente||'').trim();
+        const matNombre = String(row.materia||row.materia_nombre||row.Materia||'').trim();
+        const carrNombre = String(row.carrera||row.Carrera||'').trim();
+        const anioVal   = String(row.anio||row.año||row.Año||'').trim();
+        const secVal    = String(row.seccion||row.sección||row.division||'').trim();
+        const turnoVal  = String(row.turno||'').trim();
+        if (matNombre) {
+          const q = db.prepare(`
             SELECT a.id FROM asignaciones a
-            JOIN materias m ON a.materia_id=m.id
-            JOIN cursos cu ON a.curso_id=cu.id
+            JOIN materias m  ON a.materia_id=m.id
+            JOIN cursos cu   ON a.curso_id=cu.id
             JOIN carreras ca ON cu.carrera_id=ca.id
-            JOIN docentes d ON a.docente_id=d.id
-            JOIN usuarios u ON d.usuario_id=u.id
-            WHERE (u.apellido||', '||u.nombre LIKE ? OR u.nombre||' '||u.apellido LIKE ?)
-              AND m.nombre LIKE ?
-              ${carrNombre?`AND ca.nombre LIKE '%${carrNombre}%'`:''}
-              ${anioVal?`AND cu.anio=${parseInt(anioVal)||0}`:''}
-              ${turnoVal?`AND a.turno=${parseInt(turnoVal)||0}`:''}
-            LIMIT 1`).get('%'+docNombre+'%','%'+docNombre+'%','%'+matNombre+'%');
-          if (found) asig_id = found.id;
+            JOIN docentes d  ON a.docente_id=d.id
+            JOIN usuarios u  ON d.usuario_id=u.id
+            WHERE m.nombre LIKE ?
+            ${carrNombre ? `AND ca.nombre LIKE '%${carrNombre.replace(/'/g,"''")}%'` : ''}
+            ${anioVal    ? `AND cu.anio=${parseInt(anioVal)||0}` : ''}
+            ${secVal     ? `AND cu.division LIKE '%${secVal.replace(/'/g,"''")}%'` : ''}
+            ${docNombre  ? `AND (u.apellido LIKE '%${docNombre.replace(/'/g,"''")}%' OR u.nombre LIKE '%${docNombre.replace(/'/g,"''")}%')` : ''}
+            ${turnoVal   ? `AND a.turno=${parseInt(turnoVal)||0}` : ''}
+            LIMIT 1`).get('%'+matNombre+'%');
+          if (q) asig_id = q.id;
         }
       }
-      if (!fecha) { const err=`Fila ${i+2}: fecha es obligatoria`; preview.push({...row,error:err}); errores.push(err); return; }
-      if (!TIPOS_OK.includes(tipo)) { const err=`Fila ${i+2}: tipo "${tipo}" inválido. Opciones: ${TIPOS_OK.join(', ')}`; preview.push({...row,error:err}); errores.push(err); return; }
-      let asig = null;
-      if (asig_id) {
-        asig = db.prepare(`SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio, a.turno,
-          u.nombre as doc_nombre, u.apellido as doc_apellido
-          FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id
-          JOIN carreras ca ON cu.carrera_id=ca.id JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
-          WHERE a.id=?`).get(asig_id);
-      }
-      if (!asig) { const err=`Fila ${i+2}: no se encontró la asignación para los datos indicados`; preview.push({...row,error:err,materia_nombre:row.materia,carrera:row.carrera,anio:row.anio,tipo,fecha}); errores.push(err); return; }
-      // Detectar conflicto: mismo docente, misma fecha, mismo turno pero diferente materia
-      const conflictoExistente = db.prepare(`SELECT e.id, m2.nombre as materia FROM examenes e JOIN asignaciones a2 ON e.asignacion_id=a2.id JOIN materias m2 ON a2.materia_id=m2.id WHERE a2.docente_id=? AND e.fecha=? AND a2.turno=? AND e.asignacion_id!=?`).get(asig.docente_id, fecha, asig.turno, asig_id);
-      const pMax = tipo === 'Extraordinario' ? 100 : (tipo === 'Parcial' || tipo === 'Recuperatorio') ? 25 : 50;
-      const id = 'ex_import_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-      const previewItem = {
-        id, materia_nombre: asig.materia_nombre, carrera: asig.carrera_nombre, anio: asig.anio,
-        tipo, fecha, hora: row.hora||null, aula: row.aula||null, seccion: row.seccion||null,
-        turno: asig.turno, docente: (asig.doc_apellido||'')+', '+(asig.doc_nombre||''),
-        conflicto: conflictoExistente ? `Ya tiene examen "${conflictoExistente.materia}" ese día/turno` : null
-      };
-      pendientes.push({ id, asig_id, tipo, fecha, hora: row.hora||null, aula: row.aula||null, periodo_id: periodo?.id||null, observacion: row.observacion||null, puntos_max: pMax, tiene_conflicto: !!conflictoExistente });
-      preview.push(previewItem);
+
+      if (!fecha) { preview.push({...row, error:`Fila ${i+2}: fecha obligatoria`}); return; }
+      if (!TIPOS_OK.includes(tipo)) { preview.push({...row, error:`Tipo "${tipo}" inválido`}); return; }
+      if (!asig_id) { preview.push({...row, error:`Fila ${i+2}: asignación no encontrada`, materia_nombre:row.materia, carrera:row.carrera, tipo, fecha}); return; }
+
+      const asig = db.prepare(`
+        SELECT a.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+          cu.anio, cu.division, a.turno,
+          d.id as docente_id, u.nombre as doc_nombre, u.apellido as doc_apellido
+        FROM asignaciones a
+        JOIN materias m  ON a.materia_id=m.id
+        JOIN cursos cu   ON a.curso_id=cu.id
+        JOIN carreras ca ON cu.carrera_id=ca.id
+        JOIN docentes d  ON a.docente_id=d.id
+        JOIN usuarios u  ON d.usuario_id=u.id
+        WHERE a.id=?`).get(asig_id);
+
+      if (!asig) { preview.push({...row, error:`Fila ${i+2}: asignación no encontrada`, tipo, fecha}); return; }
+
+      // Detectar duplicado exacto (misma asignación+tipo+fecha ya existe en BD)
+      const yaExiste = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asig_id, tipo, fecha);
+      // Detectar conflicto de docente (mismo docente, fecha, turno, distinta asig)
+      const conflictoDoc = db.prepare(`
+        SELECT e.id, m2.nombre as materia FROM examenes e
+        JOIN asignaciones a2 ON e.asignacion_id=a2.id
+        JOIN materias m2 ON a2.materia_id=m2.id
+        WHERE a2.docente_id=? AND e.fecha=? AND a2.turno=? AND e.asignacion_id!=?
+      `).get(asig.docente_id, fecha, asig.turno, asig_id);
+
+      // Detectar unificación: mismo docente+fecha+turno dentro del MISMO archivo
+      const unifKey = `${asig.docente_id}|${fecha}|${asig.turno}|${tipo}`;
+      if (!grupoUnif[unifKey]) grupoUnif[unifKey] = [];
+      grupoUnif[unifKey].push(asig_id);
+
+      const pMax = tipo === 'Extraordinario' ? 100 : (tipo === 'Parcial'||tipo === 'Recuperatorio') ? 25 : 50;
+      const id = 'ex_imp_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+
+      pendientes.push({
+        id, asig_id, tipo, fecha,
+        hora: hora_col||null, aula: aula_col||null,
+        periodo_id: periodo?.id||null, observacion: obs_col||null, puntos_max: parseInt(row.puntos_max)||pMax,
+        ya_existe: !!yaExiste, unif_key: unifKey
+      });
+      preview.push({
+        id, materia_nombre: asig.materia_nombre, carrera: asig.carrera_nombre,
+        anio: asig.anio, seccion: asig.division, turno: asig.turno,
+        tipo, fecha, hora: hora_col||null,
+        docente: (asig.doc_apellido||'')+', '+(asig.doc_nombre||''),
+        duplicado: yaExiste ? `Ya existe este examen en la BD` : null,
+        conflicto: conflictoDoc ? `Docente ya tiene "${conflictoDoc.materia}" ese día/turno` : null,
+      });
     });
+
+    // Marcar unificaciones detectadas en el preview
+    Object.entries(grupoUnif).forEach(([key, asig_ids]) => {
+      if (asig_ids.length > 1) {
+        preview.forEach(p => {
+          const pend = pendientes.find(x => x.id === p.id);
+          if (pend?.unif_key === key) {
+            p.unificada = `Unificada con ${asig_ids.length - 1} materia(s) más`;
+          }
+        });
+      }
+    });
+
     req.app.locals._importPendiente = pendientes;
-    res.json({ preview, errores, ids: pendientes.map(p=>p.id) });
+    res.json({ preview, ids: pendientes.map(p=>p.id) });
   } catch(e) { res.status(400).json({ error:'Error procesando archivo: '+e.message }); }
 });
 
-// Confirmar importación de exámenes previsualizados
 app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
   try {
     const pendientes = req.app.locals._importPendiente || [];
     if (!pendientes.length) return res.status(400).json({ error: 'No hay importación pendiente' });
     const { ids } = req.body;
     const aImportar = ids ? pendientes.filter(p => ids.includes(p.id)) : pendientes;
-    let importados = 0;
+    let importados = 0, omitidos = 0;
     aImportar.forEach(p => {
+      if (p.ya_existe) { omitidos++; return; } // no duplicar
       try {
-        db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id,p.asig_id,p.tipo,p.fecha,p.hora,p.aula,p.periodo_id,p.observacion,p.puntos_max||50);
+        db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id, p.asig_id, p.tipo, p.fecha, p.hora, p.aula, p.periodo_id, p.observacion, p.puntos_max||25);
         importados++;
-      } catch {}
+      } catch { omitidos++; }
     });
     req.app.locals._importPendiente = [];
-    audit(req.user.id,'IMPORTAR','examenes','bulk',{importados});
-    res.json({ ok: true, importados });
+    audit(req.user.id, 'IMPORTAR', 'examenes', 'bulk', { importados, omitidos });
+    res.json({ ok: true, importados, omitidos });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
