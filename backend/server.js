@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
@@ -349,38 +350,33 @@ app.get('/api/alumnos', auth(), (req, res) => {
     ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 500`).all(...params));
 });
 app.post('/api/alumnos', auth(ADM), (req, res) => {
-  const { nombre, apellido, ci, carrera_id, curso_id, telefono, direccion, fecha_ingreso } = req.body;
-  if (!nombre || !apellido || !ci) return res.status(400).json({ error: 'Nombre, apellido y CI son obligatorios' });
-  const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carrera_id);
-  if (!carr) return res.status(400).json({ error: 'Carrera no encontrada' });
-  const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
-  const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
-  const aid = 'a_'+Date.now();
-  const ciRaw = String(ci).replace(/[^0-9]/g,'');
-
-  // Generar email único: nombre.apellido@its.edu.py
+  const { nombre, apellido, ci, telefono, carrera_id, curso_id, fecha_ingreso, estado, email } = req.body;
+  const id = 'a_' + Date.now();
+  const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-  let emailFinal = `${norm(nombre)}.${norm(apellido)}@its.edu.py`;
-  if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-    emailFinal = `${norm(nombre)}.${norm(apellido)}.${ciRaw.slice(-3)}@its.edu.py`;
-
-  let emailGenerado = emailFinal;
-  db.transaction(() => {
-    const uid = 'u_a_'+Date.now();
-    db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
-      .run(uid, nombre, apellido, ciRaw, emailFinal, bcrypt.hashSync(ciRaw||'123', 10), 'alumno');
-    db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,telefono,direccion,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(aid, uid, matricula, carrera_id, curso_id||null, fecha_ingreso||new Date().toISOString().split('T')[0], 'Activo', telefono||null, direccion||null, ciRaw, nombre, apellido);
-    if (curso_id) {
-      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-      if (periodo) {
-        db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo.id).forEach(a => {
-          try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {}
+  const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id||'').n;
+  const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carrera_id||'');
+  const matricula = `${carr?.codigo||'ALU'}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
+  let emailAuto = email || `${norm(nombre)}.${norm(apellido)}@its.edu.py`;
+  if (!email && db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailAuto))
+    emailAuto = `${norm(nombre)}.${norm(apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
+  const uid = 'u_'+id;
+  try {
+    db.transaction(() => {
+      if (ciRaw) db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw,10),'alumno');
+      db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,ciRaw?uid:null,matricula,carrera_id||null,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],estado||(!ciRaw?'Pendiente':'Activo'),ciRaw||null,nombre,apellido,telefono||null);
+      // Crear registros de notas para cada asignación del curso
+      if (curso_id) {
+        const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(curso_id);
+        asigs.forEach(asig => {
+          try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),id,asig.id,'Pendiente'); } catch {}
         });
       }
-    }
-  })();
-  res.json({ id: aid, matricula, email: emailGenerado, credencial_usuario: emailGenerado, credencial_pass: ciRaw });
+    })();
+    audit(req.user.id,'CREATE','alumnos',id,{nombre,apellido,carrera_id});
+    const credencial = ciRaw ? { email: emailAuto, password: ciRaw } : null;
+    res.json({ id, credencial });
+  } catch(e) { res.status(500).json({ error: 'Error al crear alumno: '+e.message }); }
 });
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id, usuario_id } = req.body;
@@ -547,6 +543,16 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
               } catch { uid = null; }
             } else { uid = usuExiste.id; }
             db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
+            // Crear registros de notas para cada asignación del curso
+            if (curso_id) {
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(curso_id);
+              const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+              asigs.forEach(asig => {
+                try {
+                  db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente');
+                } catch {}
+              });
+            }
             results.ok++;
           }
         } catch(e) { results.errores.push(`Fila ${idx + 2}: ${e.message}`); }
@@ -1040,7 +1046,7 @@ app.delete('/api/feriados/:id', auth(ADM), (req, res) => {
 
 // ── RESUMEN HONORARIOS POR DOCENTE/MES ────────────────────────────────────────
 // Anular asistencia de una fecha completa
-app.delete('/api/asistencia/anular', auth(['director','docente']), (req, res) => {
+app.delete('/api/asistencia/anular', auth(ADM), (req, res) => {
   const { asignacion_id, fecha } = req.body;
   if (!asignacion_id || !fecha) return res.status(400).json({ error: 'asignacion_id y fecha requeridos' });
   if (req.user.rol === 'docente') {
@@ -2072,6 +2078,36 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
 });
 
 // ── BACKUP DE BASE DE DATOS ───────────────────────────────────────────────────
+// ── BACKUP AUTOMÁTICO CADA 48 HORAS ──────────────────────────────────────────
+const BACKUP_DIR = path.join(__dirname, '../backups');
+if (!fs.existsSync(BACKUP_DIR)) { try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {} }
+
+function hacerBackupAutomatico() {
+  try {
+    const fecha = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const destino = path.join(BACKUP_DIR, `ITS_auto_${fecha}.db`);
+    fs.copyFileSync(DB_PATH, destino);
+    // Mantener solo los últimos 10 backups automáticos
+    const archivos = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.startsWith('ITS_auto_'))
+      .sort().reverse();
+    archivos.slice(10).forEach(f => {
+      try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
+    });
+    console.log(`✅ Backup automático: ${destino}`);
+    return destino;
+  } catch(e) {
+    console.error('Error en backup automático:', e.message);
+    return null;
+  }
+}
+
+// Ejecutar backup al iniciar y cada 48 horas
+setTimeout(() => {
+  hacerBackupAutomatico();
+  setInterval(hacerBackupAutomatico, 48 * 60 * 60 * 1000);
+}, 5000); // Esperar 5s para que la BD esté lista
+
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
   const fecha = new Date().toISOString().split('T')[0];
   const dbPath = DB_PATH || path.join(__dirname, '..', 'data', 'its.db');
