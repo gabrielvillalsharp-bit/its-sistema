@@ -564,19 +564,22 @@ function mAviso(){
   const esDirector=me.rol==='director';
   const esDocente=me.rol==='docente';
   const asigs=W._notasAsigs||W._misAsigsRep||[];
-  const carreras=[...new Set(asigs.map(a=>a.carrera_nombre).filter(Boolean))].sort();
-  const materias=[...new Set(asigs.map(a=>a.materia_nombre).filter(Boolean))].sort();
-  // Construir opciones fuera del template para evitar backticks anidados (causa SyntaxError)
+  // Filtro combinado carrera+materia para docente (más rápido)
+  const combos=[...new Map(asigs.map(a=>[
+    a.carrera_nombre+'|||'+a.materia_nombre,
+    {carrera:a.carrera_nombre,materia:a.materia_nombre}
+  ])).values()].sort((a,b)=>(a.carrera+a.materia).localeCompare(b.carrera+b.materia));
   const optsDestino=esDirector
     ?'<option value="todos">Todos</option><option value="docentes">Solo docentes</option><option value="alumnos">Solo alumnos</option><option value="director">Solo Director y Secretaría</option>'
     :esDocente
       ?'<option value="mis-alumnos">Mis alumnos</option><option value="director">Solo al Director</option><option value="director-secretaria">Director y Secretaría</option>'
       :'<option value="director">Solo al Director</option>';
-  const filtrosCarr=(esDocente&&carreras.length)
-    ?`<div class="fr">
-      <div class="f"><label>Carrera (opcional)</label><select id="avCarr"><option value="">Todas</option>${carreras.map(c=>'<option value="'+c+'">'+c+'</option>').join('')}</select></div>
-      <div class="f"><label>Materia (opcional)</label><select id="avMat"><option value="">Todas</option>${materias.map(m=>'<option value="'+m+'">'+m+'</option>').join('')}</select></div>
-    </div>`:'';
+  const filtroCombo=(esDocente&&combos.length)
+    ?`<div class="f"><label>Carrera / Materia (opcional)</label>
+       <select id="avCombo">
+         <option value="">— Todos mis alumnos —</option>
+         ${combos.map(c=>'<option value="'+c.carrera+'|||'+c.materia+'">'+c.carrera+' — '+c.materia+'</option>').join('')}
+       </select></div>`:'';
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
@@ -585,16 +588,18 @@ function mAviso(){
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí</option></select></div>
   </div>
   <div class="f"><label>Público objetivo</label><select id="avdest">${optsDestino}</select></div>
-  ${filtrosCarr}
+  ${filtroCombo}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
 }
 async function svAviso(){
   const t=v('avt'),c=v('avc');
   if(!t||!c)return alert('Completar título y contenido');
-  const carrera=document.getElementById('avCarr')?.value||'';
-  const materia=document.getElementById('avMat')?.value||'';
+  const combo=document.getElementById('avCombo')?.value||'';
   let titulo=t;
-  if(carrera||materia){const ctx=[materia,carrera].filter(Boolean).join(' — ');titulo=`${t} [${ctx}]`;}
+  if(combo){
+    const [carr,mat]=combo.split('|||');
+    titulo=`${t} [${mat} — ${carr}]`;
+  }
   const destinatario=document.getElementById('avdest')?.value||'todos';
   const tipo=document.getElementById('avtp')?.value||'info';
   const fijado=document.getElementById('avf')?.value==='1';
@@ -1119,9 +1124,7 @@ async function pgAlumnos(el){
   el.innerHTML=`<div class="ph"><h3>Alumnos (${als.length})</h3>
     <div class="ph-right">
       <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
-      <button class="bs s" onclick="exportXls('alumnos')">⬇ Excel</button>
-      <button class="bs" onclick="dPlant()">Plantilla</button>
-      <button class="bs i" onclick="mImp()">Importar Excel</button>
+      <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -3738,28 +3741,28 @@ async function selAlumnoPago(alId){
         <div>
           <div style="font-size:18px;font-weight:800">${al.display_apellido||al.apellido||''}, ${al.display_nombre||al.nombre||''}</div>
           <div style="font-size:12px;opacity:.85;margin-top:2px">C.I.: ${al.display_ci||al.ci||'—'} · ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}</div>
-          <div style="font-size:11px;opacity:.75;margin-top:2px">Matrícula: ${al.matricula||'—'}</div>
+          <div style="font-size:11px;opacity:.7;margin-top:1px">Matrícula: ${al.matricula||'—'}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:24px;font-weight:900">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
+          <div style="font-size:26px;font-weight:900">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
           <div style="font-size:11px;opacity:.8">Total pagado</div>
-          <button class="bs" onclick="mPagoParaAlumno('${alId}')" style="margin-top:6px;background:#fff;color:#185FA5;font-size:12px;font-weight:700;border:none;border-radius:6px;padding:5px 12px;cursor:pointer">+ Registrar pago</button>
+          <button onclick="mPagoParaAlumno('${alId}')" style="margin-top:6px;background:#fff;color:#185FA5;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Registrar pago</button>
         </div>
       </div>
-      <!-- Estado habilitación y beca -->
+      <!-- Estado y beca -->
       <div style="padding:10px 16px;background:#f9f9f9;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:12px;font-weight:600">Estado:</span>${habEstado}
         ${becasActivas.length?`<span style="font-size:11px;padding:3px 8px;background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;color:#2e7d32">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
       </div>
-      <!-- Resumen rápido de cuotas -->
-      <div style="padding:12px 16px;background:#fff;border-bottom:1px solid var(--bdr)">
-        <div style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Cuotas del período</div>
+      <!-- Resumen visual cuotas -->
+      <div style="padding:12px 16px;border-bottom:1px solid var(--bdr);background:#fff">
+        <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Estado de cuotas</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'].map(cuota=>{
-            const pagado=(pagos||[]).some(p=>p.concepto===cuota||p.concepto?.includes(cuota));
-            return`<div style="padding:6px 10px;border-radius:7px;border:1.5px solid ${pagado?'#4caf50':'#e0e0e0'};background:${pagado?'#e8f5e9':'#fafafa'};text-align:center;min-width:65px">
-              <div style="font-size:10px;color:${pagado?'#2e7d32':'#999'}">${pagado?'✓':'✗'}</div>
-              <div style="font-size:11px;font-weight:700;color:${pagado?'#1b5e20':'#bbb'}">${cuota}</div>
+            const ok=(pagos||[]).some(p=>p.concepto===cuota||p.concepto?.includes(cuota));
+            return`<div style="padding:6px 10px;border-radius:7px;border:2px solid ${ok?'#4caf50':'#e0e0e0'};background:${ok?'#e8f5e9':'#fafafa'};min-width:66px;text-align:center">
+              <div style="font-size:12px;color:${ok?'#2e7d32':'#bbb'}">${ok?'✓':'✗'}</div>
+              <div style="font-size:11px;font-weight:700;color:${ok?'#1b5e20':'#bbb'}">${cuota}</div>
             </div>`;
           }).join('')}
         </div>
@@ -3782,7 +3785,7 @@ async function selAlumnoPago(alId){
                 <th style="padding:5px 8px;border:1px solid var(--bdr)"></th>
               </tr></thead>
               <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map(p=>`
-                <tr style="background:${p.estado==='Pagado'?'':'#fffde7'}">
+                <tr>
                   <td style="padding:5px 8px;border:1px solid var(--bdr);white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
                   <td style="padding:5px 8px;border:1px solid var(--bdr)">${p.concepto}</td>
                   <td style="padding:5px 8px;border:1px solid var(--bdr);text-align:right;font-weight:700;color:#1b5e20">Gs. ${Number(p.monto).toLocaleString()}</td>
@@ -3793,7 +3796,7 @@ async function selAlumnoPago(alId){
               </tbody>
             </table>
           </div>`).join('')}
-        ${Object.values(grupos).every(g=>!g.pagos.length)?'<div class="es">Sin pagos registrados para este alumno</div>':''}
+        ${Object.values(grupos).every(g=>!g.pagos.length)?'<div class="es" style="padding:20px">Sin pagos registrados para este alumno</div>':''}
       </div>
     </div>`;
   }catch(e){panel.innerHTML=`<div class="es">Error al cargar historial: ${e.message}</div>`;}

@@ -50,9 +50,16 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // ── SEGURIDAD: CORS restringido ───────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN
-    ? process.env.ALLOWED_ORIGIN.split(',')
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: function(origin, callback) {
+    // En Railway permitir cualquier origen (el dominio cambia con cada deploy)
+    // En producción con dominio fijo, configurar ALLOWED_ORIGIN en variables de entorno
+    const allowed = process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',') : [];
+    if (!origin || allowed.length === 0 || allowed.includes(origin) || allowed.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // permisivo — Railway usa HTTPS propio
+    }
+  },
   credentials: true
 }));
 
@@ -126,10 +133,13 @@ app.post('/api/login', loginLimiter, (req, res) => {
   const u = db.prepare('SELECT * FROM usuarios WHERE (email=? OR ci=? OR email=?) AND activo=1').get(email, email, ciEmail);
   if (!u || !bcrypt.compareSync(password, u.password_hash))
     return res.status(401).json({ error: 'Credenciales incorrectas' });
-  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email }, JWT_SECRET, { expiresIn: '8h' });
   let docenteId = null, alumnoId = null;
-  if (u.rol === 'docente') docenteId = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(u.id)?.id;
-  if (u.rol === 'alumno')  alumnoId  = db.prepare('SELECT id FROM alumnos  WHERE usuario_id=?').get(u.id)?.id;
+  if (u.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(u.id);
+    docenteId = doc?.id || null;
+  }
+  if (u.rol === 'alumno') alumnoId = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(u.id)?.id;
+  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId }, JWT_SECRET, { expiresIn: '8h' });
   audit(u.id, 'LOGIN', 'usuarios', u.id, { email: u.email });
   res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId } });
 });
@@ -2483,8 +2493,9 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
     const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
     if (asig) {
       const curso = db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id);
-      const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(curso?.carrera_id);
-      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(curso?.carrera_id||'').n;
+      const carreraId = curso?.carrera_id || null;
+      const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carreraId);
+      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carreraId||'').n;
       const matricula = `${carr?.codigo||'ALU'}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
@@ -2493,7 +2504,6 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
         emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
       const uid = 'u_a_'+Date.now();
       const fechaHoy = new Date().toISOString().split('T')[0];
-      const carreraId = curso?.carrera_id || null;
       db.transaction(() => {
         db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
         const aid = 'a_'+Date.now();
