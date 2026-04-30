@@ -1477,11 +1477,8 @@ async function svAsig(){
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
 async function pgExamenes(el){
   const [exsAll,pers,carrs,cursos]=await Promise.all([api('GET','/api/examenes'),api('GET','/api/periodos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  // Docente solo ve sus propios exámenes
+  // Server ya filtra por docente — no filtrar en cliente
   let exs=exsAll||[];
-  if(me.rol==='docente'&&me.docenteId){
-    exs=exs.filter(e=>e.docente_id===me.docenteId);
-  }
   W._exData={pers,carrs,cursos}; W._exs=exs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   const esDir=me.rol==='director'||me.rol==='secretaria';
@@ -1672,20 +1669,49 @@ async function confirmarImportarExamenes(ids){
 async function verExamen(exId){
   if(!exId)return;
   try{
+    // Buscar el examen directamente por ID
     const exs=await api('GET','/api/examenes');
     const ex=exs.find(e=>e.id===exId);
-    if(!ex)return;
-    modal(`<h4>📋 ${ex.tipo} — ${ex.materia_nombre||''}</h4>
-    <div style="font-size:13px;line-height:2">
-      <p><strong>Carrera:</strong> ${ex.carrera_nombre||''} ${ex.curso_anio?ex.curso_anio+'°':''}</p>
-      <p><strong>Docente:</strong> ${ex.docente_nombre||''} ${ex.docente_apellido||''}</p>
-      <p><strong>Fecha:</strong> ${fmtFecha(ex.fecha)} ${ex.hora?'— '+ex.hora:''}</p>
+    if(!ex){toast('Examen no encontrado','warn');return;}
+    const esDocente=me.rol==='docente';
+    const esAlumno=me.rol==='alumno';
+    const esDir=me.rol==='director'||me.rol==='secretaria';
+    const esMiExamen=esDocente&&(ex.docente_id===me.docenteId);
+    // Verificar ventana 72hs para adjuntar
+    const hoy=new Date();
+    const fechaEx=ex.fecha?new Date(ex.fecha+'T'+( ex.hora||'19:00')+':00'):null;
+    const horasRestantes=fechaEx?(fechaEx-hoy)/3600000:999;
+    const puedeAdjuntar=esMiExamen&&horasRestantes<=72&&horasRestantes>0;
+    const yaOcurrio=fechaEx&&fechaEx<hoy;
+    modal(`<h4>📋 ${ex.tipo||'Examen'} — ${ex.materia_nombre||'—'}</h4>
+    <div style="font-size:13px;line-height:2;background:#f9f9f9;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+      <p><strong>Materia:</strong> ${ex.materia_nombre||'—'}</p>
+      <p><strong>Carrera:</strong> ${ex.carrera_nombre||'—'} ${ex.curso_anio?ex.curso_anio+'°':''} ${ex.curso_division&&ex.curso_division!=='U'?' Secc.'+ex.curso_division:''}</p>
+      <p><strong>Docente:</strong> ${ex.docente_nombre||'—'} ${ex.docente_apellido||''}</p>
+      <p><strong>Fecha:</strong> <strong>${fmtFecha(ex.fecha)}</strong> ${ex.hora?'— '+ex.hora:''}</p>
       ${ex.aula?`<p><strong>Aula:</strong> ${ex.aula}</p>`:''}
       ${ex.puntos_max?`<p><strong>Puntos:</strong> ${ex.puntos_max} pts</p>`:''}
       ${ex.observacion?`<p><strong>Observaciones:</strong> ${ex.observacion}</p>`:''}
     </div>
+    ${ex.archivo_nombre?`<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px">
+      📄 Archivo adjunto: <strong>${ex.archivo_nombre}</strong>
+      ${esDir||esMiExamen?`<a href="/api/examenes/${exId}/archivo" download="${ex.archivo_nombre}" style="margin-left:8px;color:#1b5e20;font-weight:700">⬇ Descargar</a>`:''}
+    </div>`:''}
+    ${esDocente&&esMiExamen?`
+      <div style="background:${puedeAdjuntar?'#e3f2fd':yaOcurrio?'#fafafa':'#fff8e1'};border:1px solid ${puedeAdjuntar?'#1565c0':yaOcurrio?'#ccc':'#e65100'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+        ${yaOcurrio
+          ?'<span style="color:#999">⏰ El examen ya se realizó</span>'
+          :puedeAdjuntar
+            ?`<strong style="color:#1565c0">✅ Habilitado para adjuntar — ${Math.round(horasRestantes)}hs restantes</strong><br>
+               <label class="bn" style="margin-top:8px;display:inline-block;cursor:pointer;font-size:12px">
+                 📎 ${ex.archivo_nombre?'Reemplazar':'Adjuntar'} archivo Word
+                 <input type="file" accept=".doc,.docx" style="display:none" onchange="cm();subirArchivoExamen('${exId}',this)"/>
+               </label>`
+            :`<span style="color:#e65100">⏳ Se habilita 72hs antes del examen (${Math.round(horasRestantes-72)}hs más)</span>`
+        }
+      </div>`:''}
     <div class="mf">
-      ${me.rol==='director'?`<button class="bs o" onclick="cm();imprimirActaExamen('${exId}')">🖨 Acta</button><button class="bs i" onclick="cm();mExamen(${JSON.stringify(ex).replace(/"/g,'&quot;')})">✏ Editar</button>`:''}
+      ${esDir?`<button class="bs o" onclick="cm();imprimirActaExamen('${exId}')">🖨 Acta</button><button class="bs i" onclick="cm();mExamen(${JSON.stringify(ex).replace(/"/g,'&quot;')})">✏ Editar</button>`:''}
       <button class="bs" onclick="cm()">Cerrar</button>
     </div>`);
   }catch(e){toast('Error: '+e.message,'err');}
@@ -2524,9 +2550,10 @@ async function renderCalendario(el){
       </div>
       ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
       ${evs.map(e=>e._tipo==='examen'
-        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px;cursor:pointer" onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre}">
-          <strong>${e.tipo}</strong> · ${e.materia_nombre||''}<br>
-          <span style="color:#666">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} ${e.hora?'· '+e.hora:''}</span>
+        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:pointer;border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''}">
+          <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong><br>
+          <span style="color:#555">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}</span><br>
+          <span style="color:#888">${e.hora||''} · ${e.tipo||''}</span>
         </div>`
         :`<div style="background:#e8f5e9;border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px">📌 ${e.titulo||e.descripcion||''}</div>`
       ).join('')}

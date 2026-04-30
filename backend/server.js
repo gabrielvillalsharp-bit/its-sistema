@@ -1164,6 +1164,11 @@ app.get('/api/examenes', auth(), (req, res) => {
   if (periodo_id) { where += ' AND e.periodo_id=?'; params.push(periodo_id); }
   if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
   if (tipo) { where += ' AND e.tipo=?'; params.push(tipo); }
+  // Docente: solo ve sus propios exámenes (filtrado en server, no en cliente)
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
+  }
   // Alumno: solo ve exámenes de su propia carrera
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
@@ -1174,21 +1179,22 @@ app.get('/api/examenes', auth(), (req, res) => {
       SELECT e.*,
         m.nombre as materia_nombre, m.codigo as materia_codigo,
         ca.id as carrera_id, ca.nombre as carrera_nombre,
-        cu.id as curso_id, cu.anio as curso_anio, cu.division as curso_division, cu.turno as curso_turno,
+        cu.id as curso_id, cu.anio as curso_anio, cu.division as curso_division,
+        d.id as docente_id,
         u.nombre as docente_nombre, u.apellido as docente_apellido,
         p.nombre as periodo_nombre,
-        a.id as asignacion_id,
+        a.id as asignacion_id, a.turno as asig_turno,
         (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id) as notas_cargadas,
         (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
       FROM examenes e
-      LEFT JOIN asignaciones a ON e.asignacion_id=a.id
-      LEFT JOIN materias m ON a.materia_id=m.id
-      LEFT JOIN cursos cu ON a.curso_id=cu.id
-      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
-      LEFT JOIN docentes d ON a.docente_id=d.id
-      LEFT JOIN usuarios u ON d.usuario_id=u.id
-      LEFT JOIN periodos p ON e.periodo_id=p.id
-      ${where} ORDER BY e.fecha DESC, e.hora, ca.nombre`).all(...params));
+      LEFT JOIN asignaciones a  ON e.asignacion_id=a.id
+      LEFT JOIN materias m      ON a.materia_id=m.id
+      LEFT JOIN cursos cu       ON a.curso_id=cu.id
+      LEFT JOIN carreras ca     ON cu.carrera_id=ca.id
+      LEFT JOIN docentes d      ON a.docente_id=d.id
+      LEFT JOIN usuarios u      ON d.usuario_id=u.id
+      LEFT JOIN periodos p      ON e.periodo_id=p.id
+      ${where} ORDER BY e.fecha ASC, e.hora, ca.nombre`).all(...params));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1219,26 +1225,29 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
   if (desde) { where += ' AND e.fecha>=?'; params.push(desde); }
   if (hasta) { where += ' AND e.fecha<=?'; params.push(hasta); }
   if (docente_id) { where += ' AND a.docente_id=?'; params.push(docente_id); }
+  // Alumno: solo ve exámenes de su carrera
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
+  }
   res.json(db.prepare(`
     SELECT e.*,
       m.nombre as materia_nombre,
       ca.nombre as carrera_nombre,
-      cu.anio as curso_anio,cu.division as curso_division,
-      u.nombre as docente_nombre,u.apellido as docente_apellido,
+      cu.anio as curso_anio, cu.division as curso_division,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      d.id as docente_id,
       a.id as asignacion_id,
-      (SELECT COUNT(*) FROM notas n WHERE n.asignacion_id=a.id AND
-        CASE e.tipo WHEN 'Parcial' THEN n.parcial IS NOT NULL
-                    WHEN 'Final' THEN n.final_ord IS NOT NULL
-                    ELSE 0 END) as notas_cargadas,
+      a.turno as asig_turno,
       (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
     FROM examenes e
-    JOIN asignaciones a ON e.asignacion_id=a.id
-    JOIN materias m ON a.materia_id=m.id
-    JOIN cursos cu ON a.curso_id=cu.id
-    JOIN carreras ca ON cu.carrera_id=ca.id
-    JOIN docentes d ON a.docente_id=d.id
-    JOIN usuarios u ON d.usuario_id=u.id
-    ${where} ORDER BY e.fecha,e.hora`).all(...params));
+    LEFT JOIN asignaciones a  ON e.asignacion_id=a.id
+    LEFT JOIN materias m      ON a.materia_id=m.id
+    LEFT JOIN cursos cu       ON a.curso_id=cu.id
+    LEFT JOIN carreras ca     ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d      ON a.docente_id=d.id
+    LEFT JOIN usuarios u      ON d.usuario_id=u.id
+    ${where} ORDER BY e.fecha, e.hora`).all(...params));
 });
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
