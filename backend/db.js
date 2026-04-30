@@ -1622,4 +1622,3 @@ function seedExamenesParciales(db) {
 
   console.log(`✅ Exámenes parciales: ${creados} creados, ${omitidos} ya existían/omitidos`);
 }
-module.exports = { seedExamenesParciales };
