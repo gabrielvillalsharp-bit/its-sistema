@@ -876,7 +876,7 @@ function seedHorarios() {
 // 64 exámenes | 11 mayo → 29 mayo 2026
 // Generado automáticamente — todas las reglas verificadas ✅
 // ══════════════════════════════════════════════════════════════════
-function seedExamenesParciales(db) {
+function seedExamenesParciales() {
   console.log('🗓 Insertando exámenes parciales ITS 2026...');
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) { console.log('⚠ Sin período activo'); return; }
