@@ -661,6 +661,7 @@ function init() {
   try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE habilitaciones_examen ADD COLUMN motivo TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE habilitaciones_examen ADD COLUMN habilitado_recuperatorio INTEGER DEFAULT 0").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN dia TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN turno INTEGER").run(); } catch {}

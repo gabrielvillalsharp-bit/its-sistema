@@ -297,6 +297,23 @@ function startApp(){
   buildNav();
   const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':me.rol==='secretaria'?'alumnos':'alumnos';
   go(inicio);
+  // ── Notificación de avisos ─────────────────────────────────────────────────
+  async function checkNotifAvisos(){
+    try{
+      const avs=await api('GET','/api/avisos');
+      const vistos=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
+      const nuevos=(avs||[]).filter(a=>!vistos.includes(a.id));
+      const btn=document.getElementById('ni-avisos');
+      if(btn){
+        let badge=btn.querySelector('.notif-badge');
+        if(!badge){badge=document.createElement('span');badge.className='notif-badge';badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;background:#e53935;color:#fff;font-size:9px;font-weight:700;border-radius:50%;min-width:16px;height:16px;padding:0 3px;margin-left:4px';btn.appendChild(badge);}
+        badge.textContent=nuevos.length||'';
+        badge.style.display=nuevos.length?'inline-flex':'none';
+      }
+    }catch{}
+  }
+  checkNotifAvisos();
+  setInterval(checkNotifAvisos,60000);
 }
 
 function navFor(r){
@@ -322,13 +339,14 @@ function navFor(r){
       {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente','secretaria']},
       {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente','secretaria']},
     ]},
-    {g:'Finanzas',i:[
+    {g:'Finanzas y Honorarios',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
       {id:'aranceles',l:'Aranceles / Costos',c:'#1D9E75',r:['director']},
       {id:'becas',l:'Becas y Descuentos',c:'#1D9E75',r:['director']},
-    ]},
-    {g:'Honorarios',i:[
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
+    ]},
+    {g:'Gestión Académica',i:[
+      {id:'mis-honorarios',l:'📋 Mis clases y honorarios',c:'#D85A30',r:['docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente','secretaria']},
     ]},
     {g:'Mi área',i:[
@@ -345,6 +363,7 @@ function navFor(r){
       {id:'perfil',l:'Mi perfil',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
     {g:'Configuración',i:[
+      {id:'registro-habilitados',l:'📋 Registro de Habilitados',c:'#c0392b',r:['director']},
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
@@ -372,6 +391,7 @@ function go(p){
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
+    'registro-habilitados':pgRegistroHabilitados,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
@@ -1469,8 +1489,8 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      ${esDir||esDocente?`<button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla Excel</button>`:''}
-      ${esDir||esDocente?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100" title="Importar calendario de exámenes desde Excel">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
+      ${esDir?`<button class="bs s" onclick="descargarPlantillaExamenes()">⬇ Plantilla Excel</button>`:''}
+      ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -2737,18 +2757,35 @@ function filtNotasAsigs(){
 
 async function guardarTodasNotas(asigId){
   const btn=document.getElementById('btnGuardarNotas');
-  if(btn){btn.disabled=true;btn.textContent='💾 Guardando...';}
-  const nc=W._nc||{};
+  if(btn){btn.disabled=true;btn.textContent='⏳ Guardando...';}
+  // Leer TODOS los inputs de la grilla directamente del DOM (evita bug del navegador que
+  // guarda contraseña y resetea W._nc antes de que se dispare el onchange)
+  const campos=['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario'];
+  const nc={};
+  document.querySelectorAll('[data-al-id]').forEach(row=>{
+    const alId=row.dataset.alId;
+    if(!alId)return;
+    nc[alId]=nc[alId]||{};
+    campos.forEach(campo=>{
+      const inp=row.querySelector(`[data-campo="${campo}"]`);
+      if(inp){const v=inp.value.trim();nc[alId][campo]=v===''?null:parseFloat(v);}
+    });
+  });
+  // Fusionar con W._nc por si hay datos ya cargados
+  const merged={...W._nc};
+  Object.keys(nc).forEach(alId=>{
+    merged[alId]={...(merged[alId]||{}), ...Object.fromEntries(Object.entries(nc[alId]).filter(([,v])=>v!==undefined))};
+  });
   let guardados=0, errores=0;
-  for(const alId of Object.keys(nc)){
+  for(const alId of Object.keys(merged)){
     try{
-      await api('PUT',`/api/notas/${alId}/${asigId}`,nc[alId]);
+      await api('PUT',`/api/notas/${alId}/${asigId}`,merged[alId]);
       guardados++;
     }catch{errores++;}
   }
   if(btn){btn.disabled=false;btn.textContent='💾 Guardar notas';}
   if(errores>0){toast(`⚠ ${guardados} guardados, ${errores} con error`,'warn',4000);}
-  else{toast(`✓ ${guardados} registros de notas guardados`,'ok',3000);}
+  else{toast(`✓ ${guardados} registros guardados correctamente`,'ok',3000);}
   W.loadNotas(asigId);
 }
 W.guardarTodasNotas=guardarTodasNotas;
@@ -2792,21 +2829,14 @@ W.loadNotas=async(asigId,_tipo)=>{
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>`:''}
-      <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 24px;font-weight:700">💾 Guardar notas</button>
-    </div>
-  </div>
-  <!-- Barra sticky guardar — visible al hacer scroll -->
-  <div id="barraGuardar" style="position:sticky;bottom:0;background:#1a5fa8;color:#fff;padding:8px 16px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;z-index:100;margin-top:8px">
-    <span style="font-size:12px">💡 Ingresá los puntajes y guardá al terminar</span>
-    <button onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;font-weight:700;cursor:pointer">💾 Guardar notas</button>
-  </div>
+      <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
     </div>
   </div>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial ordinario · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
     ${me.rol==='director'?'· 🔒 Alumnos con mora de pago están bloqueados — usar "Habilitar" para autorizar excepción.':''}
   </div>
-  <div style="overflow-x:auto"><table style="min-width:900px;font-size:12px;border-collapse:collapse;width:100%">
+  <div style="overflow-x:auto"><table style="min-width:900px;font-size:12px;border-collapse:collapse;width:100%" autocomplete="off">
   <thead>
     <tr style="background:#f0f4f8">
       <th rowspan="2" style="padding:6px 10px;text-align:left;border:1px solid var(--bdr);min-width:160px">Alumno</th>
@@ -2858,18 +2888,18 @@ W.loadNotas=async(asigId,_tipo)=>{
           </div>`
         :`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
             <span style="color:#2e7d32;font-size:16px;line-height:1">✓</span>
-            <span style="font-size:9px;color:#4caf50">Al día</span>
+            <span style="font-size:9px;color:#4caf50">${hab?.razon==='habilitacion_especial'?'Habilitado<br>por Dirección':'Al día'}</span>
           </div>`}
     </td>`:'<td style="display:none"></td>';
     // ni para TPs y parciales (nunca bloqueados por mora)
     const ni=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabledBase?'opacity:0.45':''}">` +
       `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="—" ${disabledBase?'disabled':''}` +
-      ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
+      ` autocomplete="off" oninput="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
     // niFinal para finales (bloqueados también por mora)
     const niFinal=(campo,max,val,bgColor)=>`<td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;${bgColor?'background:'+bgColor+';':''}${disabledFinal?'opacity:0.45':''}">` +
       `<input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}` +
-      ` onchange="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
-    return `<tr id="nr-${a.id}" ${ausente?'style="background:#fff8f8"':bloqueado?'style="background:#fffafa"':''}>
+      ` autocomplete="off" oninput="updN('${a.id}','${asigId}','${campo}',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/></td>`;
+    return `<tr id="nr-${a.id}" data-al-id="${a.id}" ${ausente?'style="background:#fff8f8"':bloqueado?'style="background:#fffafa"':''}>
       <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
         <strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br>
         <span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span>
@@ -2880,24 +2910,24 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${ni('parcial',25,a.parcial,'#e3f2fd')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
         <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledRecup?'🔒 Sin habilitación':'—'}" ${(disabledBase||disabledRecup)?'disabled':''}
-          onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:${disabledRecup?'#fff8e1':'transparent'};padding:3px 2px;font-size:12px" title="${disabledRecup?'El director debe habilitar el recuperatorio para este alumno':''}"/>
+          autocomplete="off" oninput="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:${disabledRecup?'#fff8e1':'transparent'};padding:3px 2px;font-size:12px" title="${disabledRecup?'El director debe habilitar el recuperatorio para este alumno':''}"/>
         ${disabledRecup&&me.rol==='director'?`<button onclick="habilitarRecuperatorio('${a.id}','${asigId}')" style="font-size:8px;padding:1px 4px;border:1px solid #1976d2;border-radius:3px;background:#e3f2fd;color:#1565c0;cursor:pointer;margin-top:1px;display:block;width:100%">Habilitar</button>`:''}
         ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       ${niFinal('final_ord',50,a.final_ord,'#fff3e0')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
         <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
-          onchange="updN('${a.id}','${asigId}','final_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+          autocomplete="off" oninput="updN('${a.id}','${asigId}','final_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.final_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fce4ec;position:relative">
         <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
-          onchange="updN('${a.id}','${asigId}','complementario',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
+          autocomplete="off" oninput="updN('${a.id}','${asigId}','complementario',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px"/>
         ${a.complementario!=null?'<div style="font-size:9px;color:#880e4f;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#f8e8ff;position:relative">
         <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="${disabledFinal&&bloqueado?'🔒':'—'}" ${disabledFinal?'disabled':''}
-          onchange="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
+          autocomplete="off" oninput="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
         ${a.extraordinario!=null?'<div style="font-size:9px;color:#4a148c;position:absolute;bottom:1px;right:2px">RESET</div>':''}
       </td>
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700;background:#f3e5f5" id="tot-${a.id}">
@@ -2926,11 +2956,36 @@ async function habilitarRecuperatorio(alId, asigId){
     },null);
 }
 async function habilitarAlumno(alId,asigId){
-  if(!confirm('¿Habilitar a este alumno para cargar notas a pesar de la mora de pago? Esta acción queda registrada.'))return;
+  modal(`<h4>✅ Habilitar por Dirección</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Seleccioná el examen específico. Se registrará como <strong>"Habilitado por Dirección"</strong> en la planilla de notas.</p>
+  <div class="fg">
+    <div class="f"><label>Examen a habilitar <span style="color:var(--red)">*</span></label>
+      <select id="habTipoEx">
+        <option value="">— Seleccionar examen —</option>
+        <option value="final_ord">Final Ordinario</option>
+        <option value="final_recuperatorio">Final Recuperatorio</option>
+        <option value="complementario">Complementario</option>
+        <option value="extraordinario">Extraordinario</option>
+      </select>
+    </div>
+    <div class="f"><label>Motivo / Observación</label>
+      <input id="habMotivo" placeholder="Ej: Acuerdo de pago, beca, excepción direccional..."/>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="confirmarHabilitacion('${alId}','${asigId}')">✅ Habilitar</button>
+  </div>`);
+}
+async function confirmarHabilitacion(alId,asigId){
+  const tipoEx=v('habTipoEx'),motivo=v('habMotivo');
+  if(!tipoEx)return alert('Seleccioná el examen a habilitar');
+  const labels={final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Complementario',extraordinario:'Extraordinario'};
   try{
-    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true});
-    W.loadNotas(asigId);
-  }catch(e){alert('Error: '+e.message);}
+    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true,asignacion_id:asigId,tipo_examen:tipoEx,motivo:motivo||'Habilitado por Dirección'});
+    toast(`✓ Alumno habilitado para ${labels[tipoEx]} — aparecerá "Habilitado por Dirección"`, 'ok', 4000);
+    cm(); W.loadNotas(asigId);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 W.marcarAusente=async(aId,asigId,ausente)=>{
@@ -3201,6 +3256,7 @@ W.loadAsist=async(asigId)=>{
       <span class="bx br">✗ ${ausentes} ausentes</span>
       ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
       ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
+      <button class="bs d" onclick="anularAsistencia('${asigId}',v('fecAsist'))" title="Anular toda la asistencia de esta fecha">🗑 Anular registro</button>
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
@@ -3293,6 +3349,19 @@ function confirm2(titulo, cuerpo, onAceptar, onModificar){
   document.body.appendChild(div);
 }
 
+async function anularAsistencia(asigId, fecha){
+  if(!fecha){toast('Seleccioná una fecha primero','warn');return;}
+  confirm2('🗑 Anular registro de asistencia',
+    `<p>¿Anular <strong>toda</strong> la asistencia registrada el <strong>${fmtFecha(fecha)}</strong> para esta materia?</p>
+    <p style="font-size:12px;color:#e65100;margin-top:6px">⚠ Esta acción también anulará el honorario generado ese día. No se puede deshacer.</p>`,
+    async function(){
+      try{
+        await api('DELETE','/api/asistencia/anular',{asignacion_id:asigId,fecha});
+        toast('✓ Asistencia anulada correctamente','ok',3000);
+        W.loadAsist(asigId);
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
 async function grdAsist(){
   if(!W._ast){toast('Cargá una materia primero','warn');return;}
   const {asigId,fecha,est}=W._ast;
@@ -4232,16 +4301,20 @@ async function pgMisNotas(el){
   el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
   W._misNotas=notas;
-  const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))];
-  el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3></div>
+  const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))].sort();
+  const carrera=notas?.[0]?.carrera_nombre||'';
+  const anio=notas?.[0]?.curso_anio||'';
+  el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3>
+    ${carrera?`<span class="bx bb" style="font-size:12px">${carrera} ${anio?anio+'° año':''}</span>`:''}
+  </div>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px">
-      <option value="">Todas las materias</option>
+      <option value="">Todas las materias (${materias.length})</option>
       ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
     </select>
   </div>
   <div id="tblMisNotas">${renderMisNotas(notas)}</div>
-  <p style="font-size:11px;color:var(--t3);margin-top:8px">Las notas son solo de lectura. Para consultas dirigirse a administración.</p>`;
+  <p style="font-size:11px;color:var(--t3);margin-top:8px">Las notas son de solo lectura. Para consultas comunicarse con la Secretaría.</p>`;
 }
 function filtMisNotas(){
   const mat=v('filtMisNotasMat');
@@ -4756,7 +4829,7 @@ async function cargarMisHon(){
           bgRow='background:#fff8e1';
         }else if(repFecha&&repFecha.docente_reemplazante_id===miDocId){
           estado='<span class="bx bb" style="font-size:10px">🔄 Reemplazante</span>';
-          detalle=`Reemplazó a: <strong>${repFecha.titular_nombre||''} ${repFecha.titular_apellido||''}</strong><br><span style="font-size:10px">${repFecha.materia||asig.materia_nombre||''} — ${repFecha.carrera||asig.carrera_nombre||''}</span>`;
+          detalle=`Reemplazó a: <strong>${repFecha.titular_nombre||''} ${repFecha.titular_apellido||''}</strong><br><span style="font-size:10px">${repFecha.materia||asig.materia_nombre||''} — ${repFecha.carrera||asig.carrera_nombre||''} ${asig.turno?'· T'+asig.turno+(asig.turno===1?' (19:00)':' (20:40)'):''}</span>`;
           bgRow='background:#e8f5e9';
         }else if(honAsig){
           estado='<span class="bx bg" style="font-size:10px">✓ Presente</span>';
@@ -4988,6 +5061,80 @@ async function svFeriado(){
   if(!o.fecha||!o.nombre)return alert('Completar fecha y nombre');
   try{await api('POST','/api/feriados',o);toast('✓ Feriado agregado','ok');cm();go('feriados');}
   catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── REGISTRO DE HABILITADOS (solo Director) ───────────────────────────────────
+async function pgRegistroHabilitados(el){
+  const [carrs,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos')]);
+  el.innerHTML=`<div class="ph"><h3>📋 Registro de Habilitados por Dirección</h3></div>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Alumnos habilitados por excepción de Dirección para rendir exámenes con cuotas pendientes.</p>
+  <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="habFiltCarr" onchange="cargarRegistroHab()" style="min-width:180px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('')}
+    </select>
+    <select id="habFiltAnio" onchange="cargarRegistroHab()" style="min-width:100px">
+      <option value="">Todos los años</option>
+      ${[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort().map(a=>'<option value="'+a+'">'+a+'° año</option>').join('')}
+    </select>
+    <select id="habFiltTipo" onchange="cargarRegistroHab()" style="min-width:160px">
+      <option value="">Todos los exámenes</option>
+      <option value="final_ord">Final Ordinario</option>
+      <option value="final_recuperatorio">Final Recuperatorio</option>
+      <option value="complementario">Complementario</option>
+      <option value="extraordinario">Extraordinario</option>
+    </select>
+    <input id="habFiltBus" placeholder="🔍 Buscar alumno..." oninput="filtRegistroHab()" style="min-width:180px"/>
+  </div>
+  <div id="tablaHab"><div class="es">Cargando...</div></div>`;
+  cargarRegistroHab();
+}
+async function cargarRegistroHab(){
+  const carrId=v('habFiltCarr'),anio=v('habFiltAnio'),tipo=v('habFiltTipo');
+  const q=[];
+  if(carrId)q.push('carrera_id='+carrId);
+  if(anio)q.push('anio='+anio);
+  if(tipo)q.push('tipo_examen='+tipo);
+  const url='/api/admin/habilitados'+(q.length?'?'+q.join('&'):'');
+  const datos=await api('GET',url).catch(()=>[]);
+  W._habilitados=datos;
+  renderRegistroHab(datos);
+}
+function filtRegistroHab(){
+  const q=(v('habFiltBus')||'').toLowerCase();
+  renderRegistroHab((W._habilitados||[]).filter(h=>{
+    return((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(q);
+  }));
+}
+function renderRegistroHab(datos){
+  const el=document.getElementById('tablaHab'); if(!el)return;
+  if(!datos?.length){el.innerHTML='<div class="es">Sin habilitaciones registradas</div>';return;}
+  const lbl={final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',final:'Final'};
+  el.innerHTML=`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#c0392b;color:#fff">
+      <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Alumno</th>
+      <th style="padding:7px 10px;border:1px solid #a93226">C.I.</th>
+      <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Carrera / Año</th>
+      <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Materia</th>
+      <th style="padding:7px 10px;border:1px solid #a93226">Examen</th>
+      <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Habilitado por</th>
+      <th style="padding:7px 10px;border:1px solid #a93226">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Motivo</th>
+    </tr></thead><tbody>
+    ${datos.map(h=>`<tr>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center;font-size:11px">${h.alumno_ci||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.carrera_nombre||'—'} ${h.anio?h.anio+'°':''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.materia_nombre||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">
+        <span class="bx br" style="font-size:10px">${lbl[h.tipo_examen]||h.tipo_examen||'—'}</span>
+      </td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.habilitado_por_nombre||''} ${h.habilitado_por_apellido||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;white-space:nowrap;text-align:center">${fmtFecha(h.fecha)}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:var(--t2)">${h.motivo||'—'}</td>
+    </tr>`).join('')}
+    </tbody></table></div></div>
+  <p style="font-size:11px;color:var(--t2);margin-top:8px">Total: <strong>${datos.length}</strong> habilitacion(es) registradas</p>`;
 }
 
 async function pgAuditoria(el){

@@ -1039,6 +1039,20 @@ app.delete('/api/feriados/:id', auth(ADM), (req, res) => {
 });
 
 // ── RESUMEN HONORARIOS POR DOCENTE/MES ────────────────────────────────────────
+// Anular asistencia de una fecha completa
+app.delete('/api/asistencia/anular', auth(['director','docente']), (req, res) => {
+  const { asignacion_id, fecha } = req.body;
+  if (!asignacion_id || !fecha) return res.status(400).json({ error: 'asignacion_id y fecha requeridos' });
+  if (req.user.rol === 'docente') {
+    const asig = db.prepare('SELECT a.id FROM asignaciones a JOIN docentes d ON a.docente_id=d.id WHERE a.id=? AND d.usuario_id=?').get(asignacion_id, req.user.id);
+    if (!asig) return res.status(403).json({ error: 'Solo podés anular asistencia de tus materias' });
+  }
+  const del = db.prepare('DELETE FROM asistencia WHERE asignacion_id=? AND fecha=?').run(asignacion_id, fecha);
+  db.prepare("UPDATE honorarios SET estado='anulado' WHERE asignacion_id=? AND fecha=? AND tipo='clase'").run(asignacion_id, fecha);
+  audit(req.user.id, 'ANULAR_ASISTENCIA', 'asistencia', asignacion_id, { fecha, eliminados: del.changes });
+  res.json({ ok: true, eliminados: del.changes });
+});
+
 app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
   const { docente_id, mes, anio } = req.query;
   let dId = docente_id;
@@ -1144,6 +1158,11 @@ app.get('/api/examenes', auth(), (req, res) => {
   if (periodo_id) { where += ' AND e.periodo_id=?'; params.push(periodo_id); }
   if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
   if (tipo) { where += ' AND e.tipo=?'; params.push(tipo); }
+  // Alumno: solo ve exámenes de su propia carrera
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
+  }
   try {
     res.json(db.prepare(`
       SELECT e.*,
@@ -1235,9 +1254,15 @@ app.get('/api/avisos', auth(), (req, res) => {
 });
 app.post('/api/avisos', auth(['director','docente','secretaria']), (req, res) => {
   const { titulo, contenido, tipo, fijado, destinatario } = req.body;
+  // Mapear valores del frontend al CHECK constraint de SQLite
+  const destMap = {
+    'todos':'todos', 'docentes':'docentes', 'alumnos':'alumnos',
+    'mis-alumnos':'alumnos', 'director':'todos', 'director-secretaria':'todos'
+  };
+  const destDB = destMap[destinatario] || 'todos';
   const id = 'av_' + Date.now();
-  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destinatario||'todos',req.user.id);
-  audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario});
+  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id);
+  audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB});
   res.json({ id });
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
@@ -1692,14 +1717,28 @@ app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
 });
 
 app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
-  const { habilitado } = req.body;
-  const al = db.prepare('SELECT nombre,apellido FROM alumnos WHERE id=?').get(req.params.id);
-  db.prepare('UPDATE alumnos SET habilitado_pago_pendiente=? WHERE id=?').run(habilitado?1:0, req.params.id);
-  audit(req.user.id,'HABILITAR','alumnos',req.params.id,{habilitado,alumno:`${al?.apellido||''} ${al?.nombre||''}`,tipo:'excepcion_pago_mora'});
-  res.json({ ok: true, habilitado: !!habilitado });
+  const { habilitado, asignacion_id, tipo_examen, motivo } = req.body;
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  const TIPOS = ['final_ord','final_recuperatorio','complementario','extraordinario','parcial','final','extraordinario'];
+  const tipoDb = TIPOS.includes(tipo_examen) ? tipo_examen : 'final';
+  const hab = asignacion_id
+    ? db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(req.params.id, asignacion_id, tipoDb)
+    : db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').get(req.params.id);
+  if (hab) {
+    db.prepare('UPDATE habilitaciones_examen SET habilitado=?,habilitado_por=?,fecha=?,motivo=? WHERE id=?').run(habilitado?1:0, req.user.id, fechaHoy, motivo||'Habilitado por Dirección', hab.id);
+  } else {
+    const id = 'hab_'+Date.now();
+    try {
+      db.prepare('INSERT INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo) VALUES (?,?,?,?,?,?,?,?)').run(id,req.params.id,asignacion_id||null,tipoDb,habilitado?1:0,req.user.id,fechaHoy,motivo||'Habilitado por Dirección');
+    } catch {
+      db.prepare('INSERT INTO habilitaciones_examen (id,alumno_id,tipo_examen,habilitado,habilitado_por,fecha) VALUES (?,?,?,?,?,?)').run(id,req.params.id,tipoDb,habilitado?1:0,req.user.id,fechaHoy);
+    }
+  }
+  audit(req.user.id,'HABILITAR_ALUMNO','habilitaciones_examen',req.params.id,{habilitado,tipo_examen:tipoDb,motivo,asignacion_id});
+  res.json({ ok: true });
 });
 
-// ── VERIFICAR ESTADO DE HABILITACIÓN PARA EXAMEN (regla Julio) ───────────────
+// ── VERIFICAR ESTADO DE HABILITACIÓN PARA EXAMEN ─────────────────────────────
 app.get('/api/alumnos/:id/habilitacion', auth(), (req, res) => {
   const al = db.prepare('SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id=?').get(req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
@@ -2044,6 +2083,34 @@ app.get('/api/admin/backup', auth(ADM), (req, res) => {
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 // ── AUDITORÍA COMPLETA ────────────────────────────────────────────────────────
+// ── REGISTRO DE HABILITADOS ────────────────────────────────────────────────────
+app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
+  const { carrera_id, anio, tipo_examen } = req.query;
+  let where = "WHERE h.habilitado=1";
+  const params = [];
+  if (tipo_examen) { where += ' AND h.tipo_examen=?'; params.push(tipo_examen); }
+  if (carrera_id)  { where += ' AND ca.id=?'; params.push(carrera_id); }
+  if (anio)        { where += ' AND cu.anio=?'; params.push(parseInt(anio)); }
+  try {
+    const rows = db.prepare(`
+      SELECT h.id, h.tipo_examen, h.fecha, h.motivo,
+        al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
+        ca.nombre as carrera_nombre, cu.anio,
+        m.nombre as materia_nombre,
+        uh.nombre as habilitado_por_nombre, uh.apellido as habilitado_por_apellido
+      FROM habilitaciones_examen h
+      LEFT JOIN alumnos al ON h.alumno_id=al.id
+      LEFT JOIN asignaciones asig ON h.asignacion_id=asig.id
+      LEFT JOIN materias m ON asig.materia_id=m.id
+      LEFT JOIN cursos cu ON asig.curso_id=cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN usuarios uh ON h.habilitado_por=uh.id
+      ${where}
+      ORDER BY h.fecha DESC`).all(...params);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
   const { tabla, accion, usuario_id, desde, hasta, limite } = req.query;
   let where = 'WHERE 1=1'; const params = [];
