@@ -876,749 +876,918 @@ function seedHorarios() {
 // 64 exámenes | 11 mayo → 29 mayo 2026
 // Generado automáticamente — todas las reglas verificadas ✅
 // ══════════════════════════════════════════════════════════════════
+
+// SEED EXÁMENES PARCIALES ITS 2026 — 64 exámenes | 11-29 mayo
 function seedExamenesParciales() {
+  // Verificar si ya hay exámenes parciales cargados
+  const yaHay = db.prepare("SELECT COUNT(*) as n FROM examenes WHERE tipo='Parcial'").get();
+  if (yaHay.n > 0) { console.log('🗓 Exámenes parciales ya cargados (' + yaHay.n + ') — seed omitido'); return; }
   console.log('🗓 Insertando exámenes parciales ITS 2026...');
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-  if (!periodo) { console.log('⚠ Sin período activo'); return; }
+  if (!periodo) { console.log('  ⚠ Sin período activo'); return; }
   let creados = 0, omitidos = 0;
 
-  // Salud Pública | Enfermería 1° Secc.U | Lic. Ana Ayala | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Salud Pública','Enfermería',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Salud Pública - Enfermería 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_salud_publica_enfermeria_1_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Salud Pública | Radiología 1° Secc.U | Lic. Ana Ayala | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Salud Pública','Radiología',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Salud Pública - Radiología 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_salud_publica_radiologia_1_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Enfermería Materno Infantil I | Enfermería 2° Secc.U | Lic. Micheli Romero | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%romero%','Enfermería Materno Infantil I','Enfermería',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Enfermería Materno Infantil I - Enfermería 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_enfermeria_materno_infantil__enfermeria_2_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Salud Pública | Farmacia 1° Secc.U | Lic. Angela Aranda | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aranda%','Salud Pública','Farmacia',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Salud Pública - Farmacia 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_salud_publica_farmacia_1_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Salud Pública | Instrumentación Quirúrgica 1° Secc.U | Lic. Angela Aranda | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aranda%','Salud Pública','Instrumentación Quirúrgica',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Salud Pública - Instrumentación Quirúrgica 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_salud_publica_instrumentacion_quirurgica_1_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Patología Quirúrgica | Instrumentación Quirúrgica 2° Secc.U | Dr. Favio Rojas | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Patología Quirúrgica','Instrumentación Quirúrgica',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Patología Quirúrgica - Instrumentación Quirúrgica 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_patologia_quirurgica_instrumentacion_quirurgica_2_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Física Radiológica | Radiología 2° Secc.U | Rad. Paulo Higuchi | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%higuchi%','Física Radiológica','Radiología',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Física Radiológica - Radiología 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_fisica_radiologica_radiologia_2_u_parcial',asigId,'Parcial','2026-05-11','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Química Inorgánica | Farmacia 2° Secc.U | Lic. Angela Aranda | 2026-05-11
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aranda%','Química Inorgánica','Farmacia',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Química Inorgánica - Farmacia 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-11')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_quimica_inorganica_farmacia_2_u_parcial',asigId,'Parcial','2026-05-11','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Dermatología Básica / Técnicas Faciales | Cosmiatría 1° Secc.A | Lic. Raqueline Carballo | 2026-05-12
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carballo%','Dermatología Básica / Técnicas Faciales','Cosmiatría',1,'A');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Dermatología Básica / Técnicas Faciales - Cosmiatría 1° A'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-12')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_dermatologia_basica_tecnicas_cosmiatria_1_a_parcial',asigId,'Parcial','2026-05-12','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Química Cosmética | Cosmiatría 2° Secc.U | Lic. Noelia Ayala | 2026-05-12
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Química Cosmética','Cosmiatría',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Química Cosmética - Cosmiatría 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-12')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_quimica_cosmetica_cosmiatria_2_u_parcial',asigId,'Parcial','2026-05-12','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Cosmiatría 1° Secc.B | Rad. Paulo Higuchi | 2026-05-12
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%higuchi%','Anatomía y Fisiología Humana','Cosmiatría',1,'B');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° B'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-12')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_cosmiatria_1_b_parcial',asigId,'Parcial','2026-05-12','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Dibujo Técnico y Pericial | Criminalística 2° Secc.U | Lic. Nelson Domínguez | 2026-05-12
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%dominguez%','Dibujo Técnico y Pericial','Criminalística',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-12')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_dibujo_tecnico_y_pericial_criminalistica_2_u_parcial',asigId,'Parcial','2026-05-12','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Inglés | Agropecuaria 1° Secc.U | Lic. Pamela Jiménez | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%jimenez%','Inglés','Agropecuaria',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Inglés - Agropecuaria 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_ingles_agropecuaria_1_u_parcial',asigId,'Parcial','2026-05-13','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Inglés | Agropecuaria 2° Secc.U | Lic. Pamela Jiménez | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%jimenez%','Inglés','Agropecuaria',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Inglés - Agropecuaria 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_ingles_agropecuaria_2_u_parcial',asigId,'Parcial','2026-05-13','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Inglés | Electricidad 2° Secc.U | Lic. Pamela Jiménez | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%jimenez%','Inglés','Electricidad',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Inglés - Electricidad 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_ingles_electricidad_2_u_parcial',asigId,'Parcial','2026-05-13','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Castellano | Contabilidad 1° Secc.U | Lic. Maria Elena Perez de Cantero | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%cantero%','Castellano','Contabilidad',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Castellano - Contabilidad 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_castellano_contabilidad_1_u_parcial',asigId,'Parcial','2026-05-13','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Comunicación Escrita y Oral y Lengua Guaraní | Criminalística 1° Secc.U | Lic. Maria Elena Perez de Cantero | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%cantero%','Comunicación Escrita y Oral y Lengua Guaraní','Criminalística',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Comunicación Escrita y Oral y Lengua Guaraní - Criminalística 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_comunicacion_escrita_y_oral__criminalistica_1_u_parcial',asigId,'Parcial','2026-05-13','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Primeros Auxilios | Enfermería 1° Secc.U | Lic. Micheli Romero | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%romero%','Primeros Auxilios','Enfermería',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Primeros Auxilios - Enfermería 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_primeros_auxilios_enfermeria_1_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Primeros Auxilios | Radiología 1° Secc.U | Lic. Micheli Romero | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%romero%','Primeros Auxilios','Radiología',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Primeros Auxilios - Radiología 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_primeros_auxilios_radiologia_1_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética y Legislación | Enfermería 2° Secc.U | Abg. Myrian Carrillo | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética y Legislación','Enfermería',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética y Legislación - Enfermería 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_y_legislacion_enfermeria_2_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética y Legislación | Farmacia 2° Secc.U | Abg. Myrian Carrillo | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética y Legislación','Farmacia',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética y Legislación - Farmacia 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_y_legislacion_farmacia_2_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Calidad en Salud | Farmacia 1° Secc.U | Lic. Blanca Villar | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%villar%','Calidad en Salud','Farmacia',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Calidad en Salud - Farmacia 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_calidad_en_salud_farmacia_1_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Calidad en Salud | Instrumentación Quirúrgica 1° Secc.U | Lic. Blanca Villar | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%villar%','Calidad en Salud','Instrumentación Quirúrgica',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Calidad en Salud - Instrumentación Quirúrgica 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_calidad_en_salud_instrumentacion_quirurgica_1_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Técnicas Quirúrgicas General y Especializada | Instrumentación Quirúrgica 2° Secc.U | Inst. Karen González | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gonzalez%','Técnicas Quirúrgicas General y Especializada','Instrumentación Quirúrgica',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Técnicas Quirúrgicas General y Especializada - Instrumentación Quirúrgica 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Administración Hospitalaria | Radiología 2° Secc.U | Lic. Angela Aranda | 2026-05-13
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aranda%','Administración Hospitalaria','Radiología',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Administración Hospitalaria - Radiología 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-13')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_administracion_hospitalaria_radiologia_2_u_parcial',asigId,'Parcial','2026-05-13','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Enfermería 1° Secc.U | Rad. Paulo Higuchi | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%higuchi%','Anatomía y Fisiología Humana','Enfermería',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Enfermería 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_enfermeria_1_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Radiología 1° Secc.U | Rad. Paulo Higuchi | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%higuchi%','Anatomía y Fisiología Humana','Radiología',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Radiología 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_radiologia_1_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Enfermería en Salud del Adulto I / II | Enfermería 2° Secc.U | Lic. Ana Ayala | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Enfermería en Salud del Adulto I / II','Enfermería',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Enfermería en Salud del Adulto I / II - Enfermería 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_enfermeria_en_salud_del_adul_enfermeria_2_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Farmacia 1° Secc.U | Dr. Favio Rojas | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Anatomía y Fisiología Humana','Farmacia',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Farmacia 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_farmacia_1_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Instrumentación Quirúrgica 1° Secc.U | Dr. Favio Rojas | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Anatomía y Fisiología Humana','Instrumentación Quirúrgica',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Instrumentación Quirúrgica 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Técnicas Radiológicas III | Radiología 2° Secc.U | Lic. Marcial Palacios | 2026-05-18
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%palacios%','Técnicas Radiológicas III','Radiología',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Técnicas Radiológicas III - Radiología 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-18')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_tecnicas_radiologicas_iii_radiologia_2_u_parcial',asigId,'Parcial','2026-05-18','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | Lic. Mirta Giménez | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_equipos_y_maquinarias_agrope_agropecuaria_2_u_parcial',asigId,'Parcial','2026-05-19','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Electrónica Analógica | Electricidad 2° Secc.U | Ing. Oscar Mareco | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%mareco%','Electrónica Analógica','Electricidad',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_electronica_analogica_electricidad_2_u_parcial',asigId,'Parcial','2026-05-19','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Deontología y Ética Profesional | Agropecuaria 1° Secc.U | Abg. César Alum | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%alum%','Deontología y Ética Profesional','Agropecuaria',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Deontología y Ética Profesional - Agropecuaria 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_deontologia_y_etica_profesio_agropecuaria_1_u_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Deontología y Ética Profesional | Criminalística 1° Secc.U | Abg. César Alum | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%alum%','Deontología y Ética Profesional','Criminalística',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Deontología y Ética Profesional - Criminalística 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_deontologia_y_etica_profesio_criminalistica_1_u_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Biología de la Piel I / II | Cosmiatría 1° Secc.A | Lic. Noelia Ayala | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Biología de la Piel I / II','Cosmiatría',1,'A');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Biología de la Piel I / II - Cosmiatría 1° A'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_biologia_de_la_piel_i_ii_cosmiatria_1_a_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Semiología de la Piel I | Cosmiatría 2° Secc.U | Dr. Favio Rojas | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Semiología de la Piel I','Cosmiatría',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Semiología de la Piel I - Cosmiatría 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_semiologia_de_la_piel_i_cosmiatria_2_u_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Dermatología Básica / Técnicas Faciales | Cosmiatría 1° Secc.B | Lic. Raqueline Carballo | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carballo%','Dermatología Básica / Técnicas Faciales','Cosmiatría',1,'B');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Dermatología Básica / Técnicas Faciales - Cosmiatría 1° B'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_dermatologia_basica_tecnicas_cosmiatria_1_b_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Dibujo Técnico y Pericial | Criminalística 2° Secc.U | Lic. Nelson Domínguez | 2026-05-19
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%dominguez%','Dibujo Técnico y Pericial','Criminalística',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-19')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_dibujo_tecnico_y_pericial_criminalistica_2_u_parcial',asigId,'Parcial','2026-05-19','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Contabilidad Básica | Contabilidad 1° Secc.U | Lic. Mirta Giménez | 2026-05-20
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Contabilidad Básica','Contabilidad',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Contabilidad Básica - Contabilidad 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-20')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_contabilidad_basica_contabilidad_1_u_parcial',asigId,'Parcial','2026-05-20','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Cosmiatría 1° Secc.A | Dr. Favio Rojas | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Anatomía y Fisiología Humana','Cosmiatría',1,'A');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° A'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_cosmiatria_1_a_parcial',asigId,'Parcial','2026-05-21','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Técnicas de Masajes y Drenaje Linfático | Cosmiatría 2° Secc.U | Lic. Raqueline Carballo | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carballo%','Técnicas de Masajes y Drenaje Linfático','Cosmiatría',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Técnicas de Masajes y Drenaje Linfático - Cosmiatría 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_tecnicas_de_masajes_y_drenaj_cosmiatria_2_u_parcial',asigId,'Parcial','2026-05-21','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Salud Pública | Cosmiatría 1° Secc.B | Dra. Natalia Valenzuela | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%valenzuela%','Salud Pública','Cosmiatría',1,'B');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Salud Pública - Cosmiatría 1° B'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_salud_publica_cosmiatria_1_b_parcial',asigId,'Parcial','2026-05-21','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Introducción a la Criminalística | Criminalística 1° Secc.U | Lic. Nelson Domínguez | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%dominguez%','Introducción a la Criminalística','Criminalística',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Introducción a la Criminalística - Criminalística 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_introduccion_a_la_criminalis_criminalistica_1_u_parcial',asigId,'Parcial','2026-05-21','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Electrónica Analógica | Electricidad 2° Secc.U | Ing. Oscar Mareco | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%mareco%','Electrónica Analógica','Electricidad',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_electronica_analogica_electricidad_2_u_parcial',asigId,'Parcial','2026-05-21','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Productividad Agropecuaria | Agropecuaria 1° Secc.U | Lic. Mirta Giménez | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Productividad Agropecuaria','Agropecuaria',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Productividad Agropecuaria - Agropecuaria 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_productividad_agropecuaria_agropecuaria_1_u_parcial',asigId,'Parcial','2026-05-21','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | Lic. Mirta Giménez | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_equipos_y_maquinarias_agrope_agropecuaria_2_u_parcial',asigId,'Parcial','2026-05-21','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Dibujo Técnico y Pericial | Criminalística 2° Secc.U | Lic. Nelson Domínguez | 2026-05-21
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%dominguez%','Dibujo Técnico y Pericial','Criminalística',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-21')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_dibujo_tecnico_y_pericial_criminalistica_2_u_parcial',asigId,'Parcial','2026-05-21','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética Profesional | Enfermería 1° Secc.U | Abg. Myrian Carrillo | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética Profesional','Enfermería',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética Profesional - Enfermería 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_profesional_enfermeria_1_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética Profesional | Radiología 1° Secc.U | Abg. Myrian Carrillo | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética Profesional','Radiología',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética Profesional - Radiología 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_profesional_radiologia_1_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología | Farmacia 1° Secc.U | Lic. Gabriela Agüero | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aguero%','Farmacología','Farmacia',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología - Farmacia 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_farmacia_1_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología | Instrumentación Quirúrgica 1° Secc.U | Lic. Gabriela Agüero | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aguero%','Farmacología','Instrumentación Quirúrgica',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología - Instrumentación Quirúrgica 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_instrumentacion_quirurgica_1_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Cosmetología Básica | Farmacia 2° Secc.U | Lic. Noelia Ayala | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Cosmetología Básica','Farmacia',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Cosmetología Básica - Farmacia 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_cosmetologia_basica_farmacia_2_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Psicología | Instrumentación Quirúrgica 2° Secc.U | Lic. Natalia Martínez | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%martinez%','Psicología','Instrumentación Quirúrgica',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Psicología - Instrumentación Quirúrgica 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_psicologia_instrumentacion_quirurgica_2_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Psicología | Radiología 2° Secc.U | Lic. Natalia Martínez | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%martinez%','Psicología','Radiología',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Psicología - Radiología 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_psicologia_radiologia_2_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Matematica | Contabilidad 1° Secc.U | Abg. Gabriel Sharp | 2026-05-22
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%sharp%','Matematica','Contabilidad',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Matematica - Contabilidad 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-22')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_matematica_contabilidad_1_u_parcial',asigId,'Parcial','2026-05-22','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Inglés | Contabilidad 1° Secc.U | Lic. Pamela Jiménez | 2026-05-25
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%jimenez%','Inglés','Contabilidad',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Inglés - Contabilidad 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-25')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_ingles_contabilidad_1_u_parcial',asigId,'Parcial','2026-05-25','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Lengua Extranjera – Inglés | Farmacia 2° Secc.U | Lic. Pamela Jiménez | 2026-05-25
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%jimenez%','Lengua Extranjera – Inglés','Farmacia',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Lengua Extranjera – Inglés - Farmacia 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-25')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_lengua_extranjera_ingles_farmacia_2_u_parcial',asigId,'Parcial','2026-05-25','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Medicina Legal y Ética | Instrumentación Quirúrgica 2° Secc.U | Abg. César Alum | 2026-05-25
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%alum%','Medicina Legal y Ética','Instrumentación Quirúrgica',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Medicina Legal y Ética - Instrumentación Quirúrgica 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-25')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_medicina_legal_y_etica_instrumentacion_quirurgica_2_u_parcial',asigId,'Parcial','2026-05-25','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Apicultura | Agropecuaria 1° Secc.U | Lic. Nelly Carmona | 2026-05-26
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carmona%','Apicultura','Agropecuaria',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Apicultura - Agropecuaria 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-26')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_apicultura_agropecuaria_1_u_parcial',asigId,'Parcial','2026-05-26','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Aspectos Legales del Peritaje | Criminalística 1° Secc.U | Abg. María Paz Ocampos | 2026-05-26
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ocampos%','Aspectos Legales del Peritaje','Criminalística',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Aspectos Legales del Peritaje - Criminalística 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-26')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_aspectos_legales_del_peritaj_criminalistica_1_u_parcial',asigId,'Parcial','2026-05-26','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | Lic. Mirta Giménez | 2026-05-26
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-26')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_equipos_y_maquinarias_agrope_agropecuaria_2_u_parcial',asigId,'Parcial','2026-05-26','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Electrónica Analógica | Electricidad 2° Secc.U | Ing. Oscar Mareco | 2026-05-26
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%mareco%','Electrónica Analógica','Electricidad',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-26')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_electronica_analogica_electricidad_2_u_parcial',asigId,'Parcial','2026-05-26','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología en Cosmiatría | Cosmiatría 1° Secc.A | Dra. Cinthia Espínola | 2026-05-27
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%espinola%','Farmacología en Cosmiatría','Cosmiatría',1,'A');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología en Cosmiatría - Cosmiatría 1° A'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-27')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_en_cosmiatria_cosmiatria_1_a_parcial',asigId,'Parcial','2026-05-27','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Competencias Socioemocionales | Cosmiatría 2° Secc.U | Lic. Jannyne Torales | 2026-05-27
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%torales%','Competencias Socioemocionales','Cosmiatría',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Competencias Socioemocionales - Cosmiatría 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-27')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_competencias_socioemocionale_cosmiatria_2_u_parcial',asigId,'Parcial','2026-05-27','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Biología de la Piel I / II | Cosmiatría 1° Secc.B | Lic. Noelia Ayala | 2026-05-27
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%ayala%','Biología de la Piel I / II','Cosmiatría',1,'B');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Biología de la Piel I / II - Cosmiatría 1° B'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-27')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_biologia_de_la_piel_i_ii_cosmiatria_1_b_parcial',asigId,'Parcial','2026-05-27','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Química Aplicada a la Criminalística | Criminalística 2° Secc.U | Lic. Angela Aranda | 2026-05-27
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aranda%','Química Aplicada a la Criminalística','Criminalística',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Química Aplicada a la Criminalística - Criminalística 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-27')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_quimica_aplicada_a_la_crimin_criminalistica_2_u_parcial',asigId,'Parcial','2026-05-27','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Productividad Agropecuaria | Agropecuaria 1° Secc.U | Lic. Mirta Giménez | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Productividad Agropecuaria','Agropecuaria',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Productividad Agropecuaria - Agropecuaria 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_productividad_agropecuaria_agropecuaria_1_u_parcial',asigId,'Parcial','2026-05-28','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Zootecnia | Agropecuaria 2° Secc.U | Lic. Nelly Carmona | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carmona%','Zootecnia','Agropecuaria',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Zootecnia - Agropecuaria 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_zootecnia_agropecuaria_2_u_parcial',asigId,'Parcial','2026-05-28','19:00',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Anatomía y Fisiología Humana | Cosmiatría 1° Secc.A | Dr. Favio Rojas | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Anatomía y Fisiología Humana','Cosmiatría',1,'A');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° A'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_anatomia_y_fisiologia_humana_cosmiatria_1_a_parcial',asigId,'Parcial','2026-05-28','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Técnicas de Masajes y Drenaje Linfático | Cosmiatría 2° Secc.U | Lic. Raqueline Carballo | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carballo%','Técnicas de Masajes y Drenaje Linfático','Cosmiatría',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Técnicas de Masajes y Drenaje Linfático - Cosmiatría 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_tecnicas_de_masajes_y_drenaj_cosmiatria_2_u_parcial',asigId,'Parcial','2026-05-28','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología | Cosmiatría 1° Secc.B | Dra. Cinthia Espínola | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%espinola%','Farmacología','Cosmiatría',1,'B');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología - Cosmiatría 1° B'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_cosmiatria_1_b_parcial',asigId,'Parcial','2026-05-28','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Introducción al Derecho | Criminalística 1° Secc.U | Abg. Gabriel Sharp | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%sharp%','Introducción al Derecho','Criminalística',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Introducción al Derecho - Criminalística 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_introduccion_al_derecho_criminalistica_1_u_parcial',asigId,'Parcial','2026-05-28','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Electrónica Analógica | Electricidad 2° Secc.U | Ing. Oscar Mareco | 2026-05-28
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%mareco%','Electrónica Analógica','Electricidad',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-28')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_electronica_analogica_electricidad_2_u_parcial',asigId,'Parcial','2026-05-28','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Contabilidad Básica | Contabilidad 1° Secc.U | Lic. Mirta Giménez | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%gimenez%','Contabilidad Básica','Contabilidad',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Contabilidad Básica - Contabilidad 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_contabilidad_basica_contabilidad_1_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología | Enfermería 1° Secc.U | Dr. Favio Rojas | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Farmacología','Enfermería',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología - Enfermería 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_enfermeria_1_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacología | Radiología 1° Secc.U | Dr. Favio Rojas | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%rojas%','Farmacología','Radiología',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacología - Radiología 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacologia_radiologia_1_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética Profesional | Farmacia 1° Secc.U | Abg. Myrian Carrillo | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética Profesional','Farmacia',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética Profesional - Farmacia 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_profesional_farmacia_1_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Ética Profesional | Instrumentación Quirúrgica 1° Secc.U | Abg. Myrian Carrillo | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%carrillo%','Ética Profesional','Instrumentación Quirúrgica',1,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Ética Profesional - Instrumentación Quirúrgica 1° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_etica_profesional_instrumentacion_quirurgica_1_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Farmacotécnia II | Farmacia 2° Secc.U | Lic. Gabriela Agüero | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%aguero%','Farmacotécnia II','Farmacia',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Farmacotécnia II - Farmacia 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_farmacotecnia_ii_farmacia_2_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Psicología | Instrumentación Quirúrgica 2° Secc.U | Lic. Natalia Martínez | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%martinez%','Psicología','Instrumentación Quirúrgica',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Psicología - Instrumentación Quirúrgica 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_psicologia_instrumentacion_quirurgica_2_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  // Técnicas Radiológicas III | Radiología 2° Secc.U | Lic. Marcial Palacios | 2026-05-29
-  { const asig = db.prepare('SELECT id FROM asignaciones WHERE docente_id IN (SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)) AND materia_id IN (SELECT id FROM materias WHERE nombre=?) AND curso_id IN (SELECT id FROM cursos WHERE carrera_id IN (SELECT id FROM carreras WHERE nombre=?) AND anio=? AND division=?)').get('%palacios%','Técnicas Radiológicas III','Radiología',2,'U');
-    const asigId = asig?.id;
-    if(!asigId) { console.log('  ⚠ Asignación no encontrada: Técnicas Radiológicas III - Radiología 2° U'); omitidos++; }
-    else if(!db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asigId,'Parcial','2026-05-29')) {
-      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_tecnicas_radiologicas_iii_radiologia_2_u_parcial',asigId,'Parcial','2026-05-29','20:40',periodo.id,25);
-      creados++;
-    } else { omitidos++; } }
-
-  console.log(`✅ Exámenes parciales: ${creados} creados, ${omitidos} ya existían/omitidos`);
+  // 01. Salud Pública | Enfermería 1° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_salud_publica_enfermeria_1_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Salud Pública','Enfermería',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Salud Pública - Enfermería 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0001_salud_publica_enfermeria_1u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0001_salud_publica_enfermeria_1u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 02. Salud Pública | Radiología 1° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_salud_publica_radiologia_1_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Salud Pública','Radiología',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Salud Pública - Radiología 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0002_salud_publica_radiologia_1u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0002_salud_publica_radiologia_1u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 03. Enfermería Materno Infantil I | Enfermería 2° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_enfermeria_materno_infantil__enfermeria_2_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Enfermería Materno Infantil I','Enfermería',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Enfermería Materno Infantil I - Enfermería 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0003_enfermeria_mater_enfermeria_2u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0003_enfermeria_mater_enfermeria_2u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 04. Salud Pública | Farmacia 1° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_salud_publica_farmacia_1_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Salud Pública','Farmacia',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Salud Pública - Farmacia 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0004_salud_publica_farmacia_1u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0004_salud_publica_farmacia_1u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 05. Salud Pública | Instrumentación Quirúrgica 1° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_salud_publica_instrumentacion_quirurgica_1_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Salud Pública','Instrumentación Quirúrgica',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Salud Pública - Instrumentación Quirúrgica 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0005_salud_publica_instrument_1u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0005_salud_publica_instrument_1u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 06. Patología Quirúrgica | Instrumentación Quirúrgica 2° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_patologia_quirurgica_instrumentacion_quirurgica_2_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Patología Quirúrgica','Instrumentación Quirúrgica',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Patología Quirúrgica - Instrumentación Quirúrgica 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0006_patologia_quirur_instrument_2u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0006_patologia_quirur_instrument_2u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 07. Física Radiológica | Radiología 2° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_fisica_radiologica_radiologia_2_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Física Radiológica','Radiología',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Física Radiológica - Radiología 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0007_fisica_radiologi_radiologia_2u',asig2.id,'Parcial','2026-05-11','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0007_fisica_radiologi_radiologia_2u',asigId,'Parcial','2026-05-11','19:00',periodo.id,25); creados++;
+    } }
+
+  // 08. Química Inorgánica | Farmacia 2° Secc.U | 2026-05-11
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_quimica_inorganica_farmacia_2_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Química Inorgánica','Farmacia',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Química Inorgánica - Farmacia 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0008_quimica_inorgani_farmacia_2u',asig2.id,'Parcial','2026-05-11','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0008_quimica_inorgani_farmacia_2u',asigId,'Parcial','2026-05-11','20:40',periodo.id,25); creados++;
+    } }
+
+  // 09. Dermatología Básica / Técnicas Faciales | Cosmiatría 1° Secc.A | 2026-05-12
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_dermatologia_basica_tecnicas_cosmiatria_1_a_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Dermatología Básica / Técnicas Faciales','Cosmiatría',1,'A');
+      if(!asig2) { console.log('  ⚠ No encontrada: Dermatología Básica / Técnicas Faciales - Cosmiatría 1° A'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0009_dermatologia_bas_cosmiatria_1a',asig2.id,'Parcial','2026-05-12','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0009_dermatologia_bas_cosmiatria_1a',asigId,'Parcial','2026-05-12','19:00',periodo.id,25); creados++;
+    } }
+
+  // 10. Química Cosmética | Cosmiatría 2° Secc.U | 2026-05-12
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_quimica_cosmetica_cosmiatria_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Química Cosmética','Cosmiatría',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Química Cosmética - Cosmiatría 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0010_quimica_cosmetic_cosmiatria_2u',asig2.id,'Parcial','2026-05-12','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0010_quimica_cosmetic_cosmiatria_2u',asigId,'Parcial','2026-05-12','19:00',periodo.id,25); creados++;
+    } }
+
+  // 11. Anatomía y Fisiología Humana | Cosmiatría 1° Secc.B | 2026-05-12
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_cosmiatria_1_b_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Cosmiatría',1,'B');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° B'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0011_anatomia_y_fisio_cosmiatria_1b',asig2.id,'Parcial','2026-05-12','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0011_anatomia_y_fisio_cosmiatria_1b',asigId,'Parcial','2026-05-12','19:00',periodo.id,25); creados++;
+    } }
+
+  // 12. Dibujo Técnico y Pericial | Criminalística 2° Secc.U | 2026-05-12
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_dibujo_tecnico_y_pericial_criminalistica_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Dibujo Técnico y Pericial','Criminalística',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0012_dibujo_tecnico_y_criminalis_2u',asig2.id,'Parcial','2026-05-12','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0012_dibujo_tecnico_y_criminalis_2u',asigId,'Parcial','2026-05-12','19:00',periodo.id,25); creados++;
+    } }
+
+  // 13. Inglés | Agropecuaria 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_ingles_agropecuaria_1_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Inglés','Agropecuaria',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Inglés - Agropecuaria 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0013_ingles_agropecuar_1u',asig2.id,'Parcial','2026-05-13','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0013_ingles_agropecuar_1u',asigId,'Parcial','2026-05-13','19:00',periodo.id,25); creados++;
+    } }
+
+  // 14. Inglés | Agropecuaria 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_ingles_agropecuaria_2_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Inglés','Agropecuaria',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Inglés - Agropecuaria 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0014_ingles_agropecuar_2u',asig2.id,'Parcial','2026-05-13','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0014_ingles_agropecuar_2u',asigId,'Parcial','2026-05-13','19:00',periodo.id,25); creados++;
+    } }
+
+  // 15. Inglés | Electricidad 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_ingles_electricidad_2_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Inglés','Electricidad',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Inglés - Electricidad 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0015_ingles_electricid_2u',asig2.id,'Parcial','2026-05-13','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0015_ingles_electricid_2u',asigId,'Parcial','2026-05-13','19:00',periodo.id,25); creados++;
+    } }
+
+  // 16. Castellano | Contabilidad 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_castellano_contabilidad_1_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Castellano','Contabilidad',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Castellano - Contabilidad 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0016_castellano_contabilid_1u',asig2.id,'Parcial','2026-05-13','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0016_castellano_contabilid_1u',asigId,'Parcial','2026-05-13','19:00',periodo.id,25); creados++;
+    } }
+
+  // 17. Comunicación Escrita y Oral y Lengua Guaraní | Criminalística 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_comunicacion_escrita_y_oral__criminalistica_1_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Comunicación Escrita y Oral y Lengua Guaraní','Criminalística',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Comunicación Escrita y Oral y Lengua Guaraní - Criminalística 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0017_comunicacion_esc_criminalis_1u',asig2.id,'Parcial','2026-05-13','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0017_comunicacion_esc_criminalis_1u',asigId,'Parcial','2026-05-13','19:00',periodo.id,25); creados++;
+    } }
+
+  // 18. Primeros Auxilios | Enfermería 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_primeros_auxilios_enfermeria_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Primeros Auxilios','Enfermería',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Primeros Auxilios - Enfermería 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0018_primeros_auxilio_enfermeria_1u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0018_primeros_auxilio_enfermeria_1u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 19. Primeros Auxilios | Radiología 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_primeros_auxilios_radiologia_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Primeros Auxilios','Radiología',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Primeros Auxilios - Radiología 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0019_primeros_auxilio_radiologia_1u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0019_primeros_auxilio_radiologia_1u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 20. Ética y Legislación | Enfermería 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_y_legislacion_enfermeria_2_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética y Legislación','Enfermería',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética y Legislación - Enfermería 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0020_etica_y_legislac_enfermeria_2u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0020_etica_y_legislac_enfermeria_2u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 21. Ética y Legislación | Farmacia 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_y_legislacion_farmacia_2_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética y Legislación','Farmacia',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética y Legislación - Farmacia 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0021_etica_y_legislac_farmacia_2u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0021_etica_y_legislac_farmacia_2u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 22. Calidad en Salud | Farmacia 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_calidad_en_salud_farmacia_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Calidad en Salud','Farmacia',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Calidad en Salud - Farmacia 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0022_calidad_en_salud_farmacia_1u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0022_calidad_en_salud_farmacia_1u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 23. Calidad en Salud | Instrumentación Quirúrgica 1° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_calidad_en_salud_instrumentacion_quirurgica_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Calidad en Salud','Instrumentación Quirúrgica',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Calidad en Salud - Instrumentación Quirúrgica 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0023_calidad_en_salud_instrument_1u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0023_calidad_en_salud_instrument_1u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 24. Técnicas Quirúrgicas General y Especializada | Instrumentación Quirúrgica 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_tecnicas_quirurgicas_general_instrumentacion_quirurgica_2_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Técnicas Quirúrgicas General y Especializada','Instrumentación Quirúrgica',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Técnicas Quirúrgicas General y Especializada - Instrumentación Quirúrgica 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0024_tecnicas_quirurg_instrument_2u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0024_tecnicas_quirurg_instrument_2u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 25. Administración Hospitalaria | Radiología 2° Secc.U | 2026-05-13
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_administracion_hospitalaria_radiologia_2_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Administración Hospitalaria','Radiología',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Administración Hospitalaria - Radiología 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0025_administracion_h_radiologia_2u',asig2.id,'Parcial','2026-05-13','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0025_administracion_h_radiologia_2u',asigId,'Parcial','2026-05-13','20:40',periodo.id,25); creados++;
+    } }
+
+  // 26. Anatomía y Fisiología Humana | Enfermería 1° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_enfermeria_1_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Enfermería',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Enfermería 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0026_anatomia_y_fisio_enfermeria_1u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0026_anatomia_y_fisio_enfermeria_1u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 27. Anatomía y Fisiología Humana | Radiología 1° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_radiologia_1_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Radiología',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Radiología 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0027_anatomia_y_fisio_radiologia_1u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0027_anatomia_y_fisio_radiologia_1u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 28. Enfermería en Salud del Adulto I / II | Enfermería 2° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_enfermeria_en_salud_del_adul_enfermeria_2_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Enfermería en Salud del Adulto I / II','Enfermería',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Enfermería en Salud del Adulto I / II - Enfermería 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0028_enfermeria_en_sa_enfermeria_2u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0028_enfermeria_en_sa_enfermeria_2u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 29. Anatomía y Fisiología Humana | Farmacia 1° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_farmacia_1_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Farmacia',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Farmacia 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0029_anatomia_y_fisio_farmacia_1u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0029_anatomia_y_fisio_farmacia_1u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 30. Anatomía y Fisiología Humana | Instrumentación Quirúrgica 1° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_instrumentacion_quirurgica_1_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Instrumentación Quirúrgica',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Instrumentación Quirúrgica 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0030_anatomia_y_fisio_instrument_1u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0030_anatomia_y_fisio_instrument_1u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 31. Técnicas Radiológicas III | Radiología 2° Secc.U | 2026-05-18
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_tecnicas_radiologicas_iii_radiologia_2_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Técnicas Radiológicas III','Radiología',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Técnicas Radiológicas III - Radiología 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0031_tecnicas_radiolo_radiologia_2u',asig2.id,'Parcial','2026-05-18','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0031_tecnicas_radiolo_radiologia_2u',asigId,'Parcial','2026-05-18','20:40',periodo.id,25); creados++;
+    } }
+
+  // 32. Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_equipos_y_maquinarias_agrope_agropecuaria_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0032_equipos_y_maquin_agropecuar_2u',asig2.id,'Parcial','2026-05-19','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0032_equipos_y_maquin_agropecuar_2u',asigId,'Parcial','2026-05-19','19:00',periodo.id,25); creados++;
+    } }
+
+  // 33. Electrónica Analógica | Electricidad 2° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_electronica_analogica_electricidad_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Electrónica Analógica','Electricidad',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0033_electronica_anal_electricid_2u',asig2.id,'Parcial','2026-05-19','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0033_electronica_anal_electricid_2u',asigId,'Parcial','2026-05-19','19:00',periodo.id,25); creados++;
+    } }
+
+  // 34. Deontología y Ética Profesional | Agropecuaria 1° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_deontologia_y_etica_profesio_agropecuaria_1_u_mar_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Deontología y Ética Profesional','Agropecuaria',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Deontología y Ética Profesional - Agropecuaria 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0034_deontologia_y_et_agropecuar_1u',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0034_deontologia_y_et_agropecuar_1u',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 35. Deontología y Ética Profesional | Criminalística 1° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_deontologia_y_etica_profesio_criminalistica_1_u_mar_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Deontología y Ética Profesional','Criminalística',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Deontología y Ética Profesional - Criminalística 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0035_deontologia_y_et_criminalis_1u',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0035_deontologia_y_et_criminalis_1u',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 36. Biología de la Piel I / II | Cosmiatría 1° Secc.A | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_biologia_de_la_piel_i_ii_cosmiatria_1_a_mar_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Biología de la Piel I / II','Cosmiatría',1,'A');
+      if(!asig2) { console.log('  ⚠ No encontrada: Biología de la Piel I / II - Cosmiatría 1° A'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0036_biologia_de_la_p_cosmiatria_1a',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0036_biologia_de_la_p_cosmiatria_1a',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 37. Semiología de la Piel I | Cosmiatría 2° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_semiologia_de_la_piel_i_cosmiatria_2_u_mar_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Semiología de la Piel I','Cosmiatría',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Semiología de la Piel I - Cosmiatría 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0037_semiologia_de_la_cosmiatria_2u',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0037_semiologia_de_la_cosmiatria_2u',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 38. Dermatología Básica / Técnicas Faciales | Cosmiatría 1° Secc.B | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_dermatologia_basica_tecnicas_cosmiatria_1_b_mar_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Dermatología Básica / Técnicas Faciales','Cosmiatría',1,'B');
+      if(!asig2) { console.log('  ⚠ No encontrada: Dermatología Básica / Técnicas Faciales - Cosmiatría 1° B'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0038_dermatologia_bas_cosmiatria_1b',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0038_dermatologia_bas_cosmiatria_1b',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 39. Dibujo Técnico y Pericial | Criminalística 2° Secc.U | 2026-05-19
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_dibujo_tecnico_y_pericial_criminalistica_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Dibujo Técnico y Pericial','Criminalística',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0039_dibujo_tecnico_y_criminalis_2u',asig2.id,'Parcial','2026-05-19','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0039_dibujo_tecnico_y_criminalis_2u',asigId,'Parcial','2026-05-19','20:40',periodo.id,25); creados++;
+    } }
+
+  // 40. Contabilidad Básica | Contabilidad 1° Secc.U | 2026-05-20
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_contabilidad_basica_contabilidad_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Contabilidad Básica','Contabilidad',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Contabilidad Básica - Contabilidad 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0040_contabilidad_bas_contabilid_1u',asig2.id,'Parcial','2026-05-20','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0040_contabilidad_bas_contabilid_1u',asigId,'Parcial','2026-05-20','20:40',periodo.id,25); creados++;
+    } }
+
+  // 41. Anatomía y Fisiología Humana | Cosmiatría 1° Secc.A | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_cosmiatria_1_a_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Cosmiatría',1,'A');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° A'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0041_anatomia_y_fisio_cosmiatria_1a',asig2.id,'Parcial','2026-05-21','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0041_anatomia_y_fisio_cosmiatria_1a',asigId,'Parcial','2026-05-21','19:00',periodo.id,25); creados++;
+    } }
+
+  // 42. Técnicas de Masajes y Drenaje Linfático | Cosmiatría 2° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Técnicas de Masajes y Drenaje Linfático','Cosmiatría',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Técnicas de Masajes y Drenaje Linfático - Cosmiatría 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0042_tecnicas_de_masa_cosmiatria_2u',asig2.id,'Parcial','2026-05-21','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0042_tecnicas_de_masa_cosmiatria_2u',asigId,'Parcial','2026-05-21','19:00',periodo.id,25); creados++;
+    } }
+
+  // 43. Salud Pública | Cosmiatría 1° Secc.B | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_salud_publica_cosmiatria_1_b_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Salud Pública','Cosmiatría',1,'B');
+      if(!asig2) { console.log('  ⚠ No encontrada: Salud Pública - Cosmiatría 1° B'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0043_salud_publica_cosmiatria_1b',asig2.id,'Parcial','2026-05-21','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0043_salud_publica_cosmiatria_1b',asigId,'Parcial','2026-05-21','19:00',periodo.id,25); creados++;
+    } }
+
+  // 44. Introducción a la Criminalística | Criminalística 1° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_introduccion_a_la_criminalis_criminalistica_1_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Introducción a la Criminalística','Criminalística',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Introducción a la Criminalística - Criminalística 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0044_introduccion_a_l_criminalis_1u',asig2.id,'Parcial','2026-05-21','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0044_introduccion_a_l_criminalis_1u',asigId,'Parcial','2026-05-21','19:00',periodo.id,25); creados++;
+    } }
+
+  // 45. Electrónica Analógica | Electricidad 2° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_electronica_analogica_electricidad_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Electrónica Analógica','Electricidad',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0045_electronica_anal_electricid_2u',asig2.id,'Parcial','2026-05-21','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0045_electronica_anal_electricid_2u',asigId,'Parcial','2026-05-21','19:00',periodo.id,25); creados++;
+    } }
+
+  // 46. Productividad Agropecuaria | Agropecuaria 1° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_productividad_agropecuaria_agropecuaria_1_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Productividad Agropecuaria','Agropecuaria',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Productividad Agropecuaria - Agropecuaria 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0046_productividad_ag_agropecuar_1u',asig2.id,'Parcial','2026-05-21','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0046_productividad_ag_agropecuar_1u',asigId,'Parcial','2026-05-21','20:40',periodo.id,25); creados++;
+    } }
+
+  // 47. Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_equipos_y_maquinarias_agrope_agropecuaria_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0047_equipos_y_maquin_agropecuar_2u',asig2.id,'Parcial','2026-05-21','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0047_equipos_y_maquin_agropecuar_2u',asigId,'Parcial','2026-05-21','20:40',periodo.id,25); creados++;
+    } }
+
+  // 48. Dibujo Técnico y Pericial | Criminalística 2° Secc.U | 2026-05-21
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_dibujo_tecnico_y_pericial_criminalistica_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Dibujo Técnico y Pericial','Criminalística',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Dibujo Técnico y Pericial - Criminalística 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0048_dibujo_tecnico_y_criminalis_2u',asig2.id,'Parcial','2026-05-21','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0048_dibujo_tecnico_y_criminalis_2u',asigId,'Parcial','2026-05-21','20:40',periodo.id,25); creados++;
+    } }
+
+  // 49. Ética Profesional | Enfermería 1° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_profesional_enfermeria_1_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética Profesional','Enfermería',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética Profesional - Enfermería 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0049_etica_profesiona_enfermeria_1u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0049_etica_profesiona_enfermeria_1u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 50. Ética Profesional | Radiología 1° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_profesional_radiologia_1_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética Profesional','Radiología',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética Profesional - Radiología 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0050_etica_profesiona_radiologia_1u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0050_etica_profesiona_radiologia_1u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 51. Farmacología | Farmacia 1° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_farmacia_1_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología','Farmacia',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología - Farmacia 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0051_farmacologia_farmacia_1u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0051_farmacologia_farmacia_1u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 52. Farmacología | Instrumentación Quirúrgica 1° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_instrumentacion_quirurgica_1_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología','Instrumentación Quirúrgica',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología - Instrumentación Quirúrgica 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0052_farmacologia_instrument_1u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0052_farmacologia_instrument_1u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 53. Cosmetología Básica | Farmacia 2° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_cosmetologia_basica_farmacia_2_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Cosmetología Básica','Farmacia',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Cosmetología Básica - Farmacia 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0053_cosmetologia_bas_farmacia_2u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0053_cosmetologia_bas_farmacia_2u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 54. Psicología | Instrumentación Quirúrgica 2° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_psicologia_instrumentacion_quirurgica_2_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Psicología','Instrumentación Quirúrgica',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Psicología - Instrumentación Quirúrgica 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0054_psicologia_instrument_2u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0054_psicologia_instrument_2u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 55. Psicología | Radiología 2° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_psicologia_radiologia_2_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Psicología','Radiología',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Psicología - Radiología 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0055_psicologia_radiologia_2u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0055_psicologia_radiologia_2u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 56. Matematica | Contabilidad 1° Secc.U | 2026-05-22
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_matematica_contabilidad_1_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Matematica','Contabilidad',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Matematica - Contabilidad 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0056_matematica_contabilid_1u',asig2.id,'Parcial','2026-05-22','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0056_matematica_contabilid_1u',asigId,'Parcial','2026-05-22','19:00',periodo.id,25); creados++;
+    } }
+
+  // 57. Inglés | Contabilidad 1° Secc.U | 2026-05-25
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_ingles_contabilidad_1_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Inglés','Contabilidad',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Inglés - Contabilidad 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0057_ingles_contabilid_1u',asig2.id,'Parcial','2026-05-25','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0057_ingles_contabilid_1u',asigId,'Parcial','2026-05-25','19:00',periodo.id,25); creados++;
+    } }
+
+  // 58. Lengua Extranjera – Inglés | Farmacia 2° Secc.U | 2026-05-25
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_lengua_extranjera_ingles_farmacia_2_u_lun_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Lengua Extranjera – Inglés','Farmacia',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Lengua Extranjera – Inglés - Farmacia 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0058_lengua_extranjer_farmacia_2u',asig2.id,'Parcial','2026-05-25','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0058_lengua_extranjer_farmacia_2u',asigId,'Parcial','2026-05-25','19:00',periodo.id,25); creados++;
+    } }
+
+  // 59. Medicina Legal y Ética | Instrumentación Quirúrgica 2° Secc.U | 2026-05-25
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_medicina_legal_y_etica_instrumentacion_quirurgica_2_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Medicina Legal y Ética','Instrumentación Quirúrgica',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Medicina Legal y Ética - Instrumentación Quirúrgica 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0059_medicina_legal_y_instrument_2u',asig2.id,'Parcial','2026-05-25','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0059_medicina_legal_y_instrument_2u',asigId,'Parcial','2026-05-25','20:40',periodo.id,25); creados++;
+    } }
+
+  // 60. Apicultura | Agropecuaria 1° Secc.U | 2026-05-26
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_apicultura_agropecuaria_1_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Apicultura','Agropecuaria',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Apicultura - Agropecuaria 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0060_apicultura_agropecuar_1u',asig2.id,'Parcial','2026-05-26','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0060_apicultura_agropecuar_1u',asigId,'Parcial','2026-05-26','19:00',periodo.id,25); creados++;
+    } }
+
+  // 61. Aspectos Legales del Peritaje | Criminalística 1° Secc.U | 2026-05-26
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_aspectos_legales_del_peritaj_criminalistica_1_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Aspectos Legales del Peritaje','Criminalística',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Aspectos Legales del Peritaje - Criminalística 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0061_aspectos_legales_criminalis_1u',asig2.id,'Parcial','2026-05-26','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0061_aspectos_legales_criminalis_1u',asigId,'Parcial','2026-05-26','19:00',periodo.id,25); creados++;
+    } }
+
+  // 62. Equipos y Maquinarias Agropecuarias | Agropecuaria 2° Secc.U | 2026-05-26
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_equipos_y_maquinarias_agrope_agropecuaria_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Equipos y Maquinarias Agropecuarias','Agropecuaria',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Equipos y Maquinarias Agropecuarias - Agropecuaria 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0062_equipos_y_maquin_agropecuar_2u',asig2.id,'Parcial','2026-05-26','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0062_equipos_y_maquin_agropecuar_2u',asigId,'Parcial','2026-05-26','20:40',periodo.id,25); creados++;
+    } }
+
+  // 63. Electrónica Analógica | Electricidad 2° Secc.U | 2026-05-26
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_electronica_analogica_electricidad_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Electrónica Analógica','Electricidad',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0063_electronica_anal_electricid_2u',asig2.id,'Parcial','2026-05-26','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0063_electronica_anal_electricid_2u',asigId,'Parcial','2026-05-26','20:40',periodo.id,25); creados++;
+    } }
+
+  // 64. Farmacología en Cosmiatría | Cosmiatría 1° Secc.A | 2026-05-27
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_en_cosmiatria_cosmiatria_1_a_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología en Cosmiatría','Cosmiatría',1,'A');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología en Cosmiatría - Cosmiatría 1° A'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0064_farmacologia_en__cosmiatria_1a',asig2.id,'Parcial','2026-05-27','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0064_farmacologia_en__cosmiatria_1a',asigId,'Parcial','2026-05-27','19:00',periodo.id,25); creados++;
+    } }
+
+  // 65. Competencias Socioemocionales | Cosmiatría 2° Secc.U | 2026-05-27
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_competencias_socioemocionale_cosmiatria_2_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Competencias Socioemocionales','Cosmiatría',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Competencias Socioemocionales - Cosmiatría 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0065_competencias_soc_cosmiatria_2u',asig2.id,'Parcial','2026-05-27','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0065_competencias_soc_cosmiatria_2u',asigId,'Parcial','2026-05-27','19:00',periodo.id,25); creados++;
+    } }
+
+  // 66. Biología de la Piel I / II | Cosmiatría 1° Secc.B | 2026-05-27
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_biologia_de_la_piel_i_ii_cosmiatria_1_b_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Biología de la Piel I / II','Cosmiatría',1,'B');
+      if(!asig2) { console.log('  ⚠ No encontrada: Biología de la Piel I / II - Cosmiatría 1° B'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0066_biologia_de_la_p_cosmiatria_1b',asig2.id,'Parcial','2026-05-27','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0066_biologia_de_la_p_cosmiatria_1b',asigId,'Parcial','2026-05-27','19:00',periodo.id,25); creados++;
+    } }
+
+  // 67. Química Aplicada a la Criminalística | Criminalística 2° Secc.U | 2026-05-27
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_quimica_aplicada_a_la_crimin_criminalistica_2_u_mié_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Química Aplicada a la Criminalística','Criminalística',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Química Aplicada a la Criminalística - Criminalística 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0067_quimica_aplicada_criminalis_2u',asig2.id,'Parcial','2026-05-27','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0067_quimica_aplicada_criminalis_2u',asigId,'Parcial','2026-05-27','19:00',periodo.id,25); creados++;
+    } }
+
+  // 68. Productividad Agropecuaria | Agropecuaria 1° Secc.U | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_productividad_agropecuaria_agropecuaria_1_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Productividad Agropecuaria','Agropecuaria',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Productividad Agropecuaria - Agropecuaria 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0068_productividad_ag_agropecuar_1u',asig2.id,'Parcial','2026-05-28','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0068_productividad_ag_agropecuar_1u',asigId,'Parcial','2026-05-28','19:00',periodo.id,25); creados++;
+    } }
+
+  // 69. Zootecnia | Agropecuaria 2° Secc.U | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_zootecnia_agropecuaria_2_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Zootecnia','Agropecuaria',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Zootecnia - Agropecuaria 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0069_zootecnia_agropecuar_2u',asig2.id,'Parcial','2026-05-28','19:00',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0069_zootecnia_agropecuar_2u',asigId,'Parcial','2026-05-28','19:00',periodo.id,25); creados++;
+    } }
+
+  // 70. Anatomía y Fisiología Humana | Cosmiatría 1° Secc.A | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_anatomia_y_fisiologia_humana_cosmiatria_1_a_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Anatomía y Fisiología Humana','Cosmiatría',1,'A');
+      if(!asig2) { console.log('  ⚠ No encontrada: Anatomía y Fisiología Humana - Cosmiatría 1° A'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0070_anatomia_y_fisio_cosmiatria_1a',asig2.id,'Parcial','2026-05-28','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0070_anatomia_y_fisio_cosmiatria_1a',asigId,'Parcial','2026-05-28','20:40',periodo.id,25); creados++;
+    } }
+
+  // 71. Técnicas de Masajes y Drenaje Linfático | Cosmiatría 2° Secc.U | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_tecnicas_de_masajes_y_drenaj_cosmiatria_2_u_jue_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Técnicas de Masajes y Drenaje Linfático','Cosmiatría',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Técnicas de Masajes y Drenaje Linfático - Cosmiatría 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0071_tecnicas_de_masa_cosmiatria_2u',asig2.id,'Parcial','2026-05-28','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0071_tecnicas_de_masa_cosmiatria_2u',asigId,'Parcial','2026-05-28','20:40',periodo.id,25); creados++;
+    } }
+
+  // 72. Farmacología | Cosmiatría 1° Secc.B | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_cosmiatria_1_b_jue_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología','Cosmiatría',1,'B');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología - Cosmiatría 1° B'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0072_farmacologia_cosmiatria_1b',asig2.id,'Parcial','2026-05-28','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0072_farmacologia_cosmiatria_1b',asigId,'Parcial','2026-05-28','20:40',periodo.id,25); creados++;
+    } }
+
+  // 73. Introducción al Derecho | Criminalística 1° Secc.U | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_introduccion_al_derecho_criminalistica_1_u_jue_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Introducción al Derecho','Criminalística',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Introducción al Derecho - Criminalística 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0073_introduccion_al__criminalis_1u',asig2.id,'Parcial','2026-05-28','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0073_introduccion_al__criminalis_1u',asigId,'Parcial','2026-05-28','20:40',periodo.id,25); creados++;
+    } }
+
+  // 74. Electrónica Analógica | Electricidad 2° Secc.U | 2026-05-28
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_electronica_analogica_electricidad_2_u_mar_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Electrónica Analógica','Electricidad',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Electrónica Analógica - Electricidad 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0074_electronica_anal_electricid_2u',asig2.id,'Parcial','2026-05-28','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0074_electronica_anal_electricid_2u',asigId,'Parcial','2026-05-28','20:40',periodo.id,25); creados++;
+    } }
+
+  // 75. Contabilidad Básica | Contabilidad 1° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_contabilidad_basica_contabilidad_1_u_mié_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Contabilidad Básica','Contabilidad',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Contabilidad Básica - Contabilidad 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0075_contabilidad_bas_contabilid_1u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0075_contabilidad_bas_contabilid_1u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 76. Farmacología | Enfermería 1° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_enfermeria_1_u_vie_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología','Enfermería',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología - Enfermería 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0076_farmacologia_enfermeria_1u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0076_farmacologia_enfermeria_1u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 77. Farmacología | Radiología 1° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacologia_radiologia_1_u_vie_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacología','Radiología',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacología - Radiología 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0077_farmacologia_radiologia_1u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0077_farmacologia_radiologia_1u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 78. Ética Profesional | Farmacia 1° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_profesional_farmacia_1_u_vie_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética Profesional','Farmacia',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética Profesional - Farmacia 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0078_etica_profesiona_farmacia_1u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0078_etica_profesiona_farmacia_1u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 79. Ética Profesional | Instrumentación Quirúrgica 1° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_etica_profesional_instrumentacion_quirurgica_1_u_vie_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Ética Profesional','Instrumentación Quirúrgica',1,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Ética Profesional - Instrumentación Quirúrgica 1° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0079_etica_profesiona_instrument_1u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0079_etica_profesiona_instrument_1u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 80. Farmacotécnia II | Farmacia 2° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_farmacotecnia_ii_farmacia_2_u_vie_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Farmacotécnia II','Farmacia',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Farmacotécnia II - Farmacia 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0080_farmacotecnia_ii_farmacia_2u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0080_farmacotecnia_ii_farmacia_2u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 81. Psicología | Instrumentación Quirúrgica 2° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_psicologia_instrumentacion_quirurgica_2_u_vie_1')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Psicología','Instrumentación Quirúrgica',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Psicología - Instrumentación Quirúrgica 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0081_psicologia_instrument_2u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0081_psicologia_instrument_2u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  // 82. Técnicas Radiológicas III | Radiología 2° Secc.U | 2026-05-29
+  { const asigId = db.prepare('SELECT id FROM asignaciones WHERE id=?').get('asig_tecnicas_radiologicas_iii_radiologia_2_u_lun_2')?.id;
+    if(!asigId) {
+      // Fallback: buscar por materia+carrera+año+sección
+      const asig2 = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE m.nombre=? AND ca.nombre=? AND cu.anio=? AND cu.division=?').get('Técnicas Radiológicas III','Radiología',2,'U');
+      if(!asig2) { console.log('  ⚠ No encontrada: Técnicas Radiológicas III - Radiología 2° U'); omitidos++; }
+      else { db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0082_tecnicas_radiolo_radiologia_2u',asig2.id,'Parcial','2026-05-29','20:40',periodo.id,25); creados++; }
+    } else {
+      db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)').run('ep_0082_tecnicas_radiolo_radiologia_2u',asigId,'Parcial','2026-05-29','20:40',periodo.id,25); creados++;
+    } }
+
+  console.log(`✅ Exámenes parciales: ${creados} creados, ${omitidos} omitidos`);
 }
