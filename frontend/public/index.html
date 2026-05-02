@@ -744,9 +744,10 @@ async function pgMaterias(el){
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
     <select id="filtMCarr" onchange="filtM()" style="min-width:180px"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
     <select id="filtMAnio" onchange="filtM()" style="min-width:110px"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
+    <select id="filtMSec" onchange="filtM()" style="min-width:120px"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}</select>
   </div>
   <div class="card"><div class="tw"><table><thead><tr>
-    <th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Hs/sem</th><th></th>
+    <th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Sección</th><th>Hs/sem</th><th></th>
   </tr></thead>
   <tbody id="mtb">${mats.map(m=>mRow(m)).join('')}</tbody></table></div></div>`;
 }
@@ -779,7 +780,7 @@ async function mMateria(m){
   <div class="f"><label>Sección <span style="color:var(--red)">*</span></label>
     <select id="msec" style="width:100%">
       <option value="">— Seleccionar sección —</option>
-      ${cursos.filter(cu=>!e||(cu.carrera_id===m.carrera_id&&cu.anio===m.anio)).map(cu=>`<option value="${cu.id}" ${e&&m.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — Secc. ${(cu.division==='U'?(cu.carrera_nombre&&cu.carrera_nombre.includes('Cosmiatría')?'2do Año':'Única'):('Secc. '+cu.division))}</option>`).join('')}
+      ${cursos.filter(cu=>!e||(cu.carrera_id===m.carrera_id&&cu.anio===m.anio)).map(cu=>`<option value="${cu.id}" ${e&&m.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
     </select></div>
   <div class="f"><label>Docente <span style="color:var(--red)">*</span></label>
     <select id="mdoc" style="width:100%">
@@ -807,7 +808,7 @@ function filtSeccionesMat(){
   const carrId=v('mca'),anio=v('ma');
   const sel=document.getElementById('msec');if(!sel)return;
   const filt=(W._cursos||[]).filter(cu=>(!carrId||cu.carrera_id===carrId)&&(!anio||String(cu.anio)===anio));
-  sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — Secc. ${(cu.division==='U'?(cu.carrera_nombre&&cu.carrera_nombre.includes('Cosmiatría')?'2do Año':'Única'):('Secc. '+cu.division))}</option>`).join('');
+  sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
 }
 async function previsualizarMateria(id){
   const o={nombre:v('mn'),codigo:v('mc2'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),dia:v('mdia'),turno:parseInt(v('mtur')),horas_semanales:parseInt(v('mh'))||4};
@@ -1196,12 +1197,16 @@ function aRow(a){return `<tr>
   </div></td>
 </tr>`;}
 // Función mRow para materias — también debe ser global
-function mRow(m){return `<tr>
+function mRow(m){
+  const secLabel=m.curso_id?(m.curso_division==='U'?'Única':'Secc. '+m.curso_division):'<span style="color:#aaa;font-size:11px">—</span>';
+  return `<tr>
   <td><span class="bx ba">${m.codigo||'-'}</span></td>
-  <td><input type="text" value="${m.nombre}" id="mnombre_${m.id}" 
+  <td><input type="text" value="${m.nombre}" id="mnombre_${m.id}"
     style="border:1px solid var(--bdr);padding:4px 6px;border-radius:4px;font-size:13px;width:100%;max-width:300px"
     onblur="actualizarNombreMateria('${m.id}')"/></td>
-  <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales||'-'}h</td>
+  <td>${m.carrera_nombre}</td><td>${m.anio}°</td>
+  <td>${secLabel}</td>
+  <td>${m.horas_semanales||'-'}h</td>
   <td><span class="tip">${m.peso_tp||25}% / ${m.peso_parcial||25}% / ${m.peso_final||50}%</span></td>
   <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td>
 </tr>`;}
@@ -1221,13 +1226,13 @@ async function actualizarNombreMateria(id){
 }
 // Función filtM global
 function filtM(){
-  const carr=v('filtMCarr'), anio=v('filtMAnio'), turno=v('filtMTurno');
+  const carr=v('filtMCarr'), anio=v('filtMAnio'), sec=v('filtMSec');
   const tb=document.getElementById('mtb');if(!tb)return;
   let l=W._mats||[];
   if(carr) l=l.filter(m=>m.carrera_id===carr);
   if(anio) l=l.filter(m=>String(m.anio)===anio);
-  // turno viene de asignaciones, no de materias directamente — filtrar por materias que tienen asignaciones con ese turno
-  tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="7" class="es">Sin materias</td></tr>';
+  if(sec)  l=l.filter(m=>m.curso_id===sec);
+  tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="8" class="es">Sin materias</td></tr>';
 }
 function mAl(a){
   const e=!!a;

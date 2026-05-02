@@ -280,7 +280,12 @@ app.delete('/api/cursos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
   const { carrera_id } = req.query;
-  const q = `SELECT m.*,c.nombre as carrera_nombre FROM materias m JOIN carreras c ON m.carrera_id=c.id ${carrera_id?'WHERE m.carrera_id=?':''} ORDER BY c.nombre,m.anio,m.nombre`;
+  const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu
+    FROM materias m
+    JOIN carreras c ON m.carrera_id=c.id
+    LEFT JOIN cursos cu ON m.curso_id=cu.id
+    ${carrera_id?'WHERE m.carrera_id=?':''}
+    ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
   res.json(carrera_id ? db.prepare(q).all(carrera_id) : db.prepare(q).all());
 });
 app.post('/api/materias', auth(ADM), (req, res) => {
