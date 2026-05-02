@@ -383,7 +383,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     })();
     audit(req.user.id,'CREATE','alumnos',id,{nombre,apellido,carrera_id});
     const credencial = ciRaw ? { email: emailAuto, password: ciRaw } : null;
-    res.json({ id, credencial });
+    res.json({ id, matricula, credencial });
   } catch(e) { res.status(500).json({ error: 'Error al crear alumno: '+e.message }); }
 });
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
