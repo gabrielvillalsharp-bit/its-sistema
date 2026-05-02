@@ -1569,7 +1569,7 @@ function exRow(e){
   }
   // Ver/descargar: director descarga, docente ve
   const btnVer=e.archivo_nombre?(me.rol==='director'
-    ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px" title="Descargar ${e.archivo_nombre}">⬇ Bajar</a>`
+    ?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="Descargar ${e.archivo_nombre}">⬇ Bajar</button>`
     :`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
   return `<tr>
     <td style="white-space:nowrap;font-weight:600">${e.fecha?fmtFecha(e.fecha):'—'}</td>
@@ -1719,7 +1719,7 @@ async function verExamen(exId){
     </div>
     ${ex.archivo_nombre?`<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:12px">
       📄 Archivo adjunto: <strong>${ex.archivo_nombre}</strong>
-      ${esDir||esMiExamen?`<a href="/api/examenes/${exId}/archivo" download="${ex.archivo_nombre}" style="margin-left:8px;color:#1b5e20;font-weight:700">⬇ Descargar</a>`:''}
+      ${esDir||esMiExamen?`<button class="bs" style="margin-left:8px;background:#e8f5e9;color:#1b5e20" onclick="descargarArchivoExamen('${exId}','${ex.archivo_nombre||'archivo.docx'}')">⬇ Descargar</button>`:''}
     </div>`:''}
     ${esDocente&&esMiExamen?`
       <div style="background:${puedeAdjuntar?'#e3f2fd':yaOcurrio?'#fafafa':'#fff8e1'};border:1px solid ${puedeAdjuntar?'#1565c0':yaOcurrio?'#ccc':'#e65100'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
@@ -1774,12 +1774,25 @@ async function subirArchivoExamen(exId, input){
     toast('Subiendo archivo...','info',2000);
     await api('POST','/api/examenes/'+exId+'/archivo',fd,true);
     toast('✓ Archivo adjuntado al examen: '+file.name,'ok',4000);
-    go('examenes');
-  }catch(e){toast('Error: '+e.message,'err');}
+    // Refrescar la sección actual para mostrar el archivo adjunto
+    if(document.getElementById('pgExamenes')){go('examenes');}
+    else{verExamen(exId);} // si estamos en el modal, reabrir
+  }catch(e){toast('Error al subir: '+e.message,'err');}
+}
+async function descargarArchivoExamen(exId, nombre){
+  // Descarga autenticada — el token va como query param
+  try{
+    const url=`/api/examenes/${exId}/archivo?token=${encodeURIComponent(tok)}`;
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=nombre||'examen.docx';
+    a.target='_blank';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }catch(e){toast('Error al descargar: '+e.message,'err');}
 }
 function verArchivoExamen(exId){
-  // Abrir en nueva ventana — el backend maneja inline vs attachment
-  window.open(`/api/examenes/${exId}/archivo`,'_blank');
+  // Ver en nueva ventana con token
+  window.open(`/api/examenes/${exId}/archivo?token=${encodeURIComponent(tok)}`,'_blank');
 }
 
 // ── EGRESO Y PASAJE DE AÑO ────────────────────────────────────────────────────
@@ -2214,6 +2227,8 @@ async function mExamen(exData){
     api('GET','/api/carreras')
   ]);
   W._mexAsigs=asigs;
+  W._mexCarrs=carrs;
+  W._exUnifN=0;
   const anios=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
   modal(`<h4>${e?'✏ Editar':'📋 Programar'} examen</h4><div class="fg">
   <div style="background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:10px 12px;margin-bottom:6px">
@@ -2273,52 +2288,10 @@ async function mExamen(exData){
 
   <!-- SECCIÓN UNIFICACIÓN -->
   ${!e?`<div style="border:1px solid #c8e6c9;border-radius:8px;padding:10px 12px;background:#f9fbe7;margin-top:4px">
-    <p style="font-size:12px;font-weight:700;color:#33691e;margin-bottom:8px">🔗 Unificar con otras materias (opcional)</p>
-    <p style="font-size:11px;color:#555;margin-bottom:10px">Seleccioná hasta 3 materias que rinden el mismo examen:</p>
-    
-    <!-- Filtros comunes -->
-    <div class="fb" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">
-      <select id="unifCarr" onchange="filtUnifAsigs()" style="font-size:12px;flex:1;min-width:130px">
-        <option value="">Todas las carreras</option>
-        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-      </select>
-      <select id="unifAnio" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 95px">
-        <option value="">Todos</option>
-        ${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
-      </select>
-      <select id="unifTurno" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 120px">
-        <option value="">Ambos T</option>
-        <option value="1">T1 19:00</option>
-        <option value="2">T2 20:40</option>
-      </select>
-    </div>
-
-    <!-- 1ra materia unificada -->
-    <div style="margin-bottom:6px">
-      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">1ra materia a unificar:</label>
-      <select id="unif1" onchange="selUnif(1)" style="width:100%;font-size:12px">
-        <option value="">— Seleccionar materia —</option>
-        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
-      </select>
-    </div>
-
-    <!-- 2da materia (se muestra solo si hay 1ra) -->
-    <div id="unif2box" style="display:none;margin-bottom:6px">
-      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">2da materia a unificar:</label>
-      <select id="unif2" onchange="selUnif(2)" style="width:100%;font-size:12px">
-        <option value="">— Seleccionar materia —</option>
-        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
-      </select>
-    </div>
-
-    <!-- 3ra materia (se muestra solo si hay 2da) -->
-    <div id="unif3box" style="display:none;margin-bottom:6px">
-      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">3ra materia a unificar:</label>
-      <select id="unif3" onchange="selUnif(3)" style="width:100%;font-size:12px">
-        <option value="">— Seleccionar materia —</option>
-        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
-      </select>
-    </div>
+    <p style="font-size:12px;font-weight:700;color:#33691e;margin-bottom:4px">🔗 Unificar con otras materias — opcional</p>
+    <p style="font-size:11px;color:#666;margin-bottom:8px">Cada materia unificada tiene sus propios filtros. Podés agregar de distintas carreras.</p>
+    <div id="unifSlots"></div>
+    <button type="button" class="bs" style="font-size:11px;background:#f1f8e9;border-color:#aed581;color:#33691e" onclick="agregarSlotUnif()">+ Agregar materia a unificar</button>
   </div>`:''}
 </div>
 <div class="mf">
@@ -2341,44 +2314,55 @@ function filtMexAsigs(){
   sel.innerHTML=asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre||''} ${a.docente_apellido||''} (T${a.turno||1})</option>`).join('');
   chkDuplicadoExamen();
 }
-function filtUnifAsigs(){
-  const carrId=v('unifCarr'),anio=v('unifAnio'),turno=v('unifTurno');
-  const sel=document.getElementById('unifAsigSel');if(!sel)return;
+// Genera HTML de opciones de asignaciones filtradas para un slot de unificación
+function _optsUnif(carrId,anio,turno){
   let asigs=W._mexAsigs||[];
   if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(anio)  asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
-  sel.innerHTML='<option value="">— Seleccionar materia a unificar —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre||''} ${a.docente_apellido||''} (T${a.turno||1})</option>`).join('');
+  return '<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('');
 }
-function selUnif(n){
-  const val=v('unif'+n);
-  if(n===1&&val){
-    document.getElementById('unif2box').style.display='block';
-  } else if(n===1&&!val){
-    document.getElementById('unif2box').style.display='none';
-    document.getElementById('unif3box').style.display='none';
-    document.getElementById('unif2').value='';
-    document.getElementById('unif3').value='';
-  }
-  if(n===2&&val){
-    document.getElementById('unif3box').style.display='block';
-  } else if(n===2&&!val){
-    document.getElementById('unif3box').style.display='none';
-    document.getElementById('unif3').value='';
-  }
+// Agregar un nuevo slot de unificación con sus propios filtros
+function agregarSlotUnif(){
+  if(!W._exUnifN)W._exUnifN=0;
+  W._exUnifN++;
+  const n=W._exUnifN;
+  const carrs=(W._mexCarrs||[]).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  const anios=[...new Set((W._mexAsigs||[]).map(a=>a.curso_anio).filter(Boolean))].sort().map(a=>`<option value="${a}">${a}°</option>`).join('');
+  const div=document.createElement('div');
+  div.id='unifSlot_'+n;
+  div.style.cssText='border:1px solid #c8e6c9;border-radius:6px;padding:8px;margin-bottom:6px;background:#fff';
+  div.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:700;color:#33691e">Materia unificada #${n}</span>
+      <button type="button" onclick="quitarSlotUnif(${n})" style="border:none;background:transparent;color:#c62828;cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px">
+      <select id="ufc_${n}" onchange="filtSlotUnif(${n})" style="font-size:11px;flex:1;min-width:120px">
+        <option value="">Todas las carreras</option>${carrs}
+      </select>
+      <select id="ufa_${n}" onchange="filtSlotUnif(${n})" style="font-size:11px;flex:0 0 70px">
+        <option value="">Todos</option>${anios}
+      </select>
+      <select id="uft_${n}" onchange="filtSlotUnif(${n})" style="font-size:11px;flex:0 0 100px">
+        <option value="">Ambos T</option>
+        <option value="1">T1 19:00</option>
+        <option value="2">T2 20:40</option>
+      </select>
+    </div>
+    <select id="ufs_${n}" style="width:100%;font-size:11px">${_optsUnif('','','')}</select>`;
+  document.getElementById('unifSlots').appendChild(div);
 }
-function filtUnifAsigs(){
-  const carrId=v('unifCarr'),anio=v('unifAnio'),turno=v('unifTurno');
-  let asigs=W._mexAsigs||[];
-  if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
-  if(anio)  asigs=asigs.filter(a=>String(a.curso_anio)===anio);
-  if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
-  const opts=asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('');
-  ['unif1','unif2','unif3'].forEach(id=>{
-    const s=document.getElementById(id);
-    if(s)s.innerHTML='<option value="">— Seleccionar materia —</option>'+opts;
-  });
+function filtSlotUnif(n){
+  const sel=document.getElementById('ufs_'+n);if(!sel)return;
+  sel.innerHTML=_optsUnif(v('ufc_'+n),v('ufa_'+n),v('uft_'+n));
 }
+function quitarSlotUnif(n){
+  const el=document.getElementById('unifSlot_'+n);if(el)el.remove();
+}
+// Eliminar funciones legacy que ya no se usan
+function selUnif(){}
+function filtUnifAsigs(){}
 async function chkDuplicadoExamen(){
   const asigId=v('exas'),tipo=v('exti'),fecha=v('exfe');
   const alerta=document.getElementById('alertDupExamen');
@@ -2405,11 +2389,14 @@ function updPuntosMax(){
   else{inp.value=50;if(hint)hint.textContent='Finales = 50 pts cada uno';}
 }
 async function svExamen(id){
+  // Recopilar unificaciones de los slots dinámicos
   const unifs=[];
-  const u1=v('unif1'),u2=v('unif2'),u3=v('unif3');
-  if(u1)unifs.push(u1);
-  if(u2)unifs.push(u2);
-  if(u3)unifs.push(u3);
+  const slots=document.querySelectorAll('[id^="unifSlot_"]');
+  slots.forEach(slot=>{
+    const n=slot.id.replace('unifSlot_','');
+    const val=v('ufs_'+n);
+    if(val&&!unifs.includes(val))unifs.push(val);
+  });
   const o={
     asignacion_id:v('exas'),tipo:v('exti'),fecha:v('exfe'),hora:v('exho'),
     aula:v('exau'),observacion:v('exob'),periodo_id:parseInt(v('expe'))||null,
@@ -2787,7 +2774,7 @@ function verDia(fecha){
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
           ${e.archivo_nombre?(me.rol==='director'||me.rol==='secretaria'
-            ?`<a href="/api/examenes/${e.id}/archivo" download="${e.archivo_nombre}" class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32;text-decoration:none;padding:3px 7px;border-radius:5px">⬇ Descargar Word</a>`
+            ?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')">⬇ Descargar Word</button>`
             :`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`):''}
         </div>
       </div>

@@ -97,7 +97,8 @@ function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 function auth(roles = []) {
   return (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
+    // Aceptar token por header Authorization O por query param ?token= (para descargas directas)
+    const token = req.headers.authorization?.split(' ')[1] || req.query.token;
     if (!token) return res.status(401).json({ error: 'Sin autorización' });
     try {
       const u = jwt.verify(token, JWT_SECRET);
@@ -527,6 +528,14 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
 
           if (existente) {
             db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=?,nombre=?,apellido=? WHERE ci=?').run(carrera_id, curso_id||null, nombre, apellido, ciRaw);
+            // Crear notas faltantes para el curso asignado
+            if (curso_id) {
+              const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?'+(periodo?.id ? ' AND periodo_id=?' : '')).all(curso_id, ...(periodo?.id ? [periodo.id] : []));
+              asigs.forEach(asig => {
+                try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), existente.id, asig.id, 'Pendiente'); } catch {}
+              });
+            }
             // Actualizar/crear usuario si no tiene
             if (!existente.usuario_id) {
               const uid2='u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
@@ -734,6 +743,40 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
     WHERE al.curso_id=? AND al.estado='Activo'
     ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id);
+
+  // Si no hay alumnos por curso_id exacto, intentar por carrera_id del curso
+  // (cubre el caso de alumnos importados con solo carrera_id pero sin curso_id correcto)
+  if (!alumnos.length && asig.curso_id) {
+    const curso = db.prepare('SELECT carrera_id, anio, division FROM cursos WHERE id=?').get(asig.curso_id);
+    if (curso) {
+      const alumnosCarrera = db.prepare(`
+        SELECT al.id,al.matricula,COALESCE(al.ci,u.ci) as alumno_ci,
+          COALESCE(al.nombre,u.nombre) as alumno_nombre,
+          COALESCE(al.apellido,u.apellido) as alumno_apellido,
+          n.id as nota_id,
+          n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.tp_total,
+          n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
+          n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
+          n.extraordinario,n.ausente,
+          n.puntaje_total,n.nota_final,n.estado as nota_estado
+        FROM alumnos al
+        LEFT JOIN usuarios u ON al.usuario_id=u.id
+        LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
+        WHERE al.carrera_id=? AND al.estado='Activo'
+        ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, curso.carrera_id);
+      // Auto-crear notas faltantes y corregir curso_id para los que no tienen nota
+      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+      alumnosCarrera.forEach(al => {
+        if (!al.nota_id) {
+          try {
+            db.prepare('UPDATE alumnos SET curso_id=? WHERE id=? AND (curso_id IS NULL OR curso_id!=?)').run(asig.curso_id, al.id, asig.curso_id);
+            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, req.params.asig_id, 'Pendiente');
+          } catch {}
+        }
+      });
+      return res.json({ alumnos: alumnosCarrera });
+    }
+  }
   res.json({ alumnos });
 });
 
