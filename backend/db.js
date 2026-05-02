@@ -753,11 +753,8 @@ function init() {
   try { db.prepare("ALTER TABLE asignaciones ADD COLUMN hora_inicio TEXT DEFAULT '19:00'").run(); } catch {}
   try { db.prepare("ALTER TABLE asignaciones ADD COLUMN hora_fin TEXT DEFAULT '20:20'").run(); } catch {}
   try { db.prepare("ALTER TABLE asignaciones ADD COLUMN aula TEXT").run(); } catch {}
-  // Examenes: nombre_custom y adjuntos
+  // Examenes: nombre_custom para unificaciones
   try { db.prepare("ALTER TABLE examenes ADD COLUMN nombre_custom TEXT").run(); } catch {}
-  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
-  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
-  try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
   // Tabla de conflictos de horario (para avisos automáticos)
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS conflictos_horario (

@@ -1197,11 +1197,28 @@ function aRow(a){return `<tr>
 </tr>`;}
 // Función mRow para materias — también debe ser global
 function mRow(m){return `<tr>
-  <td><span class="bx ba">${m.codigo||'-'}</span></td><td><strong>${m.nombre}</strong></td>
+  <td><span class="bx ba">${m.codigo||'-'}</span></td>
+  <td><input type="text" value="${m.nombre}" id="mnombre_${m.id}" 
+    style="border:1px solid var(--bdr);padding:4px 6px;border-radius:4px;font-size:13px;width:100%;max-width:300px"
+    onblur="actualizarNombreMateria('${m.id}')"/></td>
   <td>${m.carrera_nombre}</td><td>${m.anio}°</td><td>${m.horas_semanales||'-'}h</td>
   <td><span class="tip">${m.peso_tp||25}% / ${m.peso_parcial||25}% / ${m.peso_final||50}%</span></td>
   <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td>
 </tr>`;}
+async function actualizarNombreMateria(id){
+  const inp=document.getElementById('mnombre_'+id);
+  if(!inp)return;
+  const nuevoNombre=inp.value.trim();
+  if(!nuevoNombre){alert('El nombre no puede estar vacío');inp.value=(W._mats||[]).find(m=>m.id===id)?.nombre||'';return;}
+  try{
+    await api('PATCH','/api/materias/'+id+'/nombre',{nombre:nuevoNombre});
+    if(W._mats){const m=W._mats.find(x=>x.id===id);if(m)m.nombre=nuevoNombre;}
+    toast('✓ Nombre actualizado','ok',2000);
+  }catch(e){
+    toast('Error: '+e.message,'err');
+    inp.value=(W._mats||[]).find(m=>m.id===id)?.nombre||'';
+  }
+}
 // Función filtM global
 function filtM(){
   const carr=v('filtMCarr'), anio=v('filtMAnio'), turno=v('filtMTurno');
@@ -2256,33 +2273,51 @@ async function mExamen(exData){
 
   <!-- SECCIÓN UNIFICACIÓN -->
   ${!e?`<div style="border:1px solid #c8e6c9;border-radius:8px;padding:10px 12px;background:#f9fbe7;margin-top:4px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <p style="font-size:12px;font-weight:700;color:#33691e">🔗 Unificar con otras materias — opcional (máx. 3)</p>
-      <button class="bs" style="font-size:11px;padding:2px 8px" onclick="toggleSecUnif()">+ Agregar</button>
-    </div>
-    <div id="secUnif" style="display:none">
-      <p style="font-size:11px;color:#555;margin-bottom:6px">Seleccioná hasta 3 materias que rinden el mismo examen (mismo día, turno y docente):</p>
-      <div class="fb" style="gap:6px;margin-bottom:6px;flex-wrap:wrap">
-        <select id="unifCarr" onchange="filtUnifAsigs()" style="font-size:12px;flex:1;min-width:130px">
-          <option value="">Todas las carreras</option>
-          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-        </select>
-        <select id="unifAnio" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 95px">
-          <option value="">Todos</option>
-          ${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
-        </select>
-        <select id="unifTurno" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 120px">
-          <option value="">Ambos T</option>
-          <option value="1">T1 19:00</option>
-          <option value="2">T2 20:40</option>
-        </select>
-      </div>
-      <select id="unifAsigSel" style="width:100%;font-size:12px;margin-bottom:6px">
-        <option value="">— Seleccionar materia a unificar —</option>
-        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre||''} ${a.docente_apellido||''} (T${a.turno||1})</option>`).join('')}
+    <p style="font-size:12px;font-weight:700;color:#33691e;margin-bottom:8px">🔗 Unificar con otras materias (opcional)</p>
+    <p style="font-size:11px;color:#555;margin-bottom:10px">Seleccioná hasta 3 materias que rinden el mismo examen:</p>
+    
+    <!-- Filtros comunes -->
+    <div class="fb" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      <select id="unifCarr" onchange="filtUnifAsigs()" style="font-size:12px;flex:1;min-width:130px">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
       </select>
-      <button class="bs o" style="font-size:12px" onclick="agregarUnif()">+ Agregar a unificación</button>
-      <div id="listaUnif" style="margin-top:6px"></div>
+      <select id="unifAnio" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 95px">
+        <option value="">Todos</option>
+        ${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
+      </select>
+      <select id="unifTurno" onchange="filtUnifAsigs()" style="font-size:12px;flex:0 0 120px">
+        <option value="">Ambos T</option>
+        <option value="1">T1 19:00</option>
+        <option value="2">T2 20:40</option>
+      </select>
+    </div>
+
+    <!-- 1ra materia unificada -->
+    <div style="margin-bottom:6px">
+      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">1ra materia a unificar:</label>
+      <select id="unif1" onchange="selUnif(1)" style="width:100%;font-size:12px">
+        <option value="">— Seleccionar materia —</option>
+        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- 2da materia (se muestra solo si hay 1ra) -->
+    <div id="unif2box" style="display:none;margin-bottom:6px">
+      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">2da materia a unificar:</label>
+      <select id="unif2" onchange="selUnif(2)" style="width:100%;font-size:12px">
+        <option value="">— Seleccionar materia —</option>
+        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- 3ra materia (se muestra solo si hay 2da) -->
+    <div id="unif3box" style="display:none;margin-bottom:6px">
+      <label style="font-size:11px;color:#33691e;font-weight:600;display:block;margin-bottom:3px">3ra materia a unificar:</label>
+      <select id="unif3" onchange="selUnif(3)" style="width:100%;font-size:12px">
+        <option value="">— Seleccionar materia —</option>
+        ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('')}
+      </select>
     </div>
   </div>`:''}
 </div>
@@ -2315,30 +2350,34 @@ function filtUnifAsigs(){
   if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
   sel.innerHTML='<option value="">— Seleccionar materia a unificar —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° — ${a.docente_nombre||''} ${a.docente_apellido||''} (T${a.turno||1})</option>`).join('');
 }
-function agregarUnif(){
-  const asigId=v('unifAsigSel');if(!asigId)return;
-  const asig=(W._mexAsigs||[]).find(a=>a.id===asigId);if(!asig)return;
-  if(!W._exUnifs)W._exUnifs=[];
-  if(W._exUnifs.find(u=>u.asigId===asigId)){toast('Ya está en la lista','warn',2000);return;}
-  if(W._exUnifs.length>=3){toast('Máximo 3 materias unificadas','warn',3000);return;}
-  // Guardar con nombre editable
-  W._exUnifs.push({asigId, nombre:asig.materia_nombre, carreraNombre:asig.carrera_nombre, anio:asig.curso_anio});
-  renderListaUnif();
+function selUnif(n){
+  const val=v('unif'+n);
+  if(n===1&&val){
+    document.getElementById('unif2box').style.display='block';
+  } else if(n===1&&!val){
+    document.getElementById('unif2box').style.display='none';
+    document.getElementById('unif3box').style.display='none';
+    document.getElementById('unif2').value='';
+    document.getElementById('unif3').value='';
+  }
+  if(n===2&&val){
+    document.getElementById('unif3box').style.display='block';
+  } else if(n===2&&!val){
+    document.getElementById('unif3box').style.display='none';
+    document.getElementById('unif3').value='';
+  }
 }
-function renderListaUnif(){
-  const lista=document.getElementById('listaUnif');if(!lista)return;
-  if(!W._exUnifs||!W._exUnifs.length){lista.innerHTML='';return;}
-  lista.innerHTML='<p style="font-size:11px;color:#33691e;font-weight:600;margin-bottom:4px">Materias unificadas (podés editar el nombre):</p>'+
-    W._exUnifs.map((u,i)=>`<div style="background:#fff;border:1px solid #a5d6a7;border-radius:5px;padding:6px 8px;margin-bottom:4px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:11px;font-weight:600;color:#33691e">🔗 ${u.carreraNombre} ${u.anio}°</span>
-        <button onclick="W._exUnifs.splice(${i},1);renderListaUnif()" style="border:none;background:transparent;color:#c62828;cursor:pointer;font-size:13px">✕</button>
-      </div>
-      <input type="text" value="${u.nombre}" 
-        onchange="W._exUnifs[${i}].nombre=this.value" 
-        style="width:100%;font-size:12px;padding:4px 6px;border:1px solid #c8e6c9;border-radius:4px" 
-        placeholder="Nombre de la materia"/>
-    </div>`).join('');
+function filtUnifAsigs(){
+  const carrId=v('unifCarr'),anio=v('unifAnio'),turno=v('unifTurno');
+  let asigs=W._mexAsigs||[];
+  if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(anio)  asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
+  const opts=asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° (T${a.turno||1})</option>`).join('');
+  ['unif1','unif2','unif3'].forEach(id=>{
+    const s=document.getElementById(id);
+    if(s)s.innerHTML='<option value="">— Seleccionar materia —</option>'+opts;
+  });
 }
 async function chkDuplicadoExamen(){
   const asigId=v('exas'),tipo=v('exti'),fecha=v('exfe');
@@ -2366,11 +2405,16 @@ function updPuntosMax(){
   else{inp.value=50;if(hint)hint.textContent='Finales = 50 pts cada uno';}
 }
 async function svExamen(id){
+  const unifs=[];
+  const u1=v('unif1'),u2=v('unif2'),u3=v('unif3');
+  if(u1)unifs.push(u1);
+  if(u2)unifs.push(u2);
+  if(u3)unifs.push(u3);
   const o={
     asignacion_id:v('exas'),tipo:v('exti'),fecha:v('exfe'),hora:v('exho'),
     aula:v('exau'),observacion:v('exob'),periodo_id:parseInt(v('expe'))||null,
     puntos_max:parseInt(v('expmax'))||25,
-    asignaciones_unif: (W._exUnifs||[]).map(u=>({asignacion_id:u.asigId, nombre_custom:u.nombre}))
+    asignaciones_unif: unifs
   };
   if(!o.fecha)return alert('Ingresá la fecha del examen');
   if(!o.asignacion_id)return alert('Seleccioná una materia');

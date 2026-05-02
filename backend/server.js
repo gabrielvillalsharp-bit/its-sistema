@@ -295,6 +295,12 @@ app.put('/api/materias/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,req.params.id);
   res.json({ ok: true });
 });
+app.patch('/api/materias/:id/nombre', auth(ADM), (req, res) => {
+  const { nombre } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
+  db.prepare('UPDATE materias SET nombre=? WHERE id=?').run(nombre, req.params.id);
+  res.json({ ok: true });
+});
 app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id); res.json({ ok: true }); });
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
@@ -1210,17 +1216,14 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
     db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
 
     // Procesar unificaciones: crear el mismo examen para otras asignaciones
-    // Formato esperado: [{asignacion_id, nombre_custom}, ...]
     const unif_creados = [];
     if (Array.isArray(asignaciones_unif) && asignaciones_unif.length > 0) {
-      asignaciones_unif.forEach(unifItem => {
-        const asig2_id = typeof unifItem === 'string' ? unifItem : unifItem.asignacion_id;
-        const nombreCustom = typeof unifItem === 'object' ? unifItem.nombre_custom : null;
-        if (asig2_id === asignacion_id) return;
+      asignaciones_unif.forEach(asig2_id => {
+        if (typeof asig2_id !== 'string' || asig2_id === asignacion_id) return;
         const yaEx2 = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asig2_id, tipo, fecha);
         if (!yaEx2) {
           const id2 = 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-          db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max,nombre_custom) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25, nombreCustom||null);
+          db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
           unif_creados.push(id2);
         }
       });
@@ -1942,6 +1945,33 @@ app.post('/api/alumnos/:id/sincronizar', auth(ADM), (req, res) => {
     });
   })();
   res.json({ ok: true, notas_creadas: cnt });
+});
+
+// ── SINCRONIZACIÓN MASIVA: crear registros de notas faltantes para todos los alumnos activos
+app.post('/api/alumnos/sincronizar-todos', auth(ADM), (req, res) => {
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) return res.json({ ok: true, sincronizados: 0, mensaje: 'Sin período activo' });
+  
+  const alumnos = db.prepare("SELECT id, curso_id FROM alumnos WHERE estado='Activo' AND curso_id IS NOT NULL").all();
+  let totalCreados = 0;
+  
+  db.transaction(() => {
+    alumnos.forEach(al => {
+      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(al.curso_id, periodo.id);
+      asigs.forEach(asig => {
+        const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(al.id, asig.id);
+        if (!existe) {
+          try {
+            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, asig.id, 'Pendiente');
+            totalCreados++;
+          } catch {}
+        }
+      });
+    });
+  })();
+  
+  audit(req.user.id, 'SINCRONIZAR_TODOS', 'alumnos', 'bulk', { registros_creados: totalCreados });
+  res.json({ ok: true, sincronizados: totalCreados, alumnos_procesados: alumnos.length });
 });
 
 // ── CALENDARIO 2026: generar desde 01-mayo hasta 31-julio ─────────────────────
@@ -2773,8 +2803,8 @@ app.get('/api/alumnos/:id/acta-egreso', auth(ADM), (req, res) => {
 // ── EXAMENES: adjuntar archivo PDF/Word ───────────────────────────────────────
 app.post('/api/examenes/:id/archivo', auth(['director','docente']), upload.single('archivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
-  const ok = ['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  if (!ok.includes(req.file.mimetype)) return res.status(400).json({ error: 'Solo se permiten archivos Word (.doc, .docx)' });
+  const ok = ['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/pdf'];
+  if (!ok.includes(req.file.mimetype)) return res.status(400).json({ error: 'Solo se permiten archivos Word (.doc, .docx) o PDF' });
   if (req.file.size > 10*1024*1024) return res.status(400).json({ error: 'El archivo no puede superar 10 MB' });
   try {
     db.prepare('UPDATE examenes SET archivo_nombre=?, archivo_data=?, archivo_tipo=? WHERE id=?').run(req.file.originalname, req.file.buffer, req.file.mimetype, req.params.id);
