@@ -1761,9 +1761,8 @@ async function subirArchivoExamen(exId, input){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 function verArchivoExamen(exId){
-  const url=window.location.origin+'/api/examenes/'+exId+'/archivo';
-  // Abrir en nueva pestaña para PDF, o descargar para Word
-  window.open(url,'_blank');
+  // Abrir en nueva ventana — el backend maneja inline vs attachment
+  window.open(`/api/examenes/${exId}/archivo`,'_blank');
 }
 
 // ── EGRESO Y PASAJE DE AÑO ────────────────────────────────────────────────────
@@ -2258,11 +2257,11 @@ async function mExamen(exData){
   <!-- SECCIÓN UNIFICACIÓN -->
   ${!e?`<div style="border:1px solid #c8e6c9;border-radius:8px;padding:10px 12px;background:#f9fbe7;margin-top:4px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <p style="font-size:12px;font-weight:700;color:#33691e">🔗 Unificar con otra(s) materia(s) — opcional</p>
+      <p style="font-size:12px;font-weight:700;color:#33691e">🔗 Unificar con otras materias — opcional (máx. 3)</p>
       <button class="bs" style="font-size:11px;padding:2px 8px" onclick="toggleSecUnif()">+ Agregar</button>
     </div>
     <div id="secUnif" style="display:none">
-      <p style="font-size:11px;color:#555;margin-bottom:6px">Seleccioná las materias que rinden el mismo examen (mismo día, turno y docente):</p>
+      <p style="font-size:11px;color:#555;margin-bottom:6px">Seleccioná hasta 3 materias que rinden el mismo examen (mismo día, turno y docente):</p>
       <div class="fb" style="gap:6px;margin-bottom:6px;flex-wrap:wrap">
         <select id="unifCarr" onchange="filtUnifAsigs()" style="font-size:12px;flex:1;min-width:130px">
           <option value="">Todas las carreras</option>
@@ -2320,17 +2319,26 @@ function agregarUnif(){
   const asigId=v('unifAsigSel');if(!asigId)return;
   const asig=(W._mexAsigs||[]).find(a=>a.id===asigId);if(!asig)return;
   if(!W._exUnifs)W._exUnifs=[];
-  if(W._exUnifs.includes(asigId)){toast('Ya está en la lista','warn',2000);return;}
-  W._exUnifs.push(asigId);
+  if(W._exUnifs.find(u=>u.asigId===asigId)){toast('Ya está en la lista','warn',2000);return;}
+  if(W._exUnifs.length>=3){toast('Máximo 3 materias unificadas','warn',3000);return;}
+  // Guardar con nombre editable
+  W._exUnifs.push({asigId, nombre:asig.materia_nombre, carreraNombre:asig.carrera_nombre, anio:asig.curso_anio});
+  renderListaUnif();
+}
+function renderListaUnif(){
   const lista=document.getElementById('listaUnif');if(!lista)return;
-  lista.innerHTML='<p style="font-size:11px;color:#33691e;font-weight:600;margin-bottom:4px">Materias unificadas:</p>'+
-    W._exUnifs.map((id,i)=>{
-      const a=(W._mexAsigs||[]).find(x=>x.id===id);
-      return `<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #a5d6a7;border-radius:5px;padding:4px 8px;margin-bottom:3px;font-size:11px">
-        <span>🔗 ${a?a.materia_nombre+' — '+a.carrera_nombre+' '+a.curso_anio+'°':'?'}</span>
-        <button onclick="W._exUnifs.splice(${i},1);agregarUnif()" style="border:none;background:transparent;color:#c62828;cursor:pointer;font-size:13px">✕</button>
-      </div>`;
-    }).join('');
+  if(!W._exUnifs||!W._exUnifs.length){lista.innerHTML='';return;}
+  lista.innerHTML='<p style="font-size:11px;color:#33691e;font-weight:600;margin-bottom:4px">Materias unificadas (podés editar el nombre):</p>'+
+    W._exUnifs.map((u,i)=>`<div style="background:#fff;border:1px solid #a5d6a7;border-radius:5px;padding:6px 8px;margin-bottom:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:600;color:#33691e">🔗 ${u.carreraNombre} ${u.anio}°</span>
+        <button onclick="W._exUnifs.splice(${i},1);renderListaUnif()" style="border:none;background:transparent;color:#c62828;cursor:pointer;font-size:13px">✕</button>
+      </div>
+      <input type="text" value="${u.nombre}" 
+        onchange="W._exUnifs[${i}].nombre=this.value" 
+        style="width:100%;font-size:12px;padding:4px 6px;border:1px solid #c8e6c9;border-radius:4px" 
+        placeholder="Nombre de la materia"/>
+    </div>`).join('');
 }
 async function chkDuplicadoExamen(){
   const asigId=v('exas'),tipo=v('exti'),fecha=v('exfe');
@@ -2362,7 +2370,7 @@ async function svExamen(id){
     asignacion_id:v('exas'),tipo:v('exti'),fecha:v('exfe'),hora:v('exho'),
     aula:v('exau'),observacion:v('exob'),periodo_id:parseInt(v('expe'))||null,
     puntos_max:parseInt(v('expmax'))||25,
-    asignaciones_unif: W._exUnifs||[]
+    asignaciones_unif: (W._exUnifs||[]).map(u=>({asignacion_id:u.asigId, nombre_custom:u.nombre}))
   };
   if(!o.fecha)return alert('Ingresá la fecha del examen');
   if(!o.asignacion_id)return alert('Seleccioná una materia');

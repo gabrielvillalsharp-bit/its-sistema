@@ -365,9 +365,10 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     db.transaction(() => {
       if (ciRaw) db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw,10),'alumno');
       db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,ciRaw?uid:null,matricula,carrera_id||null,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],estado||(!ciRaw?'Pendiente':'Activo'),ciRaw||null,nombre,apellido,telefono||null);
-      // Crear registros de notas para cada asignación del curso
+      // Crear registros de notas para cada asignación del curso CON periodo_id
       if (curso_id) {
-        const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(curso_id);
+        const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+        const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo?.id||null);
         asigs.forEach(asig => {
           try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),id,asig.id,'Pendiente'); } catch {}
         });
@@ -543,10 +544,10 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
               } catch { uid = null; }
             } else { uid = usuExiste.id; }
             db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
-            // Crear registros de notas para cada asignación del curso
+            // Crear registros de notas para cada asignación del curso CON periodo_id
             if (curso_id) {
-              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(curso_id);
               const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo?.id||null);
               asigs.forEach(asig => {
                 try {
                   db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente');
@@ -900,17 +901,10 @@ app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
   audit(req.user.id, 'UPDATE_ASISTENCIA', 'asistencia', asignacion_id, { fecha, total: registros.length });
   res.json({ ok: true });
 });
-app.get('/api/honorarios', auth(['director','docente']), (req, res) => {
+app.get('/api/honorarios', auth(ADM), (req, res) => {
   const { docente_id, mes, anio, estado } = req.query;
-  // Docente solo ve los suyos
-  let dId = docente_id;
-  if (req.user.rol === 'docente') {
-    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
-    dId = doc?.id;
-    if (!dId) return res.json([]);
-  }
   let where = 'WHERE 1=1'; const params = [];
-  if (dId)    { where += ' AND h.docente_id=?';  params.push(dId); }
+  if (docente_id)    { where += ' AND h.docente_id=?';  params.push(docente_id); }
   if (estado) { where += ' AND h.estado=?';       params.push(estado); }
   if (anio && mes) {
     const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
@@ -1059,14 +1053,9 @@ app.delete('/api/asistencia/anular', auth(ADM), (req, res) => {
   res.json({ ok: true, eliminados: del.changes });
 });
 
-app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
+app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
   const { docente_id, mes, anio } = req.query;
-  let dId = docente_id;
-  if (req.user.rol === 'docente') {
-    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
-    dId = doc?.id;
-  }
-  if (!dId || !mes || !anio) return res.status(400).json({ error: 'docente_id, mes y anio requeridos' });
+  if (!docente_id || !mes || !anio) return res.status(400).json({ error: 'docente_id, mes y anio requeridos' });
   const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
   const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
 
@@ -1077,7 +1066,7 @@ app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
   const diasReemplazado = new Set(db.prepare(`
     SELECT DISTINCT r.fecha FROM reemplazos r
     WHERE r.docente_titular_id=? AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'
-  `).all(dId, desde, hasta).map(r=>r.fecha));
+  `).all(docente_id, desde, hasta).map(r=>r.fecha));
 
   // Días hábiles del mes (L-V, sin feriados)
   const diasHabiles = [];
@@ -1221,14 +1210,17 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
     db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
 
     // Procesar unificaciones: crear el mismo examen para otras asignaciones
+    // Formato esperado: [{asignacion_id, nombre_custom}, ...]
     const unif_creados = [];
     if (Array.isArray(asignaciones_unif) && asignaciones_unif.length > 0) {
-      asignaciones_unif.forEach(asig2_id => {
+      asignaciones_unif.forEach(unifItem => {
+        const asig2_id = typeof unifItem === 'string' ? unifItem : unifItem.asignacion_id;
+        const nombreCustom = typeof unifItem === 'object' ? unifItem.nombre_custom : null;
         if (asig2_id === asignacion_id) return;
         const yaEx2 = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asig2_id, tipo, fecha);
         if (!yaEx2) {
           const id2 = 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
-          db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
+          db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max,nombre_custom) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25, nombreCustom||null);
           unif_creados.push(id2);
         }
       });
@@ -2795,8 +2787,8 @@ app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) =>
   const ex = db.prepare('SELECT archivo_data, archivo_nombre, archivo_tipo FROM examenes WHERE id=?').get(req.params.id);
   if (!ex || !ex.archivo_data) return res.status(404).json({ error: 'Sin archivo adjunto' });
   res.set('Content-Type', ex.archivo_tipo);
-  res.set('Content-Disposition', `inline; filename="${ex.archivo_nombre}"`);
-  res.send(Buffer.from(ex.archivo_data));
+  res.set('Content-Disposition', `attachment; filename="${ex.archivo_nombre}"`);
+  res.send(ex.archivo_data);
 });
 
 app.delete('/api/examenes/:id/archivo', auth(ADM), (req, res) => {
