@@ -1786,7 +1786,6 @@ async function descargarArchivoExamen(exId, nombre){
     const a=document.createElement('a');
     a.href=url;
     a.download=nombre||'examen.docx';
-    a.target='_blank';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
   }catch(e){toast('Error al descargar: '+e.message,'err');}
 }

@@ -728,8 +728,15 @@ app.get('/api/asignaciones/docente/:docente_id', auth(ADM), (req, res) => {
 app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
   const asig = db.prepare('SELECT a.*,m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
   if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+
+  // Obtener carrera_id del curso para el fallback
+  const curso = asig.curso_id ? db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id) : null;
+  const carrera_id = curso?.carrera_id || null;
+
+  // Query unificada: incluye alumnos con curso_id exacto + alumnos con misma carrera sin curso asignado
   const alumnos = db.prepare(`
-    SELECT al.id,al.matricula,COALESCE(al.ci,u.ci) as alumno_ci,
+    SELECT al.id, al.matricula, al.curso_id as al_curso_id,
+      COALESCE(al.ci,u.ci) as alumno_ci,
       COALESCE(al.nombre,u.nombre) as alumno_nombre,
       COALESCE(al.apellido,u.apellido) as alumno_apellido,
       n.id as nota_id,
@@ -741,42 +748,26 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-    WHERE al.curso_id=? AND al.estado='Activo'
-    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id);
+    WHERE al.estado='Activo'
+      AND (
+        al.curso_id=?
+        OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL)
+      )
+    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id, carrera_id, carrera_id);
 
-  // Si no hay alumnos por curso_id exacto, intentar por carrera_id del curso
-  // (cubre el caso de alumnos importados con solo carrera_id pero sin curso_id correcto)
-  if (!alumnos.length && asig.curso_id) {
-    const curso = db.prepare('SELECT carrera_id, anio, division FROM cursos WHERE id=?').get(asig.curso_id);
-    if (curso) {
-      const alumnosCarrera = db.prepare(`
-        SELECT al.id,al.matricula,COALESCE(al.ci,u.ci) as alumno_ci,
-          COALESCE(al.nombre,u.nombre) as alumno_nombre,
-          COALESCE(al.apellido,u.apellido) as alumno_apellido,
-          n.id as nota_id,
-          n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.tp_total,
-          n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
-          n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
-          n.extraordinario,n.ausente,
-          n.puntaje_total,n.nota_final,n.estado as nota_estado
-        FROM alumnos al
-        LEFT JOIN usuarios u ON al.usuario_id=u.id
-        LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-        WHERE al.carrera_id=? AND al.estado='Activo'
-        ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, curso.carrera_id);
-      // Auto-crear notas faltantes y corregir curso_id para los que no tienen nota
-      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-      alumnosCarrera.forEach(al => {
-        if (!al.nota_id) {
-          try {
-            db.prepare('UPDATE alumnos SET curso_id=? WHERE id=? AND (curso_id IS NULL OR curso_id!=?)').run(asig.curso_id, al.id, asig.curso_id);
-            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, req.params.asig_id, 'Pendiente');
-          } catch {}
-        }
-      });
-      return res.json({ alumnos: alumnosCarrera });
-    }
-  }
+  // Auto-asignar curso_id y crear registros de notas para alumnos que no los tienen
+  alumnos.forEach(al => {
+    try {
+      if (!al.al_curso_id && asig.curso_id) {
+        db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(asig.curso_id, al.id);
+      }
+      if (!al.nota_id) {
+        db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run(
+          'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, req.params.asig_id, 'Pendiente');
+      }
+    } catch {}
+  });
+
   res.json({ alumnos });
 });
 
@@ -827,6 +818,7 @@ app.get('/api/notas/acta/:asig_id', auth(), (req, res) => {
     JOIN periodos p ON a.periodo_id=p.id
     WHERE a.id=?`).get(req.params.asig_id);
   if (!asig) return res.status(404).json({ error: 'No encontrado' });
+  const carrera_id_acta = asig.curso_id ? db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id)?.carrera_id : null;
   const alumnos = db.prepare(`
     SELECT al.matricula,
       COALESCE(al.ci,u.ci) as ci,
@@ -839,8 +831,9 @@ app.get('/api/notas/acta/:asig_id', auth(), (req, res) => {
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-    WHERE al.curso_id=? AND al.estado='Activo'
-    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id);
+    WHERE al.estado='Activo'
+      AND (al.curso_id=? OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL))
+    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id, carrera_id_acta, carrera_id_acta);
   res.json({ asig, alumnos, inst: db.prepare('SELECT * FROM institucion WHERE id=1').get() });
 });
 
@@ -1137,7 +1130,7 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
     LEFT JOIN cursos cu ON a.curso_id=cu.id
     LEFT JOIN carreras ca ON cu.carrera_id=ca.id
     WHERE h.docente_id=? AND h.fecha>=? AND h.fecha<=? AND h.estado!='anulado'
-    ORDER BY h.fecha, h.turno`).all(dId, desde, hasta);
+    ORDER BY h.fecha, h.turno`).all(docente_id, desde, hasta);
 
   // Asignaciones del docente
   const asigs = db.prepare(`
@@ -1146,7 +1139,7 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
     JOIN materias m ON a.materia_id=m.id
     JOIN cursos cu ON a.curso_id=cu.id
     JOIN carreras ca ON cu.carrera_id=ca.id
-    WHERE a.docente_id=?`).all(dId);
+    WHERE a.docente_id=?`).all(docente_id);
 
   // Reemplazos que involucran al docente ese mes
   const reemplazos = db.prepare(`
@@ -1161,9 +1154,9 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
     JOIN docentes dt ON r.docente_titular_id=dt.id JOIN usuarios ut ON dt.usuario_id=ut.id
     JOIN docentes dr ON r.docente_reemplazante_id=dr.id JOIN usuarios ur ON dr.usuario_id=ur.id
     WHERE (r.docente_titular_id=? OR r.docente_reemplazante_id=?) AND r.fecha>=? AND r.fecha<=? AND r.estado='aprobado'
-  `).all(dId, dId, desde, hasta);
+  `).all(docente_id, docente_id, desde, hasta);
 
-  const docInfo = db.prepare('SELECT u.nombre,u.apellido,d.titulo FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(dId);
+  const docInfo = db.prepare('SELECT u.nombre,u.apellido,d.titulo FROM docentes d JOIN usuarios u ON d.usuario_id=u.id WHERE d.id=?').get(docente_id);
   const totalGanado = hons.reduce((s,h)=>s+h.monto, 0);
 
   // Calcular clases esperadas del mes (días hábiles × asignaciones activas, excluyendo feriados y reemplazos)
@@ -1214,7 +1207,9 @@ app.get('/api/examenes', auth(), (req, res) => {
   }
   try {
     res.json(db.prepare(`
-      SELECT e.*,
+      SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id,
+        e.observacion, e.puntos_max, e.archivo_nombre, e.archivo_tipo,
+        (e.archivo_data IS NOT NULL) as tiene_archivo,
         m.nombre as materia_nombre, m.codigo as materia_codigo,
         ca.id as carrera_id, ca.nombre as carrera_nombre,
         cu.id as curso_id, cu.anio as curso_anio, cu.division as curso_division,
@@ -2367,6 +2362,9 @@ app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
   // Tipos de examen FINAL (aplica filtro de habilitación)
   const esFinal = ['Final','Final Recuperatorio','Complementario','Extraordinario'].includes(ex.tipo);
 
+  const asigInfoAct = ex.asignacion_id ? db.prepare('SELECT curso_id FROM asignaciones WHERE id=?').get(ex.asignacion_id) : null;
+  const carrera_id_act = asigInfoAct?.curso_id ? db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asigInfoAct.curso_id)?.carrera_id : null;
+
   const todosAlumnos = ex.asignacion_id ? db.prepare(`
     SELECT al.id, al.matricula, al.habilitado_pago_pendiente,
       COALESCE(al.ci,u2.ci) as ci,
@@ -2384,8 +2382,10 @@ app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
     FROM alumnos al
     LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-    WHERE al.curso_id=(SELECT curso_id FROM asignaciones WHERE id=?) AND al.estado='Activo'
-    ORDER BY COALESCE(al.apellido,u2.apellido)`, ex.tipo).all(ex.tipo, ex.asignacion_id, ex.asignacion_id) : [];
+    WHERE al.estado='Activo'
+      AND (al.curso_id=(SELECT curso_id FROM asignaciones WHERE id=?)
+           OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL))
+    ORDER BY COALESCE(al.apellido,u2.apellido)`).all(ex.tipo, ex.asignacion_id, ex.asignacion_id, carrera_id_act, carrera_id_act) : [];
 
   let alumnos = todosAlumnos;
   let excluidos = 0;
@@ -2430,6 +2430,7 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
     JOIN periodos p ON a.periodo_id=p.id
     WHERE a.id=?`).get(req.params.id);
   if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  const carrera_id_tp = asig.curso_id ? db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id)?.carrera_id : null;
   const alumnos = db.prepare(`
     SELECT al.matricula, COALESCE(al.ci,u2.ci) as ci,
       COALESCE(al.nombre,u2.nombre) as nombre, COALESCE(al.apellido,u2.apellido) as apellido,
@@ -2437,8 +2438,9 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
     FROM alumnos al
     LEFT JOIN usuarios u2 ON al.usuario_id=u2.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-    WHERE al.curso_id=? AND al.estado='Activo'
-    ORDER BY COALESCE(al.apellido,u2.apellido)`).all(req.params.id, asig.curso_id);
+    WHERE al.estado='Activo'
+      AND (al.curso_id=? OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL))
+    ORDER BY COALESCE(al.apellido,u2.apellido)`).all(req.params.id, asig.curso_id, carrera_id_tp, carrera_id_tp);
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
