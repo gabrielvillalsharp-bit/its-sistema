@@ -1337,7 +1337,7 @@ function filtCursosImp(){
   let cursos=(W._cursos||[]);
   if(carrId) cursos=cursos.filter(cu=>cu.carrera_id===carrId);
   if(anio)   cursos=cursos.filter(cu=>String(cu.anio)===anio);
-  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — Secc. ${(cu.division==='U'?(cu.carrera_nombre&&cu.carrera_nombre.includes('Cosmiatría')?'2do Año':'Única'):('Secc. '+cu.division))}</option>`).join('');
+  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
 }
 async function doImp(inp){
   const file=inp.files[0];if(!file)return;
@@ -1503,7 +1503,7 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      ${esDir?`<button class="bs s" onclick="descargarPlantillaExamenes()" title="Descargá la plantilla Excel para importar exámenes">⬇ Plantilla Excel</button>`:''}
+
       ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
@@ -1555,15 +1555,14 @@ function exRow(e){
   const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
   let btnAdjuntar='';
   if(esDocumentoPropietario){
-    if(yaOcurrio){
+    if(yaOcurrio && me.rol!=='director'){
       btnAdjuntar=`<span style="font-size:10px;color:#999" title="El examen ya ocurrió">🔒 Cerrado</span>`;
-    } else if(fueraDe72){
-      const hsFalt=Math.round(hs72-72);
+    } else if(fueraDe72 && me.rol!=='director'){
       btnAdjuntar=`<span style="font-size:10px;color:#e65100" title="Habilitado 72hs antes del examen">⏳ En ${Math.round(hs72-72)}h</span>`;
     } else {
-      btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word (.doc/.docx) — habilitado hasta la fecha del examen">
-        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${e.archivo_nombre.slice(0,15)}${e.archivo_nombre.length>15?'…':''}</span>`:'Adjuntar Word'}
-        <input type="file" accept=".doc,.docx" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+      btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">
+        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${e.archivo_nombre.slice(0,15)}${e.archivo_nombre.length>15?'…':''}</span>`:'Adjuntar'}
+        <input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
       </label>`;
     }
   }
@@ -3073,7 +3072,7 @@ W.loadNotas=async(asigId,_tipo)=>{
           </div>`
         :`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
             <span style="color:#2e7d32;font-size:16px;line-height:1">✓</span>
-            <span style="font-size:9px;color:#4caf50">${hab?.razon==='habilitacion_especial'?'Habilitado<br>por Dirección':'Al día'}</span>
+            <span style="font-size:9px;color:#4caf50">${hab?.razon==='habilitacion_especial'?`Habilitado Dir.<br>${hab.tipo_examen?({final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complem.',extraordinario:'Extraord.'}[hab.tipo_examen]||hab.tipo_examen):''}` :'Al día'}</span>
           </div>`}
     </td>`:'<td style="display:none"></td>';
     // ni para TPs y parciales (nunca bloqueados por mora)
@@ -3180,7 +3179,6 @@ W.marcarAusente=async(aId,asigId,ausente)=>{
     if(row)row.style.background=ausente?'#fff8f8':'';
     const est=document.getElementById('est-'+aId);
     if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}">${r.estado}</span>`;
-    W.loadNotas(asigId);
   }catch(e){console.error(e);}
 };
 // Alias global para acceso desde onclick en innerHTML

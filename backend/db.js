@@ -371,7 +371,8 @@ function seedDatos() {
   const insCu = db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division,turno) VALUES (?,?,?,?,?)');
   db.transaction(() => {
     carreras.forEach(c => {
-      insCu.run(`${c.id}_1u`, c.id, 1, 'U', 'Nocturno');
+      // Cosmiatría 1° año usa divisiones A y B (no 'U')
+      if (c.id !== 'cosA') insCu.run(`${c.id}_1u`, c.id, 1, 'U', 'Nocturno');
       insCu.run(`${c.id}_2u`, c.id, 2, 'U', 'Nocturno');
     });
     // Cosmiatría tiene dos divisiones en 1er año (A y B)
@@ -670,6 +671,8 @@ function init() {
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
+  // Eliminar curso fantasma cosA_1u (Cosmiatría 1° año div='U') — Cosmiatría usa A y B
+  try { db.prepare("DELETE FROM cursos WHERE id='cosA_1u' AND NOT EXISTS (SELECT 1 FROM alumnos WHERE curso_id='cosA_1u') AND NOT EXISTS (SELECT 1 FROM asignaciones WHERE curso_id='cosA_1u')").run(); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS repositorio (
     id TEXT PRIMARY KEY,
     tipo TEXT NOT NULL CHECK(tipo IN ('programa','contenido')),

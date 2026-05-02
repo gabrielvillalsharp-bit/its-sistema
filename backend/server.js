@@ -1873,6 +1873,8 @@ app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
       db.prepare('INSERT INTO habilitaciones_examen (id,alumno_id,tipo_examen,habilitado,habilitado_por,fecha) VALUES (?,?,?,?,?,?)').run(id,req.params.id,tipoDb,habilitado?1:0,req.user.id,fechaHoy);
     }
   }
+  // Sincronizar flag rápido en alumnos para que habilitaciones-bulk lo detecte
+  db.prepare('UPDATE alumnos SET habilitado_pago_pendiente=? WHERE id=?').run(habilitado?1:0, req.params.id);
   audit(req.user.id,'HABILITAR_ALUMNO','habilitaciones_examen',req.params.id,{habilitado,tipo_examen:tipoDb,motivo,asignacion_id});
   res.json({ ok: true });
 });
@@ -2204,7 +2206,7 @@ app.delete('/api/actividades/:id', auth(ADM), (req, res) => {
 
 // ── HABILITACIONES EN BULK (evita N+1 en loadNotas) ──────────────────────────
 app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req, res) => {
-  const { alumno_ids } = req.body;
+  const { alumno_ids, tipo_examen } = req.body;
   if (!Array.isArray(alumno_ids) || !alumno_ids.length) return res.json({});
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) {
@@ -2213,10 +2215,19 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
     return res.json(result);
   }
   const cuotasRequeridas = ['Cuota 1', 'Cuota 2', 'Cuota 3', 'Cuota 4', 'Cuota 5'];
-  // Una sola query para todos los pagos de todos los alumnos del período
   const placeholders = alumno_ids.map(() => '?').join(',');
   const pagos = db.prepare(`SELECT alumno_id, concepto FROM pagos WHERE alumno_id IN (${placeholders}) AND periodo_id=? AND estado='Pagado'`).all(...alumno_ids, periodo.id);
   const alumnos = db.prepare(`SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id IN (${placeholders})`).all(...alumno_ids);
+  // Fetch habilitaciones_examen para los alumnos con flag especial, filtrando por tipo_examen si se provee
+  const habEspeciales = {};
+  if (alumnos.some(al => al.habilitado_pago_pendiente)) {
+    const habIds = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
+    const habPh = habIds.map(() => '?').join(',');
+    const habRows = tipo_examen
+      ? db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND tipo_examen=? AND habilitado=1 ORDER BY fecha DESC`).all(...habIds, tipo_examen)
+      : db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado=1 ORDER BY fecha DESC`).all(...habIds);
+    habRows.forEach(h => { if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = h.tipo_examen; });
+  }
   const pagosPorAlumno = {};
   pagos.forEach(p => {
     if (!pagosPorAlumno[p.alumno_id]) pagosPorAlumno[p.alumno_id] = [];
@@ -2225,7 +2236,7 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
   const result = {};
   alumnos.forEach(al => {
     if (al.habilitado_pago_pendiente) {
-      result[al.id] = { habilitado: true, razon: 'habilitacion_especial', cuotas_faltantes: [] };
+      result[al.id] = { habilitado: true, razon: 'habilitacion_especial', tipo_examen: habEspeciales[al.id] || null, cuotas_faltantes: [] };
       return;
     }
     const conceptos = pagosPorAlumno[al.id] || [];
