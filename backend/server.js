@@ -1100,14 +1100,8 @@ app.delete('/api/asistencia/anular', auth(ADM), (req, res) => {
   res.json({ ok: true, eliminados: del.changes });
 });
 
-app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
-  let { docente_id, mes, anio } = req.query;
-  // Docente solo puede ver sus propios honorarios
-  if (req.user.rol === 'docente') {
-    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
-    if (!doc) return res.status(403).json({ error: 'No se encontró el registro de docente' });
-    docente_id = doc.id;
-  }
+app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
+  const { docente_id, mes, anio } = req.query;
   if (!docente_id || !mes || !anio) return res.status(400).json({ error: 'docente_id, mes y anio requeridos' });
   const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
   const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
