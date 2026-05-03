@@ -3114,7 +3114,8 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Imprimir acta</button>`:''}
+      ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Acta de notas</button>`:''}
+      ${me.rol==='director'?`<button class="bs i" onclick="mImprimirAsistDia('${asigId}')">📋 Acta asistencia por día</button>`:''}
       <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
     </div>
   </div>
@@ -3639,6 +3640,100 @@ function confirm2(titulo, cuerpo, onAceptar, onModificar){
   document.body.appendChild(div);
 }
 
+function mImprimirAsistDia(asigId){
+  const asig=(W._notasAsigs||[]).find(a=>a.id===asigId)||{};
+  const hoy=new Date().toISOString().split('T')[0];
+  modal(`<h4>📋 Acta de asistencia por día</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px"><strong>${asig.materia_nombre||''}</strong> · ${asig.carrera_nombre||''} ${asig.curso_anio?asig.curso_anio+'°':''}</p>
+  <div class="fg">
+    <div class="f"><label>Seleccionar fecha</label>
+      <input id="asistDiaFecha" type="date" value="${hoy}" style="font-size:14px"/>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="generarActaAsistDia('${asigId}')">🖨 Generar acta</button>
+  </div>`);
+}
+async function generarActaAsistDia(asigId){
+  const fecha=v('asistDiaFecha');
+  if(!fecha){toast('Seleccioná una fecha','warn');return;}
+  const asig=(W._notasAsigs||[]).find(a=>a.id===asigId)||{};
+  const horarios=W._asistHorarios||await api('GET','/api/horarios').catch(()=>[]);
+  const hor=horarios.find(h=>h.asignacion_id===asigId);
+  try{
+    const [{alumnos},asistReg]=await Promise.all([
+      api('GET','/api/notas/asignacion/'+asigId),
+      api('GET','/api/asistencia/asignacion/'+asigId)
+    ]);
+    const estMap={};
+    asistReg.filter(a=>a.fecha===fecha).forEach(a=>{estMap[a.alumno_id]=a.estado;});
+    alumnos.forEach(a=>{if(!estMap[a.id])estMap[a.id]='P';});
+    cm();
+    const estadoLabel={P:'Presente',A:'Ausente',T:'Tardanza',J:'Justificado'};
+    const estadoColor={P:'#2e7d32',A:'#c62828',T:'#e65100',J:'#1565c0'};
+    const presentes=Object.values(estMap).filter(e=>e==='P').length;
+    const ausentes=Object.values(estMap).filter(e=>e==='A').length;
+    const tardanza=Object.values(estMap).filter(e=>e==='T').length;
+    const justif=Object.values(estMap).filter(e=>e==='J').length;
+    const filas=alumnos.map((al,i)=>{
+      const est=estMap[al.id]||'P';
+      return`<tr>
+        <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${i+1}</td>
+        <td style="padding:6px 10px;border:1px solid #ccc">${al.apellido||''}, ${al.nombre||''}</td>
+        <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${al.ci||'—'}</td>
+        <td style="padding:6px 10px;border:1px solid #ccc;text-align:center;font-weight:700;color:${estadoColor[est]||'#333'}">${estadoLabel[est]||est}</td>
+        <td style="padding:6px 10px;border:1px solid #ccc;width:120px"></td>
+      </tr>`;
+    }).join('');
+    const win=window.open('','_blank');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Acta de Asistencia</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}
+      h2{text-align:center;font-size:16px;margin-bottom:4px}
+      .sub{text-align:center;font-size:12px;color:#555;margin-bottom:8px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1a5fa8;color:#fff;padding:7px 10px;border:1px solid #1565c0;text-align:left}
+      .resumen{display:flex;gap:16px;margin:12px 0;font-size:12px}
+      .res-item{border:1px solid #ccc;border-radius:6px;padding:5px 12px;text-align:center}
+      .res-item strong{display:block;font-size:18px}
+      .firma{margin-top:40px;display:flex;justify-content:space-between}
+      .firma-box{text-align:center;width:200px}
+      .firma-box div{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:11px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h2>Instituto Técnico Superior Santísima Trinidad</h2>
+    <div class="sub">Acta de Asistencia</div>
+    <div class="sub"><strong>Materia:</strong> ${asig.materia_nombre||''} &nbsp;·&nbsp; <strong>Carrera:</strong> ${asig.carrera_nombre||''} ${asig.curso_anio?asig.curso_anio+'°':''}</div>
+    <div class="sub"><strong>Fecha:</strong> ${fecha} &nbsp;·&nbsp; <strong>Horario:</strong> ${hor?`${hor.dia} T${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'—'} &nbsp;·&nbsp; <strong>Docente:</strong> ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div>
+    <div class="resumen">
+      <div class="res-item"><strong style="color:#2e7d32">${presentes}</strong>Presentes</div>
+      <div class="res-item"><strong style="color:#c62828">${ausentes}</strong>Ausentes</div>
+      <div class="res-item"><strong style="color:#e65100">${tardanza}</strong>Tardanzas</div>
+      <div class="res-item"><strong style="color:#1565c0">${justif}</strong>Justificados</div>
+      <div class="res-item"><strong>${alumnos.length}</strong>Total</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:40px">N°</th>
+        <th>Apellido, Nombre</th>
+        <th style="width:90px">C.I.</th>
+        <th style="width:90px">Estado</th>
+        <th style="width:120px">Firma</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div class="firma">
+      <div class="firma-box"><div>Director/a</div></div>
+      <div class="firma-box"><div>Docente: ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div></div>
+    </div>
+    <p style="text-align:center;margin-top:16px;font-size:10px;color:#999">Generado: ${new Date().toLocaleString('es-PY')}</p>
+    <button onclick="window.print()" style="margin-top:12px;padding:8px 20px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">🖨 Imprimir</button>
+    </body></html>`);
+    win.document.close();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 function imprimirAsistDia(asigId, fecha){
   const asig=(W._asistAsigs||[]).find(a=>a.id===asigId)||{};
   const hor=(W._asistHorarios||[]).find(h=>h.asignacion_id===asigId);
