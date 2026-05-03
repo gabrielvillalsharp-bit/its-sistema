@@ -1241,9 +1241,9 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
   if (!asignacion_id) return res.status(400).json({ error: 'Asignación requerida' });
   if (!fecha) return res.status(400).json({ error: 'Fecha requerida' });
 
-  // Verificar duplicado: mismo examen ya programado (misma asignación, tipo y fecha)
-  const yaExiste = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asignacion_id, tipo, fecha);
-  if (yaExiste) return res.status(409).json({ error: `Ya existe un examen de tipo "${tipo}" para esta materia en la fecha ${fecha}.`, duplicado: true, examen_id: yaExiste.id });
+  // Verificar duplicado: mismo tipo ya programado para esta asignación (independientemente de fecha)
+  const yaExiste = db.prepare('SELECT id, fecha FROM examenes WHERE asignacion_id=? AND tipo=?').get(asignacion_id, tipo);
+  if (yaExiste) return res.status(409).json({ error: `Ya existe un examen de tipo "${tipo}" programado para esta materia (fecha: ${yaExiste.fecha}). No se puede volver a programar.`, duplicado: true, examen_id: yaExiste.id });
 
   // Verificar conflicto de docente (mismo docente, misma fecha, mismo turno, distinta materia)
   const asig = db.prepare('SELECT a.docente_id, a.turno FROM asignaciones a WHERE a.id=?').get(asignacion_id);
@@ -1261,11 +1261,13 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
     // Procesar unificaciones: crear el mismo examen para otras asignaciones
     const unif_creados = [];
     if (Array.isArray(asignaciones_unif) && asignaciones_unif.length > 0) {
-      asignaciones_unif.forEach(asig2_id => {
+      asignaciones_unif.forEach((asig2_id, idx) => {
         if (typeof asig2_id !== 'string' || asig2_id === asignacion_id) return;
-        const yaEx2 = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?').get(asig2_id, tipo, fecha);
+        // Verificar si ya tiene un examen del mismo tipo (sin importar fecha)
+        const yaEx2 = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=?').get(asig2_id, tipo);
         if (!yaEx2) {
-          const id2 = 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+          // ID único garantizado usando timestamp + índice
+          const id2 = 'ex_' + (Date.now() + idx + 1) + '_u' + idx;
           db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id2, asig2_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
           unif_creados.push(id2);
         }

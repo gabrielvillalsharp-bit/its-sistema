@@ -1367,9 +1367,31 @@ function dPlant(){window.open('/api/alumnos/plantilla','_blank');}
 async function pgAsig(el){
   const [asigs,docs,mats,cursos,pers]=await Promise.all([api('GET','/api/asignaciones'),api('GET','/api/docentes'),api('GET','/api/materias'),api('GET','/api/cursos'),api('GET','/api/periodos')]);
   W._adata={docs,mats,cursos,pers};
+  W._asigs_all=asigs;
   el.innerHTML=`<div class="ph"><h3>Asignaciones</h3><button class="bn" onclick="mAsig()">+ Nueva</button></div>
-  <p class="tip" style="margin-bottom:12px">Vincula docente → materia → curso → período.</p>
-  <div class="card"><div class="tw"><table><thead><tr><th>Docente</th><th>Materia</th><th>Sección</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
+  <p class="tip" style="margin-bottom:8px">Vincula docente → materia → curso → período.</p>
+  <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="filtAsigDoc" onchange="renderAsigs()" style="min-width:200px">
+      <option value="">Todos los docentes</option>
+      ${[...new Map((docs||[]).map(d=>[d.docente_id,d])).values()].sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'')).map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre||''}</option>`).join('')}
+    </select>
+    <select id="filtAsigCarr" onchange="renderAsigs()" style="min-width:160px">
+      <option value="">Todas las carreras</option>
+      ${[...new Map((asigs||[]).map(a=>[a.carrera_nombre,a.carrera_nombre])).values()].sort().map(c=>`<option value="${c}">${c}</option>`).join('')}
+    </select>
+  </div>
+  <div class="card"><div class="tw" id="tablaAsig"></div></div>`;
+  renderAsigs();
+}
+function renderAsigs(){
+  let asigs=W._asigs_all||[];
+  const fd=document.getElementById('filtAsigDoc')?.value||'';
+  const fc=document.getElementById('filtAsigCarr')?.value||'';
+  if(fd)asigs=asigs.filter(a=>a.docente_id===fd);
+  if(fc)asigs=asigs.filter(a=>a.carrera_nombre===fc);
+  const el=document.getElementById('tablaAsig');
+  if(!el)return;
+  el.innerHTML=`<table><thead><tr><th>Docente</th><th>Materia</th><th>Sección</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
   ${asigs.map(a=>{
     const pct=a.total_alumnos?Math.round(a.notas_cargadas/a.total_alumnos*100):0;
     return `<tr>
@@ -1381,7 +1403,7 @@ async function pgAsig(el){
       <td><div style="font-size:12px">${a.notas_cargadas}/${a.total_alumnos} (${pct}%)</div><div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></td>
       <td><button class="bs d" onclick="del('${a.id}','asignaciones')">Eliminar</button></td></tr>`;
   }).join('')||'<tr><td colspan="7" class="es">Sin asignaciones</td></tr>'}
-  </tbody></table></div></div>`;
+  </tbody></table>`;
 }
 function mAsig(){
   const {docs,mats,cursos,pers}=W._adata||{};
@@ -2367,18 +2389,42 @@ function quitarSlotUnif(n){
 function selUnif(){}
 function filtUnifAsigs(){}
 async function chkDuplicadoExamen(){
-  const asigId=v('exas'),tipo=v('exti'),fecha=v('exfe');
+  const asigId=v('exas'),tipo=v('exti');
   const alerta=document.getElementById('alertDupExamen');
   if(!alerta)return;
-  if(!asigId||!tipo||!fecha){alerta.style.display='none';return;}
+  if(!asigId||!tipo){alerta.style.display='none';return;}
   try{
     const exs=await api('GET',`/api/examenes?tipo=${encodeURIComponent(tipo)}`);
-    const dup=exs.find(e=>e.asignacion_id===asigId&&e.tipo===tipo&&e.fecha===fecha);
+    const dup=exs.find(e=>e.asignacion_id===asigId&&e.tipo===tipo);
     if(dup){
       alerta.style.display='block';
-      alerta.innerHTML=`⚠ <strong>Ya existe</strong> un examen de tipo <strong>${tipo}</strong> para esta materia el <strong>${fmtFecha(fecha)}</strong>. Si continuás se creará un duplicado.`;
+      alerta.style.background='#ffebee';
+      alerta.style.border='1px solid #ef9a9a';
+      alerta.style.borderRadius='6px';
+      alerta.style.padding='8px 10px';
+      alerta.innerHTML=`🚫 <strong>Ya existe un examen de tipo "${tipo}"</strong> para esta materia (fecha: ${fmtFecha(dup.fecha)}). <strong>No se puede volver a programar.</strong>`;
     } else {
-      alerta.style.display='none';
+      // Verificar si está unificada con otro examen ya programado
+      const slots=document.querySelectorAll('[id^="unifSlot_"]');
+      let dupUnif=null;
+      slots.forEach(slot=>{
+        const n=slot.id.replace('unifSlot_','');
+        const val=v('ufs_'+n);
+        if(val&&!dupUnif){
+          const dup2=exs.find(e=>e.asignacion_id===val&&e.tipo===tipo);
+          if(dup2)dupUnif={asig:val,examen:dup2};
+        }
+      });
+      if(dupUnif){
+        alerta.style.display='block';
+        alerta.style.background='#fff3e0';
+        alerta.style.border='1px solid #ffb74d';
+        alerta.style.borderRadius='6px';
+        alerta.style.padding='8px 10px';
+        alerta.innerHTML=`⚠ Una materia unificada ya tiene un examen de tipo <strong>${tipo}</strong> programado. Esa materia será omitida al guardar.`;
+      } else {
+        alerta.style.display='none';
+      }
     }
   }catch{}
 }
@@ -2617,7 +2663,7 @@ async function pgCalClases(el){
     </select>
     ${!esDocente?`<select id="filtHorDoc" onchange="renderHorario()" style="min-width:180px">
       <option value="">Todos los docentes</option>
-      ${[...new Set(h.filter(x=>x.docente_apellido).map(x=>x.docente_nombre+' '+x.docente_apellido))].sort().map(d=>`<option value="${d}">${d}</option>`).join('')}
+      ${[...new Map(h.filter(x=>x.docente_id&&x.docente_apellido).map(x=>[x.docente_id,x])).values()].sort((a,b)=>(a.docente_apellido||'').localeCompare(b.docente_apellido||'')).map(x=>`<option value="${x.docente_id}">${x.docente_apellido||''}, ${x.docente_nombre||''}</option>`).join('')}
     </select>`:''}
   </div>
   <div id="tablaHorario" style="overflow-x:auto"></div>`;
@@ -2634,7 +2680,7 @@ function renderHorario(){
   const ocultarSinDoc=document.getElementById('filtHorOcultar')?.checked!==false;
   if(fc)h=h.filter(x=>x.carrera_nombre?.includes(fc));
   if(fa)h=h.filter(x=>String(x.curso_anio)===fa);
-  if(fd)h=h.filter(x=>(x.docente_nombre+' '+x.docente_apellido)===fd);
+  if(fd)h=h.filter(x=>x.docente_id===fd);
   // Ocultar entradas sin docente o sin materia (no deben aparecer en el horario)
   if(ocultarSinDoc)h=h.filter(x=>x.docente_nombre&&x.materia_nombre);
   const turno1=h.filter(x=>x.turno===1);
@@ -3106,7 +3152,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       <td style="padding:6px 8px;border:1px solid var(--bdr);white-space:nowrap">
         <strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br>
         <span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span>
-        <button title="Marcar ausente" onclick="marcarAusente('${a.id}','${asigId}',${ausente?'false':'true'})" style="float:right;font-size:10px;padding:1px 5px;border:1px solid ${ausente?'#e57373':'var(--bdr)'};border-radius:4px;background:${ausente?'#ffebee':'transparent'};color:${ausente?'#c62828':'var(--t2)'};cursor:pointer">${ausente?'↩ Asistió':'Ausente'}</button>
+        ${ausente?'<span style="font-size:10px;color:#c62828;display:block;margin-top:2px">● Ausente</span>':''}
       </td>
       ${ni('tp1',5,a.tp1,'#f1f8e9')}${ni('tp2',5,a.tp2,'#f1f8e9')}${ni('tp3',5,a.tp3,'#f1f8e9')}${ni('tp4',5,a.tp4,'#f1f8e9')}${ni('tp5',5,a.tp5,'#f1f8e9')}
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
@@ -3969,10 +4015,11 @@ async function selAlumnoPago(alId){
   panel.innerHTML='<div class="es">Cargando historial...</div>';
 
   try{
-    const [rPagos,rHab,rBecas]=await Promise.all([
+    const [rPagos,rHab,rBecas,rHabEspeciales]=await Promise.all([
       api('GET','/api/pagos/alumno/'+alId),
       api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
-      api('GET','/api/becas?alumno_id='+alId).catch(()=>[])
+      api('GET','/api/becas?alumno_id='+alId).catch(()=>[]),
+      api('GET','/api/habilitaciones/'+alId).catch(()=>[])
     ]);
     const {pagos,totalPagado,alumno}=rPagos;
     const al=alumno||(W._pdata?.als||[]).find(a=>a.id===alId)||{};
@@ -4041,6 +4088,37 @@ async function selAlumnoPago(alId){
           }).join('')}
         </div>
       </div>
+      <!-- Exámenes habilitados pendientes de pago -->
+      ${(()=>{
+        const habLabels={parcial:'Examen Parcial Ordinario',parcial_recuperatorio:'Examen Parcial Recuperatorio',final:'Examen Final',final_ord:'Examen Final Ordinario',final_recuperatorio:'Examen Final Recuperatorio',complementario:'Examen Final Complementario',extraordinario:'Examen Final Extraordinario'};
+        const aranceles=W._pdata?.aranceles||[];
+        const tipoArMap={parcial_recuperatorio:'parcial',final_ord:'final',final_recuperatorio:'final',complementario:'final',extraordinario:'extraordinario'};
+        const habsPendientes=(rHabEspeciales||[]).filter(h=>{
+          if(!h.habilitado)return false;
+          if(h.tipo_examen==='parcial')return false; // parcial ordinario es gratis
+          const label=habLabels[h.tipo_examen]||h.tipo_examen;
+          const yaPago=(pagos||[]).some(p=>p.concepto?.toLowerCase().includes(h.tipo_examen?.replace(/_/g,' '))||p.concepto?.includes(label));
+          return !yaPago;
+        });
+        if(!habsPendientes.length)return '';
+        return `<div style="padding:12px 16px;border-bottom:1px solid var(--bdr);background:#fff8e1">
+          <div style="font-size:11px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⚠ Exámenes habilitados — Pago pendiente</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${habsPendientes.map(h=>{
+              const tipoAr=tipoArMap[h.tipo_examen]||h.tipo_examen;
+              const ar=aranceles.find(a=>a.tipo===tipoAr);
+              const monto=ar?`Gs. ${Number(ar.monto).toLocaleString()}`:'—';
+              const label=habLabels[h.tipo_examen]||h.tipo_examen;
+              return `<div style="padding:8px 12px;border:2px solid #ffb74d;border-radius:8px;background:#fff3e0;min-width:160px">
+                <div style="font-size:11px;font-weight:700;color:#e65100">${label}</div>
+                <div style="font-size:12px;color:#bf360c;margin-top:2px">Arancel: <strong>${monto}</strong></div>
+                <div style="font-size:10px;color:#777;margin-top:2px">Habilitado por Dirección</div>
+                <button onclick="mPagoParaAlumno('${alId}')" style="margin-top:5px;font-size:10px;padding:2px 8px;border:1px solid #e65100;border-radius:4px;background:#fff;color:#e65100;cursor:pointer;width:100%">Registrar pago</button>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      })()}
       <!-- Historial por categorías -->
       <div style="padding:14px 16px">
         ${Object.entries(grupos).filter(([,g])=>g.pagos.length>0).map(([key,g])=>`
@@ -4148,9 +4226,11 @@ function mPago(){
   modal(`<h4>Registrar pago</h4>
   <p style="font-size:11px;color:#e65100;padding:5px 10px;background:#fff3e0;border-radius:6px;margin-bottom:10px">⚠ El Examen Final Extraordinario requiere pago al día hasta julio inclusive.</p>
   <div class="fg">
-    <div class="f"><label>Buscar alumno</label><input id="pgbus" placeholder="Nombre, apellido o CI..." oninput="filtrarAlPago()" autocomplete="off"/></div>
-    <div class="f"><label>Alumno <span style="color:var(--red)">*</span></label>
-      <select id="pgal" size="1" onchange="verificarHabPago()">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select></div>
+    <div class="f">
+      <label>Alumno <span style="color:var(--red)">*</span></label>
+      <input id="pgbus" placeholder="Escribí nombre, apellido o CI para filtrar..." oninput="filtrarAlPago()" autocomplete="off" style="margin-bottom:4px"/>
+      <select id="pgal" size="4" onchange="verificarHabPago()" style="min-height:80px">${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('')}</select>
+    </div>
     <div id="pgHabInfo"></div>
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel()">
