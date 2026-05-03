@@ -168,6 +168,7 @@ tr:hover td{background:#fafafa}
 /* ── FEEDBACK GUARDADO ─────────────────────── */
 .saved-ok{display:inline-block;font-size:10px;color:#2e7d32;font-weight:700;margin-left:4px;animation:fadeInQ .3s ease}
 @keyframes fadeInQ{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse-bell{0%,100%{transform:scale(1)}40%{transform:scale(1.25) rotate(-8deg)}60%{transform:scale(1.2) rotate(8deg)}}
 </style>
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -303,12 +304,31 @@ function startApp(){
       const avs=await api('GET','/api/avisos');
       const vistos=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
       const nuevos=(avs||[]).filter(a=>!vistos.includes(a.id));
+      // Para docentes: contar exámenes próximos (7 días) no vistos
+      let examCount=0;
+      if(me.rol==='docente'&&me.docenteId){
+        try{
+          const todos=await api('GET','/api/examenes');
+          const hoy=new Date().toISOString().split('T')[0];
+          const lim=new Date();lim.setDate(lim.getDate()+7);
+          const limStr=lim.toISOString().split('T')[0];
+          const vistoEx=JSON.parse(localStorage.getItem('its_exam_vistos')||'[]');
+          examCount=todos.filter(e=>{
+            const esDoc=e.docente_id===me.docenteId||(e.docente_nombre&&`${e.docente_nombre} ${e.docente_apellido}`===`${me.nombre} ${me.apellido}`);
+            return esDoc&&e.fecha>=hoy&&e.fecha<=limStr&&!vistoEx.includes(e.id);
+          }).length;
+          W._examNotifCount=examCount;
+        }catch{}
+      }
+      const total=nuevos.length+examCount;
       const btn=document.getElementById('ni-avisos');
       if(btn){
         let badge=btn.querySelector('.notif-badge');
         if(!badge){badge=document.createElement('span');badge.className='notif-badge';badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;background:#e53935;color:#fff;font-size:9px;font-weight:700;border-radius:50%;min-width:16px;height:16px;padding:0 3px;margin-left:4px';btn.appendChild(badge);}
-        badge.textContent=nuevos.length||'';
-        badge.style.display=nuevos.length?'inline-flex':'none';
+        badge.textContent=total||'';
+        badge.style.display=total?'inline-flex':'none';
+        if(examCount>0) badge.style.background='#D85A30';
+        else badge.style.background='#e53935';
       }
     }catch{}
   }
@@ -529,19 +549,26 @@ async function pgAvisos(el){
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
 
-  ${misExamenes.length?`<div class="card card-p" style="margin-bottom:16px;border-left:4px solid #D85A30">
-    <p style="font-weight:700;font-size:13px;margin-bottom:8px;color:#D85A30">📋 Mis exámenes próximos (30 días)</p>
-    ${misExamenes.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:6px">
-      <div>
-        <span style="font-weight:700">${e.tipo}</span> —
-        <span style="font-size:13px">${e.materia_nombre||''}</span>
-        <br><span style="font-size:11px;color:var(--t2)">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} · ${e.fecha} ${e.hora?'· '+e.hora:''} ${e.aula?'· Aula: '+e.aula:''}</span>
-      </div>
-      <div style="display:flex;gap:6px">
-        <span class="bx ${e.tipo==='Extraordinario'?'bv':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'br':'bb'}" style="font-size:10px">${e.tipo}</span>
-        <span class="bx bgr" style="font-size:10px">${e.puntos_max||50} pts</span>
-      </div>
-    </div>`).join('')}
+  ${misExamenes.length?`<div style="margin-bottom:16px;border:2px solid #D85A30;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px #D85A3022">
+    <div style="background:linear-gradient(90deg,#D85A30,#e07448);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px;animation:pulse-bell 1.5s infinite">🔔</span>
+      <strong style="font-size:13px">Tus exámenes programados (próximos 30 días)</strong>
+      <span style="margin-left:auto;background:rgba(255,255,255,.25);border-radius:12px;padding:2px 8px;font-size:11px">${misExamenes.length} examen${misExamenes.length!==1?'es':''}</span>
+    </div>
+    ${misExamenes.map((e,i)=>{
+      const diasRestantes=Math.ceil((new Date(e.fecha)-new Date())/(1000*60*60*24));
+      const urgente=diasRestantes<=3;
+      return`<div style="padding:12px 16px;border-bottom:${i<misExamenes.length-1?'1px solid #f5ddd8':''};background:${urgente?'#fff8f6':'#fff'};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-weight:700;font-size:14px">${e.materia_nombre||''} <span style="font-weight:400;color:var(--t2)">·</span> <span style="color:#D85A30">${e.tipo}</span></div>
+          <div style="font-size:12px;color:var(--t2);margin-top:2px">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} ${e.hora?'· '+e.hora:''} ${e.aula?'· Aula '+e.aula:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span style="font-size:15px;font-weight:800;color:${urgente?'#c62828':'#D85A30'}">${fmtFecha(e.fecha)}</span>
+          <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${urgente?'#ffebee':'#fff3e0'};color:${urgente?'#c62828':'#e65100'};font-weight:700">${urgente?'⚡ ':''} En ${diasRestantes} día${diasRestantes!==1?'s':''}</span>
+        </div>
+      </div>`;
+    }).join('')}
   </div>`:''}
 
   ${!avs.length?`<div class="es">No hay avisos activos</div>`:''}
@@ -1816,8 +1843,19 @@ async function descargarArchivoExamen(exId, nombre){
   }catch(e){toast('Error al descargar: '+e.message,'err');}
 }
 function verArchivoExamen(exId){
-  // Ver en nueva ventana con token
   window.open(`/api/examenes/${exId}/archivo?token=${encodeURIComponent(tok)}`,'_blank');
+}
+async function descargarRepositorio(id, nombre){
+  try{
+    const resp=await fetch('/api/repositorio/'+id+'/archivo',{headers:{'Authorization':'Bearer '+tok}});
+    if(!resp.ok)throw new Error('Sin acceso o archivo no encontrado');
+    const blob=await resp.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=nombre||'archivo';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){toast('Error al descargar: '+e.message,'err');}
 }
 
 // ── EGRESO Y PASAJE DE AÑO ────────────────────────────────────────────────────
@@ -2126,7 +2164,7 @@ async function cargarRepositorio(tipo){
         <td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px;white-space:nowrap">${fmtFecha(r.fecha)}</td>
         <td style="padding:6px 10px;border:1px solid var(--bdr)">
           <div style="display:flex;gap:4px">
-            <a href="/api/repositorio/${r.id}/archivo" download="${r.nombre_archivo}" class="bs" style="font-size:10px;text-decoration:none;padding:2px 7px;border-radius:4px;background:#e8f5e9;color:#2e7d32">⬇ Descargar</a>
+            <button class="bs" style="font-size:10px;padding:2px 7px;border-radius:4px;background:#e8f5e9;color:#2e7d32" onclick="descargarRepositorio('${r.id}','${(r.nombre_archivo||'').replace(/'/g,String.fromCharCode(39))}')">⬇ Descargar</button>
             ${me.rol==='director'||me.rol==='docente'?`<button class="bs d" style="font-size:10px;padding:2px 5px" onclick="delRepositorio('${r.id}','${tipo}')">✕</button>`:''}
           </div>
         </td>
@@ -3486,6 +3524,7 @@ W.loadAsist=async(asigId)=>{
   // Estado por defecto: Presente
   alumnos.forEach(a=>{if(!estMap[a.id])estMap[a.id]='P';});
   W._ast={asigId,fecha,est:{...estMap}};
+  W._asistAlumnos=alumnos;
 
   const hor=W._asistHorarios?.find(h=>h.asignacion_id===asigId);
   const horInfo=hor?`${hor.dia} · Turno ${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'';
@@ -3505,6 +3544,7 @@ W.loadAsist=async(asigId)=>{
       <span class="bx br">✗ ${ausentes} ausentes</span>
       ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
       ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
+      ${me.rol==='director'?`<button class="bs i" onclick="imprimirAsistDia('${asigId}','${fecha}')" title="Imprimir acta de asistencia de este día">🖨 Acta del día</button>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="anularAsistencia('${asigId}',v('fecAsist'))" title="Anular toda la asistencia de esta fecha">🗑 Anular registro</button>`:''}
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
@@ -3599,6 +3639,75 @@ function confirm2(titulo, cuerpo, onAceptar, onModificar){
   document.body.appendChild(div);
 }
 
+function imprimirAsistDia(asigId, fecha){
+  const asig=(W._asistAsigs||[]).find(a=>a.id===asigId)||{};
+  const hor=(W._asistHorarios||[]).find(h=>h.asignacion_id===asigId);
+  const ast=W._ast;
+  if(!ast||ast.asigId!==asigId){toast('Guardá la asistencia primero','warn');return;}
+  const estMap=ast.est||{};
+  const alumnos=W._asistAlumnos||[];
+  const estadoLabel={P:'Presente',A:'Ausente',T:'Tardanza',J:'Justificado'};
+  const estadoColor={P:'#2e7d32',A:'#c62828',T:'#e65100',J:'#1565c0'};
+  const filas=alumnos.map((al,i)=>{
+    const est=estMap[al.id]||'P';
+    return `<tr>
+      <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${i+1}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc">${al.apellido||''}, ${al.nombre||''}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${al.ci||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc;text-align:center;font-weight:700;color:${estadoColor[est]||'#333'}">${estadoLabel[est]||est}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc;width:120px"></td>
+    </tr>`;
+  }).join('');
+  const presentes=Object.values(estMap).filter(e=>e==='P').length;
+  const ausentes=Object.values(estMap).filter(e=>e==='A').length;
+  const tardanza=Object.values(estMap).filter(e=>e==='T').length;
+  const justif=Object.values(estMap).filter(e=>e==='J').length;
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Acta de Asistencia</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}
+    h2{text-align:center;font-size:16px;margin-bottom:4px}
+    .sub{text-align:center;font-size:12px;color:#555;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#1a5fa8;color:#fff;padding:7px 10px;border:1px solid #1565c0;text-align:left}
+    .resumen{display:flex;gap:20px;margin:14px 0;font-size:12px}
+    .res-item{border:1px solid #ccc;border-radius:6px;padding:6px 14px;text-align:center}
+    .res-item strong{display:block;font-size:18px}
+    .firma{margin-top:40px;display:flex;justify-content:space-between}
+    .firma-box{text-align:center;width:200px}
+    .firma-box div{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:11px}
+    @media print{button{display:none}}
+  </style></head><body>
+  <h2>Instituto Técnico Superior Santísima Trinidad</h2>
+  <div class="sub">Acta de Asistencia — ${asig.materia_nombre||''} · ${asig.carrera_nombre||''} ${asig.curso_anio?asig.curso_anio+'°':''}</div>
+  <div class="sub"><strong>Fecha:</strong> ${fmtFecha(fecha)} &nbsp;·&nbsp; <strong>Horario:</strong> ${hor?`${hor.dia} T${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'—'} &nbsp;·&nbsp; <strong>Docente:</strong> ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div>
+  <div class="resumen">
+    <div class="res-item"><strong style="color:#2e7d32">${presentes}</strong>Presentes</div>
+    <div class="res-item"><strong style="color:#c62828">${ausentes}</strong>Ausentes</div>
+    <div class="res-item"><strong style="color:#e65100">${tardanza}</strong>Tardanzas</div>
+    <div class="res-item"><strong style="color:#1565c0">${justif}</strong>Justificados</div>
+    <div class="res-item"><strong>${alumnos.length}</strong>Total</div>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:40px">N°</th>
+      <th>Apellido, Nombre</th>
+      <th style="width:90px">C.I.</th>
+      <th style="width:90px">Estado</th>
+      <th style="width:120px">Firma</th>
+    </tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div class="firma">
+    <div class="firma-box"><div>Director/a</div></div>
+    <div class="firma-box"><div>Docente: ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div></div>
+  </div>
+  <p style="text-align:center;margin-top:20px;font-size:10px;color:#999">Generado: ${new Date().toLocaleString('es-PY')}</p>
+  <button onclick="window.print()" style="margin-top:12px;padding:8px 20px;background:#1a5fa8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">🖨 Imprimir</button>
+  </body></html>`);
+  win.document.close();
+}
 async function anularAsistencia(asigId, fecha){
   if(!fecha){toast('Seleccioná una fecha primero','warn');return;}
   confirm2('🗑 Anular registro de asistencia',
@@ -5205,10 +5314,14 @@ async function cargarMisHon(){
   const mes=v('mhMes'), anio=v('mhAnio');
   const el=document.getElementById('panelMisHon');
   if(!el)return;
+  const docenteId=me.rol==='director'?v('mhDocente'):me.docenteId;
+  if(!docenteId){
+    el.innerHTML='<div class="es">Seleccioná un docente para ver sus honorarios</div>';
+    return;
+  }
   el.innerHTML=skeletonTable(6,8);
   try{
-    const docParam=me.rol==='director'?(v('mhDocente')?`&docente_id=${v('mhDocente')}`:''):`&docente_id=${me.docenteId||''}`;
-    const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}${docParam}`);
+    const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}&docente_id=${docenteId}`);
     W._honResumen=r;
     const diasN={0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado'};
     // Construir mapa honorario por fecha
@@ -5246,72 +5359,135 @@ async function cargarMisHon(){
     }
     const totalClases=fechasClase.reduce((s,f)=>s+f.asigs.length,0);
     const clasesDadas=(r.honorarios||[]).filter(h=>h.tipo==='clase').length;
+    const reemplazosRealizados=(r.honorarios||[]).filter(h=>h.tipo==='reemplazo').length;
+    const totalGanado=r.totalGanado||0;
+    // Materias únicas para filtro
+    const materiasUnicas=[...new Set(asigs.map(a=>a.materia_nombre).filter(Boolean))].sort();
+    W._honFechasClase=fechasClase; W._honMaps={honMap,repMap}; W._honR=r; W._honDocId=miDocId;
+
+    // Resumen por materia
+    const resMateria={};
+    fechasClase.forEach(fc=>fc.asigs.forEach(asig=>{
+      const k=asig.materia_nombre||'—';
+      if(!resMateria[k])resMateria[k]={clases:0,dictadas:0,monto:0,turno:asig.turno};
+      resMateria[k].clases++;
+      const hons=honMap[fc.fecha]||[];
+      const h=hons.find(x=>x.asignacion_id===asig.id);
+      if(h){resMateria[k].dictadas++;resMateria[k].monto+=h.monto||0;}
+    }));
+
     el.innerHTML=`
-    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+    <!-- Tarjetas resumen -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
+      <div class="card card-p" style="text-align:center">
         <div style="font-size:11px;color:var(--t2)">Clases esperadas</div>
         <div style="font-size:26px;font-weight:900;color:#e65100">${totalClases}</div>
       </div>
-      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+      <div class="card card-p" style="text-align:center">
         <div style="font-size:11px;color:var(--t2)">Clases dictadas</div>
         <div style="font-size:26px;font-weight:900;color:#2e7d32">${clasesDadas}</div>
       </div>
-      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
-        <div style="font-size:11px;color:var(--t2)">Ausencias</div>
-        <div style="font-size:26px;font-weight:900;color:#c62828">${totalClases-clasesDadas-(r.reemplazos||[]).filter(x=>x.docente_reemplazante_id===miDocId).length}</div>
-      </div>
-      <div class="card card-p" style="flex:1;min-width:130px;text-align:center">
+      <div class="card card-p" style="text-align:center">
         <div style="font-size:11px;color:var(--t2)">Reemplazos realizados</div>
-        <div style="font-size:26px;font-weight:700;color:#7F77DD">${(r.honorarios||[]).filter(h=>h.tipo==='reemplazo').length}</div>
+        <div style="font-size:26px;font-weight:700;color:#7F77DD">${reemplazosRealizados}</div>
+      </div>
+      <div class="card card-p" style="text-align:center;border:2px solid #1D9E75">
+        <div style="font-size:11px;color:var(--t2)">Total a cobrar</div>
+        <div style="font-size:20px;font-weight:900;color:#1b5e20">Gs. ${totalGanado.toLocaleString()}</div>
       </div>
     </div>
-    <div class="card"><div class="tw"><table style="font-size:11px;width:100%;border-collapse:collapse">
-      <thead><tr style="background:#1a5fa8;color:#fff">
-        <th style="padding:7px 10px;border:1px solid #1565c0">Fecha</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0">Día</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0">Materia</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0">Carrera</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Turno</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Estado</th>
-        <th style="padding:7px 10px;border:1px solid #1565c0">Detalle</th>
-      </tr></thead>
-      <tbody>
-      ${fechasClase.map(fc=>fc.asigs.map(asig=>{
-        const hons=honMap[fc.fecha]||[];
-        const honAsig=hons.find(h=>h.asignacion_id===asig.id||h.tipo==='clase');
-        // Ver si hubo reemplazo en esta fecha y asignación
-        const repFecha=(repMap[fc.fecha]||[]).find(rep=>rep.asignacion_id===asig.id);
-        let estado='', detalle='', bgRow='';
-        if(repFecha&&repFecha.docente_titular_id===miDocId){
-          estado='<span class="bx ba" style="font-size:10px">🔄 Reemplazado</span>';
-          detalle=`Reemplazado por: <strong>${repFecha.rep_nombre||''} ${repFecha.rep_apellido||''}</strong>`;
-          bgRow='background:#fff8e1';
-        }else if(repFecha&&repFecha.docente_reemplazante_id===miDocId){
-          estado='<span class="bx bb" style="font-size:10px">🔄 Reemplazante</span>';
-          detalle=`Reemplazó a: <strong>${repFecha.titular_nombre||''} ${repFecha.titular_apellido||''}</strong><br><span style="font-size:10px">${repFecha.materia||asig.materia_nombre||''} — ${repFecha.carrera||asig.carrera_nombre||''} ${asig.turno?'· T'+asig.turno+(asig.turno===1?' (19:00)':' (20:40)'):''}</span>`;
-          bgRow='background:#e8f5e9';
-        }else if(honAsig){
-          estado='<span class="bx bg" style="font-size:10px">✓ Presente</span>';
-          detalle='Asistencia registrada';
-          bgRow='';
-        }else{
-          estado='<span class="bx br" style="font-size:10px">✗ Ausente</span>';
-          detalle='Sin asistencia registrada';
-          bgRow='background:#fff5f5';
-        }
-        return`<tr style="${bgRow}">
-          <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600;white-space:nowrap">${fmtFecha(fc.fecha)}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr)">${fc.dia}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr)">${asig.materia_nombre||honAsig?.materia_nombre||'—'}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px">${asig.carrera_nombre||honAsig?.carrera_nombre||'—'} ${asig.anio_curso?asig.anio_curso+'°':''}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${asig.turno===1||honAsig?.asig_turno===1?'T1 19:00':'T2 20:40'}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${estado}</td>
-          <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px;color:var(--t2)">${detalle}</td>
-        </tr>`;
-      }).join('')).join('')}
-      </tbody>
-    </table></div></div>`;
+
+    <!-- Resumen por materia -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:14px">
+      ${Object.entries(resMateria).map(([mat,d])=>`
+        <div style="border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;background:#fff">
+          <div style="font-weight:700;font-size:12px;margin-bottom:4px">${mat}</div>
+          <div style="font-size:11px;color:var(--t2)">T${d.turno===1?'1 19:00':'2 20:40'} · ${d.dictadas}/${d.clases} clases</div>
+          <div style="font-size:13px;font-weight:800;color:#1b5e20;margin-top:4px">Gs. ${d.monto.toLocaleString()}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Filtro por materia -->
+    <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="mhFiltMateria" onchange="renderHonTabla()" style="min-width:200px">
+        <option value="">Todas las materias</option>
+        ${materiasUnicas.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      </select>
+      <select id="mhFiltEstado" onchange="renderHonTabla()" style="min-width:150px">
+        <option value="">Todos los estados</option>
+        <option value="presente">✓ Presente</option>
+        <option value="ausente">✗ Ausente</option>
+        <option value="reemplazo">🔄 Reemplazo</option>
+      </select>
+    </div>
+    <div id="honTablaContainer"></div>`;
+
+    renderHonTabla();
   }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
+function renderHonTabla(){
+  const cont=document.getElementById('honTablaContainer');
+  if(!cont)return;
+  const filtMat=document.getElementById('mhFiltMateria')?.value||'';
+  const filtEst=document.getElementById('mhFiltEstado')?.value||'';
+  const fechasClase=W._honFechasClase||[];
+  const {honMap={},repMap={}}=W._honMaps||{};
+  const miDocId=W._honDocId;
+  let totalFiltrado=0;
+  const filas=fechasClase.flatMap(fc=>fc.asigs.map(asig=>{
+    if(filtMat&&asig.materia_nombre!==filtMat)return null;
+    const hons=honMap[fc.fecha]||[];
+    const honAsig=hons.find(h=>h.asignacion_id===asig.id||h.tipo==='clase');
+    const repFecha=(repMap[fc.fecha]||[]).find(rep=>rep.asignacion_id===asig.id);
+    let estado='',detalle='',bgRow='',tipoEstado='';
+    if(repFecha&&repFecha.docente_titular_id===miDocId){
+      estado='<span class="bx ba" style="font-size:10px">🔄 Reemplazado</span>';
+      detalle=`Por: <strong>${repFecha.rep_nombre||''} ${repFecha.rep_apellido||''}</strong> · El honorario fue adjudicado al reemplazante`;
+      bgRow='background:#fff8e1';tipoEstado='reemplazo';
+    }else if(repFecha&&repFecha.docente_reemplazante_id===miDocId){
+      estado='<span class="bx bb" style="font-size:10px">🔄 Reemplazante</span>';
+      detalle=`Reemplazó a: <strong>${repFecha.titular_nombre||''} ${repFecha.titular_apellido||''}</strong>`;
+      bgRow='background:#e8f5e9';tipoEstado='reemplazo';
+    }else if(honAsig){
+      estado='<span class="bx bg" style="font-size:10px">✓ Presente</span>';
+      detalle='';bgRow='';tipoEstado='presente';
+    }else{
+      estado='<span class="bx br" style="font-size:10px">✗ Ausente</span>';
+      detalle='Sin asistencia';bgRow='background:#fff5f5';tipoEstado='ausente';
+    }
+    if(filtEst&&tipoEstado!==filtEst)return null;
+    const monto=honAsig?honAsig.monto:0;
+    if(monto)totalFiltrado+=monto;
+    return`<tr style="${bgRow}" data-estado="${tipoEstado}">
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600;white-space:nowrap">${fmtFecha(fc.fecha)}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">${fc.dia}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600">${asig.materia_nombre||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px">${asig.carrera_nombre||'—'} ${asig.anio_curso?asig.anio_curso+'°':''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">T${asig.turno===1?'1<br><span style="font-size:9px;color:var(--t3)">19:00</span>':'2<br><span style="font-size:9px;color:var(--t3)">20:40</span>'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${estado}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px;color:var(--t2)">${detalle}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:right;font-weight:700;color:${monto?'#1b5e20':'#bbb'}">${monto?'Gs. '+monto.toLocaleString():'—'}</td>
+    </tr>`;
+  })).filter(Boolean);
+  if(!filas.length){cont.innerHTML='<div class="es">Sin registros con esos filtros</div>';return;}
+  cont.innerHTML=`<div class="card"><div class="tw"><table style="font-size:11px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#1a5fa8;color:#fff">
+      <th style="padding:7px 10px;border:1px solid #1565c0">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0">Día</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0">Materia</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0">Carrera</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Turno</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0;text-align:center">Estado</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0">Detalle reemplazo</th>
+      <th style="padding:7px 10px;border:1px solid #1565c0;text-align:right">Monto</th>
+    </tr></thead>
+    <tbody>${filas.join('')}
+      <tr style="background:#f0f7f0;font-weight:700">
+        <td colspan="7" style="padding:6px 10px;border:1px solid var(--bdr);text-align:right">SUBTOTAL:</td>
+        <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right;color:#1b5e20;font-size:13px">Gs. ${totalFiltrado.toLocaleString()}</td>
+      </tr>
+    </tbody>
+  </table></div></div>`;
 }
 function imprimirMiInforme(){imprimirInformeHon();}
 
