@@ -1405,9 +1405,34 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago } = req.body;
   try {
     const id = 'pg_'+Date.now();
-    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,monto,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
-    audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto,medio_pago});
-    res.json({ ok: true, id });
+    // Buscar el arancel correspondiente al concepto para validar el monto
+    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE id=?').get(alumno_id);
+    const tipoMap = {
+      'matricula': ['matrícula','matricula'],
+      'cuota': ['cuota'],
+      'parcial': ['parcial ordinario','parcial recuperatorio','examen parcial'],
+      'final': ['final ordinario','final recuperatorio','final complementario','complementario','examen final'],
+      'extraordinario': ['extraordinario'],
+      'certificado': ['certificado']
+    };
+    let arancelEsperado = null;
+    if (al) {
+      const concepto_lower = (concepto||'').toLowerCase();
+      for (const [tipo, keywords] of Object.entries(tipoMap)) {
+        if (keywords.some(k => concepto_lower.includes(k))) {
+          arancelEsperado = db.prepare(
+            "SELECT monto FROM aranceles WHERE tipo=? AND activo=1 AND (carrera_id=? OR carrera_id IS NULL) ORDER BY carrera_id DESC LIMIT 1"
+          ).get(tipo, al.carrera_id);
+          break;
+        }
+      }
+    }
+    const montoPagado = parseFloat(monto)||0;
+    const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
+    const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
+    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
+    audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto:montoPagado,medio_pago});
+    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
@@ -1863,7 +1888,7 @@ app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
 app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
   const { habilitado, asignacion_id, tipo_examen, motivo } = req.body;
   const fechaHoy = new Date().toISOString().split('T')[0];
-  const TIPOS = ['final_ord','final_recuperatorio','complementario','extraordinario','parcial','final','extraordinario'];
+  const TIPOS = ['parcial','parcial_recuperatorio','final','final_ord','final_recuperatorio','complementario','extraordinario'];
   const tipoDb = TIPOS.includes(tipo_examen) ? tipo_examen : 'final';
   const hab = asignacion_id
     ? db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(req.params.id, asignacion_id, tipoDb)
@@ -2111,8 +2136,12 @@ app.delete('/api/asistencia/rango', auth(ADM), (req, res) => {
 
 // ── ARANCELES (costos) ────────────────────────────────────────────────────────
 app.get('/api/aranceles', auth(), (req, res) => {
+  const { tipo, carrera_id } = req.query;
+  let where = 'WHERE a.activo=1'; const params = [];
+  if (tipo) { where += ' AND a.tipo=?'; params.push(tipo); }
+  if (carrera_id) { where += ' AND (a.carrera_id=? OR a.carrera_id IS NULL)'; params.push(carrera_id); }
   res.json(db.prepare(`SELECT a.*,c.nombre as carrera_nombre FROM aranceles a
-    LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.activo=1 ORDER BY a.tipo,a.concepto`).all());
+    LEFT JOIN carreras c ON a.carrera_id=c.id ${where} ORDER BY a.tipo,a.concepto`).all(...params));
 });
 app.post('/api/aranceles', auth(ADM), (req, res) => {
   const { concepto, monto, tipo, carrera_id, descripcion } = req.body;
@@ -2122,7 +2151,7 @@ app.post('/api/aranceles', auth(ADM), (req, res) => {
 });
 app.put('/api/aranceles/:id', auth(ADM), (req, res) => {
   const { concepto, monto, tipo, carrera_id, descripcion, activo } = req.body;
-  db.prepare('UPDATE aranceles SET concepto=?,monto=?,tipo=?,carrera_id=?,descripcion=?,activo=?,fecha_actualizacion=date("now") WHERE id=?').run(concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null,activo?1:0,req.params.id);
+  db.prepare("UPDATE aranceles SET concepto=?,monto=?,tipo=?,carrera_id=?,descripcion=?,activo=?,fecha_actualizacion=date('now') WHERE id=?").run(concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null,activo?1:0,req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/aranceles/:id', auth(ADM), (req, res) => {
@@ -2137,7 +2166,7 @@ app.post('/api/habilitaciones', auth(ADM), (req, res) => {
   // Upsert: si ya existe, actualizar
   const existente = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND tipo_examen=? AND (asignacion_id=? OR asignacion_id IS NULL)').get(alumno_id, tipo_examen, asignacion_id||null);
   if (existente) {
-    db.prepare('UPDATE habilitaciones_examen SET habilitado=?,habilitado_por=?,motivo=?,fecha=date("now") WHERE id=?').run(habilitado?1:0, req.user.id, motivo||null, existente.id);
+    db.prepare("UPDATE habilitaciones_examen SET habilitado=?,habilitado_por=?,motivo=?,fecha=date('now') WHERE id=?").run(habilitado?1:0, req.user.id, motivo||null, existente.id);
     return res.json({ id: existente.id, updated: true });
   }
   db.prepare('INSERT INTO habilitaciones_examen (id,alumno_id,tipo_examen,asignacion_id,habilitado,habilitado_por,motivo) VALUES (?,?,?,?,?,?,?)').run(id,alumno_id,tipo_examen,asignacion_id||null,habilitado?1:0,req.user.id,motivo||null);

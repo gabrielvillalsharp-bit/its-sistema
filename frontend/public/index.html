@@ -2595,9 +2595,17 @@ async function pgCalClases(el){
   const carreras=[...new Set(h.filter(x=>x.carrera_nombre).map(x=>x.carrera_nombre))].sort();
   const anios=[...new Set(h.filter(x=>x.curso_anio).map(x=>x.curso_anio))].sort((a,b)=>a-b);
   const esDocente=me.rol==='docente';
+  // Detectar entradas sin docente o sin materia (inconsistencias)
+  const huerfanos=h.filter(x=>!x.docente_nombre||!x.materia_nombre);
+  const alertaHuerfanos=(!esDocente&&huerfanos.length)?`<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#e65100">
+    ⚠ <strong>${huerfanos.length} entrada(s) en el horario sin docente asignado o sin materia válida.</strong>
+    Estas entradas no deben aparecer en el horario. Revisá la sección <a href="#" onclick="go('materias');return false;" style="color:#1565c0;text-decoration:underline">Materias</a> y asigná un docente a cada materia.
+    <label style="margin-left:12px;cursor:pointer"><input type="checkbox" id="filtHorOcultar" onchange="renderHorario()" checked> Ocultar sin docente</label>
+  </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases</h3>
     <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs</p>
   </div>
+  ${alertaHuerfanos}
   <div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
     ${!esDocente?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
       <option value="">Todas las carreras</option>
@@ -2623,20 +2631,26 @@ function renderHorario(){
   const fc=document.getElementById('filtHorCarr')?.value||'';
   const fa=document.getElementById('filtHorAnio')?.value||'';
   const fd=document.getElementById('filtHorDoc')?.value||'';
+  const ocultarSinDoc=document.getElementById('filtHorOcultar')?.checked!==false;
   if(fc)h=h.filter(x=>x.carrera_nombre?.includes(fc));
   if(fa)h=h.filter(x=>String(x.curso_anio)===fa);
   if(fd)h=h.filter(x=>(x.docente_nombre+' '+x.docente_apellido)===fd);
+  // Ocultar entradas sin docente o sin materia (no deben aparecer en el horario)
+  if(ocultarSinDoc)h=h.filter(x=>x.docente_nombre&&x.materia_nombre);
   const turno1=h.filter(x=>x.turno===1);
   const turno2=h.filter(x=>x.turno===2);
   const cell=(lista,dia)=>{
     const items=lista.filter(x=>x.dia===dia);
     if(!items.length)return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px;background:#fafaf8"><span style="color:var(--t3);font-size:11px">—</span></td>`;
     return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px">
-      ${items.map(i=>`<div style="background:${getColor(i.carrera_nombre)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px">
-        <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin asignar'}</div>
-        <div style="color:#555;margin-top:1px">${i.carrera_nombre||''} ${i.curso_anio?i.curso_anio+'°':''}</div>
-        ${me.rol!=='docente'?`<div style="color:#777;font-size:10px;margin-top:2px">${i.titulo?i.titulo+' ':''}${i.docente_nombre?i.docente_nombre+' '+i.docente_apellido:'Sin docente'}</div>`:''}
-      </div>`).join('')}
+      ${items.map(i=>{
+        const sinDocente=!i.docente_nombre;
+        return `<div style="background:${sinDocente?'#ffebee':getColor(i.carrera_nombre)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}">
+          <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin materia'}</div>
+          <div style="color:#555;margin-top:1px">${i.carrera_nombre||''} ${i.curso_anio?i.curso_anio+'°':''}</div>
+          ${me.rol!=='docente'?`<div style="color:${sinDocente?'#c62828':'#777'};font-size:10px;margin-top:2px">${sinDocente?'⚠ Sin docente asignado':(i.titulo?i.titulo+' ':'')+i.docente_nombre+' '+i.docente_apellido}</div>`:''}
+        </div>`;
+      }).join('')}
     </td>`;
   };
   const el=document.getElementById('tablaHorario');
@@ -3151,6 +3165,7 @@ async function habilitarAlumno(alId,asigId){
     <div class="f"><label>Examen a habilitar <span style="color:var(--red)">*</span></label>
       <select id="habTipoEx">
         <option value="">— Seleccionar examen —</option>
+        <option value="parcial_recuperatorio">Parcial Recuperatorio</option>
         <option value="final_ord">Final Ordinario</option>
         <option value="final_recuperatorio">Final Recuperatorio</option>
         <option value="complementario">Complementario</option>
@@ -3169,7 +3184,7 @@ async function habilitarAlumno(alId,asigId){
 async function confirmarHabilitacion(alId,asigId){
   const tipoEx=v('habTipoEx'),motivo=v('habMotivo');
   if(!tipoEx)return alert('Seleccioná el examen a habilitar');
-  const labels={final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Complementario',extraordinario:'Extraordinario'};
+  const labels={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Complementario',extraordinario:'Extraordinario'};
   try{
     await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true,asignacion_id:asigId,tipo_examen:tipoEx,motivo:motivo||'Habilitado por Dirección'});
     toast(`✓ Alumno habilitado para ${labels[tipoEx]} — aparecerá "Habilitado por Dirección"`, 'ok', 4000);
@@ -4062,11 +4077,50 @@ async function selAlumnoPago(alId){
 }
 
 async function habilitarDesdeHistorial(alId){
-  if(!confirm('¿Habilitar a este alumno para rendir exámenes a pesar de la mora? Quedará registrado.'))return;
+  // Obtener aranceles para mostrar solo exámenes con arancel (parcial ordinario es gratis)
+  const aranceles = await api('GET','/api/aranceles').catch(()=>[]);
+  const examsCopago = [
+    {value:'parcial_recuperatorio', label:'Parcial Recuperatorio', tipo:'parcial'},
+    {value:'final_ord', label:'Final Ordinario', tipo:'final'},
+    {value:'final_recuperatorio', label:'Final Recuperatorio', tipo:'final'},
+    {value:'complementario', label:'Final Complementario', tipo:'final'},
+    {value:'extraordinario', label:'Final Extraordinario ⚡', tipo:'extraordinario'},
+  ];
+  // Mostrar monto de arancel cuando corresponda
+  function montoAr(tipo){
+    const ar=aranceles.find(a=>a.tipo===tipo);
+    return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:'';
+  }
+  modal(`<h4>🔓 Habilitar examen por Dirección</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">
+    Solo el <strong>Parcial Ordinario es gratuito</strong>. Los demás exámenes requieren pago.<br>
+    Seleccioná el examen a habilitar por excepción de Dirección.
+  </p>
+  <div class="fg">
+    <div class="f"><label>Examen a habilitar <span style="color:var(--red)">*</span></label>
+      <select id="habDesdeHistTipo">
+        <option value="">— Seleccionar examen —</option>
+        ${examsCopago.map(e=>`<option value="${e.value}">${e.label}${montoAr(e.tipo)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Motivo / Observación</label>
+      <input id="habDesdeHistMotivo" placeholder="Ej: Acuerdo de pago, beca, excepción..."/>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="confirmarHabDesdeHistorial('${alId}')">✅ Habilitar</button>
+  </div>`);
+}
+async function confirmarHabDesdeHistorial(alId){
+  const tipo=v('habDesdeHistTipo'), motivo=v('habDesdeHistMotivo');
+  if(!tipo)return alert('Seleccioná el examen a habilitar');
+  const labels={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
   try{
-    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true});
-    selAlumnoPago(alId); // recargar el panel
-  }catch(e){alert('Error: '+e.message);}
+    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true,tipo_examen:tipo,motivo:motivo||'Habilitado por Dirección'});
+    toast(`✓ Habilitado para ${labels[tipo]||tipo} — registrado como excepción de Dirección`,'ok',4000);
+    cm(); selAlumnoPago(alId);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 function mPagoParaAlumno(alId){
@@ -4192,21 +4246,57 @@ function filtrarAlPago(){
 async function svPago(){
   const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
-  window._pagoData=o; // guardar referencia segura para confirm2
+  window._pagoData=o;
   const al=(W._pdata?.als||[]).find(a=>a.id===o.alumno_id);
   const nom=al?`${al.display_apellido||''}, ${al.display_nombre||''}`:'—';
+  // Buscar arancel esperado para el concepto seleccionado
+  const aranceles=W._pdata?.aranceles||[];
+  const tipoMap={'matricula':['matrícula','matricula'],'cuota':['cuota'],'parcial':['parcial ordinario','parcial recuperatorio','examen parcial'],'final':['final ordinario','final recuperatorio','final complementario','complementario','examen final'],'extraordinario':['extraordinario'],'certificado':['certificado']};
+  let arancelEsp=null;
+  const conc_low=(o.concepto||'').toLowerCase();
+  for(const [tipo,kws] of Object.entries(tipoMap)){
+    if(kws.some(k=>conc_low.includes(k))){
+      arancelEsp=aranceles.find(a=>a.tipo===tipo&&(!a.carrera_id||a.carrera_id===al?.carrera_id))||aranceles.find(a=>a.tipo===tipo);
+      break;
+    }
+  }
+  const montoEsp=arancelEsp?arancelEsp.monto:null;
+  const diff=montoEsp&&o.monto<montoEsp?montoEsp-o.monto:0;
+  let alertaHTML='';
+  if(montoEsp&&o.monto!==montoEsp){
+    if(o.monto<montoEsp){
+      alertaHTML=`<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:8px 12px;margin-top:8px;font-size:12px;color:#e65100">
+        ⚠ <strong>Monto menor a la cuota/arancel</strong><br>
+        Arancel esperado: <strong>Gs. ${Number(montoEsp).toLocaleString()}</strong><br>
+        Se registrará el pago de Gs. ${Number(o.monto).toLocaleString()} y quedará un saldo pendiente de <strong>Gs. ${Number(diff).toLocaleString()}</strong>.
+      </div>`;
+    } else {
+      alertaHTML=`<div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:12px;color:#2e7d32">
+        ✓ Monto superior al arancel (Gs. ${Number(montoEsp).toLocaleString()})
+      </div>`;
+    }
+  }
   confirm2(
     '💰 Confirmar registro de pago',
     `<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px">
       <div><span style="font-size:11px;color:var(--t3)">Alumno</span><br><strong>${nom}</strong></div>
       <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Concepto</span><br><strong>${o.concepto}</strong></div>
-      <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Monto</span><br><span style="font-size:20px;font-weight:900;color:#2e7d32">Gs. ${(o.monto||0).toLocaleString()}</span></div>
+      <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Monto</span><br><span style="font-size:20px;font-weight:900;color:#2e7d32">Gs. ${(o.monto||0).toLocaleString()}</span>${montoEsp?`<span style="font-size:11px;color:var(--t2);margin-left:8px">(Arancel: Gs. ${Number(montoEsp).toLocaleString()})</span>`:''}</div>
       <div style="margin-top:4px;font-size:12px">Medio: ${o.medio_pago}${o.comprobante?' · Comp: '+o.comprobante:''}</div>
     </div>
+    ${alertaHTML}
     <p style="font-size:12px;color:var(--t2);margin-top:8px">Verificá que el monto y concepto sean correctos.</p>`,
     async function(){
       const pd=window._pagoData;
-      try{await api('POST','/api/pagos',pd);cm();go('pagos');toast('✓ Pago registrado','ok');}
+      try{
+        const r=await api('POST','/api/pagos',pd);
+        cm();go('pagos');
+        if(r.monto_pendiente>0){
+          toast(`✓ Pago registrado — Saldo pendiente: Gs. ${Number(r.monto_pendiente).toLocaleString()}`,'info',5000);
+        } else {
+          toast('✓ Pago registrado','ok');
+        }
+      }
       catch(e){toast('Error: '+e.message,'err');}
     },
     function(){toast('Podés corregir los datos del pago','info');}

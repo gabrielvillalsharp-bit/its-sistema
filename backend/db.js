@@ -664,6 +664,24 @@ function init() {
   try { db.prepare("ALTER TABLE institucion ADD COLUMN logo_base64 TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE habilitaciones_examen ADD COLUMN motivo TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE habilitaciones_examen ADD COLUMN habilitado_recuperatorio INTEGER DEFAULT 0").run(); } catch {}
+  // Migración: expandir tipo_examen para soportar todos los tipos de examen
+  try {
+    const schRow = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='habilitaciones_examen'").get();
+    if (schRow && schRow.sql && schRow.sql.includes("CHECK(tipo_examen IN ('parcial','final','extraordinario'))")) {
+      db.exec(`CREATE TABLE IF NOT EXISTS habilitaciones_examen_v2 (
+        id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo_examen TEXT NOT NULL,
+        asignacion_id TEXT, habilitado INTEGER NOT NULL DEFAULT 0, habilitado_por TEXT,
+        motivo TEXT, fecha TEXT DEFAULT (date('now')), habilitado_recuperatorio INTEGER DEFAULT 0
+      )`);
+      db.exec(`INSERT OR IGNORE INTO habilitaciones_examen_v2
+        SELECT id, alumno_id, tipo_examen, asignacion_id, habilitado, habilitado_por, motivo, fecha,
+          COALESCE(habilitado_recuperatorio, 0)
+        FROM habilitaciones_examen`);
+      db.exec(`DROP TABLE habilitaciones_examen`);
+      db.exec(`ALTER TABLE habilitaciones_examen_v2 RENAME TO habilitaciones_examen`);
+      console.log('✓ Migración habilitaciones_examen: CHECK constraint expandido');
+    }
+  } catch(e) { console.error('Error migrando habilitaciones_examen:', e.message); }
   try { db.prepare("ALTER TABLE materias ADD COLUMN dia TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN turno INTEGER").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN curso_id TEXT").run(); } catch {}
