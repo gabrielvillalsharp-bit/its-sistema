@@ -346,7 +346,7 @@ function navFor(r){
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
     ]},
     {g:'Gestión Académica',i:[
-      {id:'mis-honorarios',l:'📋 Mis clases y honorarios',c:'#D85A30',r:['director']},
+      {id:'mis-honorarios',l:'📋 Mis clases y honorarios',c:'#D85A30',r:['director','docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente','secretaria']},
     ]},
     {g:'Mi área',i:[
@@ -5098,14 +5098,23 @@ async function imprimirInformeHon(){
 // ── MIS HONORARIOS (docente) ──────────────────────────────────────────────────
 async function pgMisHonorarios(el){
   const hoy=new Date();
-  el.innerHTML=`<div class="ph"><h3>💰 Mis honorarios</h3></div>
-  <div class="fb" style="gap:8px;margin-bottom:14px">
+  let docSelect='';
+  if(me.rol==='director'){
+    const docs=await api('GET','/api/docentes').catch(()=>[]);
+    docSelect=`<select id="mhDocente" style="min-width:180px">
+      <option value="">— Seleccionar docente —</option>
+      ${docs.map(d=>`<option value="${d.id}">${d.apellido||''}, ${d.nombre||''}</option>`).join('')}
+    </select>`;
+  }
+  el.innerHTML=`<div class="ph"><h3>${me.rol==='director'?'💰 Honorarios por docente':'💰 Mis clases y honorarios'}</h3></div>
+  <div class="fb" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    ${docSelect}
     <select id="mhMes">${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}</select>
     <input id="mhAnio" type="number" value="${hoy.getFullYear()}" style="width:80px"/>
     <button class="bn" onclick="cargarMisHon()">Ver</button>
     <button class="bs o" onclick="imprimirMiInforme()">🖨 Imprimir mi informe</button>
   </div>
-  <div id="panelMisHon"><div class="es">Seleccioná un mes para ver tus honorarios</div></div>`;
+  <div id="panelMisHon"><div class="es">Seleccioná un mes para ver los honorarios</div></div>`;
 }
 async function cargarMisHon(){
   const mes=v('mhMes'), anio=v('mhAnio');
@@ -5113,7 +5122,8 @@ async function cargarMisHon(){
   if(!el)return;
   el.innerHTML=skeletonTable(6,8);
   try{
-    const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}`);
+    const docParam=me.rol==='director'?(v('mhDocente')?`&docente_id=${v('mhDocente')}`:''):`&docente_id=${me.docenteId||''}`;
+    const r=await api('GET',`/api/honorarios/resumen?mes=${mes}&anio=${anio}${docParam}`);
     W._honResumen=r;
     const diasN={0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado'};
     // Construir mapa honorario por fecha
