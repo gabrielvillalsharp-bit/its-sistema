@@ -1100,8 +1100,14 @@ app.delete('/api/asistencia/anular', auth(ADM), (req, res) => {
   res.json({ ok: true, eliminados: del.changes });
 });
 
-app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
-  const { docente_id, mes, anio } = req.query;
+app.get('/api/honorarios/resumen', auth(['director','docente']), (req, res) => {
+  let { docente_id, mes, anio } = req.query;
+  // Docente solo puede ver sus propios honorarios
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    if (!doc) return res.status(403).json({ error: 'No se encontró el registro de docente' });
+    docente_id = doc.id;
+  }
   if (!docente_id || !mes || !anio) return res.status(400).json({ error: 'docente_id, mes y anio requeridos' });
   const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
   const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
@@ -1274,6 +1280,28 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
       });
     }
     audit(req.user.id, 'CREATE', 'examenes', id, { tipo, fecha, asignacion_id, unificados: unif_creados.length });
+
+    // Generar aviso automático para el docente
+    try {
+      const info = db.prepare(`
+        SELECT d.id as docente_id, u.nombre, u.apellido, m.nombre as materia, ca.nombre as carrera, cu.anio
+        FROM asignaciones a
+        JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+        JOIN materias m ON a.materia_id=m.id
+        JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+        WHERE a.id=?`).get(asignacion_id);
+      if (info) {
+        const tipoLabel = { parcial:'Parcial', parcial_recuperatorio:'Parcial Recuperatorio', final_ord:'Final Ordinario', final_recuperatorio:'Final Recuperatorio', complementario:'Complementario', extraordinario:'Extraordinario' }[tipo] || tipo;
+        const avId = 'av_' + (Date.now() + 1);
+        db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
+          avId,
+          `📋 Examen programado: ${tipoLabel} — ${info.materia}`,
+          `Se ha programado el examen de <strong>${tipoLabel}</strong> para la materia <strong>${info.materia}</strong> (${info.carrera} ${info.anio}°) el día <strong>${fecha}</strong>${hora ? ' a las ' + hora : ''}${aula ? ' en aula ' + aula : ''}. Por favor, verificá los detalles en la sección Exámenes.`,
+          'info', 0, 'docentes', req.user.id
+        );
+      }
+    } catch(avErr) { console.error('Error creando aviso de examen:', avErr.message); }
+
     res.json({ id, unif_creados, advertencia: conflictoDocente ? `El docente ya tiene examen "${conflictoDocente.materia}" ese día/turno` : null });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1338,7 +1366,7 @@ app.get('/api/avisos', auth(), (req, res) => {
   const uid = req.user.id;
   let whereDestino = '';
   if (rol === 'alumno') {
-    whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos') AND u.rol NOT IN ('docente')";
+    whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos')";
   } else if (rol === 'docente') {
     // Docente SOLO ve: sus propios avisos + avisos de director/secretaria
     // NUNCA ve avisos de otros docentes
@@ -2947,10 +2975,10 @@ app.get('/api/repositorio/programas', auth(['director','docente']), (req, res) =
 app.get('/api/repositorio/contenidos', auth(), (req, res) => {
   const { carrera_id, materia_id } = req.query;
   let where = "WHERE r.tipo='contenido'"; const params = [];
-  // Alumno: solo ve contenidos de sus materias
+  // Alumno: solo ve contenidos de su carrera
   if (req.user.rol === 'alumno') {
-    const al = db.prepare('SELECT curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
-    if (al?.curso_id) { where += ' AND r.curso_id=?'; params.push(al.curso_id); }
+    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (al?.carrera_id) { where += ' AND r.carrera_id=?'; params.push(al.carrera_id); }
     else return res.json([]);
   }
   if (carrera_id) { where += ' AND r.carrera_id=?'; params.push(carrera_id); }
