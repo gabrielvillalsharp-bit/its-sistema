@@ -790,10 +790,11 @@ function init() {
   seedDatos();
   seedHorarios();
   migrateMatrixV2();
+  migrateMatrixV3();
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 
-module.exports = { db, init, calcularPuntaje, seedHorarios, migrateMatrixV2, DB_PATH };
+module.exports = { db, init, calcularPuntaje, seedHorarios, migrateMatrixV2, migrateMatrixV3, DB_PATH };
 
 // ── SEED HORARIOS ─────────────────────────────────────────────────────────────
 function seedHorarios() {
@@ -1045,6 +1046,186 @@ function migrateMatrixV2() {
     console.log('✓ Migración Matrix v2: horarios 2026 cargados desde Excel (82 entradas)');
   } catch (err) {
     console.error('Error en migrateMatrixV2:', err);
+  }
+}
+
+// ── MIGRATE MATRIX V3 ─────────────────────────────────────────────────────────
+// Borra horarios duplicados (seed + v2), actualiza nombres de materias desde Excel
+function migrateMatrixV3() {
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`);
+    if (db.prepare("SELECT value FROM meta WHERE key='matrix_v3'").get()) return;
+
+    // PASO 1: Borrar TODOS los horarios (seed + V2 duplicados)
+    db.prepare('DELETE FROM horarios').run();
+
+    // PASO 2: Actualizar nombres de materias desde el Excel
+    const updNombre = db.prepare('UPDATE materias SET nombre=? WHERE codigo=?');
+    [
+      [['CON-101','AGR-101','AGR-205','ELC-203'], 'Inglés'],
+      [['ENF-104','FAR-104','IQ-104','RAD-104','COS-105'], 'Salud Pública'],
+      [['ENF-201'], 'Enfermería Materno Infantil I'],
+      [['FAR-203'], 'Lengua Extranjera – Inglés'],
+      [['IQ-202'], 'Patología Quirúrgica'],
+      [['RAD-202'], 'Física Radiológica'],
+      [['ENF-101','FAR-101','IQ-101','RAD-101','COS-101'], 'Anatomía y Fisiología Humana'],
+      [['ENF-202'], 'Enfermería en Salud del Adulto I / II'],
+      [['FAR-204'], 'Química Inorgánica'],
+      [['IQ-201'], 'Medicina Legal y Ética'],
+      [['RAD-205'], 'Técnicas Radiológicas III'],
+      [['AGR-102'], 'Apicultura'],
+      [['AGR-201'], 'Equipos y Maquinarias Agropecuarias'],
+      [['COS-103'], 'Dermatología Básica / Técnicas Faciales'],
+      [['COS-202'], 'Química Cosmética'],
+      [['CRM-101'], 'Aspectos Legales del Peritaje'],
+      [['CRM-203'], 'Dibujo Técnico y Pericial'],
+      [['ELC-201'], 'Electrónica Analógica'],
+      [['AGR-103','CRM-103'], 'Deontología y Ética Profesional'],
+      [['AGR-202'], 'Cultivos, Forrajes y Pasturas'],
+      [['COS-102'], 'Biología de la Piel I / II'],
+      [['COS-203'], 'Semiología de la Piel I'],
+      [['CRM-202'], 'Criminología y Victimología'],
+      [['ELC-202'], 'Electrotecnia I'],
+      [['CON-102'], 'Castellano'],
+      [['COS-104'], 'Farmacología en Cosmiatría'],
+      [['COS-201'], 'Competencias Socioemocionales'],
+      [['CRM-102'], 'Comunicación Escrita y Oral y Lengua Guaraní'],
+      [['CRM-204'], 'Química Aplicada a la Criminalística'],
+      [['CON-103'], 'Contabilidad Básica'],
+      [['ENF-103','RAD-103'], 'Primeros Auxilios'],
+      [['ENF-203','FAR-205'], 'Ética y Legislación'],
+      [['FAR-102','IQ-102'], 'Calidad en Salud'],
+      [['IQ-204'], 'Técnicas Quirúrgicas General y Especializada'],
+      [['RAD-201'], 'Administración Hospitalaria'],
+      [['AGR-104'], 'Productividad Agropecuaria'],
+      [['AGR-203'], 'Zootecnia'],
+      [['COS-205'], 'Técnicas de Masajes y Drenaje Linfático'],
+      [['CRM-104'], 'Introducción a la Criminalística'],
+      [['ELC-204'], 'Maquinarias Eléctricas'],
+      [['AGR-105','AGR-204'], 'Producción Porcina'],
+      [['COS-204'], 'Técnicas Cosméticas'],
+      [['COS-106','FAR-103','IQ-103','ENF-102','RAD-102'], 'Farmacología'],
+      [['CRM-105'], 'Introducción al Derecho'],
+      [['CRM-201'], 'Accidentología Vial'],
+      [['ELC-205'], 'Sistema de Potencia'],
+      [['CON-105'], 'Matemática'],
+      [['ENF-105','RAD-105','FAR-105','IQ-105'], 'Ética Profesional'],
+      [['FAR-201'], 'Cosmetología Básica'],
+      [['IQ-206','RAD-204'], 'Psicología'],
+      [['CON-104'], 'Introducción a la Administración'],
+      [['FAR-202'], 'Farmacotécnia II'],
+      [['IQ-203'], 'Psicología General'],
+      [['RAD-203'], 'Prácticas Radiológicas III'],
+    ].forEach(([codigos, nombre]) => codigos.forEach(c => updNombre.run(nombre, c)));
+
+    // PASO 3: Reinsertar los 82 horarios correctos del Excel
+    const schedule = [
+      // LUNES
+      ['doc_jimenez','CON-101','cont_1u','Lunes',1,'19:00','20:20'],
+      ['doc_ayala_a','ENF-104','enf_1u','Lunes',1,'19:00','20:20'],
+      ['doc_romero','ENF-201','enf_2u','Lunes',1,'19:00','20:20'],
+      ['doc_aranda','FAR-104','farm_1u','Lunes',1,'19:00','20:20'],
+      ['doc_jimenez','FAR-203','farm_2u','Lunes',1,'19:00','20:20'],
+      ['doc_aranda','IQ-104','instr_1u','Lunes',1,'19:00','20:20'],
+      ['doc_rojas','IQ-202','instr_2u','Lunes',1,'19:00','20:20'],
+      ['doc_ayala_a','RAD-104','rad_1u','Lunes',1,'19:00','20:20'],
+      ['doc_higuchi','RAD-202','rad_2u','Lunes',1,'19:00','20:20'],
+      ['doc_higuchi','ENF-101','enf_1u','Lunes',2,'20:40','22:00'],
+      ['doc_ayala_a','ENF-202','enf_2u','Lunes',2,'20:40','22:00'],
+      ['doc_rojas','FAR-101','farm_1u','Lunes',2,'20:40','22:00'],
+      ['doc_aranda','FAR-204','farm_2u','Lunes',2,'20:40','22:00'],
+      ['doc_rojas','IQ-101','instr_1u','Lunes',2,'20:40','22:00'],
+      ['doc_alum','IQ-201','instr_2u','Lunes',2,'20:40','22:00'],
+      ['doc_higuchi','RAD-101','rad_1u','Lunes',2,'20:40','22:00'],
+      ['doc_palacios','RAD-205','rad_2u','Lunes',2,'20:40','22:00'],
+      // MARTES
+      ['doc_carmona','AGR-102','agro_1u','Martes',1,'19:00','20:20'],
+      ['doc_gimenez','AGR-201','agro_2u','Martes',1,'19:00','20:20'],
+      ['doc_carballo','COS-103','cosA_1a','Martes',1,'19:00','20:20'],
+      ['doc_ayala_n','COS-202','cosA_2u','Martes',1,'19:00','20:20'],
+      ['doc_higuchi','COS-101','cosA_1b','Martes',1,'19:00','20:20'],
+      ['doc_ocampos','CRM-101','crim_1u','Martes',1,'19:00','20:20'],
+      ['doc_dominguez','CRM-203','crim_2u','Martes',1,'19:00','20:20'],
+      ['doc_mareco','ELC-201','elec_2u','Martes',1,'19:00','20:20'],
+      ['doc_alum','AGR-103','agro_1u','Martes',2,'20:40','22:00'],
+      ['doc_gimenez','AGR-202','agro_2u','Martes',2,'20:40','22:00'],
+      ['doc_ayala_n','COS-102','cosA_1a','Martes',2,'20:40','22:00'],
+      ['doc_rojas','COS-203','cosA_2u','Martes',2,'20:40','22:00'],
+      ['doc_carballo','COS-103','cosA_1b','Martes',2,'20:40','22:00'],
+      ['doc_alum','CRM-103','crim_1u','Martes',2,'20:40','22:00'],
+      ['doc_dominguez','CRM-202','crim_2u','Martes',2,'20:40','22:00'],
+      ['doc_mareco','ELC-202','elec_2u','Martes',2,'20:40','22:00'],
+      // MIÉRCOLES
+      ['doc_jimenez','AGR-101','agro_1u','Miércoles',1,'19:00','20:20'],
+      ['doc_jimenez','AGR-205','agro_2u','Miércoles',1,'19:00','20:20'],
+      ['doc_perez','CON-102','cont_1u','Miércoles',1,'19:00','20:20'],
+      ['doc_espinola','COS-104','cosA_1a','Miércoles',1,'19:00','20:20'],
+      ['doc_torales','COS-201','cosA_2u','Miércoles',1,'19:00','20:20'],
+      ['doc_ayala_n','COS-102','cosA_1b','Miércoles',1,'19:00','20:20'],
+      ['doc_perez','CRM-102','crim_1u','Miércoles',1,'19:00','20:20'],
+      ['doc_aranda','CRM-204','crim_2u','Miércoles',1,'19:00','20:20'],
+      ['doc_jimenez','ELC-203','elec_2u','Miércoles',1,'19:00','20:20'],
+      ['doc_gimenez','CON-103','cont_1u','Miércoles',2,'20:40','22:00'],
+      ['doc_romero','ENF-103','enf_1u','Miércoles',2,'20:40','22:00'],
+      ['doc_carrillo','ENF-203','enf_2u','Miércoles',2,'20:40','22:00'],
+      ['doc_villar','FAR-102','farm_1u','Miércoles',2,'20:40','22:00'],
+      ['doc_carrillo','FAR-205','farm_2u','Miércoles',2,'20:40','22:00'],
+      ['doc_villar','IQ-102','instr_1u','Miércoles',2,'20:40','22:00'],
+      ['doc_gonzalez','IQ-204','instr_2u','Miércoles',2,'20:40','22:00'],
+      ['doc_romero','RAD-103','rad_1u','Miércoles',2,'20:40','22:00'],
+      ['doc_aranda','RAD-201','rad_2u','Miércoles',2,'20:40','22:00'],
+      // JUEVES
+      ['doc_gimenez','AGR-104','agro_1u','Jueves',1,'19:00','20:20'],
+      ['doc_carmona','AGR-203','agro_2u','Jueves',1,'19:00','20:20'],
+      ['doc_rojas','COS-101','cosA_1a','Jueves',1,'19:00','20:20'],
+      ['doc_carballo','COS-205','cosA_2u','Jueves',1,'19:00','20:20'],
+      ['doc_valenz','COS-105','cosA_1b','Jueves',1,'19:00','20:20'],
+      ['doc_dominguez','CRM-104','crim_1u','Jueves',1,'19:00','20:20'],
+      ['doc_mareco','ELC-204','elec_2u','Jueves',1,'19:00','20:20'],
+      ['doc_gimenez','AGR-105','agro_1u','Jueves',2,'20:40','22:00'],
+      ['doc_gimenez','AGR-204','agro_2u','Jueves',2,'20:40','22:00'],
+      ['doc_rojas','COS-105','cosA_1a','Jueves',2,'20:40','22:00'],
+      ['doc_carballo','COS-204','cosA_2u','Jueves',2,'20:40','22:00'],
+      ['doc_espinola','COS-106','cosA_1b','Jueves',2,'20:40','22:00'],
+      ['doc_sharp','CRM-105','crim_1u','Jueves',2,'20:40','22:00'],
+      ['doc_dominguez','CRM-201','crim_2u','Jueves',2,'20:40','22:00'],
+      ['doc_mareco','ELC-205','elec_2u','Jueves',2,'20:40','22:00'],
+      // VIERNES
+      ['doc_sharp','CON-105','cont_1u','Viernes',1,'19:00','20:20'],
+      ['doc_carrillo','ENF-105','enf_1u','Viernes',1,'19:00','20:20'],
+      ['doc_ayala_n','FAR-201','farm_2u','Viernes',1,'19:00','20:20'],
+      ['doc_aguero','FAR-103','farm_1u','Viernes',1,'19:00','20:20'],
+      ['doc_natalia','IQ-206','instr_2u','Viernes',1,'19:00','20:20'],
+      ['doc_aguero','IQ-103','instr_1u','Viernes',1,'19:00','20:20'],
+      ['doc_carrillo','RAD-105','rad_1u','Viernes',1,'19:00','20:20'],
+      ['doc_natalia','RAD-204','rad_2u','Viernes',1,'19:00','20:20'],
+      ['doc_gimenez','CON-104','cont_1u','Viernes',2,'20:40','22:00'],
+      ['doc_rojas','ENF-102','enf_1u','Viernes',2,'20:40','22:00'],
+      ['doc_aguero','FAR-202','farm_2u','Viernes',2,'20:40','22:00'],
+      ['doc_carrillo','FAR-105','farm_1u','Viernes',2,'20:40','22:00'],
+      ['doc_natalia','IQ-203','instr_2u','Viernes',2,'20:40','22:00'],
+      ['doc_carrillo','IQ-105','instr_1u','Viernes',2,'20:40','22:00'],
+      ['doc_rojas','RAD-102','rad_1u','Viernes',2,'20:40','22:00'],
+      ['doc_palacios','RAD-203','rad_2u','Viernes',2,'20:40','22:00'],
+    ];
+
+    const insH = db.prepare("INSERT INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,'')");
+    const updA = db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=? WHERE id=?');
+    const findA = db.prepare("SELECT id FROM asignaciones WHERE docente_id=? AND materia_id=(SELECT id FROM materias WHERE codigo=?) AND curso_id=?");
+
+    db.transaction(() => {
+      for (const [docId,matCod,curId,dia,turno,hi,hf] of schedule) {
+        const asig = findA.get(docId, matCod, curId);
+        if (!asig) { console.warn(`migrateMatrixV3: no asig — ${docId}/${matCod}/${curId}`); continue; }
+        insH.run(asig.id, dia, turno, hi, hf);
+        updA.run(dia, turno, hi, hf, asig.id);
+      }
+    })();
+
+    db.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES ('matrix_v3','done')").run();
+    console.log('✓ Migración Matrix v3: horarios limpios (82) + nombres de materias actualizados desde Excel');
+  } catch(err) {
+    console.error('Error en migrateMatrixV3:', err);
   }
 }
 
