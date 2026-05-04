@@ -1931,7 +1931,7 @@ app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
   const tipoDb = TIPOS.includes(tipo_examen) ? tipo_examen : 'final';
   const hab = asignacion_id
     ? db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(req.params.id, asignacion_id, tipoDb)
-    : db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').get(req.params.id);
+    : db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND tipo_examen=?').get(req.params.id, tipoDb);
   if (hab) {
     db.prepare('UPDATE habilitaciones_examen SET habilitado=?,habilitado_por=?,fecha=?,motivo=? WHERE id=?').run(habilitado?1:0, req.user.id, fechaHoy, motivo||'Habilitado por Dirección', hab.id);
   } else {
