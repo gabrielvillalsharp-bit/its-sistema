@@ -2757,7 +2757,15 @@ async function pgCalClases(el){
   }
   W._horarios=h;
   const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
-  const carreras=[...new Set(h.filter(x=>x.carrera_nombre).map(x=>x.carrera_nombre))].sort();
+  const carrelaLabel=x=>{
+    if(x.carrera_nombre==='Cosmiatría'){
+      if(x.curso_division==='A') return 'Cosmiatría Secc. A';
+      if(x.curso_division==='B') return 'Cosmiatría Secc. B';
+      if(x.curso_anio===2) return 'Cosmiatría 2° año';
+    }
+    return x.carrera_nombre;
+  };
+  const carreras=[...new Set(h.filter(x=>x.carrera_nombre).map(carrelaLabel))].sort();
   const anios=[...new Set(h.filter(x=>x.curso_anio).map(x=>x.curso_anio))].sort((a,b)=>a-b);
   const esDocente=me.rol==='docente';
   // Detectar entradas sin docente o sin materia (inconsistencias)
@@ -2790,14 +2798,22 @@ async function pgCalClases(el){
 }
 function renderHorario(){
   const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
-  const colores={'Agropecuaria':'#dcedc8','Contabilidad':'#bbf7d0','Cosmiatría':'#f8bbd0','Criminalística':'#ffe0b2','Electricidad':'#e1bee7','Enfermería':'#b2ebf2','Farmacia':'#fff9c4','Instrumentación':'#d1c4e9','Radiología':'#c5cae9'};
-  const getColor=n=>{const k=Object.keys(colores).find(k=>n?.includes(k));return k?colores[k]:'#e0e0e0';};
+  const getColor=i=>{
+    if(i?.carrera_nombre==='Cosmiatría')return i.curso_division==='A'?'#f8bbd0':i.curso_division==='B'?'#fce4ec':'#f48fb1';
+    const colores={'Agropecuaria':'#dcedc8','Contabilidad':'#bbf7d0','Criminalística':'#ffe0b2','Electricidad':'#e1bee7','Enfermería':'#b2ebf2','Farmacia':'#fff9c4','Instrumentación':'#d1c4e9','Radiología':'#c5cae9'};
+    const k=Object.keys(colores).find(k=>i?.carrera_nombre?.includes(k));return k?colores[k]:'#e0e0e0';
+  };
   let h=W._horarios||[];
   const fc=document.getElementById('filtHorCarr')?.value||'';
   const fa=document.getElementById('filtHorAnio')?.value||'';
   const fd=document.getElementById('filtHorDoc')?.value||'';
   const ocultarSinDoc=document.getElementById('filtHorOcultar')?.checked!==false;
-  if(fc)h=h.filter(x=>x.carrera_nombre?.includes(fc));
+  if(fc){
+    if(fc==='Cosmiatría Secc. A')h=h.filter(x=>x.carrera_nombre==='Cosmiatría'&&x.curso_division==='A');
+    else if(fc==='Cosmiatría Secc. B')h=h.filter(x=>x.carrera_nombre==='Cosmiatría'&&x.curso_division==='B');
+    else if(fc==='Cosmiatría 2° año')h=h.filter(x=>x.carrera_nombre==='Cosmiatría'&&x.curso_anio===2);
+    else h=h.filter(x=>x.carrera_nombre?.includes(fc));
+  }
   if(fa)h=h.filter(x=>String(x.curso_anio)===fa);
   if(fd)h=h.filter(x=>x.docente_id===fd);
   // Ocultar entradas sin docente o sin materia (no deben aparecer en el horario)
@@ -2810,9 +2826,9 @@ function renderHorario(){
     return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px">
       ${items.map(i=>{
         const sinDocente=!i.docente_nombre;
-        return `<div style="background:${sinDocente?'#ffebee':getColor(i.carrera_nombre)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}">
+        return `<div style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}">
           <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin materia'}</div>
-          <div style="color:#555;margin-top:1px">${i.carrera_nombre||''} ${i.curso_anio?i.curso_anio+'°':''}</div>
+          <div style="color:#555;margin-top:1px">${i.carrera_nombre||''}${i.curso_division&&i.curso_division!=='U'?' Secc. '+i.curso_division:''} ${i.curso_anio?i.curso_anio+'°':''}</div>
           ${me.rol!=='docente'?`<div style="color:${sinDocente?'#c62828':'#777'};font-size:10px;margin-top:2px">${sinDocente?'⚠ Sin docente asignado':(i.titulo?i.titulo+' ':'')+i.docente_nombre+' '+i.docente_apellido}</div>`:''}
         </div>`;
       }).join('')}
