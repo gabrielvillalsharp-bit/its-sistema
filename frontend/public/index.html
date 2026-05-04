@@ -35,9 +35,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .lc p{font-size:13px;color:var(--t2)}
 .f{margin-bottom:14px}
 .f label{display:block;font-size:12px;color:var(--t2);margin-bottom:4px;font-weight:600;letter-spacing:.01em}
-.bp{width:100%;padding:11px;background:linear-gradient(135deg,#1a7a42 0%,var(--bld) 100%);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:0 3px 0 #0a2e18,0 6px 16px rgba(22,101,52,.3)}
-.bp:hover{transform:translateY(-1px);box-shadow:0 5px 0 #0a2e18,0 10px 24px rgba(22,101,52,.35)}
-.bp:active{transform:translateY(2px);box-shadow:0 1px 0 #0a2e18,0 2px 8px rgba(22,101,52,.2)}
+.bp{width:100%;padding:11px;background:linear-gradient(160deg,#22a05a 0%,#166534 100%);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 3px 12px rgba(22,101,52,.28)}
+.bp:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 18px rgba(22,101,52,.34)}
+.bp:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 4px rgba(22,101,52,.15)}
 .dl{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--bdr)}
 .dl p{font-size:11px;color:var(--t3);margin-bottom:6px}
 .db2{display:block;width:100%;text-align:left;padding:7px 10px;border:1px solid var(--bdr);border-radius:9px;background:#fafaf8;color:var(--t2);cursor:pointer;font-size:12px;margin-bottom:4px;transition:background .15s}
@@ -80,9 +80,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph h3{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .ph-right{display:flex;gap:8px;flex-wrap:wrap}
 /* ── BUTTONS ───────────────────────────────── */
-.bn{padding:9px 18px;background:linear-gradient(135deg,#1a7a42 0%,var(--blue) 60%,var(--bld) 100%);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:0 3px 0 #0a2e18,0 5px 14px rgba(22,101,52,.28)}
-.bn:hover{transform:translateY(-1px);box-shadow:0 5px 0 #0a2e18,0 8px 20px rgba(22,101,52,.34)}
-.bn:active{transform:translateY(2px);box-shadow:0 1px 0 #0a2e18,0 2px 6px rgba(22,101,52,.18)}
+.bn{padding:9px 18px;background:linear-gradient(160deg,#ffffff18 0%,#22a05a 0%,#166534 100%);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 8px rgba(22,101,52,.22)}
+.bn:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(22,101,52,.32)}
+.bn:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 4px rgba(22,101,52,.14)}
 .bs{padding:6px 14px;font-size:12px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);cursor:pointer;white-space:nowrap;transition:all .15s;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.06),0 1px 0 rgba(0,0,0,.04)}
 .bs:hover{background:#f7fdf9;border-color:#a8d5b8;color:var(--blue);box-shadow:0 3px 8px rgba(22,101,52,.12);transform:translateY(-1px)}
 .bs:active{transform:translateY(0)}
@@ -403,7 +403,7 @@ function navFor(r){
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente','secretaria']},
       {id:'notas',l:'Notas',c:'#166534',r:['director','docente','secretaria']},
       {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente','secretaria']},
-      {id:'solicitudes',l:'📋 Solicitudes',c:'#D85A30',r:['director']},
+      {id:'solicitudes',l:'📋 Vinculaciones',c:'#D85A30',r:['director']},
     ]},
     {g:'Finanzas y Honorarios',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
@@ -412,7 +412,6 @@ function navFor(r){
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
     ]},
     {g:'Gestión Académica',i:[
-      {id:'mis-honorarios',l:'📋 Mis clases y honorarios',c:'#D85A30',r:['director']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente','secretaria']},
     ]},
     {g:'Mi área',i:[
@@ -2153,8 +2152,14 @@ function filtRepProgMats(){
 
 // ── REPOSITORIO: CONTENIDOS DE CLASE ──────────────────────────────────────────
 async function pgRepContenidos(el){
-  const [carrs,mats,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')]);
-  W._repCarrs=carrs; W._repMats=mats; W._repCursos=cursos;
+  const fetches=[api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')];
+  if(me.rol==='docente'&&me.docenteId) fetches.push(api('GET','/api/asignaciones?docente_id='+me.docenteId).catch(()=>[]));
+  const [carrs,mats,cursos,docenteAsigs]=await Promise.all(fetches);
+  // Si es docente, filtrar solo sus materias asignadas
+  const matsFiltradas=(me.rol==='docente'&&docenteAsigs&&docenteAsigs.length)
+    ? mats.filter(m=>docenteAsigs.some(a=>a.materia_id===m.id))
+    : mats;
+  W._repCarrs=carrs; W._repMats=matsFiltradas; W._repCursos=cursos;
   const esDocente=me.rol==='docente';
   const anios=[...new Set((cursos||[]).map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>a-b);
   el.innerHTML=`<div class="ph"><h3>📚 Contenidos de Clase</h3>
@@ -2165,22 +2170,22 @@ async function pgRepContenidos(el){
   </p>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
     ${me.rol!=='alumno'?`
-    <select id="repContCarr" onchange="filtRepContMats();cargarRepositorio('contenido')" style="min-width:160px">
+    ${!esDocente?`<select id="repContCarr" onchange="filtRepContMats();cargarRepositorio('contenido')" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('')}
     </select>
     <select id="repContAnio" onchange="filtRepContMats();cargarRepositorio('contenido')" style="min-width:90px">
       <option value="">Todos los años</option>
       ${anios.map(a=>'<option value="'+a+'">'+a+'° año</option>').join('')}
-    </select>
+    </select>`:''}
     <select id="repContTurno" onchange="cargarRepositorio('contenido')" style="min-width:110px">
       <option value="">Ambos turnos</option>
       <option value="1">T1 — 19:00</option>
       <option value="2">T2 — 20:40</option>
     </select>
     <select id="repContMat" onchange="cargarRepositorio('contenido')" style="min-width:160px">
-      <option value="">Todas las materias</option>
-      ${mats.map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('')}
+      <option value="">${esDocente?'Todas mis materias':'Todas las materias'}</option>
+      ${matsFiltradas.map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('')}
     </select>`:''}
   </div>
   <div id="listaRepContenidos"><div class="es">Cargando...</div></div>`;
@@ -3010,7 +3015,7 @@ async function pgNotas(el){
   W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Registro de notas</h3>
-    ${me.rol==='docente'?`<button class="bs o" onclick="mSolicitarAlumno()" title="Proponer un alumno para incorporar a esta materia">👤 Solicitar alumno</button>`:''}
+    ${me.rol==='docente'?`<button class="bs o" onclick="mSolicitarAlumno()" title="Proponer un alumno para incorporar a esta materia">👤 Solicitar vinculación de alumnos</button>`:''}
   </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
@@ -4255,7 +4260,7 @@ async function pgPagos(el){
 
   el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
-      <button class="bs s" onclick="exportXls('pagos')">⬇ Excel</button>
+      <button class="bs" onclick="mCuotaLabels()" title="Configurar nombres de cuotas">⚙ Cuotas</button>
       <label class="bs i" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarPagos(this)"/></label>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
@@ -4449,13 +4454,7 @@ async function selAlumnoPago(alId){
       <div style="padding:18px 26px;border-bottom:1px solid var(--bdr)">
         <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'].map(cuota=>{
-            const ok=(pagos||[]).some(p=>p.concepto===cuota||p.concepto?.includes(cuota));
-            return`<div style="padding:10px 14px;border-radius:10px;border:2px solid ${ok?'#86efac':'#e5e4df'};background:${ok?'#f0fdf4':'#fafaf8'};min-width:76px;text-align:center;transition:border-color .15s">
-              <div style="font-size:18px;margin-bottom:4px">${ok?'✅':'○'}</div>
-              <div style="font-size:11px;font-weight:700;color:${ok?'#166534':'#bbb'}">${cuota}</div>
-            </div>`;
-          }).join('')}
+          ${(()=>{const lb=getCuotaLabels();return['Matrícula',...[1,2,3,4,5].map(n=>({v:'Cuota '+n,l:lb[n]||'Cuota '+n}))].map(cuota=>{const key=typeof cuota==='string'?cuota:cuota.v;const lbl=typeof cuota==='string'?cuota:cuota.l;const ok=(pagos||[]).some(p=>p.concepto===key||p.concepto?.includes(key));return'<div style="padding:10px 14px;border-radius:10px;border:2px solid '+(ok?'#86efac':'#e5e4df')+';background:'+(ok?'#f0fdf4':'#fafaf8')+';min-width:76px;text-align:center;transition:border-color .15s"><div style="font-size:18px;margin-bottom:4px">'+(ok?'✅':'○')+'</div><div style="font-size:11px;font-weight:700;color:'+(ok?'#166534':'#bbb')+'">'+lbl+'</div></div>';}).join('');})()}
         </div>
       </div>
 
@@ -4607,13 +4606,7 @@ async function mPagoDirecto(alId){
         <optgroup label="Matrícula">
           <option>Matrícula 2025</option><option>Matrícula 2026</option>
         </optgroup>
-        <optgroup label="Cuotas mensuales (Marzo–Julio)">
-          <option value="Cuota 1">Cuota 1 — Marzo</option>
-          <option value="Cuota 2">Cuota 2 — Abril</option>
-          <option value="Cuota 3">Cuota 3 — Mayo</option>
-          <option value="Cuota 4">Cuota 4 — Junio</option>
-          <option value="Cuota 5">Cuota 5 — Julio</option>
-        </optgroup>
+        <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
           <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio</option>
@@ -4646,6 +4639,33 @@ async function mPagoDirecto(alId){
   setTimeout(()=>autoMontoArancel(),100);
 }
 
+// ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────
+function getCuotaLabels(){
+  try{const s=localStorage.getItem('its_cuota_labels');if(s)return JSON.parse(s);}catch{}
+  return{1:'Cuota 1 — Marzo',2:'Cuota 2 — Abril',3:'Cuota 3 — Mayo',4:'Cuota 4 — Junio',5:'Cuota 5 — Julio'};
+}
+function cuotaOptions(){
+  const lb=getCuotaLabels();
+  return [1,2,3,4,5].map(n=>'<option value="Cuota '+n+'">'+lb[n]+'</option>').join('');
+}
+function mCuotaLabels(){
+  const lb=getCuotaLabels();
+  modal('<h4>⚙ Nombres de cuotas</h4>'
+    +'<p style="font-size:12px;color:var(--t2);margin-bottom:14px">Personaliza cómo aparece cada cuota en los formularios de pago (ej. mes correspondiente).</p>'
+    +'<div class="fg">'
+    +[1,2,3,4,5].map(n=>'<div class="f"><label>Cuota '+n+'</label><input id="cl'+n+'" value="'+lb[n]+'" placeholder="Cuota '+n+' — Mes"/></div>').join('')
+    +'</div>'
+    +'<div class="mf"><button class="bs" onclick="cm()">Cancelar</button>'
+    +'<button class="bn" onclick="saveCuotaLabels()">Guardar</button></div>');
+}
+function saveCuotaLabels(){
+  const lb={};
+  [1,2,3,4,5].forEach(n=>{const v=document.getElementById('cl'+n);lb[n]=v?v.value.trim()||'Cuota '+n:'Cuota '+n;});
+  localStorage.setItem('its_cuota_labels',JSON.stringify(lb));
+  cm();
+  toast('✓ Nombres de cuotas guardados','ok',2500);
+}
+
 async function cargarPagos(){
   // Mantener función para compatibilidad con exportXls y otros
   const carrId=v('filtPagoCarr')||'', cursoId=v('filtPagoCurso')||'';
@@ -4671,13 +4691,7 @@ function mPago(){
         <optgroup label="Matrícula">
           <option>Matrícula 2025</option><option>Matrícula 2026</option>
         </optgroup>
-        <optgroup label="Cuotas mensuales (Marzo–Julio)">
-          <option value="Cuota 1">Cuota 1 — Marzo</option>
-          <option value="Cuota 2">Cuota 2 — Abril</option>
-          <option value="Cuota 3">Cuota 3 — Mayo</option>
-          <option value="Cuota 4">Cuota 4 — Junio</option>
-          <option value="Cuota 5">Cuota 5 — Julio</option>
-        </optgroup>
+        <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
           <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio</option>
@@ -5137,23 +5151,23 @@ function renderMisNotas(notas){
         <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:left;min-width:140px">Materia</th>
         <th colspan="6" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#1a7a42">Trabajos Prácticos</th>
         <th colspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#166534">Parcial</th>
-        <th colspan="3" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#0d47a1">Final</th>
+        <th colspan="3" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#14532d">Final</th>
         <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:55px">Ptje.</th>
         <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:40px">Nota</th>
         <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:80px">Estado</th>
       </tr>
-      <tr style="background:#dcfce7;font-size:10px">
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP1</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP2</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP3</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP4</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">TP5</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700">Total</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Ord.</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Recup.</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Final</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Recup.</th>
-        <th style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">Compl.</th>
+      <tr style="background:#1a7a42;color:#fff;font-size:10px">
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP1</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP2</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP3</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP4</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP5</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center;font-weight:700">Total</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Ord.</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Recup.</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Final</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Recup.</th>
+        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Compl.</th>
       </tr>
     </thead>
     <tbody>
