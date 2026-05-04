@@ -2805,7 +2805,7 @@ async function renderCalendario(el){
       </div>
       ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
       ${evs.map(e=>e._tipo==='examen'
-        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" ${me.rol!=='alumno'?`onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''}"`:''>
+        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" ${me.rol!=='alumno'?'onclick="verExamen(\''+e.id+'\')" title="'+(e.tipo||'')+' — '+(e.materia_nombre||'')+'"':''}>
           <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong><br>
           <span style="color:#555">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}</span><br>
           <span style="color:#888">${e.hora||''} · ${e.tipo||''}</span>
