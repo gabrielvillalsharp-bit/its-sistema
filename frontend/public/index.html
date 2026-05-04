@@ -358,6 +358,7 @@ function navFor(r){
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente','secretaria']},
       {id:'notas',l:'Notas',c:'#185FA5',r:['director','docente','secretaria']},
       {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente','secretaria']},
+      {id:'solicitudes',l:'📋 Solicitudes',c:'#D85A30',r:['director']},
     ]},
     {g:'Finanzas y Honorarios',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
@@ -409,6 +410,7 @@ function go(p){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
+    solicitudes:pgSolicitudes,
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
@@ -571,8 +573,8 @@ async function pgAvisos(el){
     }).join('')}
   </div>`:''}
 
-  ${!avs.length?`<div class="es">No hay avisos activos</div>`:''}
-  ${avs.map(a=>`<div class="aviso-card ${a.tipo}">
+  ${!avisos.length?`<div class="es">No hay avisos activos</div>`:''}
+  ${avisos.map(a=>`<div class="aviso-card ${a.tipo}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${a.titulo}</span>
       <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
@@ -2803,7 +2805,7 @@ async function renderCalendario(el){
       </div>
       ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
       ${evs.map(e=>e._tipo==='examen'
-        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:pointer;border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''}">
+        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" ${me.rol!=='alumno'?`onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''}"`:''>
           <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong><br>
           <span style="color:#555">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}</span><br>
           <span style="color:#888">${e.hora||''} · ${e.tipo||''}</span>
@@ -2936,7 +2938,6 @@ async function pgNotas(el){
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Registro de notas</h3>
     ${me.rol==='docente'?`<button class="bs o" onclick="mSolicitarAlumno()" title="Proponer un alumno para incorporar a esta materia">👤 Solicitar alumno</button>`:''}
-    ${me.rol==='director'?`<button class="bs" onclick="verSolicitudesAlumno()">📋 Solicitudes pendientes</button>`:''}
   </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
@@ -3013,8 +3014,76 @@ async function resolverSolicitudAlumno(id,accion){
     await api('PUT','/api/solicitudes-alumno/'+id+'/resolver',{accion});
     toast(accion==='aprobar'?'✓ Alumno incorporado al sistema':'Solicitud rechazada',accion==='aprobar'?'ok':'warn');
     cm();
+    go('solicitudes');
   }catch(e){toast('Error: '+e.message,'err');}
 }
+
+// ── SOLICITUDES DE INCORPORACIÓN ──────────────────────────────────────────────
+async function pgSolicitudes(el){
+  el.innerHTML='<div class="ph"><h3>📋 Solicitudes de incorporación</h3></div>'+skeletonTable(4,4);
+  const sols=await api('GET','/api/solicitudes-alumno').catch(()=>[]);
+  const pend=sols.filter(s=>s.estado==='pendiente');
+  const otras=sols.filter(s=>s.estado!=='pendiente');
+  el.innerHTML=`<div class="ph"><h3>📋 Solicitudes de incorporación</h3>
+    <button class="bs" onclick="go('solicitudes')">↻ Actualizar</button>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="card card-p" style="flex:1;min-width:120px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Pendientes</div>
+      <div style="font-size:28px;font-weight:900;color:${pend.length>0?'var(--amb)':'var(--green)'}">${pend.length}</div>
+    </div>
+    <div class="card card-p" style="flex:1;min-width:120px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Total historial</div>
+      <div style="font-size:28px;font-weight:700">${sols.length}</div>
+    </div>
+  </div>
+  ${pend.length?`
+  <h4 style="margin-bottom:8px;color:var(--amb)">⏳ Pendientes (${pend.length})</h4>
+  <div class="card" style="margin-bottom:16px"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#fff8e1">
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Alumno</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">CI</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Docente solicitante</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)"></th>
+    </tr></thead><tbody>
+    ${pend.map(s=>`<tr>
+      <td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600">${s.apellido||''} ${s.nombre||''}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.materia||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">${s.fecha?.split('T')[0]||''}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">
+        <div style="display:flex;gap:4px">
+          <button class="bn" style="font-size:11px;padding:3px 10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button>
+          <button class="bs d" style="font-size:11px;padding:3px 8px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>
+        </div>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div></div>`:'<div class="card card-p" style="text-align:center;color:var(--green);padding:24px"><strong>✓ Sin solicitudes pendientes</strong></div>'}
+  ${otras.length?`
+  <h4 style="margin-bottom:8px;color:var(--t2)">Historial</h4>
+  <div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+    <thead><tr style="background:#f5f5f5">
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Alumno</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">CI</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Estado</th>
+      <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
+    </tr></thead><tbody>
+    ${otras.map(s=>`<tr>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.apellido||''} ${s.nombre||''}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.materia||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr)">
+        <span class="bx ${s.estado==='aprobado'?'bg':'br'}" style="font-size:10px">${s.estado}</span>
+      </td>
+      <td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">${s.fecha?.split('T')[0]||''}</td>
+    </tr>`).join('')}
+    </tbody></table></div></div>`:''}`;
+}
+
 function cambiarAsigNotas(asigId){
   if(!asigId)return;
   W.loadNotas(asigId);

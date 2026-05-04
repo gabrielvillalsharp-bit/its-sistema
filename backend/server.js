@@ -798,13 +798,19 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
   res.json(db.prepare(`
-    SELECT n.*,m.nombre as materia_nombre,m.peso_tp,m.peso_parcial,m.peso_final,
-      p.nombre as periodo_nombre
-    FROM notas n
-    JOIN asignaciones a ON n.asignacion_id=a.id
-    JOIN materias m ON a.materia_id=m.id
-    JOIN periodos p ON a.periodo_id=p.id
-    WHERE n.alumno_id=? ORDER BY m.nombre`).all(req.params.alumno_id));
+    SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
+      p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
+      n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total, n.parcial, n.parcial_recuperatorio,
+      n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario, n.ausente,
+      n.puntaje_total, n.nota_final, n.estado, n.parcial_efectivo, n.final_efectivo
+    FROM alumnos al
+    JOIN cursos cu ON al.curso_id = cu.id
+    JOIN carreras ca ON cu.carrera_id = ca.id
+    JOIN asignaciones a ON a.curso_id = al.curso_id
+    JOIN materias m ON a.materia_id = m.id
+    JOIN periodos p ON a.periodo_id = p.id
+    LEFT JOIN notas n ON n.asignacion_id = a.id AND n.alumno_id = al.id
+    WHERE al.id = ? ORDER BY m.nombre`).all(req.params.alumno_id));
 });
 
 // Acta de calificaciones por asignación (para imprimir)
@@ -882,7 +888,7 @@ app.get('/api/asistencia/detalle-alumno/:alumno_id', auth(), (req, res) => {
 });
 
 app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
-  const al = db.prepare('SELECT id,usuario_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
+  const al = db.prepare('SELECT id,usuario_id,curso_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   // Alumno solo puede ver su propio resumen
   if (req.user.rol === 'alumno' && al.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
@@ -894,7 +900,16 @@ app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
     WHERE a.alumno_id=?
     GROUP BY a.asignacion_id, a.estado
     ORDER BY m.nombre`).all(req.params.alumno_id);
+  const todasMaterias = al.curso_id ? db.prepare(`
+    SELECT DISTINCT m.nombre as materia
+    FROM asignaciones asig
+    JOIN materias m ON asig.materia_id = m.id
+    WHERE asig.curso_id = ?
+    ORDER BY m.nombre`).all(al.curso_id) : [];
   const porMateria = {};
+  todasMaterias.forEach(m => {
+    porMateria[m.materia] = { materia: m.materia, P: 0, A: 0, T: 0, J: 0 };
+  });
   registros.forEach(r => {
     if (!porMateria[r.materia]) porMateria[r.materia] = { materia: r.materia, P: 0, A: 0, T: 0, J: 0 };
     porMateria[r.materia][r.estado] = (porMateria[r.materia][r.estado] || 0) + r.total;
@@ -3008,10 +3023,14 @@ app.post('/api/repositorio', auth(['director','docente']), upload.single('archiv
 app.get('/api/repositorio/:id/archivo', auth(), (req, res) => {
   const r = db.prepare('SELECT * FROM repositorio WHERE id=?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Archivo no encontrado' });
-  // Alumno: verificar que sea de su curso
+  // Alumno: verificar acceso por carrera o curso
   if (req.user.rol === 'alumno') {
-    const al = db.prepare('SELECT curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
-    if (!al || (r.curso_id && al.curso_id !== r.curso_id)) return res.status(403).json({ error: 'Sin acceso' });
+    const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    if (!al) return res.status(403).json({ error: 'Sin acceso' });
+    const matchCarrera = r.carrera_id && al.carrera_id && r.carrera_id === al.carrera_id;
+    const matchCurso = r.curso_id && al.curso_id && r.curso_id === al.curso_id;
+    const sinRestriccion = !r.carrera_id && !r.curso_id;
+    if (!matchCarrera && !matchCurso && !sinRestriccion) return res.status(403).json({ error: 'Sin acceso' });
   }
   res.set('Content-Type', r.mime_tipo||'application/octet-stream');
   res.set('Content-Disposition', `attachment; filename="${r.nombre_archivo}"`);
