@@ -2279,44 +2279,60 @@ app.delete('/api/actividades/:id', auth(ADM), (req, res) => {
 
 // ── HABILITACIONES EN BULK (evita N+1 en loadNotas) ──────────────────────────
 app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req, res) => {
-  const { alumno_ids, tipo_examen } = req.body;
+  const { alumno_ids } = req.body;
   if (!Array.isArray(alumno_ids) || !alumno_ids.length) return res.json({});
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) {
     const result = {};
-    alumno_ids.forEach(id => { result[id] = { habilitado: true, razon: 'sin_periodo_activo', cuotas_faltantes: [] }; });
+    alumno_ids.forEach(id => { result[id] = { habilitado: true, razon: 'sin_periodo_activo', tipos_habilitados: [], cuotas_faltantes: [] }; });
     return res.json(result);
   }
   const cuotasRequeridas = ['Cuota 1', 'Cuota 2', 'Cuota 3', 'Cuota 4', 'Cuota 5'];
   const placeholders = alumno_ids.map(() => '?').join(',');
   const pagos = db.prepare(`SELECT alumno_id, concepto FROM pagos WHERE alumno_id IN (${placeholders}) AND periodo_id=? AND estado='Pagado'`).all(...alumno_ids, periodo.id);
   const alumnos = db.prepare(`SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id IN (${placeholders})`).all(...alumno_ids);
-  // Fetch habilitaciones_examen para los alumnos con flag especial, filtrando por tipo_examen si se provee
+  // Recopilar TODOS los tipos habilitados por alumno (array, no solo el primero)
   const habEspeciales = {};
-  if (alumnos.some(al => al.habilitado_pago_pendiente)) {
-    const habIds = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
-    const habPh = habIds.map(() => '?').join(',');
-    const habRows = tipo_examen
-      ? db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND tipo_examen=? AND habilitado=1 ORDER BY fecha DESC`).all(...habIds, tipo_examen)
-      : db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado=1 ORDER BY fecha DESC`).all(...habIds);
-    habRows.forEach(h => { if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = h.tipo_examen; });
+  const habWithFlag = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
+  if (habWithFlag.length) {
+    const habPh = habWithFlag.map(() => '?').join(',');
+    db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado=1 ORDER BY fecha DESC`).all(...habWithFlag)
+      .forEach(h => {
+        if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
+        if (!habEspeciales[h.alumno_id].includes(h.tipo_examen)) habEspeciales[h.alumno_id].push(h.tipo_examen);
+      });
+    // Incluir habilitado_recuperatorio como 'parcial_recuperatorio'
+    db.prepare(`SELECT alumno_id FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado_recuperatorio=1`).all(...habWithFlag)
+      .forEach(h => {
+        if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
+        if (!habEspeciales[h.alumno_id].includes('parcial_recuperatorio')) habEspeciales[h.alumno_id].push('parcial_recuperatorio');
+      });
   }
   const pagosPorAlumno = {};
   pagos.forEach(p => {
     if (!pagosPorAlumno[p.alumno_id]) pagosPorAlumno[p.alumno_id] = [];
     pagosPorAlumno[p.alumno_id].push(p.concepto);
   });
+  const recuperatorioMap = {};
+  db.prepare(`SELECT DISTINCT alumno_id FROM habilitaciones_examen WHERE alumno_id IN (${placeholders}) AND habilitado_recuperatorio=1`).all(...alumno_ids)
+    .forEach(h => { recuperatorioMap[h.alumno_id] = true; });
   const result = {};
   alumnos.forEach(al => {
-    if (al.habilitado_pago_pendiente) {
-      result[al.id] = { habilitado: true, razon: 'habilitacion_especial', tipo_examen: habEspeciales[al.id] || null, cuotas_faltantes: [] };
-      return;
-    }
     const conceptos = pagosPorAlumno[al.id] || [];
     const faltantes = cuotasRequeridas.filter(c => !conceptos.some(p => p === c || p.includes(c)));
-    result[al.id] = faltantes.length === 0
-      ? { habilitado: true, razon: 'pago_al_dia', cuotas_faltantes: [] }
-      : { habilitado: false, razon: 'mora_de_pago', cuotas_faltantes: faltantes, alumno: `${al.apellido}, ${al.nombre}` };
+    if (faltantes.length === 0) {
+      result[al.id] = { habilitado: true, razon: 'pago_al_dia', tipos_habilitados: [], cuotas_faltantes: [], habilitado_recuperatorio: !!recuperatorioMap[al.id] };
+      return;
+    }
+    const tiposHab = habEspeciales[al.id] || [];
+    result[al.id] = {
+      habilitado: false,
+      razon: tiposHab.length ? 'habilitacion_especial' : 'mora_de_pago',
+      tipos_habilitados: tiposHab,
+      cuotas_faltantes: faltantes,
+      habilitado_recuperatorio: !!recuperatorioMap[al.id],
+      alumno: `${al.apellido}, ${al.nombre}`
+    };
   });
   res.json(result);
 });
