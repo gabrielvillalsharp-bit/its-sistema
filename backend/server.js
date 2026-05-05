@@ -141,7 +141,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
     docenteId = doc?.id || null;
   }
   if (u.rol === 'alumno') alumnoId = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(u.id)?.id;
-  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId }, JWT_SECRET, { expiresIn: '8h' });
+  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId }, JWT_SECRET, { expiresIn: '8h' });
   audit(u.id, 'LOGIN', 'usuarios', u.id, { email: u.email });
   res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId } });
 });
@@ -299,6 +299,10 @@ app.put('/api/materias/:id', auth(ADM), (req, res) => {
   const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id } = req.body;
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
   db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,req.params.id);
+  // Propagar cambio de docente a todas las asignaciones de esta materia
+  if (docente_id) {
+    db.prepare('UPDATE asignaciones SET docente_id=? WHERE materia_id=?').run(docente_id, req.params.id);
+  }
   res.json({ ok: true });
 });
 app.patch('/api/materias/:id/nombre', auth(ADM), (req, res) => {
@@ -634,11 +638,12 @@ app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
 });
 
 app.get('/api/asignaciones', auth(), (req, res) => {
-  const { docente_id, curso_id, periodo_id } = req.query;
+  const { docente_id, curso_id, periodo_id, materia_id } = req.query;
   let where = 'WHERE 1=1'; const params = [];
   if (docente_id) { where += ' AND a.docente_id=?'; params.push(docente_id); }
   if (curso_id)   { where += ' AND a.curso_id=?';   params.push(curso_id); }
   if (periodo_id) { where += ' AND a.periodo_id=?'; params.push(periodo_id); }
+  if (materia_id) { where += ' AND a.materia_id=?'; params.push(materia_id); }
   res.json(db.prepare(`
     SELECT a.*,
       m.nombre as materia_nombre,m.codigo as materia_codigo,m.anio as materia_anio,
@@ -707,6 +712,12 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
   const { dia, turno, hora_inicio, hora_fin, aula } = req.body;
   db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
   db.prepare('UPDATE horarios SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE asignacion_id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
+  res.json({ ok: true });
+});
+app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
+  const { docente_id } = req.body;
+  if (!docente_id) return res.status(400).json({ error: 'docente_id requerido' });
+  db.prepare('UPDATE asignaciones SET docente_id=? WHERE id=?').run(docente_id, req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM asignaciones WHERE id=?').run(req.params.id); res.json({ ok: true }); });
@@ -2385,13 +2396,14 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
   let where = "WHERE h.habilitado=1";
   const params = [];
   if (tipo_examen) { where += ' AND h.tipo_examen=?'; params.push(tipo_examen); }
-  if (carrera_id)  { where += ' AND ca.id=?'; params.push(carrera_id); }
-  if (anio)        { where += ' AND cu.anio=?'; params.push(parseInt(anio)); }
+  if (carrera_id)  { where += ' AND COALESCE(ca.id, al_ca.id)=?'; params.push(carrera_id); }
+  if (anio)        { where += ' AND COALESCE(cu.anio, al_cu.anio)=?'; params.push(parseInt(anio)); }
   try {
     const rows = db.prepare(`
       SELECT h.id, h.tipo_examen, h.fecha, h.motivo,
         al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
-        ca.nombre as carrera_nombre, cu.anio,
+        COALESCE(ca.nombre, al_ca.nombre) as carrera_nombre,
+        COALESCE(cu.anio, al_cu.anio) as anio,
         m.nombre as materia_nombre,
         uh.nombre as habilitado_por_nombre, uh.apellido as habilitado_por_apellido
       FROM habilitaciones_examen h
@@ -2400,6 +2412,8 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
       LEFT JOIN materias m ON asig.materia_id=m.id
       LEFT JOIN cursos cu ON asig.curso_id=cu.id
       LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN cursos al_cu ON al.curso_id=al_cu.id
+      LEFT JOIN carreras al_ca ON al_cu.carrera_id=al_ca.id
       LEFT JOIN usuarios uh ON h.habilitado_por=uh.id
       ${where}
       ORDER BY h.fecha DESC`).all(...params);
