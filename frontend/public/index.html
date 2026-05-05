@@ -853,7 +853,14 @@ async function svMat(id,o,conConflicto){
       if(periodo){
         const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${periodo.id}`).catch(()=>[]);
         if(!existe||!existe.length){
+          // Crear nueva asignación si no existe
           await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:periodo.id,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
+        } else {
+          // Actualizar docente en asignación existente si cambió
+          const asig=existe[0];
+          if(asig.docente_id!==o.docente_id){
+            await api('PUT',`/api/asignaciones/${asig.id}/docente`,{docente_id:o.docente_id}).catch(()=>{});
+          }
         }
       }
     }
@@ -5119,7 +5126,7 @@ async function mReemplazo(){
     <div class="f"><label>Materia <span style="color:var(--red)">*</span></label>
       <select id="repAsig" onchange="calcFechasHabilitadas()">
         <option value="">— Seleccionar —</option>
-        ${misAsigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'?'} T${a.turno||1})</option>`).join('')}
+        ${misAsigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'Sin día'} T${a.turno||1})</option>`).join('')}
       </select>
     </div>
     <div class="f"><label>Fecha del reemplazo <span style="color:var(--red)">*</span></label>
@@ -5144,7 +5151,7 @@ function filtRepAsigs(){
   if(turno) asigs=asigs.filter(a=>String(a.turno||1)===turno);
   const sel=document.getElementById('repAsig');
   if(!sel)return;
-  sel.innerHTML='<option value="">— Seleccionar —</option>'+asigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'?'} T${a.turno||1})</option>`).join('');
+  sel.innerHTML='<option value="">— Seleccionar —</option>'+asigs.map(a=>`<option value="${a.id}" data-dia="${a.dia||''}" data-turno="${a.turno||1}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}° Secc.${a.curso_division||''} (${a.dia||'Sin día'} T${a.turno||1})</option>`).join('');
 }
 function calcFechasHabilitadas(){
   const opt=document.getElementById('repAsig')?.selectedOptions[0];

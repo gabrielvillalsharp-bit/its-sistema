@@ -728,6 +728,8 @@ function init() {
     id TEXT PRIMARY KEY, concepto TEXT NOT NULL, monto REAL NOT NULL DEFAULT 0,
     tipo TEXT NOT NULL DEFAULT 'cuota', carrera_id TEXT, descripcion TEXT, activo INTEGER DEFAULT 1,
     fecha_actualizacion TEXT DEFAULT (date('now')))`); } catch {}
+  // Migración: agregar columna fecha_actualizacion a aranceles si no existe (bases de datos existentes)
+  try { db.exec(`ALTER TABLE aranceles ADD COLUMN fecha_actualizacion TEXT DEFAULT (date('now'))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS habilitaciones_examen (
     id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo_examen TEXT NOT NULL,
     asignacion_id TEXT, habilitado INTEGER DEFAULT 0, habilitado_por TEXT, motivo TEXT, fecha TEXT DEFAULT (date('now')))`); } catch {}
