@@ -2042,6 +2042,77 @@ app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) 
   } catch(e) { res.status(400).json({ error: 'Error procesando archivo: '+e.message }); }
 });
 
+// ── IMPORTACIÓN PLANILLA DE PAGOS (formato: Nombre | CI | Matrícula | mes1 | mes2...) ─
+app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const allRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+    if (!allRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
+
+    const headers = Object.keys(allRows[0]);
+    const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+
+    // Auto-detectar columnas de CI y Nombre
+    const ciCol = headers.find(h => /^(ci|cedula|n\.?.*cedula|numero.*cedula|cedula.*identidad|c\.i\.)$/i.test(norm(h)));
+    const apellidoCol = headers.find(h => /^(apellido)$/i.test(norm(h)));
+    const nombreCol = headers.find(h => /^(nombre|nombre completo|alumno|apellido.*nombre|nombre.*apellido)$/i.test(norm(h))) || (!apellidoCol ? headers.find(h => /nombre/i.test(norm(h))) : null);
+
+    // Columna Matrícula = inicio de columnas de pago
+    const matriculaIdx = headers.findIndex(h => /matricula/i.test(norm(h)));
+    if (matriculaIdx < 0) return res.status(400).json({ error: 'No se encontró columna "Matrícula" en el Excel. Las columnas de pago deben comenzar desde "Matrícula".' });
+
+    const pagoHeaders = headers.slice(matriculaIdx);
+
+    // Mapear cabeceras de meses a conceptos
+    const mesMap = {
+      enero:'Cuota 1',febrero:'Cuota 2',marzo:'Cuota 3',abril:'Cuota 4',
+      mayo:'Cuota 5',junio:'Cuota 6',julio:'Cuota 7',agosto:'Cuota 8',
+      septiembre:'Cuota 9',octubre:'Cuota 10',noviembre:'Cuota 11',diciembre:'Cuota 12',
+      'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
+      'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
+      'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
+    };
+
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], columnas: pagoHeaders };
+
+    allRows.forEach((row, i) => {
+      const ci = ciCol ? String(row[ciCol]||'').replace(/[^0-9]/g,'') : '';
+      if (!ci || ci.length < 5) return;
+
+      let al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE ci=?').get(ci);
+      if (!al) {
+        // Intentar por nombre si no hay CI
+        const nomBusc = nombreCol ? String(row[nombreCol]||'').trim() : '';
+        if (nomBusc && nomBusc.length > 3) al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE LOWER(nombre||" "||apellido) LIKE ? OR LOWER(apellido||" "||nombre) LIKE ?').get('%'+nomBusc.toLowerCase()+'%','%'+nomBusc.toLowerCase()+'%');
+      }
+      if (!al) { results.sin_alumno.push(`CI ${ci} (fila ${i+2})`); return; }
+
+      pagoHeaders.forEach(col => {
+        const raw = String(row[col]||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.]/g,'');
+        const monto = parseFloat(raw);
+        if (!monto || isNaN(monto) || monto <= 0) return;
+
+        const colN = norm(col);
+        let concepto;
+        if (/matricula/.test(colN)) concepto = 'Matrícula';
+        else concepto = mesMap[colN] || col.trim();
+
+        const existing = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?').get(al.id, concepto, periodo?.id||null);
+        if (existing) {
+          results.conflictos.push({ ci, concepto, monto, pago_id: existing.id, fila: i+2 });
+          return;
+        }
+        db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)')
+          .run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, monto, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
+        results.ok++;
+      });
+    });
+    res.json(results);
+  } catch(e) { res.status(400).json({ error: 'Error procesando planilla: '+e.message }); }
+});
+
 // Confirmar reemplazo de pago en conflicto
 app.put('/api/pagos/:id/reemplazar', auth(ADM), (req, res) => {
   const { concepto, monto, fecha_pago, medio_pago } = req.body;
