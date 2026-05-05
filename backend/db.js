@@ -13,11 +13,13 @@ db.pragma('foreign_keys = ON');
 
 // ── CÁLCULO DE PUNTAJE (lógica ITS) ──────────────────────────────────────────
 // Parcial: si hay recuperatorio, REEMPLAZA al ordinario (no importa cuál es mayor)
-// TPs: 5 campos independientes, suma simple (max 5 cada uno, max 25 total)
+// TPs: 4 campos independientes, suma simple (max 5 cada uno, max 20 total)
+// Dirección: 10 pts adicionales asignados por el director
 // Final: última instancia cargada reemplaza las anteriores (ord → recup → complementario)
 // Extraordinario: RESET total — ignora todo y usa solo ese valor (escala sobre 100)
-function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio, final_ord, final_recuperatorio, complementario, extraordinario) {
-  const hayDatos = [tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario]
+// Total posible: 4 TPs (20) + Parcial (20) + Dirección (10) + Final (50) = 100 pts
+function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio, final_ord, final_recuperatorio, complementario, extraordinario, director_pts) {
+  const hayDatos = [tp1,tp2,tp3,tp4,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,director_pts]
     .some(v => v !== null && v !== undefined && v !== '');
   if (!hayDatos) return { puntaje: null, nota: null, estado: 'Pendiente' };
 
@@ -36,8 +38,11 @@ function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio
   const parRec = n(parcial_recuperatorio);
   const parcial_ef = parRec !== null ? parRec : parOrd;
 
-  const tps = [n(tp1), n(tp2), n(tp3), n(tp4), n(tp5)];
+  // Solo 4 TPs (tp5 ignorado en el cálculo)
+  const tps = [n(tp1), n(tp2), n(tp3), n(tp4)];
   const tp_total = tps.every(t => t === null) ? null : tps.reduce((acc, t) => acc + (t || 0), 0);
+
+  const dir = n(director_pts);
 
   const finOrd = n(final_ord);
   const finRec = n(final_recuperatorio);
@@ -51,12 +56,12 @@ function calcularPuntaje(tp1, tp2, tp3, tp4, tp5, parcial, parcial_recuperatorio
   // Si solo hay TPs y/o parciales → Pendiente (esperando el final)
   if (final_ef === null) {
     // Calcular puntaje parcial para mostrar, pero estado = Pendiente
-    const puntajeParcial = Math.round(((parcial_ef || 0) + (tp_total || 0)) * 100) / 100;
+    const puntajeParcial = Math.round(((parcial_ef || 0) + (tp_total || 0) + (dir || 0)) * 100) / 100;
     return { puntaje: puntajeParcial||null, nota: null, estado: 'Pendiente', parcial_ef, final_ef, tp_total };
   }
 
   // Hay final → calcular nota definitiva
-  const puntaje = Math.round(((parcial_ef || 0) + (tp_total || 0) + (final_ef || 0)) * 100) / 100;
+  const puntaje = Math.round(((parcial_ef || 0) + (tp_total || 0) + (dir || 0) + (final_ef || 0)) * 100) / 100;
   const nota = puntaje >= 94 ? 5 : puntaje >= 86 ? 4 : puntaje >= 78 ? 3 : puntaje >= 70 ? 2 : 1;
   const estado = nota >= 2 ? 'Aprobado' : 'Reprobado';
   return { puntaje, nota, estado, parcial_ef, final_ef, tp_total };
@@ -748,6 +753,10 @@ function init() {
     fecha_actualizacion TEXT DEFAULT (date('now')))`); } catch {}
   // Migración: agregar columna fecha_actualizacion a aranceles si no existe (bases de datos existentes)
   try { db.exec(`ALTER TABLE aranceles ADD COLUMN fecha_actualizacion TEXT DEFAULT (date('now'))`); } catch {}
+  // Migración: director_pts en notas (10 pts asignados por dirección)
+  try { db.prepare('ALTER TABLE notas ADD COLUMN director_pts REAL').run(); } catch {}
+  // Migración: normalizar tipo de examen a mayúscula inicial
+  try { db.prepare("UPDATE examenes SET tipo='Parcial' WHERE tipo='parcial'").run(); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS habilitaciones_examen (
     id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo_examen TEXT NOT NULL,
     asignacion_id TEXT, habilitado INTEGER DEFAULT 0, habilitado_por TEXT, motivo TEXT, fecha TEXT DEFAULT (date('now')))`); } catch {}

@@ -348,7 +348,15 @@ function startApp(){
   // ── Notificación de avisos ─────────────────────────────────────────────────
   async function checkNotifAvisos(){
     try{
-      const avs=await api('GET','/api/avisos');
+      let avs=await api('GET','/api/avisos');
+      if(me.rol!=='director'){
+        avs=(avs||[]).filter(a=>{
+          const esReemplazo=a.titulo?.toLowerCase().includes('reemplazo');
+          const esSoloDirector=a.destinatario==='director'&&a.autor_id!==me.id;
+          const esAvisoExamenAuto=a.tipo==='examen'&&a.autor_id!==me.id;
+          return !esReemplazo&&!esSoloDirector&&!esAvisoExamenAuto;
+        });
+      }
       const vistos=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
       const nuevos=(avs||[]).filter(a=>!vistos.includes(a.id));
       // Para docentes: contar exámenes próximos (7 días) no vistos
@@ -611,16 +619,47 @@ async function pgAvisos(el){
   }
 
   let avisos=avs||[];
-  // Docente no ve: avisos de reemplazos, ni avisos dirigidos solo al director
-  if(me.rol==='docente'){
+  // Filtrar avisos según rol
+  if(me.rol!=='director'){
     avisos=avisos.filter(a=>{
       const esReemplazo=a.titulo?.toLowerCase().includes('reemplazo');
       const esSoloDirector=a.destinatario==='director'&&a.autor_id!==me.id;
-      return !esReemplazo&&!esSoloDirector;
+      // Avisos de tipo 'examen' generados automáticamente solo para director
+      const esAvisoExamenAuto=a.tipo==='examen'&&a.autor_id!==me.id;
+      return !esReemplazo&&!esSoloDirector&&!esAvisoExamenAuto;
     });
   }
+  // Avisos ya vistos (marcados como leídos)
+  const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
+  const avisosSinLeer=avisos.filter(a=>!vistos.has(a.id));
+  const avisosLeidos=avisos.filter(a=>vistos.has(a.id));
+
+  function marcarAvisoLeido(id){
+    const vst=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
+    if(!vst.includes(id)){vst.push(id);localStorage.setItem('its_avisos_vistos',JSON.stringify(vst));}
+    const card=document.getElementById('av-'+id);
+    if(card){card.style.opacity='0';card.style.transform='translateY(-6px)';card.style.transition='all 0.25s';setTimeout(()=>{card.remove();checkNotifAvisos();},260);}
+    else{checkNotifAvisos();}
+  }
+  function renderAvisoCard(a,leido=false){
+    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" style="${leido?'opacity:0.55;':''}cursor:pointer" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
+      <span class="aviso-titulo">${a.fijado?'📌 ':''}${leido?'':'🔵 '}${a.titulo}</span>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+        ${esDirector?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
+        <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
+        ${esDirector||a.autor_id===me.id?`<button class="bs d" onclick="event.stopPropagation();del('${a.id}','avisos')">✕</button>`:''}
+      </div>
+    </div>
+    <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
+    <div class="aviso-meta">Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''} · <em style="color:var(--t3)">Clic para marcar como leído</em></div>
+  </div>`;
+  }
+  W.marcarAvisoLeido=marcarAvisoLeido;
+
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
+      ${esDirector&&avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
@@ -648,18 +687,10 @@ async function pgAvisos(el){
   </div>`:''}
 
   ${!avisos.length?`<div class="es">No hay avisos activos</div>`:''}
-  ${avisos.map(a=>`<div class="aviso-card ${a.tipo}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
-      <span class="aviso-titulo">${a.fijado?'📌 ':''}${a.titulo}</span>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
-        ${esDirector?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
-        <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
-        ${esDirector||a.autor_id===me.id?`<button class="bs d" onclick="del('${a.id}','avisos')">✕</button>`:''}
-      </div>
-    </div>
-    <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
-    <div class="aviso-meta">Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''}</div>
-  </div>`).join('')}`;
+  ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">Sin leer (${avisosSinLeer.length})</p>`:''}
+  ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
+  ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
+  `;
 }
 function mAvisoDirector(){
   modal(`<h4>✉ Mensaje al Director</h4>
@@ -1685,17 +1716,13 @@ function exRow(e){
   const hoy=new Date();
   const fechaEx=e.fecha?new Date(e.fecha+'T12:00:00'):null;
   const yaOcurrio=fechaEx&&fechaEx<hoy;
-  const hs72=(fechaEx&&!yaOcurrio)?(fechaEx-hoy)/3600000:0;
-  const puedeAdjuntar=!yaOcurrio&&hs72<=72&&hs72>=0||me.rol==='director';
-  const fueraDe72=!yaOcurrio&&hs72>72;
-  // Botón adjuntar: solo Word, solo docente propietario o director, solo dentro de 72hs
+  const puedeAdjuntar=!yaOcurrio||me.rol==='director';
+  // Botón adjuntar: solo Word, solo docente propietario o director
   const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
   let btnAdjuntar='';
   if(esDocumentoPropietario){
     if(yaOcurrio && me.rol!=='director'){
       btnAdjuntar=`<span style="font-size:10px;color:#999" title="El examen ya ocurrió">🔒 Cerrado</span>`;
-    } else if(fueraDe72 && me.rol!=='director'){
-      btnAdjuntar=`<span style="font-size:10px;color:#e65100" title="Habilitado 72hs antes del examen">⏳ En ${Math.round(hs72-72)}h</span>`;
     } else {
       btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">
         📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${e.archivo_nombre.slice(0,15)}${e.archivo_nombre.length>15?'…':''}</span>`:'Adjuntar'}
@@ -1837,12 +1864,10 @@ async function verExamen(exId){
     const esAlumno=me.rol==='alumno';
     const esDir=me.rol==='director'||me.rol==='secretaria';
     const esMiExamen=esDocente&&(ex.docente_id===me.docenteId);
-    // Verificar ventana 72hs para adjuntar
     const hoy=new Date();
     const fechaEx=ex.fecha?new Date(ex.fecha+'T'+( ex.hora||'19:00')+':00'):null;
-    const horasRestantes=fechaEx?(fechaEx-hoy)/3600000:999;
-    const puedeAdjuntar=esMiExamen&&horasRestantes<=72&&horasRestantes>0;
     const yaOcurrio=fechaEx&&fechaEx<hoy;
+    const puedeAdjuntar=esMiExamen&&!yaOcurrio;
     modal(`<h4>📋 ${ex.tipo||'Examen'} — ${ex.materia_nombre||'—'}</h4>
     <div style="font-size:13px;line-height:2;background:#f9f9f9;border-radius:8px;padding:12px 16px;margin-bottom:12px">
       <p><strong>Materia:</strong> ${ex.materia_nombre||'—'}</p>
@@ -1858,16 +1883,13 @@ async function verExamen(exId){
       ${esDir||esMiExamen?`<button class="bs" style="margin-left:8px;background:#e8f5e9;color:#1b5e20" onclick="descargarArchivoExamen('${exId}','${ex.archivo_nombre||'archivo.docx'}')">⬇ Descargar</button>`:''}
     </div>`:''}
     ${esDocente&&esMiExamen?`
-      <div style="background:${puedeAdjuntar?'#dcfce7':yaOcurrio?'#fafafa':'#fff8e1'};border:1px solid ${puedeAdjuntar?'#166534':yaOcurrio?'#ccc':'#e65100'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+      <div style="background:${puedeAdjuntar?'#e3f2fd':'#fafafa'};border:1px solid ${puedeAdjuntar?'#1565c0':'#ccc'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
         ${yaOcurrio
           ?'<span style="color:#999">⏰ El examen ya se realizó</span>'
-          :puedeAdjuntar
-            ?`<strong style="color:#166534">✅ Habilitado para adjuntar — ${Math.round(horasRestantes)}hs restantes</strong><br>
-               <label class="bn" style="margin-top:8px;display:inline-block;cursor:pointer;font-size:12px">
-                 📎 ${ex.archivo_nombre?'Reemplazar':'Adjuntar'} archivo Word
-                 <input type="file" accept=".doc,.docx" style="display:none" onchange="cm();subirArchivoExamen('${exId}',this)"/>
-               </label>`
-            :`<span style="color:#e65100">⏳ Se habilita 72hs antes del examen (${Math.round(horasRestantes-72)}hs más)</span>`
+          :`<label class="bn" style="margin-top:4px;display:inline-block;cursor:pointer;font-size:12px">
+               📎 ${ex.archivo_nombre?'Reemplazar':'Adjuntar'} archivo Word
+               <input type="file" accept=".doc,.docx" style="display:none" onchange="cm();subirArchivoExamen('${exId}',this)"/>
+             </label>`
         }
       </div>`:''}
     <div class="mf">
@@ -1893,7 +1915,7 @@ function filtExAll(){
   const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno');
   const tb=document.getElementById('extb');if(!tb)return;
   let l=W._exs||[];
-  if(tipo)l=l.filter(e=>e.tipo===tipo);
+  if(tipo)l=l.filter(e=>(e.tipo||'').toLowerCase()===tipo.toLowerCase());
   if(carrId)l=l.filter(e=>!e.carrera_id||e.carrera_id===carrId);
   if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
   if(cursoId)l=l.filter(e=>e.curso_id===cursoId);
@@ -2410,8 +2432,8 @@ async function mExamen(exData){
     <div class="f" style="flex:1"><label>Tipo <span style="color:var(--red)">*</span></label>
       <select id="exti" onchange="updPuntosMax();chkDuplicadoExamen()">
         <optgroup label="─── PARCIALES ───">
-          <option value="Parcial" ${e&&exData.tipo==='Parcial'?'selected':''}>Parcial Ordinario — 25 pts</option>
-          <option value="Recuperatorio" ${e&&exData.tipo==='Recuperatorio'?'selected':''}>Parcial Recuperatorio — 25 pts</option>
+          <option value="Parcial" ${e&&exData.tipo==='Parcial'?'selected':''}>Parcial Ordinario — 20 pts</option>
+          <option value="Recuperatorio" ${e&&exData.tipo==='Recuperatorio'?'selected':''}>Parcial Recuperatorio — 20 pts</option>
         </optgroup>
         <optgroup label="─── FINALES ───">
           <option value="Final" ${e&&exData.tipo==='Final'?'selected':''}>Final Ordinario — 50 pts</option>
@@ -2421,8 +2443,8 @@ async function mExamen(exData){
         </optgroup>
       </select></div>
     <div class="f" style="flex:0 0 100px"><label>Puntos</label>
-      <input id="expmax" type="number" value="${e&&exData.puntos_max?exData.puntos_max:25}" min="1" max="100"/>
-      <p id="ptshint" style="font-size:10px;color:var(--t2);margin-top:3px">Parciales = 25 pts</p>
+      <input id="expmax" type="number" value="${e&&exData.puntos_max?exData.puntos_max:20}" min="1" max="100"/>
+      <p id="ptshint" style="font-size:10px;color:var(--t2);margin-top:3px">Parciales = 20 pts</p>
     </div>
   </div>
   <div class="fr">
@@ -2561,7 +2583,7 @@ function updPuntosMax(){
   const hint=document.getElementById('ptshint');
   if(!inp)return;
   if(tipo==='Extraordinario'){inp.value=100;if(hint)hint.textContent='Extraordinario siempre vale 100 pts';}
-  else if(tipo==='Parcial'||tipo==='Recuperatorio'){inp.value=25;if(hint)hint.textContent='Parciales = 25 pts cada uno';}
+  else if(tipo==='Parcial'||tipo==='Recuperatorio'){inp.value=20;if(hint)hint.textContent='Parciales = 20 pts cada uno';}
   else{inp.value=50;if(hint)hint.textContent='Finales = 50 pts cada uno';}
 }
 async function svExamen(id){
@@ -2887,7 +2909,23 @@ async function renderCalendario(el){
   const ferSet=new Set(feriados.map(f=>f.fecha));
   const ferMap=Object.fromEntries(feriados.map(f=>[f.fecha,f]));
   const porFecha={};
-  exs.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push({...e,_tipo:'examen'});});
+  // Agrupar exámenes unificados: misma materia+tipo+hora+fecha → un solo item con múltiples cursos
+  const exsAgrupados=[];
+  const exGrpMap={};
+  exs.forEach(e=>{
+    const key=`${e.fecha}|${e.materia_nombre}|${e.tipo}|${e.hora||''}`;
+    if(exGrpMap[key]){
+      const g=exGrpMap[key];
+      const cursoLabel=`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
+      if(!g._cursos.includes(cursoLabel))g._cursos.push(cursoLabel);
+    } else {
+      const cursoLabel=`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
+      const grp={...e,_tipo:'examen',_cursos:[cursoLabel]};
+      exGrpMap[key]=grp;
+      exsAgrupados.push(grp);
+    }
+  });
+  exsAgrupados.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push(e);});
   (acts||[]).forEach(a=>{if(!porFecha[a.fecha])porFecha[a.fecha]=[];porFecha[a.fecha].push({...a,_tipo:'actividad'});});
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -2908,9 +2946,10 @@ async function renderCalendario(el){
       </div>
       ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
       ${evs.map(e=>e._tipo==='examen'
-        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#dcfce7'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#166534'}" ${me.rol!=='alumno'?'onclick="verExamen(\''+e.id+'\')" title="'+(e.tipo||'')+' — '+(e.materia_nombre||'')+'"':''}>
-          <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong><br>
-          <span style="color:#555">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}</span><br>
+        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" ${me.rol!=='alumno'?'onclick="verExamen(\''+e.id+'\')" title="'+(e.tipo||'')+' — '+(e.materia_nombre||'')+'"':''}>
+          <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong>
+          ${e._cursos&&e._cursos.length>1?`<span style="background:#1565c0;color:#fff;border-radius:3px;padding:0 3px;font-size:9px;margin-left:3px">${e._cursos.length} cursos</span>`:''}
+          <br><span style="color:#555">${e._cursos?e._cursos.join(' · '):e.carrera_nombre||''}</span><br>
           <span style="color:#888">${e.hora||''} · ${e.tipo||''}</span>
         </div>`
         :`<div style="background:#e8f5e9;border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px">📌 ${e.titulo||e.descripcion||''}</div>`
@@ -3271,7 +3310,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     }
   }
 
-  alumnos.forEach(a=>{W._nc[a.id]={tp1:a.tp1,tp2:a.tp2,tp3:a.tp3,tp4:a.tp4,tp5:a.tp5,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final_ord:a.final_ord,final_recuperatorio:a.final_recuperatorio,complementario:a.complementario,extraordinario:a.extraordinario};});
+  alumnos.forEach(a=>{W._nc[a.id]={tp1:a.tp1,tp2:a.tp2,tp3:a.tp3,tp4:a.tp4,tp5:a.tp5,parcial:a.parcial,parcial_recuperatorio:a.parcial_recuperatorio,final_ord:a.final_ord,final_recuperatorio:a.final_recuperatorio,complementario:a.complementario,extraordinario:a.extraordinario,director_pts:a.director_pts};});
   const aprobados=alumnos.filter(a=>a.nota_estado==='Aprobado').length;
   const reprobados=alumnos.filter(a=>a.nota_estado==='Reprobado').length;
   const pendientes=alumnos.filter(a=>!a.nota_estado||a.nota_estado==='Pendiente').length;
@@ -3299,11 +3338,12 @@ W.loadNotas=async(asigId,_tipo)=>{
   <thead>
     <tr style="background:#f0f4f8">
       <th rowspan="2" style="padding:6px 10px;text-align:left;border:1px solid var(--bdr);min-width:160px">Alumno</th>
-      <th colspan="5" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#e8f5e9;color:#2e7d32">TRABAJOS PRÁCTICOS (5 pts c/u = 25 pts)</th>
+      <th colspan="4" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#e8f5e9;color:#2e7d32">TRABAJOS PRÁCTICOS (5 pts c/u = 20 pts)</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#c8e6c9;color:#1b5e20;font-size:11px">Total<br>TPs</th>
-      <th colspan="2" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#dcfce7;color:#166534">PARCIAL (25 pts)</th>
+      <th colspan="2" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#e3f2fd;color:#1565c0">PARCIAL (20 pts)</th>
       <th colspan="3" style="padding:4px 8px;text-align:center;border:1px solid var(--bdr);background:#fff3e0;color:#e65100">FINAL (50 pts)</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fce4ec;color:#880e4f;font-size:11px">EXTRA-<br>ORDINARIO<br>(100 pts)</th>
+      <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#e8eaf6;color:#283593;font-size:11px">DIRECCIÓN<br>(10 pts)</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#f3e5f5;color:#4a148c;font-size:11px">TOTAL<br>PUNTOS</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Calif.</th>
       <th rowspan="2" style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">Estado</th>
@@ -3314,8 +3354,7 @@ W.loadNotas=async(asigId,_tipo)=>{
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 2</th>
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 3</th>
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 4</th>
-      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr)">TP 5</th>
-      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#dcfce7">Ordinario</th>
+      <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#e3f2fd">Ordinario</th>
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff8e1;color:#e65100">Recuper.</th>
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff3e0">Ordinario</th>
       <th style="padding:4px 6px;text-align:center;border:1px solid var(--bdr);background:#fff8e1;color:#e65100">Recuper.</th>
@@ -3364,11 +3403,11 @@ W.loadNotas=async(asigId,_tipo)=>{
         <strong>${a.alumno_apellido||''}</strong>, ${a.alumno_nombre||''}<br>
         <span style="font-size:10px;color:var(--t3)">${a.alumno_ci||''}</span>
       </td>
-      ${ni('tp1',5,a.tp1,'#f1f8e9')}${ni('tp2',5,a.tp2,'#f1f8e9')}${ni('tp3',5,a.tp3,'#f1f8e9')}${ni('tp4',5,a.tp4,'#f1f8e9')}${ni('tp5',5,a.tp5,'#f1f8e9')}
+      ${ni('tp1',5,a.tp1,'#f1f8e9')}${ni('tp2',5,a.tp2,'#f1f8e9')}${ni('tp3',5,a.tp3,'#f1f8e9')}${ni('tp4',5,a.tp4,'#f1f8e9')}
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;background:#dcedc8;font-weight:700" id="tptot-${a.id}">${a.tp_total??'-'}</td>
-      ${ni('parcial',25,a.parcial,'#dcfce7')}
+      ${ni('parcial',20,a.parcial,'#e3f2fd')}
       <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#fff8e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="25" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'—'}" ${disabledParcialRec?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="20" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'—'}" ${disabledParcialRec?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)" style="width:46px;text-align:center;border:none;background:${disabledParcialRec&&me.rol==='docente'?'#fff8e1':'transparent'};padding:3px 2px;font-size:12px" title="${disabledParcialRec?'Requiere habilitación del director':''}"/>
         ${a.parcial_recuperatorio!=null?'<div style="font-size:9px;color:#e65100;position:absolute;bottom:1px;right:2px">↑ vale</div>':''}
       </td>
@@ -3387,6 +3426,11 @@ W.loadNotas=async(asigId,_tipo)=>{
         <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="${disabledExtraord&&bloqueado?'🔒':'—'}" ${disabledExtraord?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','extraordinario',this.value)" style="width:52px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700"/>
         ${a.extraordinario!=null?'<div style="font-size:9px;color:#4a148c;position:absolute;bottom:1px;right:2px">RESET</div>':''}
+      </td>
+      <td style="padding:2px 3px;border:1px solid var(--bdr);text-align:center;background:#e8eaf6;position:relative">
+        <input class="nota-inp" type="number" min="0" max="10" step="0.5" value="${a.director_pts??''}" placeholder="—" ${me.rol!=='director'?'disabled':''}
+          autocomplete="off" oninput="updN('${a.id}','${asigId}','director_pts',this.value)" style="width:46px;text-align:center;border:none;background:transparent;padding:3px 2px;font-size:12px;font-weight:700;color:#283593" title="${me.rol!=='director'?'Solo el director puede asignar estos puntos':'Puntos de dirección (0-10)'}"/>
+        ${me.rol!=='director'?'<div style="font-size:9px;color:#7986cb;position:absolute;bottom:1px;right:2px">🔒</div>':''}
       </td>
       <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700;background:#f3e5f5" id="tot-${a.id}">
         <span class="prom-tag ${notaCls(a.nota_final)}">${a.puntaje_total??'-'}</span>
@@ -3469,7 +3513,8 @@ W.updN=async(aId,asigId,campo,val)=>{
       tp1:n.tp1??'',tp2:n.tp2??'',tp3:n.tp3??'',tp4:n.tp4??'',tp5:n.tp5??'',
       parcial:n.parcial??'',parcial_recuperatorio:n.parcial_recuperatorio??'',
       final_ord:n.final_ord??'',final_recuperatorio:n.final_recuperatorio??'',
-      complementario:n.complementario??'',extraordinario:n.extraordinario??''
+      complementario:n.complementario??'',extraordinario:n.extraordinario??'',
+      director_pts:n.director_pts??''
     });
     const tptot=document.getElementById('tptot-'+aId);
     const tot=document.getElementById('tot-'+aId);
