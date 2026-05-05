@@ -759,7 +759,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
       n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.tp_total,
       n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
       n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
-      n.extraordinario,n.ausente,
+      n.extraordinario,n.ausente,n.director_pts,
       n.puntaje_total,n.nota_final,n.estado as nota_estado
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
@@ -795,10 +795,11 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
       if (!doc || doc.id !== asig?.docente_id) return res.status(403).json({ error: 'Solo podés cargar notas de tus propias materias' });
     }
-    const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente'];
+    const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];
     const vals = campos.map(c => req.body[c]===''||req.body[c]===undefined||req.body[c]===null ? null : parseFloat(req.body[c]));
     const { calcularPuntaje } = require('./db');
-    const nota = calcularPuntaje(...vals.slice(0,11));
+    // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
+    const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);
     const campos_q = campos.map(c=>`${c}=?`).join(',');
     const extra = ',puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=?';
     db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.puntaje, nota.nota, nota.estado, nota.parcial_efectivo, nota.final_efectivo, req.params.alumno_id, req.params.asig_id);
