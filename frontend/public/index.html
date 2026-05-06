@@ -1349,7 +1349,7 @@ async function doEliminarGrupo(){
   if(count===0){toast('No hay alumnos en el grupo seleccionado','warn');return;}
   const carr=(W._carrs||[]).find(c=>c.id===carrId);
   const cur=(W._cursos||[]).find(c=>c.id===cursoId);
-  const grpLabel=(carr?carr.nombre:'')+(cur?` — ${cur.anio}°${cur.division&&cur.division!=='U'?cur.division:''}${cur.turno?' T'+cur.turno:''}':'');
+  const grpLabel=(carr?carr.nombre:'')+(cur?` — ${cur.anio}°${cur.division&&cur.division!=='U'?cur.division:''}${cur.turno?' T'+cur.turno:''}`:'');
   cm();
   confirm2('⚠ Confirmar eliminación de grupo',
     `<p style="font-size:13px;margin-bottom:10px">Se eliminarán todos los registros del grupo seleccionado. Esta acción es irreversible.</p>
