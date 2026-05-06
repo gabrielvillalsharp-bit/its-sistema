@@ -1279,6 +1279,94 @@ async function crearAccesosMasivos(){
       }catch(e){toast('Error: '+e.message,'err');}
     }, null);
 }
+// ── ELIMINAR POR GRUPO ────────────────────────────────────────────────────────
+function mEliminarGrupo(){
+  const carrs=W._carrs||[];
+  const cursos=W._cursos||[];
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  mo(`<div class="mh"><h4>🗑 Eliminar por Grupo</h4><button class="mc" onclick="cm()">✕</button></div>
+    <div class="mb">
+      <div class="ir" style="background:#fce4ec;border:1px solid #e57373;color:#b71c1c;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+        ⚠ <strong>Esta acción es irreversible.</strong> Se eliminarán permanentemente todos los alumnos del grupo seleccionado, incluyendo sus pagos, notas, asistencia y cuentas de acceso.
+      </div>
+      <div class="fr">
+        <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+          <select id="delGrpCarr" onchange="filtDelGrpCursos()">
+            <option value="">Seleccionar carrera...</option>
+            ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="f"><label>Año</label>
+          <select id="delGrpAnio" onchange="filtDelGrpCursos()">
+            <option value="">Todos los años</option>
+            ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+          </select>
+        </div>
+        <div class="f"><label>Sección</label>
+          <select id="delGrpCurso" onchange="previewDelGrp()">
+            <option value="">Todas las secciones</option>
+          </select>
+        </div>
+      </div>
+      <div id="delGrpPreview" style="margin-top:10px;font-size:13px;color:#555;min-height:22px"></div>
+    </div>
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" style="background:#b71c1c" onclick="doEliminarGrupo()">🗑 Eliminar grupo</button>
+    </div>`);
+  filtDelGrpCursos();
+}
+function filtDelGrpCursos(){
+  const carrId=v('delGrpCarr');
+  const anio=v('delGrpAnio');
+  const cursos=(W._cursos||[]).filter(cu=>(!carrId||cu.carrera_id===carrId)&&(!anio||String(cu.anio)===anio));
+  const sel=document.getElementById('delGrpCurso');
+  if(sel) sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.anio}°${cu.division&&cu.division!=='U'?cu.division:''}${cu.turno?' — T'+cu.turno:''}</option>`).join('');
+  previewDelGrp();
+}
+async function previewDelGrp(){
+  const carrId=v('delGrpCarr');
+  const cursoId=v('delGrpCurso');
+  const prev=document.getElementById('delGrpPreview');
+  if(!prev)return;
+  if(!carrId){prev.innerHTML='';return;}
+  try{
+    const params='carrera_id='+encodeURIComponent(carrId)+(cursoId?'&curso_id='+encodeURIComponent(cursoId):'');
+    const r=await api('GET','/api/alumnos/grupo/count?'+params);
+    prev.innerHTML=r.count>0
+      ?`<span style="color:#b71c1c;font-weight:600">Se eliminarán <strong>${r.count}</strong> alumno${r.count!==1?'s':''} del grupo seleccionado.</span>`
+      :`<span style="color:#388e3c">✓ No hay alumnos en este grupo.</span>`;
+  }catch(e){prev.innerHTML='';}
+}
+async function doEliminarGrupo(){
+  const carrId=v('delGrpCarr');
+  const cursoId=v('delGrpCurso');
+  if(!carrId){toast('Seleccioná una carrera','warn');return;}
+  // Obtener preview count antes de confirmar
+  const params='carrera_id='+encodeURIComponent(carrId)+(cursoId?'&curso_id='+encodeURIComponent(cursoId):'');
+  let count=0;
+  try{const r=await api('GET','/api/alumnos/grupo/count?'+params);count=r.count;}catch{}
+  if(count===0){toast('No hay alumnos en el grupo seleccionado','warn');return;}
+  const carr=(W._carrs||[]).find(c=>c.id===carrId);
+  const cur=(W._cursos||[]).find(c=>c.id===cursoId);
+  const grpLabel=(carr?carr.nombre:'')+(cur?` — ${cur.anio}°${cur.division&&cur.division!=='U'?cur.division:''}${cur.turno?' T'+cur.turno:''}':'');
+  cm();
+  confirm2('⚠ Confirmar eliminación de grupo',
+    `<p style="font-size:13px;margin-bottom:10px">Se eliminarán todos los registros del grupo seleccionado. Esta acción es irreversible.</p>
+     <div style="background:#fce4ec;border-radius:6px;padding:10px;font-size:13px;color:#b71c1c">
+       <strong>Grupo:</strong> ${grpLabel}<br>
+       <strong>Alumnos a eliminar:</strong> ${count}<br><br>
+       También se eliminarán: pagos, notas, asistencia, habilitaciones y cuentas de acceso de estos alumnos.
+     </div>`,
+    async function(){
+      try{
+        const r=await api('DELETE','/api/alumnos/grupo?'+params);
+        toast(`✓ Se eliminaron ${r.eliminados} alumno${r.eliminados!==1?'s':''} del grupo`,'ok',5000);
+        go('alumnos');
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+
 async function pgAlumnos(el){
   const [als,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._als=als;W._carrs=carrs;W._cursos=cursos;
@@ -1286,6 +1374,7 @@ async function pgAlumnos(el){
   el.innerHTML=`<div class="ph"><h3>Alumnos (${als.length})</h3>
     <div class="ph-right">
       <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
+      <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
       <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div></div>

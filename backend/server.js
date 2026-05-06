@@ -441,12 +441,59 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
   res.json({ creados, actualizados, errores: errores.slice(0,5) });
 });
 
+// ── PREVISUALIZAR cuántos alumnos tiene un grupo (ANTES de :id para evitar conflicto de rutas) ──
+app.get('/api/alumnos/grupo/count', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, curso_id } = req.query;
+    if (!carrera_id) return res.status(400).json({ error: 'Debe especificar carrera_id' });
+    let row;
+    if (curso_id) {
+      row = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=? AND curso_id=?').get(carrera_id, curso_id);
+    } else {
+      row = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id);
+    }
+    res.json({ count: row.n });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ELIMINAR GRUPO COMPLETO (ANTES de :id para evitar conflicto de rutas) ──
+app.delete('/api/alumnos/grupo', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, curso_id } = req.query;
+    if (!carrera_id) return res.status(400).json({ error: 'Debe especificar carrera_id' });
+
+    let alumnos;
+    if (curso_id) {
+      alumnos = db.prepare('SELECT id,usuario_id FROM alumnos WHERE carrera_id=? AND curso_id=?').all(carrera_id, curso_id);
+    } else {
+      alumnos = db.prepare('SELECT id,usuario_id FROM alumnos WHERE carrera_id=?').all(carrera_id);
+    }
+
+    if (!alumnos.length) return res.json({ ok: true, eliminados: 0 });
+
+    db.transaction(() => {
+      alumnos.forEach(a => {
+        db.prepare('DELETE FROM notas WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
+        if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
+      });
+    })();
+
+    audit(req.user.id,'DELETE','alumnos_grupo',carrera_id,{ curso_id, eliminados: alumnos.length });
+    res.json({ ok: true, eliminados: alumnos.length });
+  } catch(e) { res.status(500).json({ error: 'Error al eliminar grupo: '+e.message }); }
+});
+
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
   try {
     const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
     if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
     db.transaction(() => {
-      // Eliminar dependencias primero
       db.prepare('DELETE FROM notas WHERE alumno_id=?').run(req.params.id);
       db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(req.params.id);
       db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(req.params.id);
@@ -460,6 +507,7 @@ app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
 });
+
 app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
@@ -2049,18 +2097,24 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, header: 1 });
+    // raw:true → celdas numéricas devuelven números reales (no strings formateados)
+    // Esto garantiza mapeo estricto: la posición de la columna define el mes, nunca el valor
+    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
     if (!rawRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
 
     const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
     const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
 
     // Encontrar fila de cabeceras buscando "cedula"/"ci" en las primeras 10 filas
+    // Con raw:true, las celdas de texto siguen siendo strings; convertir todo a string para búsqueda
     let headerRowIdx = -1, headers = [];
     for (let i = 0; i < Math.min(10, rawRows.length); i++) {
       const row = rawRows[i];
       if (row.some(cell => /cedula|c\.i\.|^ci$/.test(norm(String(cell))))) {
-        headerRowIdx = i; headers = row.map(c => String(c)); break;
+        headerRowIdx = i;
+        // Convertir a string preservando texto (números en cabecera → string)
+        headers = row.map(c => (c === '' || c === null || c === undefined) ? '' : String(c));
+        break;
       }
     }
     if (headerRowIdx < 0) return res.status(400).json({ error: 'No se encontró fila de encabezados (debe tener columna "Cédula" o "CI")' });
@@ -2105,7 +2159,9 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
 
     db.transaction(() => {
       dataRows.forEach((row, i) => {
-        const ci = ciIdx >= 0 ? String(row[ciIdx]||'').replace(/[^0-9]/g,'') : '';
+        // raw:true → CI puede ser número o string; normalizar a string limpio
+        const ciRaw = ciIdx >= 0 ? row[ciIdx] : '';
+        const ci = typeof ciRaw === 'number' ? String(Math.round(ciRaw)) : String(ciRaw||'').replace(/[^0-9]/g,'');
         if (!ci || ci.length < 5) return;
 
         // Parsear nombre completo → nombre + apellido
@@ -2175,10 +2231,21 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
           if (!al) { results.sin_alumno.push(`CI ${ci} — ${nombreCompleto||'sin nombre'}`); return; }
 
           // ── REGISTRAR PAGOS ──
+          // Mapeo ESTRICTO por posición de columna (idx), nunca por valor ni fila
           pagoIdxs.forEach(({ idx, h }) => {
-            const val = String(row[idx]||'');
-            const raw = val.replace(/[^0-9.]/g,'').replace(/\./g,'');
-            const monto = parseFloat(raw);
+            const cellVal = row[idx];
+            let monto;
+            if (typeof cellVal === 'number') {
+              // Celda numérica real (raw:true) → usar directamente
+              monto = cellVal;
+            } else {
+              // Celda texto: "225.000Gs.", "350,000", etc. → limpiar separadores
+              const s = String(cellVal||'').trim();
+              if (!s) return;
+              // Remover todo excepto dígitos y puntos, luego remover puntos (sep. de miles en Guaraní)
+              const cleaned = s.replace(/[^0-9.]/g,'').replace(/\./g,'');
+              monto = parseFloat(cleaned);
+            }
             if (!monto || isNaN(monto) || monto <= 0) return;
 
             const hN = norm(h);
