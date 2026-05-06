@@ -3,9 +3,18 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'its.db');
+// Orden de prioridad para la ruta de la DB:
+// 1. Variable de entorno DB_PATH explícita
+// 2. Railway Volume automático (RAILWAY_VOLUME_MOUNT_PATH lo setea Railway cuando hay un Volume adjunto)
+// 3. Fallback local: <repo_root>/data/its.db
+const DB_PATH = process.env.DB_PATH ||
+  (process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'its.db')
+    : null) ||
+  path.join(__dirname, '..', 'data', 'its.db');
 const dir = path.dirname(DB_PATH);
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+console.log('[DB] Ruta:', DB_PATH, '| Volume Railway:', process.env.RAILWAY_VOLUME_MOUNT_PATH||'no detectado');
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');

@@ -1284,7 +1284,7 @@ function mEliminarGrupo(){
   const carrs=W._carrs||[];
   const cursos=W._cursos||[];
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  mo(`<div class="mh"><h4>🗑 Eliminar por Grupo</h4><button class="mc" onclick="cm()">✕</button></div>
+  modal(`<div class="mh"><h4>🗑 Eliminar por Grupo</h4><button class="mc" onclick="cm()">✕</button></div>
     <div class="mb">
       <div class="ir" style="background:#fce4ec;border:1px solid #e57373;color:#b71c1c;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
         ⚠ <strong>Esta acción es irreversible.</strong> Se eliminarán permanentemente todos los alumnos del grupo seleccionado, incluyendo sus pagos, notas, asistencia y cuentas de acceso.
@@ -5090,14 +5090,132 @@ async function doImportarPlanilla(inp){
   if(!carrId){document.getElementById('plnRes').innerHTML='<div class="ir err">⚠ Seleccioná una carrera primero</div>';return;}
   const cursId=v('plnCurs')||'';
   const resEl=document.getElementById('plnRes');
-  if(resEl)resEl.innerHTML='<div class="ir" style="background:#f0faf4;text-align:center">⏳ Procesando planilla...</div>';
+  if(resEl)resEl.innerHTML='<div class="ir" style="background:#f0faf4;text-align:center">⏳ Analizando planilla, aguardá...</div>';
   const fd=new FormData();
-  fd.append('archivo',file);
-  fd.append('carrera_id',carrId);
-  fd.append('curso_id',cursId);
+  fd.append('archivo',file);fd.append('carrera_id',carrId);fd.append('curso_id',cursId);
   try{
-    const r=await api('POST','/api/pagos/importar-planilla',fd,true);
-    // Credenciales de alumnos creados
+    const prev=await api('POST','/api/pagos/previsualizar-planilla',fd,true);
+    cm();
+    mostrarRevisionPlanilla(prev);
+  }catch(e){
+    if(resEl)resEl.innerHTML=`<div class="ir err">❌ ${e.message}</div>`;
+  }
+}
+
+// ── PANTALLA DE REVISIÓN ANTES DE CONFIRMAR IMPORTACIÓN ───────────────────────
+const CONCEPTOS_OPTS=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Cuota 11','Cuota 12'];
+
+function mostrarRevisionPlanilla(data){
+  W._prevData=data;
+  document.getElementById('pvOverlay')?.remove();
+
+  const nuevos=data.filas.filter(f=>!f.alumno_existente).length;
+  const totalConMonto=data.filas.reduce((s,f)=>s+(f.montos.some(m=>m>0)?1:0),0);
+
+  const colOpts=CONCEPTOS_OPTS.map(o=>`<option value="${o}">${o}</option>`).join('');
+  const colHeaders=data.conceptos.map((c,j)=>`
+    <th style="min-width:115px;padding:4px 6px;background:#1565c0;color:#fff;position:sticky;top:0;z-index:2;font-weight:normal">
+      <div style="font-size:10px;color:#90caf9;margin-bottom:2px">${data.columnas[j]||''}</div>
+      <select id="pvh_${j}" style="width:100%;font-size:11px;background:#1976d2;color:#fff;border:1px solid #42a5f5;border-radius:3px;padding:2px 2px">
+        ${colOpts}
+      </select>
+    </th>`).join('');
+
+  const rows=data.filas.map((f,i)=>{
+    const badge=f.alumno_existente
+      ?'<span style="font-size:10px;color:#2e7d32;background:#e8f5e9;border-radius:3px;padding:1px 4px;margin-right:4px">✓</span>'
+      :'<span style="font-size:10px;color:#e65100;background:#fff3e0;border-radius:3px;padding:1px 4px;margin-right:4px">🆕</span>';
+    const cells=f.montos.map((m,j)=>`
+      <td style="padding:2px 4px;border:1px solid #e0e0e0;background:#fff;text-align:right">
+        <input id="pv_${i}_${j}" type="number" min="0" step="1" value="${m||''}"
+          style="width:95px;text-align:right;font-size:12px;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-family:inherit"/>
+      </td>`).join('');
+    return `<tr style="background:${i%2===0?'#fff':'#fafafa'}">
+      <td style="padding:5px 10px;border:1px solid #e0e0e0;position:sticky;left:0;background:${i%2===0?'#fff':'#fafafa'};z-index:1;min-width:200px;white-space:nowrap">
+        ${badge}<strong style="font-size:12px">${f.nombreCompleto||(f.nombre+' '+f.apellido).trim()}</strong>
+      </td>
+      <td style="padding:5px 8px;border:1px solid #e0e0e0;font-size:11px;color:#777;font-family:monospace;white-space:nowrap">${f.ci}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  const el=document.createElement('div');
+  el.id='pvOverlay';
+  el.style.cssText='position:fixed;inset:0;background:#fff;z-index:9998;display:flex;flex-direction:column;overflow:hidden';
+  el.innerHTML=`
+    <div style="background:#1565c0;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+      <div style="flex:1">
+        <h3 style="margin:0;font-size:15px">📋 Revisión de Importación — Verificá antes de confirmar</h3>
+        <p style="margin:3px 0 0;font-size:11px;opacity:.85">${data.filas.length} alumnos · <strong>${nuevos}</strong> nuevos a crear · ${totalConMonto} con pagos · Editá montos o conceptos si hay errores</p>
+      </div>
+      <button onclick="cerrarRevisionPlanilla()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px">✕ Cancelar</button>
+    </div>
+    <div style="background:#e3f2fd;padding:7px 20px;font-size:12px;color:#1565c0;flex-shrink:0;border-bottom:1px solid #bbdefb">
+      <strong>⚠ Revisá el encabezado de cada columna:</strong> el selector muestra el concepto detectado. Si el mes está incorrecto, cambialo antes de confirmar. Los campos en <strong>0 o vacíos</strong> no se registran.
+    </div>
+    <div style="flex:1;overflow:auto;padding:12px 20px">
+      <table style="border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="padding:8px 10px;text-align:left;background:#1565c0;color:#fff;position:sticky;top:0;left:0;z-index:3;min-width:200px">Alumno</th>
+            <th style="padding:8px 10px;text-align:left;background:#1565c0;color:#fff;position:sticky;top:0;z-index:2;min-width:100px">C.I.</th>
+            ${colHeaders}
+          </tr>
+        </thead>
+        <tbody>${rows||'<tr><td colspan="20" style="text-align:center;padding:20px;color:#999">Sin filas válidas</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div id="pvFooter" style="background:#f5f5f5;border-top:2px solid #1565c0;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+      <span style="font-size:12px;color:#555">Revisá todos los datos antes de confirmar. Esta acción creará alumnos y registrará pagos.</span>
+      <div style="display:flex;gap:10px">
+        <button onclick="cerrarRevisionPlanilla()" style="padding:8px 20px;border:1px solid #bbb;background:#fff;border-radius:4px;cursor:pointer;font-size:13px">Cancelar</button>
+        <button id="pvConfBtn" onclick="confirmarImportacionPlanilla()" style="padding:8px 24px;background:#1b5e20;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">✓ Confirmar e Importar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  // Pre-seleccionar conceptos en los selects luego de insertar en DOM
+  data.conceptos.forEach((c,j)=>{
+    const sel=document.getElementById('pvh_'+j);
+    if(!sel)return;
+    // Añadir opción custom si no está en la lista
+    if(!CONCEPTOS_OPTS.includes(c)){
+      const opt=document.createElement('option');opt.value=c;opt.textContent=c;
+      sel.appendChild(opt);
+    }
+    sel.value=c;
+  });
+}
+
+function cerrarRevisionPlanilla(){
+  document.getElementById('pvOverlay')?.remove();
+  W._prevData=null;
+}
+
+async function confirmarImportacionPlanilla(){
+  const data=W._prevData;
+  if(!data){toast('Sin datos para importar','warn');return;}
+  const btn=document.getElementById('pvConfBtn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Importando...';}
+
+  // Leer conceptos editados
+  const conceptos=data.conceptos.map((c,j)=>{
+    const sel=document.getElementById('pvh_'+j);
+    return sel?sel.value:c;
+  });
+  // Leer montos editados
+  const filas=data.filas.map((f,i)=>({
+    ...f,
+    montos:f.montos.map((_,j)=>{
+      const inp=document.getElementById('pv_'+i+'_'+j);
+      return inp?(parseFloat(inp.value)||0):0;
+    })
+  }));
+
+  const payload={carrera_id:data.carrera_id,curso_id:data.curso_id,conceptos,filas};
+  try{
+    const r=await api('POST','/api/pagos/importar-planilla-confirmada',payload);
+    cerrarRevisionPlanilla();
     let credHtml='';
     if(r.credenciales?.length){
       credHtml=`<div style="margin-top:10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 12px">
@@ -5105,22 +5223,23 @@ async function doImportarPlanilla(inp){
         <div style="max-height:200px;overflow-y:auto;font-size:11px">
           <table style="width:100%;border-collapse:collapse">
             <tr style="background:#c8e6c9;font-weight:700"><td style="padding:3px 6px">Alumno</td><td style="padding:3px 6px">Usuario</td><td style="padding:3px 6px">Contraseña</td></tr>
-            ${r.credenciales.map(c=>`<tr style="border-top:1px solid #ddd"><td style="padding:3px 6px">${c.nombre}</td><td style="padding:3px 6px;font-family:monospace">${c.usuario}</td><td style="padding:3px 6px;font-family:monospace">${c.password}</td></tr>`).join('')}
+            ${r.credenciales.map(c=>`<tr><td style="padding:3px 6px">${c.nombre}</td><td style="padding:3px 6px;font-family:monospace">${c.usuario}</td><td style="padding:3px 6px;font-family:monospace">${c.password}</td></tr>`).join('')}
           </table>
         </div>
-        <p style="font-size:10px;color:#666;margin-top:6px">📋 Entregar estas credenciales a cada alumno para acceder al sistema.</p>
       </div>`;
     }
-    const creadosMsg=r.alumnos_creados>0?`<br>👤 <strong>${r.alumnos_creados}</strong> alumnos creados con usuario y contraseña`:'';
-    const actMsg=r.alumnos_actualizados>0?`<br>🔄 ${r.alumnos_actualizados} alumnos actualizados`:'';
-    const conflMsg=r.conflictos?.length?`<br>⚠ ${r.conflictos.length} pagos ya existían (omitidos)`:'';
-    const sinAlMsg=r.sin_alumno?.length?`<br><span style="color:var(--red)">⚠ ${r.sin_alumno.length} filas sin CI válida: ${r.sin_alumno.slice(0,3).join(', ')}${r.sin_alumno.length>3?'...':''}</span>`:'';
-    const errMsg=r.errores?.length?`<br><span style="color:var(--red);font-size:11px">${r.errores.slice(0,3).join('<br>')}</span>`:'';
-    if(resEl)resEl.innerHTML=`<div class="ir ok" style="margin-top:10px">✓ <strong>${r.ok}</strong> pagos registrados${creadosMsg}${actMsg}${conflMsg}${sinAlMsg}${errMsg}</div>${credHtml}`;
-    const mfEl=document.querySelector('#modal .mf');
-    if(mfEl)mfEl.innerHTML=`<button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();go('pagos')">Ver pagos</button>`;
+    modal(`<h4>✓ Importación completada</h4>
+      <div class="ir ok">
+        ✓ <strong>${r.ok}</strong> pagos registrados
+        ${r.alumnos_creados>0?`<br>👤 <strong>${r.alumnos_creados}</strong> alumnos creados con acceso`:''}
+        ${r.alumnos_actualizados>0?`<br>🔄 ${r.alumnos_actualizados} alumnos actualizados`:''}
+        ${r.errores?.length?`<br><span style="color:var(--red)">⚠ ${r.errores.length} errores: ${r.errores.slice(0,2).join(', ')}</span>`:''}
+      </div>${credHtml}
+      <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();go('pagos')">Ver pagos</button></div>`);
+    go('pagos');
   }catch(e){
-    if(resEl)resEl.innerHTML=`<div class="ir err">❌ ${e.message}</div>`;
+    if(btn){btn.disabled=false;btn.textContent='✓ Confirmar e Importar';}
+    toast('Error al importar: '+e.message,'err');
   }
 }
 function procesarConflictoPago(){

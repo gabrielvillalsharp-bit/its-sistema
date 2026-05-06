@@ -2090,6 +2090,166 @@ app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) 
   } catch(e) { res.status(400).json({ error: 'Error procesando archivo: '+e.message }); }
 });
 
+// ── HELPER COMPARTIDO: parsear planilla Excel → JSON (sin guardar en DB) ─────
+function parsearPlanillaXLSX(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  // raw:true → celdas numéricas devuelven números reales; garantiza mapeo estricto por posición
+  const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
+  if (!rawRows.length) throw new Error('Sin datos en el archivo');
+
+  const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
+  const mesMap = {
+    enero:'Cuota 1', febrero:'Cuota 2', marzo:'Cuota 3', abril:'Cuota 4',
+    mayo:'Cuota 5', junio:'Cuota 6', julio:'Cuota 7', agosto:'Cuota 8',
+    septiembre:'Cuota 9', setiembre:'Cuota 9', octubre:'Cuota 10',
+    noviembre:'Cuota 11', diciembre:'Cuota 12',
+    'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
+    'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
+    'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
+  };
+
+  // Fila de cabeceras: buscar la primera fila que tenga "cedula" o "ci"
+  let headerRowIdx = -1, headers = [];
+  for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+    if (rawRows[i].some(c => /cedula|c\.i\.|^ci$/.test(norm(String(c))))) {
+      headerRowIdx = i;
+      headers = rawRows[i].map(c => (c === '' || c == null) ? '' : String(c));
+      break;
+    }
+  }
+  if (headerRowIdx < 0) throw new Error('No se encontró columna "Cédula" o "CI" en el archivo');
+
+  const dataRows  = rawRows.slice(headerRowIdx + 1);
+  const ciIdx     = headers.findIndex(h => /cedula|c\.i\.|^ci$/.test(norm(h)));
+  const nombreIdx = headers.findIndex(h => /nombre|alumno/i.test(norm(h)));
+  const matIdx    = headers.findIndex(h => /matricula/i.test(norm(h)));
+  const pagoStart = matIdx >= 0 ? matIdx : (ciIdx >= 0 ? ciIdx + 1 : 2);
+  const pagoIdxs  = headers.reduce((acc, h, idx) => { if (idx >= pagoStart) acc.push({ idx, h: h.trim() }); return acc; }, []);
+
+  // Concepto detectado para cada columna de pago
+  const conceptos = pagoIdxs.map(({ h }) => {
+    const hN = norm(h);
+    if (/matricula/.test(hN)) return 'Matrícula';
+    return mesMap[hN] || h.trim();
+  });
+
+  const filas = [];
+  dataRows.forEach(row => {
+    const ciRaw = ciIdx >= 0 ? row[ciIdx] : '';
+    const ci = typeof ciRaw === 'number' ? String(Math.round(ciRaw)) : String(ciRaw||'').replace(/[^0-9]/g,'');
+    if (!ci || ci.length < 5) return;
+
+    const nombreCompleto = nombreIdx >= 0 ? String(row[nombreIdx]||'').trim() : '';
+    const partes = nombreCompleto.split(/\s+/).filter(Boolean);
+    let nombre = nombreCompleto, apellido = '';
+    if (partes.length >= 3) { nombre = partes.slice(0,Math.ceil(partes.length/2)).join(' '); apellido = partes.slice(Math.ceil(partes.length/2)).join(' '); }
+    else if (partes.length === 2) { nombre = partes[0]; apellido = partes[1]; }
+
+    // Montos: mapeo ESTRICTO por índice de columna — nunca por valor
+    const montos = pagoIdxs.map(({ idx }) => {
+      const cv = row[idx];
+      if (typeof cv === 'number') return cv > 0 ? cv : 0;
+      const s = String(cv||'').trim();
+      if (!s) return 0;
+      const m = parseFloat(s.replace(/[^0-9.]/g,'').replace(/\./g,''));
+      return (!isNaN(m) && m > 0) ? m : 0;
+    });
+
+    const existente = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
+    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, montos });
+  });
+
+  return { columnas: pagoIdxs.map(p => p.h), conceptos, filas };
+}
+
+// ── PASO 1: PREVISUALIZAR planilla (parse sin guardar, para revisión manual) ─
+app.post('/api/pagos/previsualizar-planilla', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    const { carrera_id, curso_id } = req.body;
+    const parsed = parsearPlanillaXLSX(req.file.buffer);
+    res.json({ carrera_id, curso_id, ...parsed });
+  } catch(e) { res.status(400).json({ error: 'Error al leer planilla: '+e.message }); }
+});
+
+// ── PASO 2: CONFIRMAR importación (recibe JSON revisado por usuario, guarda en DB) ─
+app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, curso_id, conceptos, filas } = req.body;
+    if (!Array.isArray(conceptos) || !Array.isArray(filas)) return res.status(400).json({ error: 'Datos inválidos' });
+
+    const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const carr = carrera_id ? db.prepare('SELECT id,codigo,nombre FROM carreras WHERE id=?').get(carrera_id) : null;
+
+    const stmtCI      = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE ci=?');
+    const stmtChkMail = db.prepare('SELECT id FROM usuarios WHERE email=? AND COALESCE(ci,\'\')!=?');
+    const stmtUsuEx   = db.prepare('SELECT id FROM usuarios WHERE ci=?');
+    const stmtInsUsu  = db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)');
+    const stmtCnt     = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?');
+    const stmtInsAl   = db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    const stmtUpdAl   = db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=? WHERE id=?');
+    const stmtAsigs   = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?');
+    const stmtInsNota = db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)');
+    const stmtChkPago = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtInsPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
+
+    const results = { ok: 0, errores: [], alumnos_creados: 0, alumnos_actualizados: 0, credenciales: [] };
+
+    db.transaction(() => {
+      filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos }) => {
+        if (!ci || ci.length < 5) return;
+        try {
+          let al = stmtCI.get(ci);
+
+          if (!al && carrera_id) {
+            const nPart = normId((nombre||'').split(' ')[0]);
+            const aPart = normId((apellido||'').split(' ').pop()).slice(0,4);
+            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
+            let emailAuto = `${emailBase}@its.edu.py`;
+            if (stmtChkMail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+            const cnt = stmtCnt.get(carrera_id).n;
+            const matricula = carr ? `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
+            const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+            let uid = null;
+            const usuEx = stmtUsuEx.get(ci);
+            if (!usuEx) {
+              uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+              try { stmtInsUsu.run(uid, nombre, apellido, ci, emailAuto, bcrypt.hashSync(ci,10), 'alumno'); } catch { uid = null; }
+            } else { uid = usuEx.id; }
+            stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+            if (curso_id) stmtAsigs.all(curso_id, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {} });
+            results.credenciales.push({ nombre: nombreCompleto||`${nombre} ${apellido}`, usuario: emailAuto, password: ci });
+            al = { id: aid };
+            results.alumnos_creados++;
+          } else if (al && carrera_id) {
+            const cN = curso_id || al.curso_id;
+            if (al.carrera_id !== carrera_id || al.curso_id !== cN) {
+              stmtUpdAl.run(carrera_id, cN, al.id);
+              if (cN && cN !== al.curso_id) stmtAsigs.all(cN, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, a.id, 'Pendiente'); } catch {} });
+              results.alumnos_actualizados++;
+            }
+          }
+
+          if (!al) return;
+          (montos||[]).forEach((monto, j) => {
+            const m = parseFloat(monto)||0;
+            if (m <= 0) return;
+            const concepto = conceptos[j];
+            if (!concepto) return;
+            if (stmtChkPago.get(al.id, concepto, periodo?.id||null)) return;
+            stmtInsPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, m, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
+            results.ok++;
+          });
+        } catch(e) { results.errores.push(`CI ${ci}: ${e.message}`); }
+      });
+    })();
+
+    audit(req.user.id,'CREATE','pagos_importacion',carrera_id||'?',{ ok: results.ok, creados: results.alumnos_creados });
+    res.json(results);
+  } catch(e) { res.status(400).json({ error: 'Error al importar: '+e.message }); }
+});
+
 // ── IMPORTACIÓN PLANILLA DE PAGOS (formato: Nombre | CI | Matrícula | mes1 | mes2...) ─
 app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
