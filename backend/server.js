@@ -2101,7 +2101,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     const stmtCheckPago  = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
     const stmtInsertPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
 
-    const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], alumnos_creados: 0, alumnos_actualizados: 0, columnas: pagoIdxs.map(p => p.h) };
+    const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], alumnos_creados: 0, alumnos_actualizados: 0, credenciales: [], columnas: pagoIdxs.map(p => p.h) };
 
     db.transaction(() => {
       dataRows.forEach((row, i) => {
@@ -2122,8 +2122,10 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
 
           if (!al && carrera_id) {
             // ── CREAR alumno nuevo ──
-            let emailBase = `${normId(nombre)}.${normId(apellido)}`;
-            if (!emailBase || emailBase === '.') emailBase = `alumno.${ci}`;
+            // Usuario: nombre + primeras 3 letras del apellido (ej: alexandro.fig)
+            const nPart = normId(nombre.split(' ')[0]);  // solo primer nombre
+            const aPart = normId(apellido.split(' ').pop()).slice(0,4); // primeras 4 del último apellido
+            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
             let emailAuto = `${emailBase}@its.edu.py`;
             if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
 
@@ -2146,6 +2148,8 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
                 try { stmtInsertNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {}
               });
             }
+            // Guardar credenciales para mostrar al director
+            results.credenciales.push({ nombre: nombreCompleto, usuario: emailAuto, password: ci });
             al = { id: aid };
             results.alumnos_creados++;
 

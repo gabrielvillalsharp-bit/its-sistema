@@ -5008,13 +5008,26 @@ async function doImportarPlanilla(inp){
   fd.append('curso_id',cursId);
   try{
     const r=await api('POST','/api/pagos/importar-planilla',fd,true);
-    const creadosMsg=r.alumnos_creados>0?`<br>👤 <strong>${r.alumnos_creados}</strong> alumnos nuevos creados con acceso`:'';
+    // Credenciales de alumnos creados
+    let credHtml='';
+    if(r.credenciales?.length){
+      credHtml=`<div style="margin-top:10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:10px 12px">
+        <p style="font-weight:700;font-size:12px;color:#2e7d32;margin-bottom:6px">🔑 Credenciales creadas (contraseña = N° de cédula):</p>
+        <div style="max-height:200px;overflow-y:auto;font-size:11px">
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="background:#c8e6c9;font-weight:700"><td style="padding:3px 6px">Alumno</td><td style="padding:3px 6px">Usuario</td><td style="padding:3px 6px">Contraseña</td></tr>
+            ${r.credenciales.map(c=>`<tr style="border-top:1px solid #ddd"><td style="padding:3px 6px">${c.nombre}</td><td style="padding:3px 6px;font-family:monospace">${c.usuario}</td><td style="padding:3px 6px;font-family:monospace">${c.password}</td></tr>`).join('')}
+          </table>
+        </div>
+        <p style="font-size:10px;color:#666;margin-top:6px">📋 Entregar estas credenciales a cada alumno para acceder al sistema.</p>
+      </div>`;
+    }
+    const creadosMsg=r.alumnos_creados>0?`<br>👤 <strong>${r.alumnos_creados}</strong> alumnos creados con usuario y contraseña`:'';
     const actMsg=r.alumnos_actualizados>0?`<br>🔄 ${r.alumnos_actualizados} alumnos actualizados`:'';
     const conflMsg=r.conflictos?.length?`<br>⚠ ${r.conflictos.length} pagos ya existían (omitidos)`:'';
-    const sinAlMsg=r.sin_alumno?.length?`<br><span style="color:var(--red)">⚠ ${r.sin_alumno.length} filas sin CI válida</span>`:'';
+    const sinAlMsg=r.sin_alumno?.length?`<br><span style="color:var(--red)">⚠ ${r.sin_alumno.length} filas sin CI válida: ${r.sin_alumno.slice(0,3).join(', ')}${r.sin_alumno.length>3?'...':''}</span>`:'';
     const errMsg=r.errores?.length?`<br><span style="color:var(--red);font-size:11px">${r.errores.slice(0,3).join('<br>')}</span>`:'';
-    const colMsg=r.columnas?.length?`<br><span style="color:var(--t3);font-size:11px">Columnas: ${r.columnas.join(' · ')}</span>`:'';
-    if(resEl)resEl.innerHTML=`<div class="ir ok" style="margin-top:10px">✓ <strong>${r.ok}</strong> pagos registrados${creadosMsg}${actMsg}${conflMsg}${sinAlMsg}${errMsg}${colMsg}</div>`;
+    if(resEl)resEl.innerHTML=`<div class="ir ok" style="margin-top:10px">✓ <strong>${r.ok}</strong> pagos registrados${creadosMsg}${actMsg}${conflMsg}${sinAlMsg}${errMsg}</div>${credHtml}`;
     const mfEl=document.querySelector('#modal .mf');
     if(mfEl)mfEl.innerHTML=`<button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();go('pagos')">Ver pagos</button>`;
   }catch(e){
