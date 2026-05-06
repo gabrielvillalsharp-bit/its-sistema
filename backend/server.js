@@ -2047,61 +2047,72 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
   try {
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const allRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-    if (!allRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
+    // header:1 → array-of-arrays; ignores merged title rows
+    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, header: 1 });
+    if (!rawRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
 
-    const headers = Object.keys(allRows[0]);
     const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
 
-    // Auto-detectar columnas de CI y Nombre
-    const ciCol = headers.find(h => /^(ci|cedula|n\.?.*cedula|numero.*cedula|cedula.*identidad|c\.i\.)$/i.test(norm(h)));
-    const apellidoCol = headers.find(h => /^(apellido)$/i.test(norm(h)));
-    const nombreCol = headers.find(h => /^(nombre|nombre completo|alumno|apellido.*nombre|nombre.*apellido)$/i.test(norm(h))) || (!apellidoCol ? headers.find(h => /nombre/i.test(norm(h))) : null);
+    // Encontrar la fila real de cabeceras (buscar "cedula" o "ci" en las primeras 10 filas)
+    let headerRowIdx = -1;
+    let headers = [];
+    for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+      const row = rawRows[i];
+      if (row.some(cell => /cedula|c\.i\.|^ci$/.test(norm(String(cell))))) {
+        headerRowIdx = i; headers = row.map(c => String(c)); break;
+      }
+    }
+    if (headerRowIdx < 0) return res.status(400).json({ error: 'No se encontró fila de encabezados (debe contener columna "Cédula" o "CI")' });
 
-    // Columna Matrícula = inicio de columnas de pago
+    const dataRows = rawRows.slice(headerRowIdx + 1);
+
+    const ciIdx       = headers.findIndex(h => /cedula|c\.i\.|^ci$/.test(norm(h)));
+    const nombreIdx   = headers.findIndex(h => /nombre|alumno/i.test(norm(h)));
     const matriculaIdx = headers.findIndex(h => /matricula/i.test(norm(h)));
-    if (matriculaIdx < 0) return res.status(400).json({ error: 'No se encontró columna "Matrícula" en el Excel. Las columnas de pago deben comenzar desde "Matrícula".' });
+    if (matriculaIdx < 0) return res.status(400).json({ error: 'No se encontró columna "Matrícula" en el Excel.' });
 
-    const pagoHeaders = headers.slice(matriculaIdx);
+    // Todas las columnas desde Matrícula en adelante son columnas de pago
+    const pagoIdxs = headers.reduce((acc, h, idx) => { if (idx >= matriculaIdx) acc.push({ idx, h }); return acc; }, []);
 
-    // Mapear cabeceras de meses a conceptos
     const mesMap = {
-      enero:'Cuota 1',febrero:'Cuota 2',marzo:'Cuota 3',abril:'Cuota 4',
-      mayo:'Cuota 5',junio:'Cuota 6',julio:'Cuota 7',agosto:'Cuota 8',
-      septiembre:'Cuota 9',octubre:'Cuota 10',noviembre:'Cuota 11',diciembre:'Cuota 12',
+      enero:'Cuota 1', febrero:'Cuota 2', marzo:'Cuota 3', abril:'Cuota 4',
+      mayo:'Cuota 5', junio:'Cuota 6', julio:'Cuota 7', agosto:'Cuota 8',
+      septiembre:'Cuota 9', setiembre:'Cuota 9', octubre:'Cuota 10',
+      noviembre:'Cuota 11', diciembre:'Cuota 12',
       'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
       'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
       'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
     };
 
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-    const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], columnas: pagoHeaders };
+    const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], columnas: pagoIdxs.map(p => p.h) };
 
-    allRows.forEach((row, i) => {
-      const ci = ciCol ? String(row[ciCol]||'').replace(/[^0-9]/g,'') : '';
+    dataRows.forEach((row, i) => {
+      const ci = ciIdx >= 0 ? String(row[ciIdx]||'').replace(/[^0-9]/g,'') : '';
       if (!ci || ci.length < 5) return;
 
       let al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE ci=?').get(ci);
       if (!al) {
-        // Intentar por nombre si no hay CI
-        const nomBusc = nombreCol ? String(row[nombreCol]||'').trim() : '';
+        const nomBusc = nombreIdx >= 0 ? String(row[nombreIdx]||'').trim() : '';
         if (nomBusc && nomBusc.length > 3) al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE LOWER(nombre||" "||apellido) LIKE ? OR LOWER(apellido||" "||nombre) LIKE ?').get('%'+nomBusc.toLowerCase()+'%','%'+nomBusc.toLowerCase()+'%');
       }
-      if (!al) { results.sin_alumno.push(`CI ${ci} (fila ${i+2})`); return; }
+      if (!al) { results.sin_alumno.push(`CI ${ci} (fila ${headerRowIdx+i+2})`); return; }
 
-      pagoHeaders.forEach(col => {
-        const raw = String(row[col]||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.]/g,'');
+      pagoIdxs.forEach(({ idx, h }) => {
+        const val = String(row[idx]||'');
+        // Formato guaraní: "225.000Gs." → quitar no-dígitos-ni-puntos → "225.000." → quitar puntos → "225000"
+        const raw = val.replace(/[^0-9.]/g,'').replace(/\./g,'');
         const monto = parseFloat(raw);
         if (!monto || isNaN(monto) || monto <= 0) return;
 
-        const colN = norm(col);
+        const hN = norm(h);
         let concepto;
-        if (/matricula/.test(colN)) concepto = 'Matrícula';
-        else concepto = mesMap[colN] || col.trim();
+        if (/matricula/.test(hN)) concepto = 'Matrícula';
+        else concepto = mesMap[hN] || h.trim();
 
         const existing = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?').get(al.id, concepto, periodo?.id||null);
         if (existing) {
-          results.conflictos.push({ ci, concepto, monto, pago_id: existing.id, fila: i+2 });
+          results.conflictos.push({ ci, concepto, monto, pago_id: existing.id, fila: headerRowIdx+i+2 });
           return;
         }
         db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)')
