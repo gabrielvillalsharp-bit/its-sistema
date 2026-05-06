@@ -663,6 +663,12 @@ function init() {
   colsNotas.forEach(col => {
     try { db.prepare(`ALTER TABLE notas ADD COLUMN ${col} ${col==='ausente'?'INTEGER DEFAULT 0':'REAL'}`).run(); } catch {}
   });
+  // Alumnos: columnas que pueden faltar en DBs antiguas
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN ci TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN nombre TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN apellido TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN telefono TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE alumnos ADD COLUMN direccion TEXT").run(); } catch {}
   // Alumnos: habilitación especial de pago y bloqueo de notas
   try { db.prepare("ALTER TABLE alumnos ADD COLUMN habilitado_pago_pendiente INTEGER DEFAULT 0").run(); } catch {}
   try { db.prepare("ALTER TABLE avisos ADD COLUMN destinatario TEXT DEFAULT 'todos'").run(); } catch {}

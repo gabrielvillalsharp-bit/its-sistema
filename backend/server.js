@@ -2051,11 +2051,11 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, header: 1 });
     if (!rawRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
 
-    const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+    // norm: minúsculas + quitar acentos + quitar comillas sobrantes al inicio/fin
+    const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
 
     // Encontrar la fila real de cabeceras (buscar "cedula" o "ci" en las primeras 10 filas)
-    let headerRowIdx = -1;
-    let headers = [];
+    let headerRowIdx = -1, headers = [];
     for (let i = 0; i < Math.min(10, rawRows.length); i++) {
       const row = rawRows[i];
       if (row.some(cell => /cedula|c\.i\.|^ci$/.test(norm(String(cell))))) {
@@ -2066,8 +2066,8 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
 
     const dataRows = rawRows.slice(headerRowIdx + 1);
 
-    const ciIdx       = headers.findIndex(h => /cedula|c\.i\.|^ci$/.test(norm(h)));
-    const nombreIdx   = headers.findIndex(h => /nombre|alumno/i.test(norm(h)));
+    const ciIdx        = headers.findIndex(h => /cedula|c\.i\.|^ci$/.test(norm(h)));
+    const nombreIdx    = headers.findIndex(h => /nombre|alumno/i.test(norm(h)));
     const matriculaIdx = headers.findIndex(h => /matricula/i.test(norm(h)));
     if (matriculaIdx < 0) return res.status(400).json({ error: 'No se encontró columna "Matrícula" en el Excel.' });
 
@@ -2085,22 +2085,29 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     };
 
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+
+    // Pre-compilar queries fuera del loop (falla rápido si falta alguna columna)
+    const stmtBuscarCI  = db.prepare('SELECT id,carrera_id FROM alumnos WHERE ci=?');
+    const stmtBuscarNom = db.prepare("SELECT id,carrera_id FROM alumnos WHERE LOWER(COALESCE(nombre,'')||' '||COALESCE(apellido,'')) LIKE ? OR LOWER(COALESCE(apellido,'')||' '||COALESCE(nombre,'')) LIKE ?");
+    const stmtCheckPago = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtInsert    = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
+
     const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], columnas: pagoIdxs.map(p => p.h) };
 
     dataRows.forEach((row, i) => {
       const ci = ciIdx >= 0 ? String(row[ciIdx]||'').replace(/[^0-9]/g,'') : '';
       if (!ci || ci.length < 5) return;
 
-      let al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE ci=?').get(ci);
+      let al = stmtBuscarCI.get(ci);
       if (!al) {
         const nomBusc = nombreIdx >= 0 ? String(row[nombreIdx]||'').trim() : '';
-        if (nomBusc && nomBusc.length > 3) al = db.prepare('SELECT id,carrera_id FROM alumnos WHERE LOWER(nombre||" "||apellido) LIKE ? OR LOWER(apellido||" "||nombre) LIKE ?').get('%'+nomBusc.toLowerCase()+'%','%'+nomBusc.toLowerCase()+'%');
+        if (nomBusc && nomBusc.length > 3) al = stmtBuscarNom.get('%'+nomBusc.toLowerCase()+'%','%'+nomBusc.toLowerCase()+'%');
       }
       if (!al) { results.sin_alumno.push(`CI ${ci} (fila ${headerRowIdx+i+2})`); return; }
 
       pagoIdxs.forEach(({ idx, h }) => {
         const val = String(row[idx]||'');
-        // Formato guaraní: "225.000Gs." → quitar no-dígitos-ni-puntos → "225.000." → quitar puntos → "225000"
+        // Formato guaraní: "225.000Gs." → solo dígitos y puntos → quitar puntos → "225000"
         const raw = val.replace(/[^0-9.]/g,'').replace(/\./g,'');
         const monto = parseFloat(raw);
         if (!monto || isNaN(monto) || monto <= 0) return;
@@ -2108,15 +2115,14 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
         const hN = norm(h);
         let concepto;
         if (/matricula/.test(hN)) concepto = 'Matrícula';
-        else concepto = mesMap[hN] || h.trim();
+        else concepto = mesMap[hN] || h.replace(/^["']|["']$/g,'').trim();
 
-        const existing = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?').get(al.id, concepto, periodo?.id||null);
+        const existing = stmtCheckPago.get(al.id, concepto, periodo?.id||null);
         if (existing) {
           results.conflictos.push({ ci, concepto, monto, pago_id: existing.id, fila: headerRowIdx+i+2 });
           return;
         }
-        db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)')
-          .run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, monto, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
+        stmtInsert.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, monto, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
         results.ok++;
       });
     });
