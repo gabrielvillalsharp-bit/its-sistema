@@ -4357,7 +4357,7 @@ async function pgPagos(el){
   el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
       <button class="bs" onclick="mCuotaLabels()" title="Configurar nombres de cuotas">⚙ Cuotas</button>
-      <label class="bs i" style="cursor:pointer" title="Importar planilla Excel con columnas: CI, Nombre, Matrícula, Enero, Febrero...">📊 Importar Planilla<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarPlanillaPagos(this)"/></label>
+      <button class="bs i" onclick="mImportarPlanilla()">📊 Importar Planilla</button>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
 
@@ -4951,50 +4951,74 @@ async function importarPagos(input){
     }
   }catch(e){alert('Error: '+e.message);}
 }
-async function importarPlanillaPagos(input){
-  const file=input.files[0];if(!file)return;
-  input.value='';
-  // Mostrar preview modal antes de confirmar
+function mImportarPlanilla(){
+  const carrs=W._carrs||[];
+  const cursos=W._cursos||[];
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   modal(`<h4>📊 Importar Planilla de Pagos</h4>
-  <p style="font-size:13px;color:var(--t2);margin-bottom:8px">Formato esperado:</p>
-  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:12px">
-    <table style="border-collapse:collapse;width:100%">
-      <tr style="background:#dcfce7;font-weight:700">
-        <td style="padding:4px 8px;border:1px solid #86efac">CI</td>
-        <td style="padding:4px 8px;border:1px solid #86efac">Nombre</td>
-        <td style="padding:4px 8px;border:1px solid #86efac">Matrícula</td>
-        <td style="padding:4px 8px;border:1px solid #86efac">Enero</td>
-        <td style="padding:4px 8px;border:1px solid #86efac">Febrero</td>
-        <td style="padding:4px 8px;border:1px solid #86efac">...</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">4123456</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">García Juan</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">500000</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">300000</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">300000</td>
-        <td style="padding:4px 8px;border:1px solid #e2e8f0;color:var(--t3)">...</td>
-      </tr>
-    </table>
-    <p style="margin-top:8px;margin-bottom:0;color:var(--t2)">• Celdas vacías o cero se omiten<br>• Los meses se mapean automáticamente a cuotas (Enero=Cuota 1, etc.)</p>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Seleccioná la carrera y sección antes de subir el archivo. Los alumnos que no existan serán <strong>creados automáticamente</strong> con acceso al sistema.</p>
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 12px;font-size:11px;color:#166534;margin-bottom:12px">
+    ✓ Formato: Fila de título (opcional) + encabezados con <strong>Cédula</strong>, <strong>Nombre</strong>, <strong>Matrícula</strong>, y columnas de meses (Marzo, Abril…)<br>
+    ✓ Montos en formato numérico o Gs. (ej: 400000 ó 400.000Gs.)
   </div>
-  <div id="plnMsg" style="text-align:center;padding:8px;font-size:13px;color:var(--t3)">Procesando archivo...</div>
-  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button></div>`);
-  // Enviar al servidor
-  const fd=new FormData();fd.append('archivo',file);
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>1. Carrera <span style="color:var(--red)">*</span></label>
+        <select id="plnCarr" onchange="filtCursosPlnPago()" style="width:100%">
+          <option value="">— Seleccionar carrera —</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select></div>
+      <div class="f" style="min-width:110px"><label>2. Año</label>
+        <select id="plnAnio" onchange="filtCursosPlnPago()">
+          <option value="">— Año —</option>
+          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="f"><label>3. Sección / Curso</label>
+      <select id="plnCurs"><option value="">Sin asignar sección</option></select></div>
+    <div class="f"><label>4. Seleccionar archivo Excel</label>
+      <div class="iz" onclick="document.getElementById('fxlPln').click()" style="margin-top:4px">📂 Clic para seleccionar archivo .xlsx / .xls
+        <input type="file" id="fxlPln" accept=".xlsx,.xls" style="display:none" onchange="doImportarPlanilla(this)"/>
+      </div>
+    </div>
+  </div>
+  <div id="plnRes"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+}
+function filtCursosPlnPago(){
+  const carrId=v('plnCarr'), anio=v('plnAnio');
+  const sel=document.getElementById('plnCurs');
+  if(!sel)return;
+  let cursos=W._cursos||[];
+  if(carrId) cursos=cursos.filter(cu=>cu.carrera_id===carrId);
+  if(anio)   cursos=cursos.filter(cu=>String(cu.anio)===anio);
+  sel.innerHTML='<option value="">Sin asignar sección</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}${cu.turno?' (T'+cu.turno+')':''}</option>`).join('');
+}
+async function doImportarPlanilla(inp){
+  const file=inp.files[0];if(!file)return;
+  inp.value='';
+  const carrId=v('plnCarr');
+  if(!carrId){document.getElementById('plnRes').innerHTML='<div class="ir err">⚠ Seleccioná una carrera primero</div>';return;}
+  const cursId=v('plnCurs')||'';
+  const resEl=document.getElementById('plnRes');
+  if(resEl)resEl.innerHTML='<div class="ir" style="background:#f0faf4;text-align:center">⏳ Procesando planilla...</div>';
+  const fd=new FormData();
+  fd.append('archivo',file);
+  fd.append('carrera_id',carrId);
+  fd.append('curso_id',cursId);
   try{
     const r=await api('POST','/api/pagos/importar-planilla',fd,true);
-    const sinAlMsg=r.sin_alumno?.length?`<br>⚠ ${r.sin_alumno.length} CI no encontradas en el sistema`:'';
-    const errMsg=r.errores?.length?`<br>⚠ ${r.errores.slice(0,3).join(', ')}`:'';
-    const colMsg=r.columnas?.length?`<br><span style="color:var(--t3);font-size:11px">Columnas procesadas: ${r.columnas.join(', ')}</span>`:'';
-    const msgEl=document.getElementById('plnMsg');
-    if(msgEl)msgEl.innerHTML=`<div class="ir ok">✓ <strong>${r.ok}</strong> pagos registrados${r.conflictos?.length?` · ${r.conflictos.length} ya existían`:''}</div>${sinAlMsg?`<div class="ir err" style="margin-top:6px;font-size:12px">${sinAlMsg}</div>`:''}${colMsg}`;
-    // Actualizar botón de cerrar
+    const creadosMsg=r.alumnos_creados>0?`<br>👤 <strong>${r.alumnos_creados}</strong> alumnos nuevos creados con acceso`:'';
+    const actMsg=r.alumnos_actualizados>0?`<br>🔄 ${r.alumnos_actualizados} alumnos actualizados`:'';
+    const conflMsg=r.conflictos?.length?`<br>⚠ ${r.conflictos.length} pagos ya existían (omitidos)`:'';
+    const sinAlMsg=r.sin_alumno?.length?`<br><span style="color:var(--red)">⚠ ${r.sin_alumno.length} filas sin CI válida</span>`:'';
+    const errMsg=r.errores?.length?`<br><span style="color:var(--red);font-size:11px">${r.errores.slice(0,3).join('<br>')}</span>`:'';
+    const colMsg=r.columnas?.length?`<br><span style="color:var(--t3);font-size:11px">Columnas: ${r.columnas.join(' · ')}</span>`:'';
+    if(resEl)resEl.innerHTML=`<div class="ir ok" style="margin-top:10px">✓ <strong>${r.ok}</strong> pagos registrados${creadosMsg}${actMsg}${conflMsg}${sinAlMsg}${errMsg}${colMsg}</div>`;
     const mfEl=document.querySelector('#modal .mf');
     if(mfEl)mfEl.innerHTML=`<button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();go('pagos')">Ver pagos</button>`;
   }catch(e){
-    const msgEl=document.getElementById('plnMsg');
-    if(msgEl)msgEl.innerHTML=`<div class="ir err">${e.message}</div>`;
+    if(resEl)resEl.innerHTML=`<div class="ir err">❌ ${e.message}</div>`;
   }
 }
 function procesarConflictoPago(){
