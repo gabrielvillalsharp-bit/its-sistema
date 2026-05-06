@@ -2456,11 +2456,23 @@ function hacerBackupAutomatico() {
   }
 }
 
-// Ejecutar backup al iniciar y cada 48 horas
+// Backup automático diario a las 23:00
+function programarBackupDiario() {
+  const ahora = new Date();
+  const proximas23 = new Date(ahora);
+  proximas23.setHours(23, 0, 0, 0);
+  if (proximas23 <= ahora) proximas23.setDate(proximas23.getDate() + 1); // si ya pasó las 23, ir al día siguiente
+  const msHasta23 = proximas23.getTime() - ahora.getTime();
+  setTimeout(() => {
+    hacerBackupAutomatico();
+    setInterval(hacerBackupAutomatico, 24 * 60 * 60 * 1000); // repetir cada 24h
+  }, msHasta23);
+  console.log(`⏰ Próximo backup automático: ${proximas23.toLocaleString('es-PY', {timeZone:'America/Asuncion'})}`);
+}
 setTimeout(() => {
-  hacerBackupAutomatico();
-  setInterval(hacerBackupAutomatico, 48 * 60 * 60 * 1000);
-}, 5000); // Esperar 5s para que la BD esté lista
+  hacerBackupAutomatico(); // backup inmediato al iniciar
+  programarBackupDiario(); // luego programar el diario a las 23:00
+}, 5000);
 
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
   const fecha = new Date().toISOString().split('T')[0];
