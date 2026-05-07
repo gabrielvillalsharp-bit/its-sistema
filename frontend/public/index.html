@@ -125,7 +125,7 @@ tr:hover td{background:#fafaf7}
 .fb{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .fb select{padding:7px 10px;font-size:13px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);width:auto}
 /* ── MODAL ─────────────────────────────────── */
-.mb{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto;backdrop-filter:blur(3px)}
+.mb{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:9999;overflow-y:auto;backdrop-filter:blur(3px)}
 .modal{background:#fff;border:1px solid var(--bdr);border-radius:18px;padding:1.8rem;width:100%;max-width:560px;box-shadow:var(--shadow-lg)}
 .modal h4{font-size:17px;font-weight:700;margin-bottom:1.3rem;letter-spacing:-.015em}
 .modal-lg{max-width:860px}
@@ -197,7 +197,7 @@ tr:hover td{background:#fafaf7}
   .card{border:none;box-shadow:none}
 }
 /* ── TOAST ─────────────────────────────────── */
-#toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#toast-container{position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:13px;font-size:13px;font-weight:600;min-width:220px;max-width:360px;box-shadow:var(--shadow-md);animation:toastIn .25s ease;pointer-events:auto}
 .toast.ok{background:#e8f5e9;color:#2e7d32;border:1px solid #c8e6c9}
 .toast.err{background:#ffebee;color:#c62828;border:1px solid #ffcdd2}
@@ -4831,10 +4831,11 @@ async function mPagoDirecto(alId){
 }
 
 // ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────
+// Año escolar paraguayo: Cuota 1 = Marzo ... Cuota 10 = Diciembre
 const CUOTA_DEFAULTS={
-  1:'Cuota 1 — Marzo',2:'Cuota 2 — Abril',3:'Cuota 3 — Mayo',4:'Cuota 4 — Junio',
-  5:'Cuota 5 — Julio',6:'Cuota 6 — Agosto',7:'Cuota 7 — Setiembre',8:'Cuota 8 — Octubre',
-  9:'Cuota 9 — Noviembre',10:'Cuota 10 — Diciembre',11:'Cuota 11',12:'Cuota 12'
+  1:'Cuota 1 — Marzo',  2:'Cuota 2 — Abril',   3:'Cuota 3 — Mayo',    4:'Cuota 4 — Junio',
+  5:'Cuota 5 — Julio',  6:'Cuota 6 — Agosto',  7:'Cuota 7 — Setiembre',8:'Cuota 8 — Octubre',
+  9:'Cuota 9 — Noviembre',10:'Cuota 10 — Diciembre',11:'Cuota 11 — Enero',12:'Cuota 12 — Febrero'
 };
 function getCuotaLabels(){
   try{const s=localStorage.getItem('its_cuota_labels');if(s){const p=JSON.parse(s);// Completar con defaults si solo tiene 1-5

@@ -2100,11 +2100,13 @@ function parsearPlanillaXLSX(buffer) {
   if (!rawRows.length) throw new Error('Sin datos en el archivo');
 
   const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
+  // Año escolar paraguayo: Cuota 1 = Marzo, Cuota 2 = Abril, ..., Cuota 10 = Diciembre
+  // Cuota 11 = Enero, Cuota 12 = Febrero (meses restantes inicio/fin de año)
   const mesMap = {
-    enero:'Cuota 1', febrero:'Cuota 2', marzo:'Cuota 3', abril:'Cuota 4',
-    mayo:'Cuota 5', junio:'Cuota 6', julio:'Cuota 7', agosto:'Cuota 8',
-    septiembre:'Cuota 9', setiembre:'Cuota 9', octubre:'Cuota 10',
-    noviembre:'Cuota 11', diciembre:'Cuota 12',
+    marzo:'Cuota 1',  abril:'Cuota 2',      mayo:'Cuota 3',      junio:'Cuota 4',
+    julio:'Cuota 5',  agosto:'Cuota 6',      septiembre:'Cuota 7',setiembre:'Cuota 7',
+    octubre:'Cuota 8',noviembre:'Cuota 9',   diciembre:'Cuota 10',
+    enero:'Cuota 11', febrero:'Cuota 12',
     'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
     'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
     'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
@@ -2290,10 +2292,10 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     const pagoIdxs = headers.reduce((acc, h, idx) => { if (idx >= pagoStart) acc.push({ idx, h }); return acc; }, []);
 
     const mesMap = {
-      enero:'Cuota 1', febrero:'Cuota 2', marzo:'Cuota 3', abril:'Cuota 4',
-      mayo:'Cuota 5', junio:'Cuota 6', julio:'Cuota 7', agosto:'Cuota 8',
-      septiembre:'Cuota 9', setiembre:'Cuota 9', octubre:'Cuota 10',
-      noviembre:'Cuota 11', diciembre:'Cuota 12',
+      marzo:'Cuota 1',  abril:'Cuota 2',      mayo:'Cuota 3',      junio:'Cuota 4',
+      julio:'Cuota 5',  agosto:'Cuota 6',      septiembre:'Cuota 7',setiembre:'Cuota 7',
+      octubre:'Cuota 8',noviembre:'Cuota 9',   diciembre:'Cuota 10',
+      enero:'Cuota 11', febrero:'Cuota 12',
       'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
       'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
       'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
