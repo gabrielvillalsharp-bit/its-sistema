@@ -1530,6 +1530,17 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+app.put('/api/pagos/:id', auth(ADM), (req, res) => {
+  try {
+    const { concepto, monto, fecha_pago, medio_pago, comprobante } = req.body;
+    const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
+    db.prepare('UPDATE pagos SET concepto=?,monto=?,fecha_pago=?,medio_pago=?,comprobante=? WHERE id=?')
+      .run(concepto||p.concepto, parseFloat(monto)||p.monto, fecha_pago||p.fecha_pago, medio_pago||p.medio_pago, comprobante||null, req.params.id);
+    audit(req.user.id,'EDIT','pagos',req.params.id,{antes:{concepto:p.concepto,monto:p.monto},despues:{concepto,monto,fecha_pago}});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
   try {
     const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
