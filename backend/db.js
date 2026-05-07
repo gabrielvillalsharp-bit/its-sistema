@@ -851,6 +851,21 @@ function init() {
   try { db.exec(`CREATE TABLE IF NOT EXISTS honorarios (id TEXT PRIMARY KEY, docente_id TEXT NOT NULL, asignacion_id TEXT, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, monto REAL NOT NULL DEFAULT 80000, estado TEXT NOT NULL DEFAULT 'generado', tipo TEXT NOT NULL DEFAULT 'clase', reemplazo_id TEXT, observacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS reemplazos (id TEXT PRIMARY KEY, asignacion_id TEXT NOT NULL, docente_titular_id TEXT NOT NULL, docente_reemplazante_id TEXT NOT NULL, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, motivo TEXT, estado TEXT NOT NULL DEFAULT 'pendiente', registrado_por TEXT NOT NULL, aprobado_por TEXT, fecha_aprobacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS feriados (id TEXT PRIMARY KEY, fecha TEXT NOT NULL UNIQUE, nombre TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'nacional', activo INTEGER NOT NULL DEFAULT 1)`); } catch {}
+  // Configuración editable del sistema (plantillas WA, etc.)
+  try { db.exec(`CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT NOT NULL, descripcion TEXT)`); } catch {}
+  // Registro de notificaciones WA enviadas (evita duplicados)
+  try { db.exec(`CREATE TABLE IF NOT EXISTS notif_wa_enviadas (examen_id TEXT NOT NULL, intervalo TEXT NOT NULL, fecha_envio TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY(examen_id, intervalo))`); } catch {}
+  // Plantillas WA por defecto (INSERT OR IGNORE para no sobreescribir ediciones)
+  const insConf = db.prepare('INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)');
+  insConf.run('wa_tpl_72h',
+    '📚 *ITS Santísima Trinidad*\nHola Prof. {docente}, le recordamos que en *3 días* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nPor favor tenga lista el material necesario.',
+    'Mensaje WhatsApp 72 horas antes del examen');
+  insConf.run('wa_tpl_48h',
+    '⏰ *ITS Santísima Trinidad*\nHola Prof. {docente}, le recordamos que en *2 días* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nRecuerde preparar el acta de examen.',
+    'Mensaje WhatsApp 48 horas antes del examen');
+  insConf.run('wa_tpl_24h',
+    '🔔 *ITS Santísima Trinidad*\nHola Prof. {docente}, *mañana* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nNo olvide traer el acta de examen y los materiales necesarios. ¡Éxitos!',
+    'Mensaje WhatsApp 24 horas antes del examen');
   // Índices honorarios
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_docente ON honorarios(docente_id)'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_fecha ON honorarios(fecha)'); } catch {}

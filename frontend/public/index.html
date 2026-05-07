@@ -704,6 +704,7 @@ async function pgAvisos(el){
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
       ${esDirector&&avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
+      ${esDirector?`<button class="bs" onclick="editarPlantillasWA()" title="Editar mensajes automáticos de WhatsApp a docentes">📱 Mensajes WA</button>`:''}
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
@@ -799,6 +800,49 @@ async function svAvisoDirector(){
     await api('POST','/api/avisos',{titulo:`✉ [Docente] ${titulo}`,contenido,tipo:'administrativo',destinatario:'director',fijado:0});
     cm();toast('✉ Mensaje enviado al Director correctamente','ok',4000);
   }catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function editarPlantillasWA(){
+  let tpls;
+  try{ tpls=await api('GET','/api/configuracion/wa-plantillas'); }
+  catch(e){ return toast('Error al cargar plantillas: '+e.message,'err'); }
+  const ayuda=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:11px;color:#166534;margin-bottom:14px">
+    <strong>Variables disponibles:</strong><br>
+    <code>{docente}</code> → Apellido Nombre del profesor &nbsp;·&nbsp;
+    <code>{materia}</code> → Nombre de la materia<br>
+    <code>{carrera}</code> → Nombre de la carrera &nbsp;·&nbsp;
+    <code>{curso}</code> → Año y sección (ej: 1° Sec.A)<br>
+    <code>{tipo}</code> → Tipo de examen (Parcial, Final…) &nbsp;·&nbsp;
+    <code>{fecha}</code> → Fecha completa &nbsp;·&nbsp;
+    <code>{hora}</code> → Hora del examen
+  </div>`;
+  modal(`<div class="mh"><h4>📱 Mensajes automáticos WhatsApp — Docentes</h4><button class="mc" onclick="cm()">✕</button></div>
+  <div class="mb" style="display:flex;flex-direction:column;gap:14px">
+    ${ayuda}
+    <div class="f"><label style="color:#d97706;font-weight:700">⏰ Mensaje 72 horas antes</label>
+      <textarea id="waTpl72" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_72h?.valor||''}</textarea>
+    </div>
+    <div class="f"><label style="color:#ea580c;font-weight:700">⏰ Mensaje 48 horas antes</label>
+      <textarea id="waTpl48" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_48h?.valor||''}</textarea>
+    </div>
+    <div class="f"><label style="color:#dc2626;font-weight:700">🔔 Mensaje 24 horas antes</label>
+      <textarea id="waTpl24" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_24h?.valor||''}</textarea>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="guardarPlantillasWA()">💾 Guardar mensajes</button>
+  </div>`);
+}
+async function guardarPlantillasWA(){
+  const wa_tpl_72h=document.getElementById('waTpl72')?.value?.trim();
+  const wa_tpl_48h=document.getElementById('waTpl48')?.value?.trim();
+  const wa_tpl_24h=document.getElementById('waTpl24')?.value?.trim();
+  if(!wa_tpl_72h||!wa_tpl_48h||!wa_tpl_24h) return toast('Completá los tres mensajes','err');
+  try{
+    await api('PUT','/api/configuracion/wa-plantillas',{wa_tpl_72h,wa_tpl_48h,wa_tpl_24h});
+    cm(); toast('✅ Mensajes guardados correctamente','ok');
+  }catch(e){ toast('Error: '+e.message,'err'); }
 }
 function mAviso(){
   const esDirector=me.rol==='director';

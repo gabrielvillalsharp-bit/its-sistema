@@ -3033,43 +3033,121 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
 
-// ── CRON: Recordatorio de exámenes 24hs antes (corre a las 9:00 AM diario) ──
-cron.schedule('0 9 * * *', async () => {
+// ── HELPERS: Plantillas WA ────────────────────────────────────────────────────
+function getCfg(clave) {
+  try { return db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(clave)?.valor || ''; } catch { return ''; }
+}
+function aplicarPlantilla(tpl, vars) {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] || '');
+}
+function examenVars(ex) {
+  const curso = `${ex.anio||''}°${ex.division && ex.division!=='U' ? ' Sec.'+ex.division : ''}`;
+  return {
+    docente:  `${ex.doc_apellido||''} ${ex.doc_nombre||''}`.trim(),
+    materia:  ex.materia || '',
+    carrera:  ex.carrera || '',
+    curso,
+    tipo:     ex.tipo || '',
+    fecha:    ex.fecha ? new Date(ex.fecha+'T12:00:00').toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long'}) : '',
+    hora:     ex.hora || 'A confirmar',
+    aula:     ex.aula || 'A confirmar',
+  };
+}
+
+// ── CRON: Recordatorios WA 72h / 48h / 24h antes del examen ─────────────────
+// Corre todos los días a las 8:00 AM. Usa tabla notif_wa_enviadas para no duplicar.
+cron.schedule('0 8 * * *', async () => {
   try {
-    const manana = new Date(); manana.setDate(manana.getDate() + 1);
-    const fechaManana = manana.toISOString().split('T')[0];
-    const examenes = db.prepare(`
-      SELECT e.*, m.nombre as materia, ca.nombre as carrera,
-        cu.anio as anio, cu.division as division,
-        u.nombre as doc_nombre, u.apellido as doc_apellido, u.email as doc_email
-      FROM examenes e
-      LEFT JOIN asignaciones a ON e.asignacion_id=a.id
-      LEFT JOIN materias m ON a.materia_id=m.id
-      LEFT JOIN cursos cu ON a.curso_id=cu.id
-      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
-      LEFT JOIN docentes d ON a.docente_id=d.id
-      LEFT JOIN usuarios u ON d.usuario_id=u.id
-      WHERE e.fecha=?`).all(fechaManana);
-    for (const ex of examenes) {
-      if (!ex.doc_email) continue;
-      const html = htmlEmail(
-        `📋 Recordatorio: Examen mañana ${fechaManana}`,
-        `<p>Estimado/a <strong>${ex.doc_nombre} ${ex.doc_apellido}</strong>,</p>
-        <p>Le recordamos que mañana tiene programado un examen:</p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.materia}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.tipo}</td></tr>
-          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Carrera</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.carrera} ${ex.anio}°${ex.division==='U'?'':ex.division}</td></tr>
-          <tr><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.hora||'A confirmar'}</td></tr>
-          <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Aula</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.aula||'A confirmar'}</td></tr>
-        </table>
-        <p style="margin-top:16px;color:#555">Por favor tenga lista el acta de examen y los materiales necesarios.</p>`
-      );
-      await sendMail(ex.doc_email, `📋 Recordatorio examen: ${ex.materia} — ${fechaManana}`, html);
-      audit('sistema','NOTIFICACION_EMAIL','examenes',ex.id,{tipo:'recordatorio_24h',email:ex.doc_email});
+    const hoy = new Date();
+    const intervalos = [
+      { horas: 72, clave: 'wa_tpl_72h', label: '72h' },
+      { horas: 48, clave: 'wa_tpl_48h', label: '48h' },
+      { horas: 24, clave: 'wa_tpl_24h', label: '24h' },
+    ];
+    let totalWA = 0, totalEmail = 0;
+
+    for (const { horas, clave, label } of intervalos) {
+      const target = new Date(hoy.getTime() + horas * 60 * 60 * 1000);
+      const fechaTarget = target.toISOString().split('T')[0];
+
+      const examenes = db.prepare(`
+        SELECT e.id, e.tipo, e.fecha, e.hora, e.aula,
+          m.nombre as materia, ca.nombre as carrera,
+          cu.anio, cu.division,
+          u.nombre as doc_nombre, u.apellido as doc_apellido,
+          u.email as doc_email, d.telefono as doc_tel
+        FROM examenes e
+        LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+        LEFT JOIN materias m ON a.materia_id=m.id
+        LEFT JOIN cursos cu ON a.curso_id=cu.id
+        LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+        LEFT JOIN docentes d ON a.docente_id=d.id
+        LEFT JOIN usuarios u ON d.usuario_id=u.id
+        WHERE e.fecha=?`).all(fechaTarget);
+
+      for (const ex of examenes) {
+        // Verificar si ya se envió esta notificación para este examen + intervalo
+        const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
+        if (yaEnviado) continue;
+
+        const vars = examenVars(ex);
+        let enviado = false;
+
+        // WhatsApp (preferencia) — solo si Twilio configurado y docente tiene teléfono
+        if (ex.doc_tel) {
+          const tpl = getCfg(clave);
+          if (tpl) {
+            const msg = aplicarPlantilla(tpl, vars);
+            await notificarWA(ex.doc_tel, msg).catch(() => {});
+            enviado = true; totalWA++;
+          }
+        }
+
+        // Email como respaldo si no hay WA o además
+        if (ex.doc_email) {
+          const html = htmlEmail(
+            `📋 Recordatorio examen (${label}): ${ex.materia}`,
+            `<p>Estimado/a <strong>${vars.docente}</strong>,</p>
+            <p>Recordatorio: tiene un examen en <strong>${label}</strong>:</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.materia}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.tipo}</td></tr>
+              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Carrera / Curso</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.carrera} ${vars.curso}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Fecha</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.fecha}</td></tr>
+              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.hora}</td></tr>
+            </table>`
+          );
+          await sendMail(ex.doc_email, `📋 Recordatorio examen (${label}): ${ex.materia} — ${ex.fecha}`, html).catch(() => {});
+          enviado = true; totalEmail++;
+        }
+
+        if (enviado) {
+          db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
+          audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_tel, email: ex.doc_email });
+        }
+      }
     }
-    console.log(`✓ Cron recordatorios: ${examenes.length} emails enviados`);
-  } catch(e) { console.error('Cron error:', e.message); }
+    console.log(`✓ Cron recordatorios: ${totalWA} WA + ${totalEmail} emails enviados`);
+  } catch(e) { console.error('Cron recordatorios error:', e.message); }
+});
+
+// ── API: Leer y editar plantillas de mensajes WA ──────────────────────────────
+app.get('/api/configuracion/wa-plantillas', auth(ADM), (req, res) => {
+  const claves = ['wa_tpl_72h', 'wa_tpl_48h', 'wa_tpl_24h'];
+  const result = {};
+  for (const c of claves) {
+    const row = db.prepare('SELECT valor, descripcion FROM configuracion WHERE clave=?').get(c);
+    result[c] = { valor: row?.valor || '', descripcion: row?.descripcion || '' };
+  }
+  res.json(result);
+});
+app.put('/api/configuracion/wa-plantillas', auth(ADM), (req, res) => {
+  const { wa_tpl_72h, wa_tpl_48h, wa_tpl_24h } = req.body;
+  if (wa_tpl_72h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_72h, 'wa_tpl_72h');
+  if (wa_tpl_48h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_48h, 'wa_tpl_48h');
+  if (wa_tpl_24h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_24h, 'wa_tpl_24h');
+  audit(req.user.id, 'EDIT', 'configuracion', 'wa_plantillas', {});
+  res.json({ ok: true });
 });
 
 // ── ENDPOINT: Enviar recordatorio manual ─────────────────────────────────────
