@@ -229,7 +229,13 @@ app.put('/api/periodos/:id/activar', auth(ADM), (req, res) => {
   db.prepare('UPDATE periodos SET activo=1 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/periodos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM periodos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/periodos/:id', auth(ADM), (req, res) => {
+  // Bloquear si hay asignaciones vinculadas (protege notas y asistencia)
+  const dep = db.prepare('SELECT COUNT(*) as n FROM asignaciones WHERE periodo_id=?').get(req.params.id)?.n || 0;
+  if (dep > 0) return res.status(403).json({ error: `No se puede eliminar el período: tiene ${dep} asignación(es) con notas y asistencia registradas.` });
+  db.prepare('DELETE FROM periodos WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ── CARRERAS ──────────────────────────────────────────────────────────────────
 app.get('/api/carreras', auth(), (req, res) => {
@@ -258,7 +264,14 @@ app.put('/api/carreras/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE carreras SET nombre=?,codigo=?,turno=?,semestres=?,activa=? WHERE id=?').run(nombre,codigo,turno,semestres,activa?1:0,req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/carreras/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM carreras WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/carreras/:id', auth(ADM), (req, res) => {
+  const alumnos = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(req.params.id)?.n || 0;
+  const asig    = db.prepare('SELECT COUNT(*) as n FROM asignaciones WHERE curso_id IN (SELECT id FROM cursos WHERE carrera_id=?)').get(req.params.id)?.n || 0;
+  if (alumnos > 0) return res.status(403).json({ error: `No se puede eliminar la carrera: tiene ${alumnos} alumno(s) registrado(s).` });
+  if (asig > 0)    return res.status(403).json({ error: `No se puede eliminar la carrera: tiene ${asig} asignación(es) con datos académicos.` });
+  db.prepare('DELETE FROM carreras WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ── CURSOS ────────────────────────────────────────────────────────────────────
 app.get('/api/cursos', auth(), (req, res) => {
@@ -275,7 +288,14 @@ app.post('/api/cursos', auth(ADM), (req, res) => {
   db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division,turno) VALUES (?,?,?,?,?)').run(id,carrera_id,anio,division||'U',turno||'');
   res.json({ id });
 });
-app.delete('/api/cursos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM cursos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/cursos/:id', auth(ADM), (req, res) => {
+  const alumnos = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE curso_id=?').get(req.params.id)?.n || 0;
+  const asig    = db.prepare('SELECT COUNT(*) as n FROM asignaciones WHERE curso_id=?').get(req.params.id)?.n || 0;
+  if (alumnos > 0) return res.status(403).json({ error: `No se puede eliminar la sección: tiene ${alumnos} alumno(s) inscripto(s).` });
+  if (asig > 0)    return res.status(403).json({ error: `No se puede eliminar la sección: tiene ${asig} asignación(es) con datos académicos.` });
+  db.prepare('DELETE FROM cursos WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
@@ -311,7 +331,12 @@ app.patch('/api/materias/:id/nombre', auth(ADM), (req, res) => {
   db.prepare('UPDATE materias SET nombre=? WHERE id=?').run(nombre, req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/materias/:id', auth(ADM), (req, res) => {
+  const asig = db.prepare('SELECT COUNT(*) as n FROM asignaciones WHERE materia_id=?').get(req.params.id)?.n || 0;
+  if (asig > 0) return res.status(403).json({ error: `No se puede eliminar la materia: tiene ${asig} asignación(es) con notas y asistencia registradas.` });
+  db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 app.get('/api/docentes', auth(), (req, res) => {
@@ -734,7 +759,14 @@ app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
   db.prepare('UPDATE asignaciones SET docente_id=? WHERE id=?').run(docente_id, req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM asignaciones WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => {
+  const notas     = db.prepare('SELECT COUNT(*) as n FROM notas WHERE asignacion_id=?').get(req.params.id)?.n || 0;
+  const asistencia= db.prepare('SELECT COUNT(*) as n FROM asistencia WHERE asignacion_id=?').get(req.params.id)?.n || 0;
+  if (notas > 0)      return res.status(403).json({ error: `No se puede eliminar la asignación: tiene ${notas} nota(s) cargada(s).` });
+  if (asistencia > 0) return res.status(403).json({ error: `No se puede eliminar la asignación: tiene ${asistencia} registro(s) de asistencia.` });
+  db.prepare('DELETE FROM asignaciones WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // Asignaciones por docente — para vista director con estado de carga
 app.get('/api/asignaciones/docente/:docente_id', auth(ADM), (req, res) => {
@@ -2527,12 +2559,9 @@ app.get('/api/asistencia/resumen', auth(['director','docente']), (req, res) => {
   res.json({ alumnos: Object.entries(alumnos).map(([id,a])=>({id,...a})), fechas: fechasArr, desde, hasta });
 });
 
-// ── ELIMINAR REGISTROS DE ASISTENCIA POR RANGO ────────────────────────────────
+// ── ELIMINAR REGISTROS DE ASISTENCIA POR RANGO — BLOQUEADO ───────────────────
 app.delete('/api/asistencia/rango', auth(ADM), (req, res) => {
-  const { desde, hasta } = req.body;
-  if (!desde || !hasta) return res.status(400).json({ error: 'desde y hasta son requeridos' });
-  const result = db.prepare('DELETE FROM asistencia WHERE fecha>=? AND fecha<=?').run(desde, hasta);
-  res.json({ ok: true, eliminados: result.changes });
+  res.status(403).json({ error: 'La eliminación masiva de asistencia por rango no está permitida para proteger el historial académico.' });
 });
 
 // ── ARANCELES (costos) ────────────────────────────────────────────────────────
