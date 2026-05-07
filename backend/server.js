@@ -2030,9 +2030,10 @@ app.get('/api/alumnos/:id/habilitacion', auth(), (req, res) => {
 
   const conceptosPagados = pagosPeriodo.map(p => p.concepto);
 
-  // Verificar cada cuota requerida
+  // Verificar cada cuota requerida — comparación EXACTA para evitar que
+  // 'Cuota 10'.includes('Cuota 1') dé falsos positivos
   const cuotasFaltantes = cuotasRequeridas.filter(cuota =>
-    !conceptosPagados.some(c => c === cuota || c.includes(cuota))
+    !conceptosPagados.some(c => c === cuota)
   );
 
   if (cuotasFaltantes.length === 0) {
@@ -2716,7 +2717,8 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
   const result = {};
   alumnos.forEach(al => {
     const conceptos = pagosPorAlumno[al.id] || [];
-    const faltantes = cuotasRequeridas.filter(c => !conceptos.some(p => p === c || p.includes(c)));
+    // Comparación exacta: evitar que 'Cuota 10' matchee 'Cuota 1' con .includes()
+    const faltantes = cuotasRequeridas.filter(c => !conceptos.some(p => p === c));
     if (faltantes.length === 0) {
       result[al.id] = { habilitado: true, razon: 'pago_al_dia', tipos_habilitados: [], cuotas_faltantes: [], habilitado_recuperatorio: !!recuperatorioMap[al.id] };
       return;
