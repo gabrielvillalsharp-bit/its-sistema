@@ -28,6 +28,43 @@ async function sendMail(to, subject, html) {
     return true;
   } catch(e) { console.error('Email error:', e.message); return false; }
 }
+// ── WHATSAPP VÍA TWILIO ───────────────────────────────────────────────────────
+// Requiere en Railway:
+//   TWILIO_ACCOUNT_SID   — Account SID de Twilio
+//   TWILIO_AUTH_TOKEN    — Auth Token de Twilio
+//   TWILIO_WHATSAPP_FROM — Número Twilio con prefijo, ej: +14155238886
+// Para usar el Sandbox de Twilio: el alumno debe enviar primero
+//   "join <palabra-sandbox>" al número de Twilio desde su WhatsApp
+// ─────────────────────────────────────────────────────────────────────────────
+function formatTelPY(tel) {
+  if (!tel) return null;
+  const n = tel.replace(/\D/g, '');
+  if (n.startsWith('595') && n.length >= 11) return '+' + n;
+  if (n.startsWith('0') && n.length >= 9) return '+595' + n.slice(1);
+  if (n.length >= 9) return '+595' + n;
+  return null;
+}
+async function notificarWA(telefono, mensaje) {
+  const sid  = process.env.TWILIO_ACCOUNT_SID;
+  const token= process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!sid || !token || !from) return; // No configurado — saltar
+  const numero = formatTelPY(telefono);
+  if (!numero) return;
+  let twilio;
+  try { twilio = require('twilio'); } catch { return; }
+  try {
+    const client = twilio(sid, token);
+    await client.messages.create({
+      from: `whatsapp:${from}`,
+      to:   `whatsapp:${numero}`,
+      body: mensaje
+    });
+    console.log(`[WHATSAPP] ✅ Mensaje enviado a ${numero}`);
+  } catch(e) {
+    console.error('[WHATSAPP] ⚠️ ', e.message);
+  }
+}
 function htmlEmail(titulo, cuerpo, pie='') {
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
     <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);padding:20px;text-align:center">
@@ -82,6 +119,10 @@ app.use(express.json());
 app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
+
+// Backup a Google Drive (solo si están configuradas las env vars)
+const { cloudBackupDrive } = require('./cloud-backup');
+setTimeout(() => cloudBackupDrive(DB_PATH), 8000); // 8s después del arranque para no bloquear
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
@@ -1527,6 +1568,17 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
     db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
     audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto:montoPagado,medio_pago});
+    // WhatsApp al alumno si tiene teléfono registrado
+    try {
+      const alInfo = db.prepare(`SELECT COALESCE(al.telefono,'') as tel,
+        COALESCE(al.nombre,u.nombre,'') as nombre, COALESCE(al.apellido,u.apellido,'') as apellido
+        FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.id=?`).get(alumno_id);
+      if (alInfo?.tel) {
+        const inst = 'ITS Santísima Trinidad';
+        const msg = `✅ *${inst}*\nHola ${alInfo.nombre}, se registró tu pago:\n📌 *${concepto}* — Gs. ${Number(montoPagado).toLocaleString()}\n📅 ${fecha_pago}\nCualquier consulta comunicarse con secretaría.`;
+        notificarWA(alInfo.tel, msg).catch(()=>{});
+      }
+    } catch {}
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2853,6 +2905,19 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
     FROM auditoria a JOIN usuarios u ON a.usuario_id=u.id
     WHERE a.fecha>=date('now','-7 days') GROUP BY a.usuario_id ORDER BY acciones DESC LIMIT 10`).all();
   res.json({ registros: rows, stats, usuarios_activos, total: rows.length });
+});
+
+// GET /api/actividad-reciente — feed de actividad para el director
+app.get('/api/actividad-reciente', auth(ADM), (req, res) => {
+  const rows = db.prepare(`
+    SELECT a.id, a.accion, a.tabla, a.registro_id, a.detalle, a.fecha,
+      u.nombre as user_nombre, u.apellido as user_apellido, u.rol as user_rol
+    FROM auditoria a
+    LEFT JOIN usuarios u ON a.usuario_id=u.id
+    WHERE a.accion NOT IN ('LOGIN','LOGIN_FAIL','LOGIN_OK')
+    ORDER BY a.fecha DESC LIMIT 40
+  `).all();
+  res.json(rows);
 });
 
 app.delete('/api/admin/auditoria', auth(ADM), (req, res) => {
