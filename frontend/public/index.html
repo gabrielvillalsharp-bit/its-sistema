@@ -54,7 +54,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .rp-director{background:var(--bl);color:var(--bld)}
 .rp-docente{background:var(--gl);color:var(--green)}
 .rp-alumno{background:var(--al);color:var(--amb)}
-.rp-secretaria{background:#ede9ff;color:#5b4fcf}
+.rp-secretaria{display:none}
 .xb{font-size:12px;padding:5px 14px;border:1px solid #c4e8d1;border-radius:8px;background:#fff;color:var(--t2);cursor:pointer;transition:all .15s;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .xb:hover{background:#f0fdf4;border-color:#86efac;color:var(--blue);box-shadow:0 2px 6px rgba(22,101,52,.12)}
 /* ── SIDEBAR ───────────────────────────────── */
@@ -343,7 +343,7 @@ function startApp(){
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
-  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':me.rol==='secretaria'?'alumnos':'alumnos';
+  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':'alumnos';
   go(inicio);
   // ── Notificación de avisos ─────────────────────────────────────────────────
   async function checkNotifAvisos(){
@@ -394,25 +394,25 @@ function startApp(){
 function navFor(r){
   return [
     {g:'General',i:[
-      {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno','secretaria']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente','secretaria']},
-      {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno','secretaria']},
+      {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
+      {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
     ]},
     {g:'Estructura',i:[
-      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director','secretaria']},
-      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director','secretaria']},
-      {id:'materias',l:'Materias',c:'#BA7517',r:['director','secretaria']},
-      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director','secretaria']},
+      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
+      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
+      {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
+      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director']},
     ]},
     {g:'Personas',i:[
-      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director','secretaria']},
-      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director','secretaria']},
-      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director','secretaria']},
+      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
+      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
+      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
     ]},
     {g:'Académico',i:[
-      {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente','secretaria']},
-      {id:'notas',l:'Notas',c:'#166534',r:['director','docente','secretaria']},
-      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente','secretaria']},
+      {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
+      {id:'notas',l:'Notas',c:'#166534',r:['director','docente']},
+      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
       {id:'solicitudes',l:'Vinculaciones',c:'#D85A30',r:['director']},
     ]},
     {g:'Finanzas y Honorarios',i:[
@@ -422,7 +422,7 @@ function navFor(r){
       {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
     ]},
     {g:'Gestión Académica',i:[
-      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente','secretaria']},
+      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#166534',r:['docente']},
@@ -726,7 +726,7 @@ function mAviso(){
   const optsDestino=esDirector
     ?'<option value="todos">Todos</option><option value="docentes">Solo docentes</option><option value="alumnos">Solo alumnos</option><option value="director">Solo Director y Secretaría</option>'
     :esDocente
-      ?'<option value="mis-alumnos">Mis alumnos</option><option value="director">Solo al Director</option><option value="director-secretaria">Director y Secretaría</option>'
+      ?'<option value="mis-alumnos">Mis alumnos</option>'
       :'<option value="director">Solo al Director</option>';
   const filtroCombo=(esDocente&&combos.length)
     ?`<div class="f"><label>Carrera / Materia (opcional)</label>
@@ -1781,7 +1781,7 @@ async function pgExamenes(el){
   let exs=exsAll||[];
   W._exData={pers,carrs,cursos}; W._exs=exs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  const esDir=me.rol==='director'||me.rol==='secretaria';
+  const esDir=me.rol==='director';
   const esDocente=me.rol==='docente';
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
@@ -1817,6 +1817,10 @@ async function pgExamenes(el){
     <select id="filtExTurno" onchange="filtExAll()" style="min-width:130px">
       <option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option>
     </select>
+    ${esDir?`<select id="filtExDocente" onchange="filtExAll()" style="min-width:180px">
+      <option value="">Todos los docentes</option>
+      ${[...new Map(exs.filter(e=>e.docente_id).map(e=>[e.docente_id,e])).values()].sort((a,b)=>(a.docente_apellido||'').localeCompare(b.docente_apellido||'')).map(e=>`<option value="${e.docente_id}">${e.docente_apellido||''} ${e.docente_nombre||''}</option>`).join('')}
+    </select>`:''}
   </div>
   <div class="card"><div class="tw"><table><thead><tr>
     <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Materia</th><th>Carrera / Curso</th><th>Docente</th><th>Aula</th><th>Alumnos</th><th>Notas</th><th></th>
@@ -1985,7 +1989,7 @@ async function verExamen(exId){
     if(!ex){toast('Examen no encontrado','warn');return;}
     const esDocente=me.rol==='docente';
     const esAlumno=me.rol==='alumno';
-    const esDir=me.rol==='director'||me.rol==='secretaria';
+    const esDir=me.rol==='director';
     const esMiExamen=esDocente&&(ex.docente_id===me.docenteId);
     const hoy=new Date();
     const fechaEx=ex.fecha?new Date(ex.fecha+'T'+( ex.hora||'19:00')+':00'):null;
@@ -2035,7 +2039,7 @@ function filtExCursos(){
   sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 function filtExAll(){
-  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno');
+  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno'),docenteId=v('filtExDocente');
   const tb=document.getElementById('extb');if(!tb)return;
   let l=W._exs||[];
   if(tipo)l=l.filter(e=>(e.tipo||'').toLowerCase()===tipo.toLowerCase());
@@ -2043,6 +2047,7 @@ function filtExAll(){
   if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
   if(cursoId)l=l.filter(e=>e.curso_id===cursoId);
   if(turno){const cs=new Set((W._exData?.cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(e=>cs.has(e.curso_id));}
+  if(docenteId)l=l.filter(e=>e.docente_id===docenteId);
   tb.innerHTML=l.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin resultados</td></tr>';
 }
 function filtEx(t,val){filtExAll();}
@@ -3140,7 +3145,7 @@ function verDia(fecha){
         <div class="abs">
           <button class="bs i" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Cargar notas</button>
           ${me.rol==='director'?`<button class="bs o" onclick="imprimirActaExamen('${e.id}')">🖨 Acta examen</button>`:''}
-          ${e.archivo_nombre?(me.rol==='director'||me.rol==='secretaria'
+          ${e.archivo_nombre?(me.rol==='director'
             ?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')">⬇ Descargar Word</button>`
             :`<button class="bs" style="background:#e8f5e9;color:#2e7d32;font-size:11px" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">📄 Ver examen</button>`):''}
         </div>
@@ -3883,8 +3888,8 @@ W.loadAsist=async(asigId)=>{
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
-      ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
-      ${me.rol==='director'||me.rol==='secretaria'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
+      ${me.rol==='director'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
+      ${me.rol==='director'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
       ${me.rol==='director'?`<button class="bs i" onclick="imprimirAsistDia('${asigId}','${fecha}')" title="Imprimir acta de asistencia de este día">🖨 Acta del día</button>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="anularAsistencia('${asigId}',v('fecAsist'))" title="Anular toda la asistencia de esta fecha">🗑 Anular registro</button>`:''}
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
@@ -7159,7 +7164,6 @@ function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><d
   </div>`:''}
   <div class="f"><label>Rol</label><select id="urol" onchange="onCambioRolU()">
     <option value="director" ${e&&u.rol==='director'?'selected':''}>Director — acceso total</option>
-    <option value="secretaria" ${e&&u.rol==='secretaria'?'selected':''}>Secretaría — gestión académica sin pagos</option>
     <option value="docente" ${e&&u.rol==='docente'?'selected':''}>Docente — cargar notas y asistencia</option>
     <option value="alumno" ${e&&u.rol==='alumno'?'selected':''}>Alumno — ver sus propios datos</option>
   </select></div>

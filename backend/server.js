@@ -109,7 +109,7 @@ function auth(roles = []) {
   };
 }
 const ADM = ['director'];
-const ADM_SEC = ['director','secretaria'];
+const ADM_SEC = ['director'];
 
 // ── ENDPOINT DE EMERGENCIA: recrear director si no existe ─────────────────────
 app.get('/api/setup', (req, res) => {
@@ -347,7 +347,7 @@ app.get('/api/alumnos', auth(), (req, res) => {
   const { ci, carrera_id, curso_id } = req.query;
   // Alumnos solo pueden buscar por CI (su propio estado de cuenta)
   if (req.user.rol === 'alumno' && !ci) return res.status(403).json({ error: 'Sin acceso' });
-  let where = req.user.rol==='director'||req.user.rol==='secretaria' ? 'WHERE 1=1' : "WHERE al.estado NOT IN ('Inactivo','Retirado')"; const params = [];
+  let where = req.user.rol==='director' ? 'WHERE 1=1' : "WHERE al.estado NOT IN ('Inactivo','Retirado')"; const params = [];
   if (ci)         { where += ' AND (al.ci LIKE ? OR u.ci LIKE ?)'; params.push('%'+ci+'%','%'+ci+'%'); }
   if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
   if (curso_id)   { where += ' AND al.curso_id=?';   params.push(curso_id); }
@@ -1437,16 +1437,16 @@ app.get('/api/avisos', auth(), (req, res) => {
   if (rol === 'alumno') {
     whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos')";
   } else if (rol === 'docente') {
-    // Docente SOLO ve: sus propios avisos + avisos de director/secretaria
+    // Docente SOLO ve: sus propios avisos + avisos del director
     // NUNCA ve avisos de otros docentes
-    whereDestino = `AND (av.usuario_id='${uid}' OR u.rol IN ('director','secretaria'))`;
+    whereDestino = `AND (av.usuario_id='${uid}' OR u.rol='director')`;
   }
-  // director/secretaria ven todos
+  // director ve todos
   res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido,u.rol as autor_rol
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
 });
-app.post('/api/avisos', auth(['director','docente','secretaria']), (req, res) => {
+app.post('/api/avisos', auth(['director','docente']), (req, res) => {
   const { titulo, contenido, tipo, fijado, destinatario } = req.body;
   // Mapear valores del frontend al CHECK constraint de SQLite
   const destMap = {
@@ -3370,6 +3370,26 @@ app.post('/api/examenes/:id/archivo', auth(['director','docente']), upload.singl
   try {
     db.prepare('UPDATE examenes SET archivo_nombre=?, archivo_data=?, archivo_tipo=? WHERE id=?').run(req.file.originalname, req.file.buffer, req.file.mimetype, req.params.id);
     audit(req.user.id,'UPLOAD_EXAMEN','examenes',req.params.id,{archivo:req.file.originalname});
+    // ── Notificación automática al director ──────────────────────────────────
+    if (req.user.rol === 'docente') {
+      try {
+        const ex = db.prepare(`SELECT e.tipo, e.fecha, e.hora, m.nombre as materia_nombre,
+          ca.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+          FROM examenes e
+          JOIN asignaciones a ON e.asignacion_id=a.id
+          JOIN materias m ON a.materia_id=m.id
+          JOIN carreras ca ON a.carrera_id=ca.id
+          JOIN cursos cu ON a.curso_id=cu.id
+          WHERE e.id=?`).get(req.params.id);
+        const u = db.prepare('SELECT nombre, apellido FROM usuarios WHERE id=?').get(req.user.id);
+        const nombre_doc = u ? `${u.apellido || ''} ${u.nombre || ''}`.trim() : 'Docente';
+        const fecha_fmt = ex ? ex.fecha : '';
+        const titulo = `📎 Archivo adjunto en examen — ${ex ? ex.materia_nombre : ''}`;
+        const contenido = `El/La Prof. ${nombre_doc} adjuntó el archivo "${req.file.originalname}" al examen de ${ex ? ex.tipo : 'examen'} de ${ex ? ex.materia_nombre : ''} (${ex ? ex.carrera_nombre : ''} ${ex ? ex.curso_anio : ''}° año${ex && ex.curso_division ? ' Sec. '+ex.curso_division : ''}) programado para el ${fecha_fmt}. Ingrese al módulo de Exámenes para visualizarlo e imprimirlo.`;
+        const aviso_id = 'av_' + Date.now();
+        db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(aviso_id, titulo, contenido, 'info', 0, 'todos', req.user.id);
+      } catch(ae) { console.error('[AVISO-AUTO]', ae.message); }
+    }
     res.json({ ok: true, nombre: req.file.originalname });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3383,8 +3403,8 @@ app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) =>
 });
 
 app.delete('/api/examenes/:id/archivo', auth(ADM), (req, res) => {
-  db.prepare('UPDATE examenes SET archivo_nombre=NULL, archivo_data=NULL, archivo_tipo=NULL WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
+  // Eliminación de archivos deshabilitada para proteger integridad de datos
+  res.status(403).json({ error: 'La eliminación de archivos no está permitida' });
 });
 
 // ── REPOSITORIO DE ARCHIVOS ───────────────────────────────────────────────────
@@ -3469,13 +3489,9 @@ app.get('/api/repositorio/:id/archivo', auth(), (req, res) => {
   res.send(Buffer.from(r.datos));
 });
 
-// DELETE: eliminar archivo (solo director o el docente que lo subió)
+// DELETE: eliminación de archivos deshabilitada para proteger integridad de datos
 app.delete('/api/repositorio/:id', auth(['director','docente']), (req, res) => {
-  const r = db.prepare('SELECT * FROM repositorio WHERE id=?').get(req.params.id);
-  if (!r) return res.status(404).json({ error: 'No encontrado' });
-  if (req.user.rol === 'docente' && r.subido_por !== req.user.id) return res.status(403).json({ error: 'Solo podés eliminar tus propios archivos' });
-  db.prepare('DELETE FROM repositorio WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
+  res.status(403).json({ error: 'La eliminación de archivos no está permitida' });
 });
 
 app.use((err, req, res, next) => {
