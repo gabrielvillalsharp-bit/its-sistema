@@ -846,128 +846,221 @@ function init() {
   seedHorarios();
   migrateMatrixV2();
   migrateMatrixV3();
-  seedExamenesParciales();
+  migrarMateriasParciales();   // agrega materias/asignaciones faltantes del cronograma
+  seedExamenesParciales();     // BACKUP PERMANENTE — siempre restaura exámenes faltantes
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 
 module.exports = { db, init, calcularPuntaje, seedHorarios, migrateMatrixV2, migrateMatrixV3, DB_PATH };
 
-// ── SEED EXÁMENES PARCIALES ITS 2026 ─────────────────────────────────────────
-// 76 exámenes | 11 mayo → 29 mayo 2026
-// Solo inserta si hay menos de 70 parciales cargados (evita duplicar en DB existente)
-function seedExamenesParciales() {
-  const yaHay = db.prepare("SELECT COUNT(*) as n FROM examenes WHERE tipo='Parcial'").get();
-  if (yaHay.n >= 70) { console.log('🗓 Exámenes parciales ya cargados (' + yaHay.n + ') — omitido'); return; }
+// ── MIGRACIÓN DE MATERIAS — agrega materias/asignaciones faltantes del cronograma PDF ──
+function migrarMateriasParciales() {
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-  if (!periodo) { console.log('⚠ Sin período activo — exámenes parciales no cargados'); return; }
 
-  // Query para buscar asignación por carrera+año+materia (con filtro opcional de sección)
+  // 1. Renombrar 'Dermatología Básica / Técnicas Faciales' → 'Técnicas Faciales' (materia propia)
+  db.prepare("UPDATE materias SET nombre='Técnicas Faciales' WHERE codigo='COS-103' AND nombre LIKE '%Dermatología%'").run();
+
+  // 2. Agregar materia 'Dermatología Básica' (COS-107) si no existe
+  db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES ('m_cos_107','cosA','Dermatología Básica','COS-107',4,1,25,25,50)").run();
+
+  // 3. Agregar materias faltantes del cronograma
+  const extraMat = [
+    ['m_crm_205','crim','Fotografía Pericial',         'CRM-205',4,2],
+    ['m_iq_205', 'instr','Bioseguridad',               'IQ-205', 4,2],
+    ['m_enf_204','enf', 'Nutrición y Dietoterapia',    'ENF-204',4,2],
+    ['m_enf_205','enf', 'Farmacología',                'ENF-205',4,2], // Farmacología Enfermería 2°
+  ];
+  const insM = db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,?,?,25,25,50)");
+  extraMat.forEach(([id,car,nom,cod,h,anio]) => insM.run(id,car,nom,cod,h,anio));
+
+  if (!periodo) return; // sin período activo, no agregar asignaciones
+
+  // 4. Agregar asignaciones faltantes
+  const getDocente = email => db.prepare('SELECT id FROM docentes WHERE usuario_id IN (SELECT id FROM usuarios WHERE email LIKE ?)').get(email);
+  const getCurso   = id    => db.prepare('SELECT id FROM cursos WHERE id=?').get(id);
+  const insA = db.prepare("INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id) VALUES (?,?,?,?,?)");
+
+  // doc_carballo → Dermatología Básica (COS-107) para cosA_1a y cosA_1b
+  const docCarballo = getDocente('%carballo%');
+  if (docCarballo) {
+    if (getCurso('cosA_1a')) insA.run('asig_cos107_1a', docCarballo.id, 'm_cos_107', 'cosA_1a', periodo.id);
+    if (getCurso('cosA_1b')) insA.run('asig_cos107_1b', docCarballo.id, 'm_cos_107', 'cosA_1b', periodo.id);
+  }
+  // doc_dominguez → Fotografía Pericial (CRM-205) para crim_2u
+  const docDominguez = getDocente('%dominguez%');
+  if (docDominguez && getCurso('crim_2u')) insA.run('asig_crm205_2u', docDominguez.id, 'm_crm_205', 'crim_2u', periodo.id);
+
+  // doc_valenz → Bioseguridad (IQ-205) para instr_2u
+  const docValenz = getDocente('%valenz%');
+  if (docValenz && getCurso('instr_2u')) insA.run('asig_iq205_2u', docValenz.id, 'm_iq_205', 'instr_2u', periodo.id);
+
+  // doc_ayala_n → Nutrición y Dietoterapia (ENF-204) para enf_2u
+  const docAyalaN = getDocente('%noelia%');
+  if (docAyalaN && getCurso('enf_2u')) insA.run('asig_enf204_2u', docAyalaN.id, 'm_enf_204', 'enf_2u', periodo.id);
+
+  // doc_rojas → Farmacología Enfermería 2° (ENF-205) para enf_2u
+  const docRojas = getDocente('%rojas%');
+  if (docRojas && getCurso('enf_2u')) insA.run('asig_enf205_2u', docRojas.id, 'm_enf_205', 'enf_2u', periodo.id);
+
+  console.log('✓ Materias/asignaciones del cronograma verificadas');
+}
+
+// ── SEED EXÁMENES PARCIALES ITS 2026 — BACKUP PERMANENTE ─────────────────────
+// Fuente: Cronograma Oficial PDF + instrucciones de la Dirección
+// Se ejecuta en CADA arranque del servidor → INSERT OR IGNORE → NUNCA pierde datos
+// Si alguien borra exámenes, se restauran automáticamente en el próximo reinicio
+function seedExamenesParciales() {
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) { console.log('⚠ Sin período activo — seed de exámenes omitido'); return; }
+
+  // Queries: sin sección y con sección (division A/B/U)
   const qA  = db.prepare(`SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE ca.nombre LIKE ? AND cu.anio=? AND m.nombre LIKE ? LIMIT 1`);
   const qAs = db.prepare(`SELECT a.id FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE ca.nombre LIKE ? AND cu.anio=? AND cu.division=? AND m.nombre LIKE ? LIMIT 1`);
-  const qEx = db.prepare('SELECT id FROM examenes WHERE asignacion_id=? AND tipo=? AND fecha=?');
   const qIn = db.prepare('INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)');
   let creados=0, omitidos=0;
-  const ins = (id,carrera,anio,materia,fecha,hora,sec) => {
-    const a = sec ? qAs.get(carrera,anio,sec,materia) : qA.get(carrera,anio,materia);
-    if(!a){ console.log('  ⚠ No encontrada:',materia,carrera,anio+(sec?sec:'')); omitidos++; return; }
-    if(!qEx.get(a.id,'Parcial',fecha)){ qIn.run(id,a.id,'Parcial',fecha,hora,periodo.id,25); creados++; }
-    else omitidos++;
+
+  // ins(id, carrera, anio, materia, fecha, hora [, seccion])
+  const ins = (id,car,anio,mat,fecha,hora,sec) => {
+    const a = sec ? qAs.get(car,anio,sec,mat) : qA.get(car,anio,mat);
+    if(!a){ console.log('  ⚠ Sin asignación:',mat,'|',car,anio,(sec||'')); omitidos++; return; }
+    const r = qIn.run(id,a.id,'Parcial',fecha,hora,periodo.id,25);
+    if(r.changes>0) creados++; else omitidos++;
   };
 
-  // ── LUNES 11/05 ─────────────────────────────────────────────────────────────
-  ins('ep_0001','%Enfermer%',1,'%Salud Pública%',        '2026-05-11','19:00');
-  ins('ep_0002','%Radiolog%',1,'%Salud Pública%',         '2026-05-11','19:00');
-  ins('ep_0003','%Enfermer%',2,'%Enfermería Mate%',       '2026-05-11','19:00');
-  ins('ep_0004','%Farmacia%',1,'%Salud Pública%',         '2026-05-11','19:00');
-  ins('ep_0005','%Instrume%',1,'%Salud Pública%',         '2026-05-11','19:00');
-  ins('ep_0006','%Instrume%',2,'%Patología Quirú%',       '2026-05-11','19:00');
-  ins('ep_0007','%Radiolog%',2,'%Física Radiológ%',       '2026-05-11','19:00');
-  ins('ep_0008','%Farmacia%',2,'%Química Inorgán%',       '2026-05-11','20:40');
-  // ── MARTES 12/05 — Raqueline Carballo (Cosmiatría, no mover de martes) ──────
-  ins('ep_0009','%Cosmiatr%',1,'%Dermatología Bá%',       '2026-05-12','19:00','A');
-  ins('ep_0009b','%Cosmiatr%',1,'%Dermatología Bá%',      '2026-05-12','20:40','B');
-  ins('ep_0010','%Cosmiatr%',2,'%Química Cosméti%',       '2026-05-12','19:00');
-  ins('ep_0011','%Cosmiatr%',1,'%Anatomía y Fisi%',       '2026-05-12','19:00','B');
-  ins('ep_0012','%Criminal%',2,'%Dibujo Técnico%',        '2026-05-12','19:00');
-  // ── MIÉRCOLES 13/05 ──────────────────────────────────────────────────────────
-  ins('ep_0013','%Agropecu%',1,'%Inglés%',                '2026-05-13','19:00');
-  ins('ep_0014','%Agropecu%',2,'%Inglés%',                '2026-05-13','19:00');
-  ins('ep_0015','%Electric%',2,'%Inglés%',                '2026-05-13','19:00');
-  ins('ep_0016','%Contabil%',1,'%Castellano%',            '2026-05-13','19:00');
-  ins('ep_0017','%Criminal%',1,'%Comunicación Es%',       '2026-05-13','19:00');
-  ins('ep_0018','%Enfermer%',1,'%Primeros Auxili%',        '2026-05-13','20:40');
-  ins('ep_0019','%Radiolog%',1,'%Primeros Auxili%',        '2026-05-13','20:40');
-  ins('ep_0020','%Enfermer%',2,'%Ética y Legisla%',       '2026-05-13','20:40');
-  ins('ep_0021','%Farmacia%',2,'%Ética y Legisla%',       '2026-05-13','20:40');
-  ins('ep_0022','%Farmacia%',1,'%Calidad en Salu%',       '2026-05-13','20:40');
-  ins('ep_0023','%Instrume%',1,'%Calidad en Salu%',       '2026-05-13','20:40');
-  ins('ep_0024','%Instrume%',2,'%Técnicas Quirúr%',       '2026-05-13','20:40');
-  ins('ep_0025','%Radiolog%',2,'%Administración %',       '2026-05-13','20:40');
-  // ── LUNES 18/05 ──────────────────────────────────────────────────────────────
-  ins('ep_0026','%Enfermer%',1,'%Anatomía%',              '2026-05-18','20:40');
-  ins('ep_0027','%Radiolog%',1,'%Anatomía%',              '2026-05-18','20:40');
-  ins('ep_0028','%Enfermer%',2,'%Enfermería en S%',       '2026-05-18','20:40');
-  ins('ep_0029','%Farmacia%',1,'%Anatomía%',              '2026-05-18','20:40');
-  ins('ep_0030','%Instrume%',1,'%Anatomía%',              '2026-05-18','20:40');
-  ins('ep_0031','%Radiolog%',2,'%Técnicas Radiol%',       '2026-05-18','20:40');
-  // ── MARTES 19/05 — Raqueline (Cosmiatría) ───────────────────────────────────
-  ins('ep_0032','%Agropecu%',2,'%Equipos y Maqui%',      '2026-05-19','19:00');
-  ins('ep_0033','%Electric%',2,'%Electrónica Ana%',       '2026-05-19','19:00');
-  ins('ep_0034','%Agropecu%',1,'%Deontología%',           '2026-05-19','20:40');
-  ins('ep_0035','%Criminal%',1,'%Deontología y É%',       '2026-05-19','20:40');
-  ins('ep_0036','%Cosmiatr%',1,'%Biología de la %',       '2026-05-19','20:40','A');
-  ins('ep_0037','%Cosmiatr%',2,'%Semiología de l%',       '2026-05-19','20:40');
-  ins('ep_0038','%Cosmiatr%',1,'%Dermatología Bá%',       '2026-05-19','20:40','B');
-  ins('ep_0039','%Criminal%',2,'%Dibujo Técnico%',        '2026-05-19','20:40');
-  // ── MIÉRCOLES 20/05 ──────────────────────────────────────────────────────────
-  ins('ep_0040','%Contabil%',1,'%Contabilidad Bá%',       '2026-05-20','20:40');
-  // ── JUEVES 21/05 ─────────────────────────────────────────────────────────────
-  ins('ep_0041','%Cosmiatr%',1,'%Anatomía%',              '2026-05-21','19:00','A');
-  ins('ep_0042','%Cosmiatr%',2,'%Técnicas de Mas%',       '2026-05-21','19:00');
-  ins('ep_0043','%Cosmiatr%',1,'%Salud Pública%',         '2026-05-21','19:00','B');
-  ins('ep_0044','%Criminal%',1,'%Introducción a %',       '2026-05-21','19:00');
-  ins('ep_0045','%Electric%',2,'%Electrónica Ana%',       '2026-05-21','19:00');
-  ins('ep_0046','%Agropecu%',1,'%Productividad%',         '2026-05-21','20:40');
-  ins('ep_0047','%Agropecu%',2,'%Equipos y Maqui%',      '2026-05-21','20:40');
-  ins('ep_0048','%Criminal%',2,'%Dibujo Técnico%',        '2026-05-21','20:40');
-  // ── VIERNES 22/05 ────────────────────────────────────────────────────────────
-  ins('ep_0049','%Enfermer%',1,'%Ética Profesion%',       '2026-05-22','19:00');
-  ins('ep_0050','%Radiolog%',1,'%Ética Profesion%',       '2026-05-22','19:00');
-  ins('ep_0051','%Farmacia%',1,'%Farmacología%',          '2026-05-22','19:00');
-  ins('ep_0052','%Instrume%',1,'%Farmacología%',          '2026-05-22','19:00');
-  ins('ep_0053','%Farmacia%',2,'%Cosmetología Bá%',       '2026-05-22','19:00');
-  ins('ep_0054','%Instrume%',2,'%Psicología%',            '2026-05-22','19:00');
-  ins('ep_0055','%Radiolog%',2,'%Psicología%',            '2026-05-22','19:00');
-  ins('ep_0056','%Contabil%',1,'%Matemática%',            '2026-05-22','19:00');
-  // ── LUNES 25/05 ──────────────────────────────────────────────────────────────
-  ins('ep_0057','%Contabil%',1,'%Inglés%',                '2026-05-25','19:00');
-  ins('ep_0058','%Farmacia%',2,'%Inglés%',                '2026-05-25','19:00');
-  ins('ep_0059','%Instrume%',2,'%Medicina Legal%',        '2026-05-25','20:40');
-  // ── MARTES 26/05 — Raqueline (Cosmiatría) ───────────────────────────────────
-  ins('ep_0060','%Agropecu%',1,'%Apicultura%',            '2026-05-26','19:00');
-  ins('ep_0061','%Criminal%',1,'%Aspectos Legale%',       '2026-05-26','19:00');
-  ins('ep_0062','%Agropecu%',2,'%Equipos y Maqui%',      '2026-05-26','20:40');
-  ins('ep_0063','%Electric%',2,'%Electrónica Ana%',       '2026-05-26','20:40');
-  ins('ep_0064','%Cosmiatr%',1,'%Farmacología%',          '2026-05-26','19:00','A');
-  ins('ep_0064b','%Cosmiatr%',1,'%Dermatología Bá%',      '2026-05-26','19:00','A'); // Dermatología Básica cosA 1A
-  ins('ep_0064c','%Cosmiatr%',1,'%Dermatología Bá%',      '2026-05-26','20:40','B'); // Dermatología Básica cosA 1B
-  // ── MIÉRCOLES 27/05 ──────────────────────────────────────────────────────────
-  ins('ep_0065','%Cosmiatr%',2,'%Competencias So%',       '2026-05-27','19:00');
-  ins('ep_0066','%Cosmiatr%',1,'%Biología de la %',       '2026-05-27','19:00','B');
-  ins('ep_0067','%Criminal%',2,'%Química Aplicad%',       '2026-05-27','19:00');
-  // ── JUEVES 28/05 ─────────────────────────────────────────────────────────────
-  ins('ep_0068','%Agropecu%',1,'%Productividad%',         '2026-05-28','19:00');
-  ins('ep_0069','%Agropecu%',2,'%Zootecnia%',             '2026-05-28','19:00');
-  ins('ep_0070','%Cosmiatr%',1,'%Anatomía%',              '2026-05-28','20:40','A');
-  ins('ep_0071','%Cosmiatr%',2,'%Técnicas de Mas%',       '2026-05-28','20:40');
-  ins('ep_0072','%Cosmiatr%',1,'%Farmacología%',          '2026-05-28','20:40','B');
-  ins('ep_0073','%Criminal%',1,'%Introducción al%',       '2026-05-28','20:40');
-  ins('ep_0074','%Electric%',2,'%Electrónica Ana%',       '2026-05-28','20:40');
-  // ── VIERNES 29/05 ────────────────────────────────────────────────────────────
-  ins('ep_0075','%Contabil%',1,'%Contabilidad Bá%',       '2026-05-29','20:40');
-  ins('ep_0076','%Enfermer%',1,'%Farmacología%',          '2026-05-29','20:40');
+  // ════════════════════════════════════════════════════════════════════════════
+  // SEMANA 1 — 11 al 13 de mayo 2026
+  // ════════════════════════════════════════════════════════════════════════════
 
-  console.log(`🗓 Exámenes parciales ITS 2026: ${creados} creados, ${omitidos} omitidos/duplicados`);
+  // LUNES 11/05 ─────────────────────────────────────────────────────────────
+  ins('ep_011_01','%Enfermer%', 2,'%Enfermería Materno%',          '2026-05-11','19:00');
+  ins('ep_011_02','%Radiolog%', 2,'%Física Radiológ%',             '2026-05-11','19:00');
+  ins('ep_011_03','%Instrume%', 2,'%Patología Quirú%',             '2026-05-11','19:00');
+  ins('ep_011_04','%Enfermer%', 1,'%Salud Pública%',               '2026-05-11','19:00'); // unificado
+  ins('ep_011_05','%Radiolog%', 1,'%Salud Pública%',               '2026-05-11','19:00'); // unificado
+  ins('ep_011_06','%Farmacia%', 1,'%Salud Pública%',               '2026-05-11','19:00'); // unificado
+  ins('ep_011_07','%Instrume%', 1,'%Salud Pública%',               '2026-05-11','19:00'); // unificado
+  ins('ep_011_08','%Farmacia%', 2,'%Química Inorgán%',             '2026-05-11','20:40');
+
+  // MARTES 12/05 — Raqueline Carballo: Técnicas Faciales SIEMPRE EN MARTES ──
+  // 1er turno (19:00): cosA 1° Secc.A
+  ins('ep_012_01','%Cosmiatr%', 1,'%Técnicas Faciale%',            '2026-05-12','19:00','A');
+  // 2do turno (20:40): cosA 1° Secc.B
+  ins('ep_012_02','%Cosmiatr%', 1,'%Técnicas Faciale%',            '2026-05-12','20:40','B');
+  // Otros exámenes del día
+  ins('ep_012_03','%Cosmiatr%', 1,'%Anatomía y Fisi%',             '2026-05-12','19:00','B'); // Higuchi
+  ins('ep_012_04','%Cosmiatr%', 2,'%Química Cosméti%',             '2026-05-12','19:00');     // Noelia Ayala
+  ins('ep_012_05','%Criminal%', 2,'%Dibujo Técnico%',              '2026-05-12','19:00');     // Domínguez
+
+  // MIÉRCOLES 13/05 ─────────────────────────────────────────────────────────
+  // 1er turno unificados
+  ins('ep_013_01','%Criminal%', 1,'%Comunicación Es%',             '2026-05-13','19:00'); // Perez de Cantero
+  ins('ep_013_02','%Contabil%', 1,'%Castellano%',                  '2026-05-13','19:00'); // Perez de Cantero (unificado)
+  ins('ep_013_03','%Agropecu%', 1,'%Inglés%',                      '2026-05-13','19:00'); // Jiménez unificado
+  ins('ep_013_04','%Agropecu%', 2,'%Inglés%',                      '2026-05-13','19:00'); // unificado
+  ins('ep_013_05','%Electric%', 2,'%Inglés%',                      '2026-05-13','19:00'); // unificado
+  // 2do turno
+  ins('ep_013_06','%Radiolog%', 2,'%Administración %',             '2026-05-13','20:40'); // Aranda
+  ins('ep_013_07','%Farmacia%', 1,'%Calidad en Salu%',             '2026-05-13','20:40'); // Villar unificado
+  ins('ep_013_08','%Instrume%', 1,'%Calidad en Salu%',             '2026-05-13','20:40'); // unificado
+  ins('ep_013_09','%Enfermer%', 2,'%Ética y Legisla%',             '2026-05-13','20:40'); // Carrillo unificado
+  ins('ep_013_10','%Farmacia%', 2,'%Ética y Legisla%',             '2026-05-13','20:40'); // unificado
+  ins('ep_013_11','%Enfermer%', 1,'%Primeros Auxili%',             '2026-05-13','20:40'); // Romero unificado
+  ins('ep_013_12','%Radiolog%', 1,'%Primeros Auxili%',             '2026-05-13','20:40'); // unificado
+  ins('ep_013_13','%Instrume%', 2,'%Técnicas Quirúr%',             '2026-05-13','20:40'); // González
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SEMANA 2 — 18 al 22 de mayo 2026
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // LUNES 18/05 ─────────────────────────────────────────────────────────────
+  ins('ep_018_01','%Enfermer%', 1,'%Anatomía y Fisi%',             '2026-05-18','20:40'); // Higuchi unificado
+  ins('ep_018_02','%Radiolog%', 1,'%Anatomía y Fisi%',             '2026-05-18','20:40'); // unificado
+  ins('ep_018_03','%Farmacia%', 1,'%Anatomía y Fisi%',             '2026-05-18','20:40'); // Rojas unificado
+  ins('ep_018_04','%Instrume%', 1,'%Anatomía y Fisi%',             '2026-05-18','20:40'); // unificado
+  ins('ep_018_05','%Enfermer%', 2,'%Enfermería en Sa%',            '2026-05-18','20:40'); // Ayala
+  ins('ep_018_06','%Radiolog%', 2,'%Técnicas Radiol%',             '2026-05-18','20:40'); // Palacios
+
+  // MARTES 19/05 — Raqueline cosA 1°B MOVIDA A 12/05 por instrucción de Dirección ──
+  ins('ep_019_01','%Electric%', 2,'%Electrónica Ana%',             '2026-05-19','19:00'); // Mareco
+  ins('ep_019_02','%Agropecu%', 2,'%Equipos y Maqui%',            '2026-05-19','19:00'); // Giménez
+  ins('ep_019_03','%Cosmiatr%', 1,'%Biología de la %',             '2026-05-19','20:40','A'); // Noelia Ayala
+  ins('ep_019_04','%Criminal%', 2,'%Fotografía Pericia%',          '2026-05-19','20:40'); // Domínguez
+  ins('ep_019_05','%Agropecu%', 1,'%Deontología%',                 '2026-05-19','20:40'); // Alum unificado
+  ins('ep_019_06','%Criminal%', 1,'%Deontología y É%',             '2026-05-19','20:40'); // unificado
+  ins('ep_019_07','%Cosmiatr%', 2,'%Semiología de l%',             '2026-05-19','20:40'); // Rojas
+
+  // MIÉRCOLES 20/05 ─────────────────────────────────────────────────────────
+  ins('ep_020_01','%Contabil%', 1,'%Contabilidad Bá%',             '2026-05-20','20:40'); // Giménez
+
+  // JUEVES 21/05 ────────────────────────────────────────────────────────────
+  ins('ep_021_01','%Cosmiatr%', 1,'%Anatomía y Fisi%',             '2026-05-21','19:00','A'); // Rojas
+  ins('ep_021_02','%Criminal%', 1,'%Introducción a l%',            '2026-05-21','19:00'); // Domínguez
+  ins('ep_021_03','%Electric%', 2,'%Maquinarias Eléc%',            '2026-05-21','19:00'); // Mareco
+  ins('ep_021_04','%Cosmiatr%', 1,'%Salud Pública%',               '2026-05-21','19:00','B'); // Valenzuela
+  ins('ep_021_05','%Cosmiatr%', 2,'%Técnicas de Masa%',            '2026-05-21','19:00'); // Raqueline
+  ins('ep_021_06','%Criminal%', 2,'%Accidentología%',              '2026-05-21','20:40'); // Domínguez
+  ins('ep_021_07','%Agropecu%', 1,'%Producción Porcin%',           '2026-05-21','20:40'); // Giménez unificado
+  ins('ep_021_08','%Agropecu%', 2,'%Producción Porcin%',           '2026-05-21','20:40'); // unificado
+
+  // VIERNES 22/05 ───────────────────────────────────────────────────────────
+  ins('ep_022_01','%Farmacia%', 2,'%Cosmetología Bá%',             '2026-05-22','19:00'); // Noelia Ayala
+  ins('ep_022_02','%Enfermer%', 1,'%Ética Profesion%',             '2026-05-22','19:00'); // Carrillo unificado
+  ins('ep_022_03','%Radiolog%', 1,'%Ética Profesion%',             '2026-05-22','19:00'); // unificado
+  ins('ep_022_04','%Farmacia%', 1,'%Farmacología%',                '2026-05-22','19:00'); // Agüero unificado
+  ins('ep_022_05','%Instrume%', 1,'%Farmacología%',                '2026-05-22','19:00'); // unificado
+  ins('ep_022_06','%Contabil%', 1,'%Matemática%',                  '2026-05-22','19:00'); // Sharp
+  ins('ep_022_07','%Radiolog%', 2,'%Psicología%',                  '2026-05-22','19:00'); // Natalia Martínez
+  ins('ep_022_08','%Instrume%', 2,'%Bioseguridad%',                '2026-05-22','19:00'); // Valenzuela
+  ins('ep_022_09','%Enfermer%', 2,'%Nutrición%',                   '2026-05-22','20:40'); // Noelia Ayala
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SEMANA 3 — 25 al 29 de mayo 2026
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // LUNES 25/05 ─────────────────────────────────────────────────────────────
+  ins('ep_025_01','%Contabil%', 1,'%Inglés%',                      '2026-05-25','19:00'); // Jiménez unificado
+  ins('ep_025_02','%Farmacia%', 2,'%Inglés%',                      '2026-05-25','19:00'); // unificado
+  ins('ep_025_03','%Instrume%', 2,'%Medicina Legal%',              '2026-05-25','20:40'); // Alum
+
+  // MARTES 26/05 — Raqueline: Dermatología Básica SIEMPRE EN MARTES ─────────
+  // 1er turno (19:00): cosA 1° Secc.A
+  ins('ep_026_01','%Cosmiatr%', 1,'%Dermatología Básica%',         '2026-05-26','19:00','A');
+  // 2do turno (20:40): cosA 1° Secc.B
+  ins('ep_026_02','%Cosmiatr%', 1,'%Dermatología Básica%',         '2026-05-26','20:40','B');
+  // Otros del día
+  ins('ep_026_03','%Agropecu%', 1,'%Apicultura%',                  '2026-05-26','19:00'); // Carmona
+  ins('ep_026_04','%Criminal%', 1,'%Aspectos Legale%',             '2026-05-26','19:00'); // Ocampos
+  ins('ep_026_05','%Agropecu%', 2,'%Cultivos%',                    '2026-05-26','20:40'); // Giménez
+  ins('ep_026_06','%Electric%', 2,'%Electrotecnia%',               '2026-05-26','20:40'); // Mareco
+
+  // MIÉRCOLES 27/05 ─────────────────────────────────────────────────────────
+  ins('ep_027_01','%Cosmiatr%', 1,'%Biología de la %',             '2026-05-27','19:00','B'); // Noelia Ayala
+  ins('ep_027_02','%Cosmiatr%', 2,'%Competencias So%',             '2026-05-27','19:00'); // Torales
+  ins('ep_027_03','%Cosmiatr%', 1,'%Farmacología en Cosm%',        '2026-05-27','19:00','A'); // Espínola
+  ins('ep_027_04','%Criminal%', 2,'%Química Aplicad%',             '2026-05-27','19:00'); // Aranda
+
+  // JUEVES 28/05 ────────────────────────────────────────────────────────────
+  ins('ep_028_01','%Agropecu%', 1,'%Productividad%',               '2026-05-28','19:00'); // Giménez
+  ins('ep_028_02','%Agropecu%', 2,'%Zootecnia%',                   '2026-05-28','19:00'); // Carmona
+  ins('ep_028_03','%Criminal%', 2,'%Criminología%',                '2026-05-28','19:00'); // Domínguez
+  ins('ep_028_04','%Cosmiatr%', 1,'%Farmacología%',                '2026-05-28','20:40','B'); // Espínola cosA 1B COS-106
+  ins('ep_028_05','%Criminal%', 1,'%Introducción al Der%',         '2026-05-28','20:40'); // Sharp
+  ins('ep_028_06','%Cosmiatr%', 1,'%Salud Pública%',               '2026-05-28','20:40','A'); // Rojas cosA 1A
+  ins('ep_028_07','%Electric%', 2,'%Sistema de Poten%',            '2026-05-28','20:40'); // Mareco
+  ins('ep_028_08','%Cosmiatr%', 2,'%Técnicas Cosmét%',             '2026-05-28','20:40'); // Raqueline cosA 2°
+
+  // VIERNES 29/05 ───────────────────────────────────────────────────────────
+  ins('ep_029_01','%Enfermer%', 2,'%Farmacología%',                '2026-05-29','19:00'); // Rojas Enf.2°
+  ins('ep_029_02','%Farmacia%', 1,'%Ética Profesion%',             '2026-05-29','20:40'); // Carrillo unificado
+  ins('ep_029_03','%Instrume%', 1,'%Ética Profesion%',             '2026-05-29','20:40'); // unificado
+  ins('ep_029_04','%Enfermer%', 1,'%Farmacología%',                '2026-05-29','20:40'); // Rojas unificado
+  ins('ep_029_05','%Radiolog%', 1,'%Farmacología%',                '2026-05-29','20:40'); // unificado
+  ins('ep_029_06','%Farmacia%', 2,'%Farmacotecnia%',               '2026-05-29','20:40'); // Agüero
+  ins('ep_029_07','%Contabil%', 1,'%Introducción a la Adm%',       '2026-05-29','20:40'); // Giménez
+  ins('ep_029_08','%Radiolog%', 2,'%Prácticas Radiol%',            '2026-05-29','20:40'); // Palacios
+  ins('ep_029_09','%Instrume%', 2,'%Psicología Gen%',              '2026-05-29','20:40'); // Natalia Martínez
+
+  console.log(`🗓 Backup exámenes parciales ITS 2026: ${creados} restaurados, ${omitidos} ya existían`);
 }
 
 // ── SEED HORARIOS ─────────────────────────────────────────────────────────────
