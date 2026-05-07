@@ -528,7 +528,7 @@ function delPagoAlumno(pagoId, alId){
 async function del(id,tipo){
   const labels={notas:'nota',pagos:'pago',examenes:'examen programado',alumnos:'alumno',docentes:'docente',asistencia:'registro de asistencia',avisos:'aviso',actividades:'actividad',feriados:'feriado',usuarios:'usuario',reemplazos:'reemplazo',carreras:'carrera',cursos:'sección',materias:'materia',asignaciones:'asignación',becas:'beca',periodos:'período'};
   const label=labels[tipo]||'registro';
-  const extra=tipo==='alumnos'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán sus notas, asistencia y pagos asociados.</span>':tipo==='carreras'?'<br><span style="color:#c62828;font-size:12px">⚠ También se eliminarán los secciones, materias y asignaciones de esta carrera.</span>':'';
+  const extra=tipo==='alumnos'?'<br><span style="color:#1565c0;font-size:12px">ℹ El alumno pasará a estado "Retirado". Sus notas, pagos y asistencia se conservan intactos.</span>':tipo==='carreras'?'<br><span style="color:#c62828;font-size:12px">⚠ Solo es posible si la carrera no tiene alumnos ni asignaciones activas.</span>':tipo==='cursos'?'<br><span style="color:#c62828;font-size:12px">⚠ Solo es posible si la sección no tiene alumnos ni asignaciones activas.</span>':'';
   confirm2(
     `🗑 Eliminar ${label}`,
     `<p>¿Confirmar la eliminación de este ${label}?</p>${extra}<p style="font-size:12px;color:#c62828;margin-top:8px;font-weight:600">⚠ Esta acción no se puede deshacer.</p>`,
@@ -1287,7 +1287,7 @@ function mEliminarGrupo(){
   modal(`<div class="mh"><h4>🗑 Eliminar por Grupo</h4><button class="mc" onclick="cm()">✕</button></div>
     <div class="mb">
       <div class="ir" style="background:#fce4ec;border:1px solid #e57373;color:#b71c1c;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
-        ⚠ <strong>Esta acción es irreversible.</strong> Se eliminarán permanentemente todos los alumnos del grupo seleccionado, incluyendo sus pagos, notas, asistencia y cuentas de acceso.
+        ℹ️ <strong>Acción deshabilitada.</strong> La eliminación masiva de grupos está bloqueada para proteger la integridad de los datos académicos y financieros.
       </div>
       <div class="fr">
         <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
@@ -1356,7 +1356,7 @@ async function doEliminarGrupo(){
      <div style="background:#fce4ec;border-radius:6px;padding:10px;font-size:13px;color:#b71c1c">
        <strong>Grupo:</strong> ${grpLabel}<br>
        <strong>Alumnos a eliminar:</strong> ${count}<br><br>
-       También se eliminarán: pagos, notas, asistencia, habilitaciones y cuentas de acceso de estos alumnos.
+       Esta acción está bloqueada. Los datos de alumnos no pueden eliminarse masivamente.
      </div>`,
     async function(){
       try{

@@ -919,9 +919,10 @@ app.put('/api/asistencia/:id', auth(['director','docente']), (req, res) => {
   db.prepare('UPDATE asistencia SET estado=?,observacion=? WHERE id=?').run(estado, observacion||null, req.params.id);
   res.json({ ok: true });
 });
-// Eliminar un registro individual de asistencia
-app.delete('/api/asistencia/:id', auth(['director','docente']), (req, res) => {
+// Eliminar un registro individual de asistencia — solo el director
+app.delete('/api/asistencia/:id', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM asistencia WHERE id=?').run(req.params.id);
+  audit(req.user.id, 'DELETE_ASISTENCIA', 'asistencia', req.params.id, {});
   res.json({ ok: true });
 });
 // Consulta de asistencia por alumno — resumen consolidado
@@ -1583,7 +1584,10 @@ app.put('/api/becas/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE becas SET tipo=?,porcentaje=?,monto_fijo=?,descripcion=?,fecha_inicio=?,fecha_fin=?,activa=? WHERE id=?').run(tipo,porcentaje||null,monto_fijo||null,descripcion,fecha_inicio,fecha_fin||null,activa?1:0,req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/becas/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM becas WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/becas/:id', auth(ADM), (req, res) => {
+  // Becas: registro financiero vinculado al alumno, no se elimina — se puede editar
+  res.status(403).json({ error: 'Las becas no pueden eliminarse para preservar el historial financiero del alumno.' });
+});
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', auth(), (req, res) => {
