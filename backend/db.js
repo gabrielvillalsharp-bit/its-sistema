@@ -5,13 +5,42 @@ const fs = require('fs');
 
 // Orden de prioridad para la ruta de la DB:
 // 1. Variable de entorno DB_PATH explícita
-// 2. Railway Volume automático (RAILWAY_VOLUME_MOUNT_PATH lo setea Railway cuando hay un Volume adjunto)
+// 2. Railway Volume: $RAILWAY_VOLUME_MOUNT_PATH/its.db  (persiste entre deploys)
 // 3. Fallback local: <repo_root>/data/its.db
-const DB_PATH = process.env.DB_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'its.db')
-    : null) ||
-  path.join(__dirname, '..', 'data', 'its.db');
+//
+// MIGRACIÓN AUTOMÁTICA: si el destino del Volume no tiene DB pero existe la
+// DB legacy en /app/data/its.db (ruta antigua), la copiamos automáticamente.
+function resolveDbPath() {
+  if (process.env.DB_PATH) return process.env.DB_PATH;
+
+  const legacyPath = path.join(__dirname, '..', 'data', 'its.db');
+
+  if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    const volumePath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'its.db');
+
+    // Si ya existe la DB en el volumen → úsala directamente
+    if (fs.existsSync(volumePath)) return volumePath;
+
+    // Si NO existe en el volumen pero sí en la ruta legacy → migrar
+    if (fs.existsSync(legacyPath)) {
+      try {
+        const dir = path.dirname(volumePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.copyFileSync(legacyPath, volumePath);
+        console.log('[DB] ✅ Migración automática: DB copiada de', legacyPath, '→', volumePath);
+      } catch (e) {
+        console.error('[DB] ⚠️  No se pudo migrar DB legacy:', e.message, '— usando ruta legacy');
+        return legacyPath;
+      }
+    }
+
+    return volumePath; // nueva DB en el volumen (o migrada)
+  }
+
+  return legacyPath;
+}
+
+const DB_PATH = resolveDbPath();
 const dir = path.dirname(DB_PATH);
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 console.log('[DB] Ruta:', DB_PATH, '| Volume Railway:', process.env.RAILWAY_VOLUME_MOUNT_PATH||'no detectado');

@@ -1936,7 +1936,15 @@ async function limpiarExamenesTipo(){
   if(!tipo)return;
   const TIPOS=['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
   if(!TIPOS.includes(tipo))return toast('Tipo inválido','warn');
-  if(!confirm(`¿Eliminar TODOS los exámenes de tipo "${tipo}"? Esta acción no se puede deshacer.`))return;
+  // Obtener conteo antes de confirmar
+  try{
+    const examenes=await api('GET','/api/examenes',{tipo});
+    const n=Array.isArray(examenes)?examenes.filter(e=>e.tipo===tipo).length:0;
+    if(!confirm(`⚠️ ATENCIÓN: Se eliminarán ${n} exámenes de tipo "${tipo}".\n\nEsta acción es IRREVERSIBLE y borrará el examen de TODAS las materias.\n\n¿Confirmar eliminación?`))return;
+    if(prompt(`Para confirmar, escribí exactamente: ELIMINAR ${tipo}`)!==`ELIMINAR ${tipo}`)return toast('Confirmación incorrecta — operación cancelada','warn');
+  }catch(e){
+    if(!confirm(`¿Eliminar TODOS los exámenes de tipo "${tipo}"? Esta acción no se puede deshacer.`))return;
+  }
   try{
     const r=await api('DELETE','/api/examenes/bulk/tipo',{tipo});
     toast(`✓ ${r.eliminados} exámenes "${tipo}" eliminados`,'ok',4000);
