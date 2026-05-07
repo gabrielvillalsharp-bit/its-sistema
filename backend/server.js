@@ -3083,7 +3083,8 @@ cron.schedule('0 8 * * *', async () => {
         LEFT JOIN carreras ca ON cu.carrera_id=ca.id
         LEFT JOIN docentes d ON a.docente_id=d.id
         LEFT JOIN usuarios u ON d.usuario_id=u.id
-        WHERE e.fecha=?`).all(fechaTarget);
+        WHERE e.fecha=?
+          AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')`).all(fechaTarget);
 
       for (const ex of examenes) {
         // Verificar si ya se envió esta notificación para este examen + intervalo
