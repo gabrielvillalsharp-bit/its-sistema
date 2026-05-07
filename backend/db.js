@@ -40,10 +40,77 @@ function resolveDbPath() {
   return legacyPath;
 }
 
+// ── SISTEMA DE BACKUP AUTOMÁTICO ─────────────────────────────────────────────
+// Guarda hasta 3 copias rotativas de la DB en /backups/ junto al archivo principal.
+// Se llama al final de init(), solo si hay alumnos reales registrados.
+// Al abrir la DB, si detecta que está vacía pero hay backup, restaura automáticamente.
+
+function getBackupDir(dbPath) {
+  return path.join(path.dirname(dbPath), 'backups');
+}
+
+function autoRestoreIfEmpty(dbPath) {
+  // Solo actuar si el archivo ya existe (no es una DB nueva)
+  if (!fs.existsSync(dbPath)) return;
+  let alumnosCount = 0;
+  try {
+    const tmp = new Database(dbPath, { readonly: true });
+    try { alumnosCount = tmp.prepare("SELECT COUNT(*) as n FROM alumnos").get()?.n || 0; } catch {}
+    tmp.close();
+  } catch { return; }
+  if (alumnosCount > 0) return; // DB tiene datos → todo bien
+
+  // DB vacía: buscar el backup más reciente
+  const backupDir = getBackupDir(dbPath);
+  const candidates = ['its_backup_1.db', 'its_backup_2.db', 'its_backup_3.db']
+    .map(f => path.join(backupDir, f)).filter(f => fs.existsSync(f));
+  if (candidates.length === 0) {
+    console.log('[RESTORE] DB vacía, sin backups disponibles');
+    return;
+  }
+  try {
+    fs.copyFileSync(candidates[0], dbPath);
+    console.log('[RESTORE] ✅ DB vacía detectada — restaurada desde:', candidates[0]);
+  } catch(e) {
+    console.error('[RESTORE] ⚠️  No se pudo restaurar desde backup:', e.message);
+  }
+}
+
+function autoBackup(db, dbPath) {
+  try {
+    // Solo hacer backup si hay alumnos reales
+    const n = db.prepare('SELECT COUNT(*) as n FROM alumnos').get()?.n || 0;
+    if (n < 1) return;
+    const backupDir = getBackupDir(dbPath);
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const b1 = path.join(backupDir, 'its_backup_1.db');
+    const b2 = path.join(backupDir, 'its_backup_2.db');
+    const b3 = path.join(backupDir, 'its_backup_3.db');
+    // Rotar: 3←2←1←nueva copia
+    try { if (fs.existsSync(b2)) fs.copyFileSync(b2, b3); } catch {}
+    try { if (fs.existsSync(b1)) fs.copyFileSync(b1, b2); } catch {}
+    // VACUUM INTO hace copia limpia y consistente (SQLite 3.27+)
+    try {
+      db.prepare('VACUUM INTO ?').run(b1);
+    } catch {
+      // Fallback: checkpoint WAL y copiar archivo
+      try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch {}
+      fs.copyFileSync(dbPath, b1);
+    }
+    const t = new Date().toLocaleString('es-PY');
+    console.log(`[BACKUP] ✅ Backup automático — ${n} alumnos protegidos (${t})`);
+  } catch(e) {
+    console.error('[BACKUP] ⚠️  Error al crear backup:', e.message);
+  }
+}
+
 const DB_PATH = resolveDbPath();
 const dir = path.dirname(DB_PATH);
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 console.log('[DB] Ruta:', DB_PATH, '| Volume Railway:', process.env.RAILWAY_VOLUME_MOUNT_PATH||'no detectado');
+
+// Auto-restaurar si la DB estaba vacía (volumen reiniciado, etc.)
+autoRestoreIfEmpty(DB_PATH);
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -848,6 +915,7 @@ function init() {
   migrateMatrixV3();
   migrarMateriasParciales();   // agrega materias/asignaciones faltantes del cronograma
   seedExamenesParciales();     // BACKUP PERMANENTE — siempre restaura exámenes faltantes
+  autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 

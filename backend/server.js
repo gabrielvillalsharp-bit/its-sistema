@@ -337,9 +337,9 @@ app.put('/api/docentes/:uid/password', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 app.delete('/api/docentes/:uid', auth(ADM), (req, res) => {
-  db.prepare('DELETE FROM docentes WHERE usuario_id=?').run(req.params.uid);
-  db.prepare('DELETE FROM usuarios WHERE id=?').run(req.params.uid);
-  res.json({ ok: true });
+  // Eliminación de docentes BLOQUEADA — conserva historial de notas, asistencia y archivos
+  // Para desactivar un docente, editar su cuenta de usuario.
+  res.status(403).json({ error: 'Los docentes no pueden eliminarse para preservar el historial académico. Puede editar los datos del docente si es necesario.' });
 });
 
 // ── ALUMNOS ───────────────────────────────────────────────────────────────────
@@ -458,54 +458,20 @@ app.get('/api/alumnos/grupo/count', auth(ADM), (req, res) => {
 
 // ── ELIMINAR GRUPO COMPLETO (ANTES de :id para evitar conflicto de rutas) ──
 app.delete('/api/alumnos/grupo', auth(ADM), (req, res) => {
-  try {
-    const { carrera_id, curso_id } = req.query;
-    if (!carrera_id) return res.status(400).json({ error: 'Debe especificar carrera_id' });
-
-    let alumnos;
-    if (curso_id) {
-      alumnos = db.prepare('SELECT id,usuario_id FROM alumnos WHERE carrera_id=? AND curso_id=?').all(carrera_id, curso_id);
-    } else {
-      alumnos = db.prepare('SELECT id,usuario_id FROM alumnos WHERE carrera_id=?').all(carrera_id);
-    }
-
-    if (!alumnos.length) return res.json({ ok: true, eliminados: 0 });
-
-    db.transaction(() => {
-      alumnos.forEach(a => {
-        db.prepare('DELETE FROM notas WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
-        db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
-        if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
-      });
-    })();
-
-    audit(req.user.id,'DELETE','alumnos_grupo',carrera_id,{ curso_id, eliminados: alumnos.length });
-    res.json({ ok: true, eliminados: alumnos.length });
-  } catch(e) { res.status(500).json({ error: 'Error al eliminar grupo: '+e.message }); }
+  // Eliminación masiva de alumnos BLOQUEADA para proteger integridad de datos
+  res.status(403).json({ error: 'La eliminación masiva de alumnos no está permitida. Para retirar alumnos, modificar su estado individualmente.' });
 });
 
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
+  // Protección de datos: en lugar de eliminar, marcar como Retirado
+  // Los datos (notas, pagos, asistencia) quedan intactos en la base de datos
   try {
-    const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
+    const a = db.prepare('SELECT id FROM alumnos WHERE id=?').get(req.params.id);
     if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
-    db.transaction(() => {
-      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM alumnos WHERE id=?').run(req.params.id);
-      if (a.usuario_id) db.prepare('DELETE FROM usuarios WHERE id=?').run(a.usuario_id);
-    })();
-    audit(req.user.id,'DELETE','alumnos',req.params.id,{});
+    db.prepare("UPDATE alumnos SET estado='Retirado' WHERE id=?").run(req.params.id);
+    audit(req.user.id,'SOFT_DELETE','alumnos',req.params.id,{ accion: 'marcado_retirado' });
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
+  } catch(e) { res.status(500).json({ error: 'Error: '+e.message }); }
 });
 
 app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
@@ -1535,12 +1501,8 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
-  try {
-    const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
-    db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id);
-    audit(req.user.id,'DELETE','pagos',req.params.id,{concepto:p?.concepto,monto:p?.monto});
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  // Eliminación de pagos BLOQUEADA — los registros financieros nunca se eliminan
+  res.status(403).json({ error: 'Los registros de pago no pueden eliminarse para preservar el historial financiero.' });
 });
 
 // Deudores — alumnos sin pago de matrícula o cuotas en el período activo
