@@ -4548,7 +4548,7 @@ async function pgPagos(el){
   ]);
   W._pdata={als,pers,aranceles};
   W._pagosCarrs=carrs; W._pagosCursos=cursos; W._kanban=kanban;
-  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
 
   el.innerHTML=`
   <div class="ph"><h3>Pagos y matrículas</h3>
@@ -4576,7 +4576,7 @@ async function pgPagos(el){
         </select>
         <select id="filtPagoCurso" onchange="renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
           <option value="">Todas las secciones</option>
-          ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+          ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
         </select>
         <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:13px;min-width:140px">
           <option value="">Todos los estados</option>
@@ -4623,9 +4623,12 @@ function renderTablaPagos(){
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||''), cursoId=String(v('filtPagoCurso')||'');
   const colFil=v('filtKanbanCol')||'';
   let als=W._pdata?.als||[];
-  if(bus) als=als.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').includes(bus));
+  // Mapa curso_id → anio (más confiable que curso_anio del alumno)
+  const cursoAnioMap={};
+  (W._pagosCursos||[]).forEach(cu=>{cursoAnioMap[String(cu.id)]=String(cu.anio);});
+  if(bus) als=als.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').includes(bus)||(a.display_apellido||'').toLowerCase().concat(' ',(a.display_nombre||'').toLowerCase()).includes(bus));
   if(carrId) als=als.filter(a=>String(a.carrera_id||'')===carrId);
-  if(anio)   als=als.filter(a=>String(a.curso_anio||'')===anio);
+  if(anio)   als=als.filter(a=>(cursoAnioMap[String(a.curso_id||'')]||String(a.curso_anio||''))===anio);
   if(cursoId)als=als.filter(a=>String(a.curso_id||'')===cursoId);
 
   const kanban=W._kanban||{};
@@ -4739,7 +4742,14 @@ function filtPagoCursos(){
   if(carrId)cursos=cursos.filter(cu=>String(cu.carrera_id||'')===carrId);
   if(anio)cursos=cursos.filter(cu=>String(cu.anio||'')===anio);
   sel.value='';
-  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
+  sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>{
+    const divLabel=cu.division==='U'?'Única':'Secc. '+cu.division;
+    const label=anio&&carrId?divLabel
+      :anio?`${cu.carrera_nombre} — ${divLabel}`
+      :carrId?`${cu.anio}° — ${divLabel}`
+      :`${cu.carrera_nombre} ${cu.anio}° — ${divLabel}`;
+    return `<option value="${cu.id}">${label}</option>`;
+  }).join('');
 }
 
 async function selAlumnoPago(alId){
