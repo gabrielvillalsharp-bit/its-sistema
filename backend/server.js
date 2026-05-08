@@ -3553,9 +3553,16 @@ app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) =>
   res.send(ex.archivo_data);
 });
 
-app.delete('/api/examenes/:id/archivo', auth(ADM), (req, res) => {
-  // Eliminación de archivos deshabilitada para proteger integridad de datos
-  res.status(403).json({ error: 'La eliminación de archivos no está permitida' });
+app.delete('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) => {
+  try {
+    const ex = db.prepare('SELECT docente_id, archivo_nombre FROM examenes WHERE id=?').get(req.params.id);
+    if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
+    if (req.user.rol !== 'director' && ex.docente_id !== req.user.docenteId)
+      return res.status(403).json({ error: 'Sin permiso para borrar este archivo' });
+    db.prepare('UPDATE examenes SET archivo_nombre=NULL, archivo_data=NULL, archivo_tipo=NULL WHERE id=?').run(req.params.id);
+    audit(req.user.id, 'DELETE_ARCHIVO', 'examenes', req.params.id, { archivo: ex.archivo_nombre });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── REPOSITORIO DE ARCHIVOS ───────────────────────────────────────────────────

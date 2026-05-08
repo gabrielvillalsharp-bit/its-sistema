@@ -380,12 +380,23 @@ function startApp(){
       const btn=document.getElementById('ni-avisos');
       if(btn){
         let badge=btn.querySelector('.notif-badge');
-        if(!badge){badge=document.createElement('span');badge.className='notif-badge';badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;background:#e53935;color:#fff;font-size:9px;font-weight:700;border-radius:50%;min-width:16px;height:16px;padding:0 3px;margin-left:4px';btn.appendChild(badge);}
+        if(!badge){
+          badge=document.createElement('span');
+          badge.className='notif-badge';
+          badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;border-radius:50%;min-width:20px;height:20px;padding:0 4px;margin-left:5px;box-shadow:0 2px 6px rgba(0,0,0,.3)';
+          btn.appendChild(badge);
+        }
         badge.textContent=total||'';
         badge.style.display=total?'inline-flex':'none';
-        if(examCount>0) badge.style.background='#D85A30';
-        else badge.style.background='#e53935';
+        if(examCount>0){badge.style.background='#D85A30';badge.style.animation='pulse-bell .9s infinite';}
+        else if(total>0){badge.style.background='#e53935';badge.style.animation='pulse-bell .9s infinite';}
+        else badge.style.animation='none';
+        // Resaltar el ítem de navegación cuando hay pendientes
+        btn.style.fontWeight=total?'800':'';
+        btn.style.color=total?'var(--green)':'';
       }
+      W._avisosPendientes=total;
+      W._avisosSinLeer=nuevos.length;
     }catch{}
   }
   checkNotifAvisos();
@@ -762,10 +773,14 @@ async function pgAvisos(el){
         };
         const cfg=mapa[a.accion]||{icon:'🔔',fn:(d,t)=>`${a.accion} en ${t||''}`,color:'#f8fafc'};
         const desc=cfg.fn(det,a.tabla||'');
-        return `<div style="padding:9px 16px;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:flex-start;background:${cfg.color}22">
+        // Items clicables: UPLOAD_EXAMEN → ir al examen
+        const esClicable=a.accion==='UPLOAD_EXAMEN'&&a.registro_id;
+        const onclick=esClicable?`onclick="irAlExamenDesdeActividad('${a.registro_id}')" title="Clic para ir al examen y descargar el archivo"`:'' ;
+        return `<div style="padding:9px 16px;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:flex-start;background:${cfg.color}22;${esClicable?'cursor:pointer;':''}${esClicable?'transition:background .15s;':''}" ${onclick} ${esClicable?`onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='${cfg.color}22'"`:''}>
           <span style="font-size:16px;flex-shrink:0;margin-top:1px">${cfg.icon}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:12px;color:#1e293b;line-height:1.4">${quienHtml} ${desc}</div>
+            ${esClicable?'<div style="font-size:10px;color:#d97706;font-weight:600;margin-top:2px">👆 Clic para ir al examen y descargar</div>':''}
           </div>
           <div style="font-size:10px;color:#94a3b8;white-space:nowrap;flex-shrink:0">${cuandoLabel}</div>
         </div>`;
@@ -773,10 +788,20 @@ async function pgAvisos(el){
     </div>
   </div>`:''}
 
+  ${avisosSinLeer.length?`
+  <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,#e53935,#ef5350);color:#fff;border-radius:12px;padding:12px 18px;margin-bottom:16px;box-shadow:0 3px 10px rgba(229,57,53,.35);animation:fadeInQ .3s ease">
+    <span style="font-size:24px;animation:pulse-bell 1s infinite">🔔</span>
+    <div style="flex:1">
+      <div style="font-size:14px;font-weight:800">Tenés ${avisosSinLeer.length} aviso${avisosSinLeer.length!==1?'s':''} sin leer</div>
+      <div style="font-size:12px;opacity:.85;margin-top:2px">Hacé clic en cada uno para marcarlo como leído</div>
+    </div>
+    ${esDirector&&avisosSinLeer.length?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Marcar todos</button>`:''}
+  </div>`:''}
+
   ${!avisos.length?`<div class="es">No hay avisos activos</div>`:''}
-  ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">Sin leer (${avisosSinLeer.length})</p>`:''}
+  ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">📬 Sin leer (${avisosSinLeer.length})</p>`:''}
   ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
-  ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
+  ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">✓ Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
   `;
 }
 function mAvisoDirector(){
@@ -1936,10 +1961,11 @@ function exRow(e){
     if(yaOcurrio && me.rol!=='director'){
       btnAdjuntar=`<span style="font-size:10px;color:#999" title="El examen ya ocurrió">🔒 Cerrado</span>`;
     } else {
+      const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,15)+(e.archivo_nombre.length>15?'…':'')):'';
       btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">
-        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${e.archivo_nombre.slice(0,15)}${e.archivo_nombre.length>15?'…':''}</span>`:'Adjuntar'}
+        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${nombreCorto}</span>`:'Adjuntar'}
         <input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
-      </label>`;
+      </label>${e.archivo_nombre?`<button class="bs d" style="font-size:11px;padding:2px 5px" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo adjunto">🗑</button>`:''}`;
     }
   }
   // Ver/descargar: director descarga, docente ve
@@ -2073,6 +2099,12 @@ async function confirmarImportarExamenes(ids){
     go('examenes');
   }catch(e){toast('Error: '+e.message,'err');}
 }
+async function irAlExamenDesdeActividad(exId){
+  // Ir a la sección de exámenes y abrir el modal del examen específico
+  await go('examenes');
+  setTimeout(()=>verExamen(exId), 400);
+}
+
 async function verExamen(exId){
   if(!exId)return;
   try{
@@ -2144,6 +2176,15 @@ function filtExAll(){
   tb.innerHTML=l.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin resultados</td></tr>';
 }
 function filtEx(t,val){filtExAll();}
+
+async function borrarArchivoExamen(exId){
+  if(!confirm('¿Eliminar el archivo adjunto de este examen? Esta acción no se puede deshacer.'))return;
+  try{
+    await api('DELETE','/api/examenes/'+exId+'/archivo');
+    toast('✓ Archivo eliminado','ok');
+    go('examenes');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 
 async function subirArchivoExamen(exId, input){
   const file=input.files[0];if(!file)return;
