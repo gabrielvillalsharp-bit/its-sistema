@@ -2206,17 +2206,23 @@ function parsearPlanillaXLSX(buffer) {
     return mesMap[hN] || h.trim();
   });
 
+  // Cache de alumnos sin CI para búsqueda por nombre
+  const normNombre = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const alumnosSinCI = db.prepare("SELECT id, COALESCE(nombre,'') as nombre, COALESCE(apellido,'') as apellido FROM alumnos WHERE ci IS NULL OR ci=''").all();
+
   const filas = [];
   dataRows.forEach(row => {
     const ciRaw = ciIdx >= 0 ? row[ciIdx] : '';
     const ci = typeof ciRaw === 'number' ? String(Math.round(ciRaw)) : String(ciRaw||'').replace(/[^0-9]/g,'');
-    if (!ci || ci.length < 5) return;
 
     const nombreCompleto = nombreIdx >= 0 ? String(row[nombreIdx]||'').trim() : '';
     const partes = nombreCompleto.split(/\s+/).filter(Boolean);
     let nombre = nombreCompleto, apellido = '';
     if (partes.length >= 3) { nombre = partes.slice(0,Math.ceil(partes.length/2)).join(' '); apellido = partes.slice(Math.ceil(partes.length/2)).join(' '); }
     else if (partes.length === 2) { nombre = partes[0]; apellido = partes[1]; }
+
+    // Saltar filas completamente vacías (sin CI ni nombre)
+    if ((!ci || ci.length < 5) && !nombreCompleto) return;
 
     // Montos: mapeo ESTRICTO por índice de columna — nunca por valor
     const montos = pagoIdxs.map(({ idx }) => {
@@ -2228,8 +2234,23 @@ function parsearPlanillaXLSX(buffer) {
       return (!isNaN(m) && m > 0) ? m : 0;
     });
 
-    const existente = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
-    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, montos });
+    // Buscar alumno: primero por CI, luego por nombre (para alumnos sin CI)
+    let existente = null;
+    let alumno_id = null;
+    if (ci && ci.length >= 5) {
+      existente = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
+      if (existente) alumno_id = existente.id;
+    }
+    if (!alumno_id && nombreCompleto) {
+      const normTarget = normNombre(nombreCompleto);
+      const match = alumnosSinCI.find(al => {
+        return normNombre(al.apellido + ' ' + al.nombre) === normTarget ||
+               normNombre(al.nombre + ' ' + al.apellido) === normTarget;
+      });
+      if (match) { alumno_id = match.id; existente = match; }
+    }
+
+    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, alumno_id: alumno_id||null, montos });
   });
 
   return { columnas: pagoIdxs.map(p => p.h), conceptos, filas };
@@ -2268,11 +2289,14 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
 
     const results = { ok: 0, errores: [], alumnos_creados: 0, alumnos_actualizados: 0, credenciales: [] };
 
+    const stmtByID = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE id=?');
     db.transaction(() => {
-      filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos }) => {
-        if (!ci || ci.length < 5) return;
+      filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos, alumno_id }) => {
+        // Necesita CI válida O un alumno_id resuelto por nombre en el preview
+        if ((!ci || ci.length < 5) && !alumno_id) return;
         try {
-          let al = stmtCI.get(ci);
+          let al = alumno_id ? stmtByID.get(alumno_id) : null;
+          if (!al && ci && ci.length >= 5) al = stmtCI.get(ci);
 
           if (!al && carrera_id) {
             const nPart = normId((nombre||'').split(' ')[0]);
