@@ -1702,8 +1702,13 @@ async function doImp(inp){
     const r=await api('POST','/api/alumnos/importar',fd,true);
     const carr=r.carrera||'';
     const msg=`✓ ${r.ok} nuevos · ${r.actualizados||0} actualizados en <strong>${carr}</strong>`;
-    document.getElementById('ires').innerHTML=`<div class="ir ok">${msg}</div>${r.errores?.length?`<div class="ir err" style="margin-top:6px;font-size:12px">${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
-    if((r.ok+r.actualizados)>0)setTimeout(()=>{cm();go('alumnos');},2200);
+    const sinCiHtml=r.sinCedula?.length?`<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:12px">
+      <strong>⚠ ${r.sinCedula.length} alumno${r.sinCedula.length>1?'s':''} importado${r.sinCedula.length>1?'s':''} sin cédula:</strong><br>
+      <span style="color:#92400e">${r.sinCedula.join('<br>')}</span><br>
+      <span style="color:#b45309;margin-top:4px;display:block">Quedaron en estado <strong>Pendiente</strong>. Completá su cédula desde Alumnos.</span>
+    </div>`:'';
+    document.getElementById('ires').innerHTML=`<div class="ir ok">${msg}</div>${sinCiHtml}${r.errores?.length?`<div class="ir err" style="margin-top:6px;font-size:12px">${r.errores.slice(0,5).join('<br>')}</div>`:''}`;
+    if((r.ok+r.actualizados)>0)setTimeout(()=>{cm();go('alumnos');},r.sinCedula?.length?4000:2200);
   }catch(e){document.getElementById('ires').innerHTML=`<div class="ir err">${e.message}</div>`;}
 }
 function dPlant(){window.open('/api/alumnos/plantilla','_blank');}

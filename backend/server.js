@@ -550,14 +550,14 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
     const carr = db.prepare('SELECT id,codigo,nombre FROM carreras WHERE id=?').get(carrera_id);
     if (!carr) return res.status(400).json({ error: 'Carrera no encontrada' });
 
-    const results = { ok: 0, actualizados: 0, errores: [], carrera: carr.nombre, curso: curso_id || '' };
+    const results = { ok: 0, actualizados: 0, errores: [], sinCedula: [], carrera: carr.nombre, curso: curso_id || '' };
     const dataRows = rows.slice(headerRow + 1);
 
     db.transaction(() => {
       dataRows.forEach((row, idx) => {
         const ciRaw = String(row[ciCol] || '').trim().replace(/[^0-9]/g, '');
         let nombreCompleto = String(row[nameCol] || '').trim();
-        if (!nombreCompleto || !ciRaw || ciRaw.length < 5) return; // fila vacía o sin CI válida
+        if (!nombreCompleto) return; // fila vacía → saltar
 
         // Si es modo separado, construir nombre completo
         if (modoSeparado && apellidoCol >= 0) {
@@ -565,15 +565,32 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
           nombreCompleto = (ap ? ap + ' ' : '') + nombreCompleto;
         }
 
-        // Parsear nombre: último word = apellido o usar todo como nombre
+        // Parsear nombre
         const partes = nombreCompleto.split(/\s+/).filter(Boolean);
         let nombre = nombreCompleto, apellido = '';
         if (partes.length >= 3) {
-          // Convención: primeras dos palabras = nombre, resto = apellido (o según el Excel)
           nombre = partes.slice(0, Math.ceil(partes.length / 2)).join(' ');
           apellido = partes.slice(Math.ceil(partes.length / 2)).join(' ');
         } else if (partes.length === 2) {
           nombre = partes[0]; apellido = partes[1];
+        }
+
+        // Sin CI válida → importar igual pero sin usuario y marcar como Pendiente
+        if (!ciRaw || ciRaw.length < 5) {
+          try {
+            const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
+            const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Pendiente', null, nombre, apellido);
+            if (curso_id) {
+              const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo?.id||null);
+              asigs.forEach(asig => { try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {} });
+            }
+            results.sinCedula.push(`${apellido ? apellido+', '+nombre : nombre} (fila ${idx + 2})`);
+            results.ok++;
+          } catch(e) { results.errores.push(`Fila ${idx + 2} (sin CI): ${e.message}`); }
+          return;
         }
 
         try {
