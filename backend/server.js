@@ -106,6 +106,10 @@ setTimeout(async () => {
   } catch(e) { console.error('[EMAIL-BACKUP] ⚠️', e.message); }
 }, 10000); // 10s después del arranque
 
+// Backup a Google Drive (requiere GOOGLE_SERVICE_ACCOUNT_JSON y GOOGLE_DRIVE_FOLDER_ID en Railway)
+const { cloudBackupDrive } = require('./cloud-backup');
+setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
+
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
