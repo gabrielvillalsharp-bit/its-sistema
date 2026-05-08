@@ -3555,7 +3555,11 @@ app.get('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) =>
 
 app.delete('/api/examenes/:id/archivo', auth(['director','docente']), (req, res) => {
   try {
-    const ex = db.prepare('SELECT docente_id, archivo_nombre FROM examenes WHERE id=?').get(req.params.id);
+    const ex = db.prepare(`
+      SELECT e.archivo_nombre, a.docente_id
+      FROM examenes e
+      LEFT JOIN asignaciones a ON e.asignacion_id = a.id
+      WHERE e.id=?`).get(req.params.id);
     if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
     if (req.user.rol !== 'director' && ex.docente_id !== req.user.docenteId)
       return res.status(403).json({ error: 'Sin permiso para borrar este archivo' });
