@@ -4601,19 +4601,19 @@ async function pgPagos(el){
 
   <!-- FILTROS -->
   <div style="background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <input id="filtPagoBus" placeholder="🔍 Buscar nombre o CI..." oninput="renderKanban()" style="font-size:13px;border-radius:8px;width:190px"/>
-    <select id="filtPagoCarr" onchange="filtPagoCursos();renderKanban()" style="font-size:12px">
+    <input id="filtPagoBus" placeholder="🔍 Buscar nombre o CI..." oninput="renderTablaPagos()" style="font-size:13px;border-radius:8px;width:190px"/>
+    <select id="filtPagoCarr" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:12px">
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>
-    <select id="filtPagoAnio" onchange="filtPagoCursos();renderKanban()" style="font-size:12px">
+    <select id="filtPagoAnio" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:12px">
       <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
     </select>
-    <select id="filtPagoCurso" onchange="renderKanban()" style="font-size:12px">
+    <select id="filtPagoCurso" onchange="renderTablaPagos()" style="font-size:12px">
       <option value="">Todas las secciones</option>
       ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
-    <select id="filtKanbanCol" onchange="renderKanban()" style="font-size:12px">
+    <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:12px">
       <option value="">Todos los estados</option>
       <option value="aldia">✅ Al día</option>
       <option value="mora">⚠️ En mora</option>
@@ -4622,13 +4622,28 @@ async function pgPagos(el){
     <button class="bs" onclick="filtrarKanban('')" style="font-size:12px">✕ Limpiar</button>
   </div>
 
-  <!-- KANBAN -->
-  <div id="kanbanPagos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"></div>`;
+  <!-- TABLA -->
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:linear-gradient(90deg,#f0fdf4,#f8fafc);border-bottom:2px solid var(--bdr)">
+          <th style="padding:11px 16px;text-align:left;font-weight:700;color:#475569;font-size:12px">Alumno</th>
+          <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px">Carrera / Año</th>
+          <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Matrícula</th>
+          <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px;min-width:160px">Cuotas</th>
+          <th style="padding:11px 12px;text-align:right;font-weight:700;color:#475569;font-size:12px">Total Pagado</th>
+          <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Estado</th>
+          <th style="padding:11px 12px;width:36px"></th>
+        </tr>
+      </thead>
+      <tbody id="tablaPagosCuerpo"></tbody>
+    </table>
+  </div>`;
 
-  renderKanban();
+  renderTablaPagos();
 }
 
-function renderKanban(){
+function renderTablaPagos(){
   const bus=(v('filtPagoBus')||'').toLowerCase().trim();
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||''), cursoId=String(v('filtPagoCurso')||'');
   const colFil=v('filtKanbanCol')||'';
@@ -4643,15 +4658,16 @@ function renderKanban(){
   const cuotasEsp=Math.max(0,mes-1);
   const avCol=['#166534','#1D9E75','#D85A30','#7F77DD','#BA7517','#c0392b'];
 
-  const cols={sinmat:[],mora:[],aldia:[]};
-  als.forEach(a=>{
-    const k=kanban[a.id]||{};
-    if(!k.tiene_matricula) cols.sinmat.push(a);
-    else if((k.cuotas_pagadas||0)>=cuotasEsp) cols.aldia.push(a);
-    else cols.mora.push(a);
-  });
+  // Filtrar por estado
+  if(colFil==='aldia') als=als.filter(a=>{ const k=kanban[a.id]||{}; return k.tiene_matricula&&(k.cuotas_pagadas||0)>=cuotasEsp; });
+  else if(colFil==='mora') als=als.filter(a=>{ const k=kanban[a.id]||{}; return k.tiene_matricula&&(k.cuotas_pagadas||0)<cuotasEsp; });
+  else if(colFil==='sinmat') als=als.filter(a=>!(kanban[a.id]||{}).tiene_matricula);
 
-  function mkCard(a){
+  const tbody=document.getElementById('tablaPagosCuerpo');
+  if(!tbody)return;
+  if(!als.length){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos</td></tr>`; return; }
+
+  tbody.innerHTML=als.map((a,i)=>{
     const k=kanban[a.id]||{};
     const ini=((a.display_apellido||'').charAt(0)+(a.display_nombre||'').charAt(0)).toUpperCase();
     const col=avCol[(a.id||'').charCodeAt(4)%avCol.length]||'#166534';
@@ -4659,60 +4675,137 @@ function renderKanban(){
     const pct=Math.round((pagadas/12)*100);
     const barCol=pct>=80?'#22c55e':pct>=40?'#f59e0b':'#ef4444';
     const totalGs=Number(k.total_pagado||0);
-    return `<div onclick="abrirHistorialPago('${a.id}')"
-      style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,transform .15s"
-      onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-2px)'"
-      onmouseout="this.style.boxShadow='';this.style.transform=''">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,${col},${col}bb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0">${ini}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b">${a.display_apellido||''}, ${a.display_nombre||''}</div>
-          <div style="font-size:11px;color:#94a3b8">C.I. ${a.display_ci||'—'}</div>
+    const tieneMat=k.tiene_matricula;
+    const estado=!tieneMat?'sinmat':(pagadas>=cuotasEsp?'aldia':'mora');
+    const estadoBadge={
+      aldia:'<span style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">✅ Al día</span>',
+      mora: '<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">⚠️ En mora</span>',
+      sinmat:'<span style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">📋 Sin mat.</span>'
+    }[estado];
+    const rowBg=i%2===0?'#fff':'#fafafa';
+    return `<tr id="fila-${a.id}" style="background:${rowBg};border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+        onclick="toggleFilaPago('${a.id}')"
+        onmouseover="if(!document.getElementById('exp-${a.id}'))this.style.background='#f0fdf4'"
+        onmouseout="this.style.background='${rowBg}'">
+      <td style="padding:12px 16px;white-space:nowrap">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${col},${col}bb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${ini}</div>
+          <div>
+            <div style="font-weight:700;color:#1e293b">${a.display_apellido||''}, ${a.display_nombre||''}</div>
+            <div style="font-size:11px;color:#94a3b8">C.I. ${a.display_ci||'—'}</div>
+          </div>
         </div>
-      </div>
-      <div style="font-size:11px;font-weight:600;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:8px;display:inline-block;margin-bottom:10px">${a.carrera_nombre||''} ${a.curso_anio?'· '+a.curso_anio+'°':''}</div>
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:4px">
-          <span>Cuotas pagadas</span><span style="font-weight:700;color:#475569">${pagadas}/12</span>
+      </td>
+      <td style="padding:12px;color:#475569;font-size:12px">${a.carrera_nombre||'—'} ${a.curso_anio?'<br><span style="font-size:11px;color:#94a3b8">'+a.curso_anio+'° año</span>':''}</td>
+      <td style="padding:12px;text-align:center">${tieneMat?'<span style="font-size:16px">✅</span>':'<span style="font-size:16px">❌</span>'}</td>
+      <td style="padding:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden;min-width:80px">
+            <div style="background:${barCol};height:100%;width:${pct}%;border-radius:4px"></div>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:#475569;white-space:nowrap">${pagadas}/12</span>
         </div>
-        <div style="background:#e2e8f0;border-radius:6px;height:7px;overflow:hidden">
-          <div style="background:${barCol};height:100%;width:${pct}%;border-radius:6px"></div>
+      </td>
+      <td style="padding:12px;text-align:right;font-weight:800;color:#166534;white-space:nowrap">Gs. ${totalGs.toLocaleString()}</td>
+      <td style="padding:12px;text-align:center">${estadoBadge}</td>
+      <td style="padding:12px;text-align:center">
+        <span id="chev-${a.id}" style="display:inline-block;transition:transform .2s;color:#94a3b8;font-size:16px">▶</span>
+      </td>
+    </tr>
+    <tr id="exp-${a.id}" style="display:none">
+      <td colspan="7" style="padding:0;background:#f8fafc;border-bottom:2px solid var(--brd,#d1fae5)">
+        <div id="panelHistorialPago-${a.id}" style="padding:16px 20px">
+          <div style="text-align:center;padding:20px;color:#94a3b8">⏳ Cargando...</div>
         </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:800;color:#166534">Gs. ${totalGs.toLocaleString()}</span>
-        ${k.tiene_matricula
-          ?'<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:8px;font-weight:700">✓ Mat.</span>'
-          :'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:8px;font-weight:700">Sin mat.</span>'}
-      </div>
-    </div>`;
-  }
+      </td>
+    </tr>`;
+  }).join('');
+}
 
-  const colCfg=[
-    {key:'sinmat',title:'📋 Sin Matrícula',bg:'#f8fafc',bdr:'#cbd5e1',tc:'#475569'},
-    {key:'mora',  title:'⚠️ En Mora',      bg:'#fff5f5',bdr:'#fca5a5',tc:'#b91c1c'},
-    {key:'aldia', title:'✅ Al Día',        bg:'#f0fdf4',bdr:'#86efac',tc:'#166534'}
-  ];
-  const el=document.getElementById('kanbanPagos');
-  if(!el)return;
-  const vis=colFil?colCfg.filter(c=>c.key===colFil):colCfg;
-  el.style.gridTemplateColumns=vis.length===1?'1fr':vis.length===2?'repeat(2,1fr)':'repeat(3,1fr)';
-  el.innerHTML=vis.map(c=>`
-    <div style="background:${c.bg};border:1px solid ${c.bdr};border-radius:16px;padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <span style="font-weight:800;font-size:14px;color:${c.tc}">${c.title}</span>
-        <span style="background:#fff;border:1px solid ${c.bdr};color:${c.tc};font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px">${cols[c.key].length}</span>
+async function toggleFilaPago(alId){
+  const exp=document.getElementById('exp-'+alId);
+  const chev=document.getElementById('chev-'+alId);
+  if(!exp)return;
+  const abierto=exp.style.display!=='none';
+  // Cerrar cualquier fila abierta
+  document.querySelectorAll('[id^="exp-"]').forEach(r=>{ r.style.display='none'; });
+  document.querySelectorAll('[id^="chev-"]').forEach(c=>{ c.style.transform=''; });
+  if(abierto)return; // ya estaba abierto → solo cerrar
+  // Abrir esta fila
+  exp.style.display='table-row';
+  if(chev)chev.style.transform='rotate(90deg)';
+  // Cargar historial en el panel inline
+  const panel=document.getElementById('panelHistorialPago-'+alId);
+  if(panel&&panel.dataset.loaded){return;} // ya cargado
+  await cargarHistorialInline(alId);
+}
+
+async function cargarHistorialInline(alId){
+  const panel=document.getElementById('panelHistorialPago-'+alId);
+  if(!panel)return;
+  try{
+    const [rPagos,rHab]=await Promise.all([
+      api('GET','/api/pagos/alumno/'+alId),
+      api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true}))
+    ]);
+    const {pagos,totalPagado,alumno:al}=rPagos;
+    panel.dataset.loaded='1';
+    const lb=getCuotaLabels();
+    const cuotasGrid=['Matrícula',...Array.from({length:12},(_,i)=>i+1)].map(n=>{
+      const key=n==='Matrícula'?'Matrícula':'Cuota '+n;
+      const lbl=n==='Matrícula'?'Mat.':lb[n]||'C'+n;
+      const ok=(pagos||[]).some(p=>p.concepto===key);
+      const pago=ok?(pagos||[]).find(p=>p.concepto===key):null;
+      return `<div title="${key}${ok?' — Gs.'+Number(pago?.monto||0).toLocaleString():' — No pagado'}" style="border:2px solid ${ok?'#4ade80':'#e2e8f0'};border-radius:8px;background:${ok?'#f0fdf4':'#fff'};padding:6px 4px;text-align:center;min-width:50px">
+        <div style="font-size:14px">${ok?'✅':'○'}</div>
+        <div style="font-size:9px;font-weight:700;color:${ok?'#166534':'#94a3b8'}">${lbl}</div>
+      </div>`;
+    }).join('');
+    const histHtml=(pagos||[]).length?`<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px">
+      <thead><tr style="background:#f8fafc">
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Fecha</th>
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Concepto</th>
+        <th style="padding:6px 10px;text-align:right;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Monto</th>
+        <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Medio</th>
+        <th style="padding:6px 10px;width:70px;border-bottom:1px solid #e2e8f0"></th>
+      </tr></thead>
+      <tbody>${[...(pagos||[])].sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map((p,pi)=>`
+        <tr style="background:${pi%2?'#f8fafc':'#fff'}">
+          <td style="padding:6px 10px;color:#475569">${fmtFecha(p.fecha_pago)}</td>
+          <td style="padding:6px 10px;font-weight:600">${p.concepto}</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:800;color:#166534">Gs. ${Number(p.monto||0).toLocaleString()}</td>
+          <td style="padding:6px 10px;color:#64748b">${p.medio_pago||'Efectivo'}</td>
+          <td style="padding:6px 10px;display:flex;gap:4px">
+            <button onclick="event.stopPropagation();editarPago('${p.id}','${p.concepto}',${p.monto},'${p.fecha_pago}','${p.medio_pago||'Efectivo'}','${p.comprobante||''}','${alId}')" style="font-size:10px;padding:2px 6px;border:1px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:4px;cursor:pointer">✏</button>
+            <button onclick="event.stopPropagation();delPagoAlumno('${p.id}','${alId}')" style="font-size:10px;padding:2px 6px;border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:4px;cursor:pointer">✕</button>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>`:'<p style="color:#94a3b8;font-size:12px;text-align:center;padding:12px">Sin pagos registrados</p>';
+    panel.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-weight:700;font-size:14px;color:#1e293b">${(al||{}).display_apellido||''}, ${(al||{}).display_nombre||''}</span>
+          <span style="margin-left:10px;font-size:12px;color:#94a3b8">Tel: ${(al||{}).telefono||'—'}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${rHab.habilitado
+            ?'<span style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✓ Habilitado</span>'
+            :'<span style="background:#fce4ec;color:#b71c1c;border:1px solid #f48fb1;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔒 En mora</span>'}
+          <span style="font-size:13px;font-weight:800;color:#166534">Gs. ${Number(totalPagado||0).toLocaleString()}</span>
+          <button onclick="event.stopPropagation();mPagoDirecto('${alId}')" style="font-size:12px;padding:5px 12px;background:#1D9E75;color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600">+ Pago</button>
+        </div>
       </div>
-      <div style="max-height:62vh;overflow-y:auto;padding-right:2px">
-        ${cols[c.key].length?cols[c.key].map(mkCard).join(''):`<div style="text-align:center;padding:32px 0;color:${c.tc};font-size:13px;opacity:.5">Sin alumnos</div>`}
-      </div>
-    </div>`).join('');
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${cuotasGrid}</div>
+      ${histHtml}`;
+  }catch(e){
+    if(panel)panel.innerHTML=`<p style="color:#b91c1c;padding:12px;font-size:12px">Error: ${e.message}</p>`;
+  }
 }
 
 function filtrarKanban(estado){
   const s=document.getElementById('filtKanbanCol');
   if(s)s.value=estado;
-  renderKanban();
+  renderTablaPagos();
 }
 
 async function abrirHistorialPago(alId){
@@ -4722,13 +4815,15 @@ async function abrirHistorialPago(alId){
 
 async function refreshKanban(alId){
   try{ W._kanban=await api('GET','/api/pagos/resumen-kanban'); }catch{}
-  renderKanban();
-  if(alId) setTimeout(()=>abrirHistorialPago(alId),100);
+  // Invalidar cache del panel inline
+  if(alId){ const p=document.getElementById('panelHistorialPago-'+alId); if(p)delete p.dataset.loaded; }
+  renderTablaPagos();
+  if(alId) setTimeout(()=>toggleFilaPago(alId),120);
 }
 
 function volverListaPago(){ cm(); }
 
-function renderAlumnosPago(){ renderKanban(); }
+function renderAlumnosPago(){ renderTablaPagos(); }
 
 function filtPagoCursos(){
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||'');
