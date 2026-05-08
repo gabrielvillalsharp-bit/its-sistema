@@ -1,0 +1,6 @@
+data/
+.claude/
+*.md
+.git/
+node_modules/
+backend/node_modules/

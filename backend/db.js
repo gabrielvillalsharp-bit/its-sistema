@@ -50,29 +50,35 @@ function getBackupDir(dbPath) {
 }
 
 function autoRestoreIfEmpty(dbPath) {
-  // Solo actuar si el archivo ya existe (no es una DB nueva)
-  if (!fs.existsSync(dbPath)) return;
-  let alumnosCount = 0;
-  try {
-    const tmp = new Database(dbPath, { readonly: true });
-    try { alumnosCount = tmp.prepare("SELECT COUNT(*) as n FROM alumnos").get()?.n || 0; } catch {}
-    tmp.close();
-  } catch { return; }
-  if (alumnosCount > 0) return; // DB tiene datos → todo bien
+  // Si la DB existe, verificar si tiene datos
+  if (fs.existsSync(dbPath)) {
+    let alumnosCount = 0;
+    try {
+      const tmp = new Database(dbPath, { readonly: true });
+      try { alumnosCount = tmp.prepare("SELECT COUNT(*) as n FROM alumnos").get()?.n || 0; } catch {}
+      tmp.close();
+    } catch {}
+    if (alumnosCount > 0) return; // DB tiene datos → todo bien
+    console.log('[RESTORE] DB existe pero está vacía — buscando backup...');
+  } else {
+    console.log('[RESTORE] DB no encontrada — buscando backup...');
+  }
 
-  // DB vacía: buscar el backup más reciente
+  // DB vacía o inexistente: buscar backup
   const backupDir = getBackupDir(dbPath);
   const candidates = ['its_backup_1.db', 'its_backup_2.db', 'its_backup_3.db']
     .map(f => path.join(backupDir, f)).filter(f => fs.existsSync(f));
   if (candidates.length === 0) {
-    console.log('[RESTORE] DB vacía, sin backups disponibles');
+    console.log('[RESTORE] Sin backups disponibles — arrancando vacío');
     return;
   }
   try {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(candidates[0], dbPath);
-    console.log('[RESTORE] ✅ DB vacía detectada — restaurada desde:', candidates[0]);
+    console.log('[RESTORE] ✅ Restaurada desde backup:', candidates[0]);
   } catch(e) {
-    console.error('[RESTORE] ⚠️  No se pudo restaurar desde backup:', e.message);
+    console.error('[RESTORE] ⚠️  No se pudo restaurar:', e.message);
   }
 }
 
