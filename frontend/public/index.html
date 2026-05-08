@@ -522,7 +522,7 @@ function delPagoAlumno(pagoId, alId){
       try{
         await api('DELETE','/api/pagos/'+pagoId);
         toast('✓ Pago eliminado','ok');
-        if(alId) selAlumnoPago(alId);
+        if(alId) refreshKanban(alId);
       }catch(e){toast('Error al eliminar: '+e.message,'err');}
     }, null);
 }
@@ -563,7 +563,7 @@ async function guardarEditPago(pagoId, alId){
     await api('PUT','/api/pagos/'+pagoId,{concepto,monto:parseFloat(monto),fecha_pago:fecha,medio_pago:medio,comprobante:comprobante||null});
     cm();
     toast('✓ Pago actualizado','ok');
-    if(alId) selAlumnoPago(alId);
+    if(alId) refreshKanban(alId);
   }catch(e){ toast('Error: '+e.message,'err'); }
 }
 async function del(id,tipo){
@@ -4540,94 +4540,195 @@ async function verAsistMesGen(){
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 async function pgPagos(el){
-  const [als,pers,carrs,cursos,aranceles]=await Promise.all([
+  const [als,pers,carrs,cursos,aranceles,kanban]=await Promise.all([
     api('GET','/api/alumnos'),api('GET','/api/periodos'),
     api('GET','/api/carreras'),api('GET','/api/cursos'),
-    api('GET','/api/aranceles').catch(()=>[])
+    api('GET','/api/aranceles').catch(()=>[]),
+    api('GET','/api/pagos/resumen-kanban').catch(()=>({}))
   ]);
   W._pdata={als,pers,aranceles};
-  W._pagosCarrs=carrs; W._pagosCursos=cursos;
+  W._pagosCarrs=carrs; W._pagosCursos=cursos; W._kanban=kanban;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
 
-  el.innerHTML=`<div class="ph"><h3>Pagos y matrículas</h3>
+  // Calcular stats del dashboard
+  const mes=new Date().getMonth()+1; // 1=ene … 12=dic
+  const cuotasEsp=Math.max(0,mes-1); // cuotas esperadas desde feb
+  let totalRec=0,alDia=0,enMora=0,sinMat=0;
+  als.forEach(a=>{
+    const k=kanban[a.id]||{};
+    totalRec+=Number(k.total_pagado||0);
+    if(!k.tiene_matricula) sinMat++;
+    else if((k.cuotas_pagadas||0)>=cuotasEsp) alDia++;
+    else enMora++;
+  });
+
+  el.innerHTML=`
+  <div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
       <button class="bs" onclick="mCuotaLabels()" title="Configurar nombres de cuotas">⚙ Cuotas</button>
       <button class="bs i" onclick="mImportarPlanilla()">📊 Importar Planilla</button>
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
-    </div></div>
-
-  <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
-    <!-- Panel izquierdo: lista de alumnos -->
-    <div id="panelBusquedaPago" style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--bdr);background:linear-gradient(90deg,#f0fdf4,#fff)">
-        <div style="font-weight:700;font-size:14px;color:var(--txt);margin-bottom:10px">👥 Alumnos <span style="font-size:12px;font-weight:500;color:var(--t3)">(${als.length})</span></div>
-        <div style="display:flex;flex-direction:column;gap:7px">
-          <input id="filtPagoBus" placeholder="🔍 Buscar por CI o nombre..." oninput="renderAlumnosPago()" style="font-size:13px;border-radius:8px"/>
-          <select id="filtPagoCarr" onchange="filtPagoCursos();renderAlumnosPago()" style="font-size:12px">
-            <option value="">Todas las carreras</option>
-            ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-          </select>
-          <div style="display:flex;gap:6px">
-            <select id="filtPagoAnio" onchange="filtPagoCursos();renderAlumnosPago()" style="font-size:12px;flex:1">
-              <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
-            </select>
-            <select id="filtPagoCurso" onchange="renderAlumnosPago()" style="font-size:12px;flex:2">
-              <option value="">Todas las secciones</option>
-              ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-      </div>
-      <div id="listaAlumnosPago" style="max-height:75vh;overflow-y:auto;background:#fff"></div>
     </div>
-    <!-- Panel derecho: historial del alumno seleccionado -->
-    <div>
-      <div id="panelHistorialPago" style="border:1px solid var(--bdr);border-radius:14px;overflow:hidden;max-height:80vh;overflow-y:auto;background:#fafaf8;box-shadow:var(--shadow-sm)">
-        <div style="padding:32px;text-align:center;color:var(--t3)">
-          <div style="font-size:36px;margin-bottom:10px">👆</div>
-          <p style="font-size:13px">Seleccioná un alumno de la lista para ver su historial de pagos</p>
-        </div>
-      </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+    <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:16px;padding:18px 20px">
+      <div style="font-size:26px;margin-bottom:6px">💰</div>
+      <div style="font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Total Recaudado</div>
+      <div style="font-size:18px;font-weight:900;color:#14532d;margin-top:6px">Gs. ${totalRec.toLocaleString()}</div>
+      <div style="font-size:11px;color:#166534;margin-top:2px">${als.length} alumnos</div>
     </div>
-  </div>`;
+    <div onclick="filtrarKanban('aldia')" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:16px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+      <div style="font-size:26px;margin-bottom:6px">✅</div>
+      <div style="font-size:11px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Al Día</div>
+      <div style="font-size:36px;font-weight:900;color:#166534;margin-top:4px;line-height:1">${alDia}</div>
+      <div style="font-size:11px;color:#166534;margin-top:4px">Click para filtrar</div>
+    </div>
+    <div onclick="filtrarKanban('mora')" style="background:linear-gradient(135deg,#fff5f5,#fee2e2);border:1px solid #fca5a5;border-radius:16px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+      <div style="font-size:26px;margin-bottom:6px">⚠️</div>
+      <div style="font-size:11px;color:#b91c1c;font-weight:700;text-transform:uppercase;letter-spacing:.06em">En Mora</div>
+      <div style="font-size:36px;font-weight:900;color:#b91c1c;margin-top:4px;line-height:1">${enMora}</div>
+      <div style="font-size:11px;color:#b91c1c;margin-top:4px">Click para filtrar</div>
+    </div>
+    <div onclick="filtrarKanban('sinmat')" style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #cbd5e1;border-radius:16px;padding:18px 20px;cursor:pointer;transition:transform .15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+      <div style="font-size:26px;margin-bottom:6px">📋</div>
+      <div style="font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Sin Matrícula</div>
+      <div style="font-size:36px;font-weight:900;color:#475569;margin-top:4px;line-height:1">${sinMat}</div>
+      <div style="font-size:11px;color:#475569;margin-top:4px">Click para filtrar</div>
+    </div>
+  </div>
 
-  renderAlumnosPago();
-}
-function volverListaPago(){
-  document.querySelectorAll('.al-pago-item').forEach(el=>el.classList.remove('al-pago-sel'));
-  const panel=document.getElementById('panelHistorialPago');
-  if(panel) panel.innerHTML=`<div style="padding:32px;text-align:center;color:var(--t3)">
-    <div style="font-size:36px;margin-bottom:10px">👆</div>
-    <p style="font-size:13px">Seleccioná un alumno de la lista para ver su historial de pagos</p>
-  </div>`;
+  <!-- FILTROS -->
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input id="filtPagoBus" placeholder="🔍 Buscar nombre o CI..." oninput="renderKanban()" style="font-size:13px;border-radius:8px;width:190px"/>
+    <select id="filtPagoCarr" onchange="filtPagoCursos();renderKanban()" style="font-size:12px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtPagoAnio" onchange="filtPagoCursos();renderKanban()" style="font-size:12px">
+      <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
+    </select>
+    <select id="filtPagoCurso" onchange="renderKanban()" style="font-size:12px">
+      <option value="">Todas las secciones</option>
+      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+    </select>
+    <select id="filtKanbanCol" onchange="renderKanban()" style="font-size:12px">
+      <option value="">Todos los estados</option>
+      <option value="aldia">✅ Al día</option>
+      <option value="mora">⚠️ En mora</option>
+      <option value="sinmat">📋 Sin matrícula</option>
+    </select>
+    <button class="bs" onclick="filtrarKanban('')" style="font-size:12px">✕ Limpiar</button>
+  </div>
+
+  <!-- KANBAN -->
+  <div id="kanbanPagos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px"></div>`;
+
+  renderKanban();
 }
 
-function renderAlumnosPago(){
+function renderKanban(){
   const bus=(v('filtPagoBus')||'').toLowerCase().trim();
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||''), cursoId=String(v('filtPagoCurso')||'');
+  const colFil=v('filtKanbanCol')||'';
   let als=W._pdata?.als||[];
   if(bus) als=als.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').includes(bus));
   if(carrId) als=als.filter(a=>String(a.carrera_id||'')===carrId);
   if(anio)   als=als.filter(a=>String(a.curso_anio||'')===anio);
   if(cursoId)als=als.filter(a=>String(a.curso_id||'')===cursoId);
-  const el=document.getElementById('listaAlumnosPago');
-  if(!el)return;
-  if(!als.length){el.innerHTML='<div class="es" style="padding:16px">Sin alumnos</div>';return;}
-  const avatarColors=['#166534','#1D9E75','#D85A30','#7F77DD','#BA7517','#c0392b'];
-  el.innerHTML=als.map(a=>{
+
+  const kanban=W._kanban||{};
+  const mes=new Date().getMonth()+1;
+  const cuotasEsp=Math.max(0,mes-1);
+  const avCol=['#166534','#1D9E75','#D85A30','#7F77DD','#BA7517','#c0392b'];
+
+  const cols={sinmat:[],mora:[],aldia:[]};
+  als.forEach(a=>{
+    const k=kanban[a.id]||{};
+    if(!k.tiene_matricula) cols.sinmat.push(a);
+    else if((k.cuotas_pagadas||0)>=cuotasEsp) cols.aldia.push(a);
+    else cols.mora.push(a);
+  });
+
+  function mkCard(a){
+    const k=kanban[a.id]||{};
     const ini=((a.display_apellido||'').charAt(0)+(a.display_nombre||'').charAt(0)).toUpperCase();
-    const col=avatarColors[(a.id||'').charCodeAt(4)%avatarColors.length]||'#166534';
-    return `<div class="al-pago-item" id="alpi-${a.id}" onclick="selAlumnoPago('${a.id}')">
-      <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,${col},${col}cc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0;box-shadow:0 2px 6px ${col}55">${ini}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)">${a.display_apellido||''}, ${a.display_nombre||''}</div>
-        <div style="font-size:11px;color:var(--t3);margin-top:1px">C.I. ${a.display_ci||'—'}</div>
-        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#166534;display:inline-block;margin-top:4px">${a.carrera_nombre||''} ${a.curso_anio?'· '+a.curso_anio+'°':''}</span>
+    const col=avCol[(a.id||'').charCodeAt(4)%avCol.length]||'#166534';
+    const pagadas=Number(k.cuotas_pagadas||0);
+    const pct=Math.round((pagadas/12)*100);
+    const barCol=pct>=80?'#22c55e':pct>=40?'#f59e0b':'#ef4444';
+    const totalGs=Number(k.total_pagado||0);
+    return `<div onclick="abrirHistorialPago('${a.id}')"
+      style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s,transform .15s"
+      onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-2px)'"
+      onmouseout="this.style.boxShadow='';this.style.transform=''">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,${col},${col}bb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b">${a.display_apellido||''}, ${a.display_nombre||''}</div>
+          <div style="font-size:11px;color:#94a3b8">C.I. ${a.display_ci||'—'}</div>
+        </div>
       </div>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#c8d8cc" stroke-width="2" stroke-linecap="round"><polyline points="6,4 10,8 6,12"/></svg>
+      <div style="font-size:11px;font-weight:600;color:#166534;background:#f0fdf4;padding:3px 8px;border-radius:8px;display:inline-block;margin-bottom:10px">${a.carrera_nombre||''} ${a.curso_anio?'· '+a.curso_anio+'°':''}</div>
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:4px">
+          <span>Cuotas pagadas</span><span style="font-weight:700;color:#475569">${pagadas}/12</span>
+        </div>
+        <div style="background:#e2e8f0;border-radius:6px;height:7px;overflow:hidden">
+          <div style="background:${barCol};height:100%;width:${pct}%;border-radius:6px"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:800;color:#166534">Gs. ${totalGs.toLocaleString()}</span>
+        ${k.tiene_matricula
+          ?'<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:8px;font-weight:700">✓ Mat.</span>'
+          :'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:8px;font-weight:700">Sin mat.</span>'}
+      </div>
     </div>`;
-  }).join('');
+  }
+
+  const colCfg=[
+    {key:'sinmat',title:'📋 Sin Matrícula',bg:'#f8fafc',bdr:'#cbd5e1',tc:'#475569'},
+    {key:'mora',  title:'⚠️ En Mora',      bg:'#fff5f5',bdr:'#fca5a5',tc:'#b91c1c'},
+    {key:'aldia', title:'✅ Al Día',        bg:'#f0fdf4',bdr:'#86efac',tc:'#166534'}
+  ];
+  const el=document.getElementById('kanbanPagos');
+  if(!el)return;
+  const vis=colFil?colCfg.filter(c=>c.key===colFil):colCfg;
+  el.style.gridTemplateColumns=vis.length===1?'1fr':vis.length===2?'repeat(2,1fr)':'repeat(3,1fr)';
+  el.innerHTML=vis.map(c=>`
+    <div style="background:${c.bg};border:1px solid ${c.bdr};border-radius:16px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <span style="font-weight:800;font-size:14px;color:${c.tc}">${c.title}</span>
+        <span style="background:#fff;border:1px solid ${c.bdr};color:${c.tc};font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px">${cols[c.key].length}</span>
+      </div>
+      <div style="max-height:62vh;overflow-y:auto;padding-right:2px">
+        ${cols[c.key].length?cols[c.key].map(mkCard).join(''):`<div style="text-align:center;padding:32px 0;color:${c.tc};font-size:13px;opacity:.5">Sin alumnos</div>`}
+      </div>
+    </div>`).join('');
 }
+
+function filtrarKanban(estado){
+  const s=document.getElementById('filtKanbanCol');
+  if(s)s.value=estado;
+  renderKanban();
+}
+
+async function abrirHistorialPago(alId){
+  modal('<div id="panelHistorialPago" style="min-height:180px"><div style="text-align:center;padding:30px;color:#888">⏳ Cargando...</div></div>',true);
+  await selAlumnoPago(alId);
+}
+
+async function refreshKanban(alId){
+  try{ W._kanban=await api('GET','/api/pagos/resumen-kanban'); }catch{}
+  renderKanban();
+  if(alId) setTimeout(()=>abrirHistorialPago(alId),100);
+}
+
+function volverListaPago(){ cm(); }
+
+function renderAlumnosPago(){ renderKanban(); }
 
 function filtPagoCursos(){
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||'');

@@ -1532,6 +1532,23 @@ app.get('/api/pagos', auth(ADM), (req, res) => {
     LEFT JOIN cursos cu ON al.curso_id=cu.id
     ${where} ORDER BY p.fecha_pago DESC LIMIT 500`).all(...params));
 });
+// Resumen kanban: totales por alumno (matrícula, cuotas pagadas, total Gs.)
+app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
+  const filas = db.prepare(`
+    SELECT
+      al.id                                                                          AS alumno_id,
+      COALESCE(SUM(p.monto), 0)                                                     AS total_pagado,
+      MAX(CASE WHEN p.concepto LIKE 'Matrícula%' OR p.concepto='Matricula' THEN 1 ELSE 0 END) AS tiene_matricula,
+      COUNT(CASE WHEN p.concepto LIKE 'Cuota %' THEN 1 ELSE NULL END)              AS cuotas_pagadas,
+      COUNT(p.id)                                                                   AS total_pagos
+    FROM alumnos al
+    LEFT JOIN pagos p ON p.alumno_id = al.id
+    GROUP BY al.id
+  `).all();
+  const map = {};
+  filas.forEach(f => { map[f.alumno_id] = f; });
+  res.json(map);
+});
 // Perfil financiero de un alumno (consulta para rol alumno)
 app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.alumno_id);
