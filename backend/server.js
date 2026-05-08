@@ -2792,7 +2792,10 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
 
 // ── BACKUP DE BASE DE DATOS ───────────────────────────────────────────────────
 // ── BACKUP AUTOMÁTICO CADA 48 HORAS ──────────────────────────────────────────
-const BACKUP_DIR = path.join(__dirname, '../backups');
+// Guardar backups DENTRO del volumen Railway para que persistan entre deploys
+const BACKUP_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'backups')
+  : path.join(__dirname, '../backups');
 if (!fs.existsSync(BACKUP_DIR)) { try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {} }
 
 function hacerBackupAutomatico() {
