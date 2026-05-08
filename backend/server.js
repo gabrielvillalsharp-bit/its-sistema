@@ -83,9 +83,28 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
-// Backup a Google Drive — desactivado por ahora
-// const { cloudBackupDrive } = require('./cloud-backup');
-// setTimeout(() => cloudBackupDrive(DB_PATH), 8000);
+// ── BACKUP POR EMAIL AL ARRANCAR ──────────────────────────────────────────────
+// Si hay datos, manda el archivo .db como adjunto al email del director.
+// Así aunque el volumen de Railway falle, siempre hay copia en el email.
+setTimeout(async () => {
+  try {
+    const n = db.prepare('SELECT COUNT(*) as n FROM alumnos').get()?.n || 0;
+    if (n < 1) { console.log('[EMAIL-BACKUP] Sin alumnos, no se envía backup.'); return; }
+    const fs2 = require('fs');
+    if (!fs2.existsSync(DB_PATH)) return;
+    const stats = fs2.statSync(DB_PATH);
+    const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+    const fecha = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion' });
+    await mailTransporter.sendMail({
+      from: `"ITS Backup" <${MAIL_USER}>`,
+      to: MAIL_USER,
+      subject: `🔒 Backup BD — ITS Santísima Trinidad — ${fecha}`,
+      text: `Backup automático al iniciar el servidor.\nAlumnos: ${n}\nTamaño: ${sizeMB} MB\nFecha: ${fecha}\nRuta: ${DB_PATH}`,
+      attachments: [{ filename: `its_backup_${Date.now()}.db`, path: DB_PATH }]
+    });
+    console.log(`[EMAIL-BACKUP] ✅ Backup enviado por email — ${n} alumnos, ${sizeMB} MB`);
+  } catch(e) { console.error('[EMAIL-BACKUP] ⚠️', e.message); }
+}, 10000); // 10s después del arranque
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
