@@ -45,6 +45,7 @@ function htmlEmail(titulo, cuerpo, pie='') {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Railway usa proxy — necesario para rate-limit y IPs reales
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'its_secret_2026_cambiar_en_produccion';
 const upload = multer({ storage: multer.memoryStorage() });
