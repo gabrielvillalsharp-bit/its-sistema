@@ -529,32 +529,31 @@ function delPagoAlumno(pagoId, alId){
 
 function editarPago(pagoId, concepto, monto, fecha, medioPago, comprobante, alId){
   const conceptos=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Cuota 11','Cuota 12','Parcial Ordinario','Parcial Recuperatorio','Final Ordinario','Final Recuperatorio','Final Complementario','Final Extraordinario','Otro'];
-  modal(`<div class="mh"><h4>✏ Editar pago</h4><button class="mc" onclick="cm()">✕</button></div>
-  <div style="display:flex;flex-direction:column;gap:12px">
+  const medios=['Efectivo','Transferencia','Cheque','Tarjeta','Otro'];
+  modal(`<h4 style="margin-bottom:16px;font-size:16px;font-weight:700">✏ Editar pago</h4>
     <div class="f"><label>Concepto / Mes</label>
-      <select id="epConcepto" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px">
+      <select id="epConcepto">
         ${conceptos.map(c=>`<option value="${c}" ${c===concepto?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>
     <div class="f"><label>Monto (Gs.)</label>
-      <input id="epMonto" type="number" value="${monto}" min="0" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px"/>
+      <input id="epMonto" type="number" value="${monto}" min="0"/>
     </div>
     <div class="f"><label>Fecha de pago</label>
-      <input id="epFecha" type="date" value="${fecha}" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px"/>
+      <input id="epFecha" type="date" value="${fecha}"/>
     </div>
     <div class="f"><label>Medio de pago</label>
-      <select id="epMedio" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px">
-        ${['Efectivo','Transferencia','Cheque','Tarjeta','Otro'].map(m=>`<option ${m===medioPago?'selected':''}>${m}</option>`).join('')}
+      <select id="epMedio">
+        ${medios.map(m=>`<option ${m===medioPago?'selected':''}>${m}</option>`).join('')}
       </select>
     </div>
     <div class="f"><label>N° Comprobante (opcional)</label>
-      <input id="epComprobante" type="text" value="${comprobante||''}" placeholder="Número o referencia" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px"/>
+      <input id="epComprobante" type="text" value="${comprobante||''}" placeholder="Número o referencia"/>
     </div>
-  </div>
-  <div class="mf">
-    <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="guardarEditPago('${pagoId}','${alId}')">Guardar cambios</button>
-  </div>`);
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="guardarEditPago('${pagoId}','${alId}')">Guardar cambios</button>
+    </div>`);
 }
 
 async function guardarEditPago(pagoId, alId){
