@@ -377,24 +377,53 @@ function startApp(){
         }catch{}
       }
       const total=nuevos.length+examCount;
+
+      // ── 1. Botón flotante en la cima del sidebar ──────────────────────────
+      const navBtn=document.getElementById('nav-avisos-btn');
+      const navTxt=document.getElementById('nav-avisos-txt');
+      if(navBtn){
+        navBtn.style.display=total?'block':'none';
+        if(navTxt) navTxt.textContent=total===1?'1 aviso sin leer':`${total} avisos sin leer`;
+      }
+
+      // ── 2. Badge en el botón ni-avisos (dentro del grupo) ─────────────────
       const btn=document.getElementById('ni-avisos');
       if(btn){
         let badge=btn.querySelector('.notif-badge');
         if(!badge){
           badge=document.createElement('span');
           badge.className='notif-badge';
-          badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;border-radius:50%;min-width:20px;height:20px;padding:0 4px;margin-left:5px;box-shadow:0 2px 6px rgba(0,0,0,.3)';
+          badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;border-radius:50%;min-width:20px;height:20px;padding:0 4px;margin-left:auto;box-shadow:0 2px 6px rgba(0,0,0,.3)';
           btn.appendChild(badge);
         }
         badge.textContent=total||'';
         badge.style.display=total?'inline-flex':'none';
-        if(examCount>0){badge.style.background='#D85A30';badge.style.animation='pulse-bell .9s infinite';}
-        else if(total>0){badge.style.background='#e53935';badge.style.animation='pulse-bell .9s infinite';}
-        else badge.style.animation='none';
-        // Resaltar el ítem de navegación cuando hay pendientes
+        const col=examCount>0?'#D85A30':'#e53935';
+        badge.style.background=col;
+        badge.style.animation=total?'pulse-bell .9s infinite':'none';
         btn.style.fontWeight=total?'800':'';
-        btn.style.color=total?'var(--green)':'';
+        btn.style.color=total?'#166534':'';
       }
+
+      // ── 3. Badge en el encabezado del grupo que contiene "avisos" ─────────
+      const groups=window._navGroups||[];
+      const grpIdx=groups.findIndex(g=>g.i.some(i=>i.id==='avisos'));
+      if(grpIdx>=0){
+        const hdr=document.getElementById('ngh-'+grpIdx);
+        if(hdr){
+          let hBadge=hdr.querySelector('.notif-badge');
+          if(!hBadge){
+            hBadge=document.createElement('span');
+            hBadge.className='notif-badge';
+            hBadge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;border-radius:50%;min-width:17px;height:17px;padding:0 3px;margin-left:6px;box-shadow:0 1px 4px rgba(0,0,0,.25)';
+            hdr.querySelector('span')?.after(hBadge);
+          }
+          hBadge.textContent=total||'';
+          hBadge.style.display=total?'inline-flex':'none';
+          hBadge.style.background=examCount>0?'#D85A30':'#e53935';
+        }
+      }
+
       W._avisosPendientes=total;
       W._avisosSinLeer=nuevos.length;
     }catch{}
@@ -461,7 +490,12 @@ function buildNav(){
   const groups=navFor(me.rol);
   window._navGroups=groups;
   const chevron=`<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 6,8 10,4"/></svg>`;
-  document.getElementById('nav').innerHTML=groups.map((g,idx)=>`
+  document.getElementById('nav').innerHTML=`
+    <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#e53935,#ef5350);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;animation:fadeInQ .3s ease">
+      <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
+      <span id="nav-avisos-txt">Tenés avisos sin leer</span>
+    </button>`+
+  groups.map((g,idx)=>`
     <div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
         <span>${g.g}</span>${chevron}
@@ -649,6 +683,9 @@ async function pgDash(el){
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 async function pgAvisos(el){
+  // Ocultar botón flotante mientras el usuario está en la sección de avisos
+  const nb=document.getElementById('nav-avisos-btn');
+  if(nb) nb.style.display='none';
   const [avs, actividad] = await Promise.all([
     api('GET','/api/avisos'),
     me.rol==='director' ? api('GET','/api/actividad-reciente').catch(()=>[]) : Promise.resolve([])
