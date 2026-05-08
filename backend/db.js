@@ -811,6 +811,8 @@ function init() {
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
+  // Corrección: parciales pasan de 25 pts a 20 pts
+  try { db.prepare("UPDATE examenes SET puntos_max=20 WHERE tipo='Parcial' AND puntos_max=25").run(); } catch {}
   // Eliminar curso fantasma cosA_1u (Cosmiatría 1° año div='U') — Cosmiatría usa A y B
   try { db.prepare("DELETE FROM cursos WHERE id='cosA_1u' AND NOT EXISTS (SELECT 1 FROM alumnos WHERE curso_id='cosA_1u') AND NOT EXISTS (SELECT 1 FROM asignaciones WHERE curso_id='cosA_1u')").run(); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS repositorio (
@@ -1012,7 +1014,7 @@ function seedExamenesParciales() {
   const ins = (id,car,anio,mat,fecha,hora,sec) => {
     const a = sec ? qAs.get(car,anio,sec,mat) : qA.get(car,anio,mat);
     if(!a){ console.log('  ⚠ Sin asignación:',mat,'|',car,anio,(sec||'')); omitidos++; return; }
-    const r = qIn.run(id,a.id,'Parcial',fecha,hora,periodo.id,25);
+    const r = qIn.run(id,a.id,'Parcial',fecha,hora,periodo.id,20);
     if(r.changes>0) creados++; else omitidos++;
   };
 

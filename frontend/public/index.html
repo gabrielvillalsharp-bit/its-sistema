@@ -2244,10 +2244,8 @@ async function subirArchivoExamen(exId, input){
   try{
     toast('Subiendo archivo...','info',2000);
     await api('POST','/api/examenes/'+exId+'/archivo',fd,true);
-    toast('✓ Archivo adjuntado al examen: '+file.name,'ok',4000);
-    // Refrescar la sección actual para mostrar el archivo adjunto
-    if(document.getElementById('pgExamenes')){go('examenes');}
-    else{verExamen(exId);} // si estamos en el modal, reabrir
+    toast('✓ Archivo adjuntado: '+file.name,'ok',4000);
+    go('examenes'); // refrescar tabla para mostrar archivo adjunto
   }catch(e){toast('Error al subir: '+e.message,'err');}
 }
 async function descargarArchivoExamen(exId, nombre){
@@ -2911,7 +2909,7 @@ async function svExamen(id){
   const o={
     asignacion_id:v('exas'),tipo:v('exti'),fecha:v('exfe'),hora:v('exho'),
     aula:v('exau'),observacion:v('exob'),periodo_id:parseInt(v('expe'))||null,
-    puntos_max:parseInt(v('expmax'))||25,
+    puntos_max:parseInt(v('expmax'))||20,
     asignaciones_unif: unifs
   };
   if(!o.fecha)return alert('Ingresá la fecha del examen');

@@ -1372,7 +1372,8 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
 
   try {
     const id = 'ex_' + Date.now();
-    db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||25);
+    const ptsDefault = tipo==='Parcial'||tipo==='Recuperatorio' ? 20 : tipo==='Extraordinario' ? 100 : 50;
+    db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||ptsDefault);
 
     // Procesar unificaciones: crear el mismo examen para otras asignaciones
     const unif_creados = [];
