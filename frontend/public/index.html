@@ -530,7 +530,7 @@ function delPagoAlumno(pagoId, alId){
 function editarPago(pagoId, concepto, monto, fecha, medioPago, comprobante, alId){
   const conceptos=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Cuota 11','Cuota 12','Parcial Ordinario','Parcial Recuperatorio','Final Ordinario','Final Recuperatorio','Final Complementario','Final Extraordinario','Otro'];
   modal(`<div class="mh"><h4>✏ Editar pago</h4><button class="mc" onclick="cm()">✕</button></div>
-  <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+  <div style="display:flex;flex-direction:column;gap:12px">
     <div class="f"><label>Concepto / Mes</label>
       <select id="epConcepto" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px">
         ${conceptos.map(c=>`<option value="${c}" ${c===concepto?'selected':''}>${c}</option>`).join('')}
