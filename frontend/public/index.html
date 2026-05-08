@@ -76,6 +76,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .al-pago-item{padding:12px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .15s,border-left .12s;display:flex;align-items:center;gap:12px;border-left:3px solid transparent}
 .al-pago-item:hover{background:#f0faf4!important;border-left-color:#86efac}
 .al-pago-item.activo{background:#e8f5e9!important;border-left:3px solid var(--blue)}
+.al-pago-item.al-pago-sel{background:#e8f5e9!important;border-left:3px solid #1D9E75}
 /* ── CONTENT ───────────────────────────────── */
 .ct{flex:1;padding:22px;min-width:0;overflow-x:hidden}
 .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:8px;flex-wrap:wrap}
@@ -704,7 +705,7 @@ async function pgAvisos(el){
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
       ${esDirector&&avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
-      ${esDirector?`<button class="bs" onclick="editarPlantillasWA()" title="Editar mensajes automáticos de WhatsApp a docentes">📱 Mensajes WA</button>`:''}
+
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
@@ -802,48 +803,6 @@ async function svAvisoDirector(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 
-async function editarPlantillasWA(){
-  let tpls;
-  try{ tpls=await api('GET','/api/configuracion/wa-plantillas'); }
-  catch(e){ return toast('Error al cargar plantillas: '+e.message,'err'); }
-  const ayuda=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:11px;color:#166534;margin-bottom:14px">
-    <strong>Variables disponibles:</strong><br>
-    <code>{docente}</code> → Apellido Nombre del profesor &nbsp;·&nbsp;
-    <code>{materia}</code> → Nombre de la materia<br>
-    <code>{carrera}</code> → Nombre de la carrera &nbsp;·&nbsp;
-    <code>{curso}</code> → Año y sección (ej: 1° Sec.A)<br>
-    <code>{tipo}</code> → Tipo de examen (Parcial, Final…) &nbsp;·&nbsp;
-    <code>{fecha}</code> → Fecha completa &nbsp;·&nbsp;
-    <code>{hora}</code> → Hora del examen
-  </div>`;
-  modal(`<div class="mh"><h4>📱 Mensajes automáticos WhatsApp — Docentes</h4><button class="mc" onclick="cm()">✕</button></div>
-  <div class="mb" style="display:flex;flex-direction:column;gap:14px">
-    ${ayuda}
-    <div class="f"><label style="color:#d97706;font-weight:700">⏰ Mensaje 72 horas antes</label>
-      <textarea id="waTpl72" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_72h?.valor||''}</textarea>
-    </div>
-    <div class="f"><label style="color:#ea580c;font-weight:700">⏰ Mensaje 48 horas antes</label>
-      <textarea id="waTpl48" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_48h?.valor||''}</textarea>
-    </div>
-    <div class="f"><label style="color:#dc2626;font-weight:700">🔔 Mensaje 24 horas antes</label>
-      <textarea id="waTpl24" rows="5" style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-family:monospace;resize:vertical">${tpls.wa_tpl_24h?.valor||''}</textarea>
-    </div>
-  </div>
-  <div class="mf">
-    <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="guardarPlantillasWA()">💾 Guardar mensajes</button>
-  </div>`);
-}
-async function guardarPlantillasWA(){
-  const wa_tpl_72h=document.getElementById('waTpl72')?.value?.trim();
-  const wa_tpl_48h=document.getElementById('waTpl48')?.value?.trim();
-  const wa_tpl_24h=document.getElementById('waTpl24')?.value?.trim();
-  if(!wa_tpl_72h||!wa_tpl_48h||!wa_tpl_24h) return toast('Completá los tres mensajes','err');
-  try{
-    await api('PUT','/api/configuracion/wa-plantillas',{wa_tpl_72h,wa_tpl_48h,wa_tpl_24h});
-    cm(); toast('✅ Mensajes guardados correctamente','ok');
-  }catch(e){ toast('Error: '+e.message,'err'); }
-}
 function mAviso(){
   const esDirector=me.rol==='director';
   const esDocente=me.rol==='docente';
@@ -4593,7 +4552,7 @@ async function pgPagos(el){
       <button class="bn" onclick="mPago()">+ Registrar pago</button>
     </div></div>
 
-  <div style="display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start">
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
     <!-- Panel izquierdo: lista de alumnos -->
     <div id="panelBusquedaPago" style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--bdr);background:linear-gradient(90deg,#f0fdf4,#fff)">
@@ -4615,17 +4574,15 @@ async function pgPagos(el){
           </div>
         </div>
       </div>
-      <div id="listaAlumnosPago" style="max-height:72vh;overflow-y:auto;background:#fff"></div>
+      <div id="listaAlumnosPago" style="max-height:75vh;overflow-y:auto;background:#fff"></div>
     </div>
     <!-- Panel derecho: historial del alumno seleccionado -->
     <div>
-      <div id="btnVolverListaPago" style="display:none;margin-bottom:10px">
-        <button class="bs" onclick="volverListaPago()">← Volver a lista de alumnos</button>
-      </div>
-      <div id="panelHistorialPago">
-      <div style="border:1px solid var(--bdr);border-radius:8px;padding:24px;text-align:center;color:var(--t3);background:#fafaf8">
-        <div style="font-size:32px;margin-bottom:8px">👆</div>
-        <p style="font-size:13px">Seleccioná un alumno para ver su historial de pagos detallado</p>
+      <div id="panelHistorialPago" style="border:1px solid var(--bdr);border-radius:14px;overflow:hidden;max-height:80vh;overflow-y:auto;background:#fafaf8;box-shadow:var(--shadow-sm)">
+        <div style="padding:32px;text-align:center;color:var(--t3)">
+          <div style="font-size:36px;margin-bottom:10px">👆</div>
+          <p style="font-size:13px">Seleccioná un alumno de la lista para ver su historial de pagos</p>
+        </div>
       </div>
     </div>
   </div>`;
@@ -4633,26 +4590,22 @@ async function pgPagos(el){
   renderAlumnosPago();
 }
 function volverListaPago(){
-  const panelIzq=document.getElementById('panelBusquedaPago');
-  if(panelIzq) panelIzq.style.display='block';
-  const btnVolver=document.getElementById('btnVolverListaPago');
-  if(btnVolver) btnVolver.style.display='none';
+  document.querySelectorAll('.al-pago-item').forEach(el=>el.classList.remove('al-pago-sel'));
   const panel=document.getElementById('panelHistorialPago');
-  if(panel) panel.innerHTML=`<div style="border:1px solid var(--bdr);border-radius:8px;padding:24px;text-align:center;color:var(--t3);background:#fafaf8">
-    <div style="font-size:32px;margin-bottom:8px">👆</div>
-    <p style="font-size:13px">Seleccioná un alumno para ver su historial de pagos</p>
+  if(panel) panel.innerHTML=`<div style="padding:32px;text-align:center;color:var(--t3)">
+    <div style="font-size:36px;margin-bottom:10px">👆</div>
+    <p style="font-size:13px">Seleccioná un alumno de la lista para ver su historial de pagos</p>
   </div>`;
-  document.querySelectorAll('.al-pago-item').forEach(el=>el.style.background='');
 }
 
 function renderAlumnosPago(){
   const bus=(v('filtPagoBus')||'').toLowerCase().trim();
-  const carrId=v('filtPagoCarr'), anio=v('filtPagoAnio'), cursoId=v('filtPagoCurso');
+  const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||''), cursoId=String(v('filtPagoCurso')||'');
   let als=W._pdata?.als||[];
   if(bus) als=als.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').includes(bus));
-  if(carrId) als=als.filter(a=>a.carrera_id===carrId);
-  if(anio)   als=als.filter(a=>String(a.curso_anio||a.anio)===anio);
-  if(cursoId)als=als.filter(a=>a.curso_id===cursoId);
+  if(carrId) als=als.filter(a=>String(a.carrera_id||'')===carrId);
+  if(anio)   als=als.filter(a=>String(a.curso_anio||'')===anio);
+  if(cursoId)als=als.filter(a=>String(a.curso_id||'')===cursoId);
   const el=document.getElementById('listaAlumnosPago');
   if(!el)return;
   if(!als.length){el.innerHTML='<div class="es" style="padding:16px">Sin alumnos</div>';return;}
@@ -4673,30 +4626,24 @@ function renderAlumnosPago(){
 }
 
 function filtPagoCursos(){
-  const carrId=v('filtPagoCarr'), anio=v('filtPagoAnio');
+  const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||'');
   const sel=document.getElementById('filtPagoCurso');
   if(!sel)return;
   let cursos=W._pagosCursos||[];
-  if(carrId)cursos=cursos.filter(cu=>cu.carrera_id===carrId);
-  if(anio)cursos=cursos.filter(cu=>String(cu.anio)===anio);
+  if(carrId)cursos=cursos.filter(cu=>String(cu.carrera_id||'')===carrId);
+  if(anio)cursos=cursos.filter(cu=>String(cu.anio||'')===anio);
+  sel.value='';
   sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 
 async function selAlumnoPago(alId){
-  // Resaltar selección en la lista
-  document.querySelectorAll('.al-pago-item').forEach(el=>el.style.background='');
+  document.querySelectorAll('.al-pago-item').forEach(el=>el.classList.remove('al-pago-sel'));
   const selEl=document.getElementById('alpi-'+alId);
-  if(selEl)selEl.style.background='#e8f5e9';
+  if(selEl)selEl.classList.add('al-pago-sel');
 
-  // Cerrar overlay anterior si existe
-  document.getElementById('alPagoOverlay')?.remove();
-
-  // Crear overlay full-screen
-  const ov=document.createElement('div');
-  ov.id='alPagoOverlay';
-  ov.style.cssText='position:fixed;inset:0;background:#f4f6f8;z-index:9000;display:flex;flex-direction:column;overflow:hidden';
-  ov.innerHTML='<div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888">⏳ Cargando...</div>';
-  document.body.appendChild(ov);
+  const panel=document.getElementById('panelHistorialPago');
+  if(!panel)return;
+  panel.innerHTML='<div style="padding:40px;text-align:center;color:#888;font-size:14px">⏳ Cargando...</div>';
 
   try{
     const [rPagos,rHab,rBecas,rHabEspeciales]=await Promise.all([
@@ -4796,65 +4743,76 @@ async function selAlumnoPago(alId){
         </table>
       </div>`).join('')||'<p style="color:#94a3b8;font-size:13px;padding:16px 0;text-align:center">Sin pagos registrados</p>';
 
-    ov.innerHTML=`
-      <!-- HEADER -->
-      <div style="background:linear-gradient(135deg,#14532d,#1D9E75);color:#fff;padding:14px 24px;display:flex;align-items:flex-start;gap:20px;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.2)">
-        <button onclick="document.getElementById('alPagoOverlay').remove()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;flex-shrink:0;align-self:center">← Volver</button>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:20px;font-weight:800;line-height:1.2">${al.display_apellido||al.apellido||''}, ${al.display_nombre||al.nombre||''}</div>
-          <div style="font-size:11px;opacity:.8;margin-top:4px;display:flex;gap:16px;flex-wrap:wrap">
-            <span>📄 C.I. ${al.display_ci||al.ci||'—'}</span>
-            <span>🎓 ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'° '+((al.curso_division&&al.curso_division!=='U')?al.curso_division:''):''}</span>
-            <span>🪪 Mat. ${al.matricula||'—'}</span>
-            <span>📞 ${al.telefono||'—'}</span>
+    const totalPagos=(pagos||[]).length;
+    const totalPendientes=12-grupos.cuotas.pagos.length+(grupos.matricula.pagos.length===0?1:0);
+
+    panel.innerHTML=`
+      <!-- HEADER DEL ALUMNO -->
+      <div style="background:linear-gradient(135deg,#14532d,#1D9E75);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0">
+        <div style="font-size:16px;font-weight:800;line-height:1.2;margin-bottom:6px">${al.display_apellido||al.apellido||''}, ${al.display_nombre||al.nombre||''}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;opacity:.9;margin-bottom:10px">
+          <span>📄 C.I. ${al.display_ci||al.ci||'—'}</span>
+          <span>🎓 ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°'+((al.curso_division&&al.curso_division!=='U')?' '+al.curso_division:''):''}</span>
+          <span>🪪 Mat. ${al.matricula||'—'}</span>
+          <span>📞 ${al.telefono||'—'}</span>
+          ${al.email?`<span>✉ ${al.email}</span>`:''}
+          <span>📅 Ingreso: ${al.fecha_ingreso?fmtFecha(al.fecha_ingreso):'—'}</span>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;background:rgba(0,0,0,.15);border-radius:8px;padding:8px 12px;margin-bottom:10px">
+          <div style="text-align:center">
+            <div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">Total abonado</div>
+            <div style="font-size:18px;font-weight:900">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">Pagos registrados</div>
+            <div style="font-size:18px;font-weight:900">${totalPagos}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">Estado</div>
+            <div style="font-size:13px;font-weight:800;margin-top:2px">${rHab.habilitado?'✓ Habilitado':'⚠ En mora'}</div>
           </div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:10px;opacity:.65;text-transform:uppercase;letter-spacing:.05em">Total abonado</div>
-          <div style="font-size:26px;font-weight:900;line-height:1.1">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
-          <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap">
-            <button onclick="mPagoDirecto('${alId}')" style="background:#fff;color:#166534;border:none;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)">+ Registrar pago</button>
-            ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
-          </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="mPagoDirecto('${alId}')" style="background:#fff;color:#166534;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Registrar pago</button>
+          ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
         </div>
       </div>
 
-      <!-- SCROLLABLE BODY -->
-      <div style="flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:20px">
+      <!-- CUERPO SCROLLABLE -->
+      <div style="padding:14px;display:flex;flex-direction:column;gap:14px">
 
         <!-- Estado financiero -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <span style="font-size:12px;font-weight:700;color:#475569">Estado financiero:</span>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:700;color:#475569">Estado:</span>
           ${habBadge}
           ${rHab.cuotas_faltantes?.length&&!rHab.habilitado?`<span style="font-size:11px;color:#b71c1c;background:#fce4ec;padding:3px 10px;border-radius:10px">Faltan: <strong>${rHab.cuotas_faltantes.join(', ')}</strong></span>`:''}
-          ${becasActivas.length?`<span style="background:#dcfce7;border:1px solid #86efac;color:#166534;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
+          ${becasActivas.length?`<span style="background:#dcfce7;border:1px solid #86efac;color:#166534;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
         </div>
 
-        <!-- Estado de cuotas — TODAS las 12 + matrícula -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">💰 Estado de cuotas</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">${cuotasGrid}</div>
+        <!-- Estado de cuotas -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${cuotasGrid}</div>
         </div>
 
         <!-- Exámenes habilitados -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">🎓 Exámenes habilitados</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🎓 Exámenes habilitados</div>
           ${examHtml}
         </div>
 
         <!-- Historial de pagos -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">📋 Historial de pagos</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">📋 Historial de pagos</div>
           ${historialHtml}
         </div>
 
       </div>`;
 
   }catch(e){
-    ov.innerHTML=`<div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-      <div style="font-size:32px">⚠</div>
+    panel.innerHTML=`<div style="padding:40px;text-align:center">
+      <div style="font-size:32px;margin-bottom:10px">⚠</div>
       <p style="color:#b91c1c;font-size:13px">Error al cargar: ${e.message}</p>
-      <button onclick="document.getElementById('alPagoOverlay').remove()" style="padding:8px 20px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer">Volver</button>
     </div>`;
   }
 }

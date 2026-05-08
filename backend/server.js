@@ -28,43 +28,6 @@ async function sendMail(to, subject, html) {
     return true;
   } catch(e) { console.error('Email error:', e.message); return false; }
 }
-// ── WHATSAPP VÍA TWILIO ───────────────────────────────────────────────────────
-// Requiere en Railway:
-//   TWILIO_ACCOUNT_SID   — Account SID de Twilio
-//   TWILIO_AUTH_TOKEN    — Auth Token de Twilio
-//   TWILIO_WHATSAPP_FROM — Número Twilio con prefijo, ej: +14155238886
-// Para usar el Sandbox de Twilio: el alumno debe enviar primero
-//   "join <palabra-sandbox>" al número de Twilio desde su WhatsApp
-// ─────────────────────────────────────────────────────────────────────────────
-function formatTelPY(tel) {
-  if (!tel) return null;
-  const n = tel.replace(/\D/g, '');
-  if (n.startsWith('595') && n.length >= 11) return '+' + n;
-  if (n.startsWith('0') && n.length >= 9) return '+595' + n.slice(1);
-  if (n.length >= 9) return '+595' + n;
-  return null;
-}
-async function notificarWA(telefono, mensaje) {
-  const sid  = process.env.TWILIO_ACCOUNT_SID;
-  const token= process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  if (!sid || !token || !from) return; // No configurado — saltar
-  const numero = formatTelPY(telefono);
-  if (!numero) return;
-  let twilio;
-  try { twilio = require('twilio'); } catch { return; }
-  try {
-    const client = twilio(sid, token);
-    await client.messages.create({
-      from: `whatsapp:${from}`,
-      to:   `whatsapp:${numero}`,
-      body: mensaje
-    });
-    console.log(`[WHATSAPP] ✅ Mensaje enviado a ${numero}`);
-  } catch(e) {
-    console.error('[WHATSAPP] ⚠️ ', e.message);
-  }
-}
 function htmlEmail(titulo, cuerpo, pie='') {
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
     <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);padding:20px;text-align:center">
@@ -120,9 +83,9 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
-// Backup a Google Drive (solo si están configuradas las env vars)
-const { cloudBackupDrive } = require('./cloud-backup');
-setTimeout(() => cloudBackupDrive(DB_PATH), 8000); // 8s después del arranque para no bloquear
+// Backup a Google Drive — desactivado por ahora
+// const { cloudBackupDrive } = require('./cloud-backup');
+// setTimeout(() => cloudBackupDrive(DB_PATH), 8000);
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
@@ -1568,17 +1531,6 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
     db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
     audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto:montoPagado,medio_pago});
-    // WhatsApp al alumno si tiene teléfono registrado
-    try {
-      const alInfo = db.prepare(`SELECT COALESCE(al.telefono,'') as tel,
-        COALESCE(al.nombre,u.nombre,'') as nombre, COALESCE(al.apellido,u.apellido,'') as apellido
-        FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.id=?`).get(alumno_id);
-      if (alInfo?.tel) {
-        const inst = 'ITS Santísima Trinidad';
-        const msg = `✅ *${inst}*\nHola ${alInfo.nombre}, se registró tu pago:\n📌 *${concepto}* — Gs. ${Number(montoPagado).toLocaleString()}\n📅 ${fecha_pago}\nCualquier consulta comunicarse con secretaría.`;
-        notificarWA(alInfo.tel, msg).catch(()=>{});
-      }
-    } catch {}
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3033,13 +2985,7 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
 
-// ── HELPERS: Plantillas WA ────────────────────────────────────────────────────
-function getCfg(clave) {
-  try { return db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(clave)?.valor || ''; } catch { return ''; }
-}
-function aplicarPlantilla(tpl, vars) {
-  return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] || '');
-}
+// ── HELPERS: Variables de examen para emails ──────────────────────────────────
 function examenVars(ex) {
   const curso = `${ex.anio||''}°${ex.division && ex.division!=='U' ? ' Sec.'+ex.division : ''}`;
   return {
@@ -3054,19 +3000,19 @@ function examenVars(ex) {
   };
 }
 
-// ── CRON: Recordatorios WA 72h / 48h / 24h antes del examen ─────────────────
+// ── CRON: Recordatorios por email 72h / 48h / 24h antes del examen ───────────
 // Corre todos los días a las 8:00 AM. Usa tabla notif_wa_enviadas para no duplicar.
 cron.schedule('0 8 * * *', async () => {
   try {
     const hoy = new Date();
     const intervalos = [
-      { horas: 72, clave: 'wa_tpl_72h', label: '72h' },
-      { horas: 48, clave: 'wa_tpl_48h', label: '48h' },
-      { horas: 24, clave: 'wa_tpl_24h', label: '24h' },
+      { horas: 72, label: '72h' },
+      { horas: 48, label: '48h' },
+      { horas: 24, label: '24h' },
     ];
-    let totalWA = 0, totalEmail = 0;
+    let totalEmail = 0;
 
-    for (const { horas, clave, label } of intervalos) {
+    for (const { horas, label } of intervalos) {
       const target = new Date(hoy.getTime() + horas * 60 * 60 * 1000);
       const fechaTarget = target.toISOString().split('T')[0];
 
@@ -3075,7 +3021,7 @@ cron.schedule('0 8 * * *', async () => {
           m.nombre as materia, ca.nombre as carrera,
           cu.anio, cu.division,
           u.nombre as doc_nombre, u.apellido as doc_apellido,
-          u.email as doc_email, d.telefono as doc_tel
+          u.email as doc_email
         FROM examenes e
         LEFT JOIN asignaciones a ON e.asignacion_id=a.id
         LEFT JOIN materias m ON a.materia_id=m.id
@@ -3087,24 +3033,12 @@ cron.schedule('0 8 * * *', async () => {
           AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')`).all(fechaTarget);
 
       for (const ex of examenes) {
-        // Verificar si ya se envió esta notificación para este examen + intervalo
         const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
         if (yaEnviado) continue;
 
         const vars = examenVars(ex);
         let enviado = false;
 
-        // WhatsApp (preferencia) — solo si Twilio configurado y docente tiene teléfono
-        if (ex.doc_tel) {
-          const tpl = getCfg(clave);
-          if (tpl) {
-            const msg = aplicarPlantilla(tpl, vars);
-            await notificarWA(ex.doc_tel, msg).catch(() => {});
-            enviado = true; totalWA++;
-          }
-        }
-
-        // Email como respaldo si no hay WA o además
         if (ex.doc_email) {
           const html = htmlEmail(
             `📋 Recordatorio examen (${label}): ${ex.materia}`,
@@ -3124,31 +3058,12 @@ cron.schedule('0 8 * * *', async () => {
 
         if (enviado) {
           db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
-          audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_tel, email: ex.doc_email });
+          audit('sistema', 'NOTIFICACION_EMAIL', 'examenes', ex.id, { intervalo: label, email: ex.doc_email });
         }
       }
     }
-    console.log(`✓ Cron recordatorios: ${totalWA} WA + ${totalEmail} emails enviados`);
+    console.log(`✓ Cron recordatorios: ${totalEmail} emails enviados`);
   } catch(e) { console.error('Cron recordatorios error:', e.message); }
-});
-
-// ── API: Leer y editar plantillas de mensajes WA ──────────────────────────────
-app.get('/api/configuracion/wa-plantillas', auth(ADM), (req, res) => {
-  const claves = ['wa_tpl_72h', 'wa_tpl_48h', 'wa_tpl_24h'];
-  const result = {};
-  for (const c of claves) {
-    const row = db.prepare('SELECT valor, descripcion FROM configuracion WHERE clave=?').get(c);
-    result[c] = { valor: row?.valor || '', descripcion: row?.descripcion || '' };
-  }
-  res.json(result);
-});
-app.put('/api/configuracion/wa-plantillas', auth(ADM), (req, res) => {
-  const { wa_tpl_72h, wa_tpl_48h, wa_tpl_24h } = req.body;
-  if (wa_tpl_72h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_72h, 'wa_tpl_72h');
-  if (wa_tpl_48h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_48h, 'wa_tpl_48h');
-  if (wa_tpl_24h !== undefined) db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(wa_tpl_24h, 'wa_tpl_24h');
-  audit(req.user.id, 'EDIT', 'configuracion', 'wa_plantillas', {});
-  res.json({ ok: true });
 });
 
 // ── ENDPOINT: Enviar recordatorio manual ─────────────────────────────────────
