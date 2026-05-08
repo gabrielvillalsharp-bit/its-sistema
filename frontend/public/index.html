@@ -4559,34 +4559,34 @@ async function pgPagos(el){
     </div>
   </div>
 
-  <!-- PANEL DE FILTROS (dashboard) -->
-  <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
-    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="renderTablaPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
-      <select id="filtPagoCarr" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
-        <option value="">Todas las carreras</option>
-        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-      </select>
-      <select id="filtPagoAnio" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;min-width:90px">
-        <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
-      </select>
-      <select id="filtPagoCurso" onchange="renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
-        <option value="">Todas las secciones</option>
-        ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
-      </select>
-      <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:13px;min-width:140px">
-        <option value="">Todos los estados</option>
-        <option value="aldia">✅ Al día</option>
-        <option value="mora">⚠️ En mora</option>
-        <option value="sinmat">📋 Sin matrícula</option>
-      </select>
-      <button class="bs" onclick="filtrarKanban('')" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
-    </div>
-  </div>
+  <!-- VISTA LISTA -->
+  <div id="vistaListaPagos">
 
-  <!-- CONTENEDOR PRINCIPAL: tabla izq + panel detalle der -->
-  <div id="layoutPagos" style="display:grid;grid-template-columns:1fr;gap:16px;align-items:start;transition:grid-template-columns .25s">
+    <!-- PANEL DE FILTROS -->
+    <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
+      <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="renderTablaPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
+        <select id="filtPagoCarr" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
+          <option value="">Todas las carreras</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+        <select id="filtPagoAnio" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;min-width:90px">
+          <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
+        </select>
+        <select id="filtPagoCurso" onchange="renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
+          <option value="">Todas las secciones</option>
+          ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+        </select>
+        <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:13px;min-width:140px">
+          <option value="">Todos los estados</option>
+          <option value="aldia">✅ Al día</option>
+          <option value="mora">⚠️ En mora</option>
+          <option value="sinmat">📋 Sin matrícula</option>
+        </select>
+        <button class="bs" onclick="filtrarKanban('')" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
+      </div>
+    </div>
 
     <!-- TABLA -->
     <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
@@ -4605,11 +4605,14 @@ async function pgPagos(el){
       </table>
     </div>
 
-    <!-- PANEL DETALLE (oculto hasta que se seleccione un alumno) -->
-    <div id="panelDetallePago" style="display:none;background:#fff;border:1px solid var(--bdr);border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden;position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto">
-      <div id="panelHistorialPago"></div>
-    </div>
+  </div>
 
+  <!-- VISTA DETALLE PANTALLA COMPLETA (oculta hasta que se seleccione un alumno) -->
+  <div id="vistaDetallePago" style="display:none">
+    <div style="margin-bottom:12px">
+      <button onclick="cerrarDetallePago()" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;box-shadow:var(--shadow-sm)">← Volver a la lista</button>
+    </div>
+    <div id="panelHistorialPago" style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)"></div>
   </div>`;
 
   renderTablaPagos();
@@ -4685,31 +4688,24 @@ function renderTablaPagos(){
 }
 
 async function abrirDetallePago(alId){
-  // Marcar fila seleccionada
-  document.querySelectorAll('[id^="fila-"]').forEach(r=>r.style.background='');
-  const filaEl=document.getElementById('fila-'+alId);
-  if(filaEl) filaEl.style.background='#e8f5e9';
   W._pagoSel=alId;
-
-  // Abrir panel lateral si no está visible
-  const layout=document.getElementById('layoutPagos');
-  const panel=document.getElementById('panelDetallePago');
-  if(layout&&panel){
-    layout.style.gridTemplateColumns='minmax(0,420px) 1fr';
-    panel.style.display='block';
-  }
-
-  // Cargar detalle en el panel lateral (reutiliza selAlumnoPago)
+  // Cambiar a vista completa
+  const vLista=document.getElementById('vistaListaPagos');
+  const vDetalle=document.getElementById('vistaDetallePago');
+  if(vLista) vLista.style.display='none';
+  if(vDetalle) vDetalle.style.display='block';
+  // Scroll al tope
+  window.scrollTo({top:0,behavior:'smooth'});
+  // Cargar historial
   await selAlumnoPago(alId);
 }
 
 function cerrarDetallePago(){
-  const layout=document.getElementById('layoutPagos');
-  const panel=document.getElementById('panelDetallePago');
-  if(layout) layout.style.gridTemplateColumns='1fr';
-  if(panel) panel.style.display='none';
-  document.querySelectorAll('[id^="fila-"]').forEach(r=>r.style.background='');
   W._pagoSel=null;
+  const vLista=document.getElementById('vistaListaPagos');
+  const vDetalle=document.getElementById('vistaDetallePago');
+  if(vDetalle) vDetalle.style.display='none';
+  if(vLista) vLista.style.display='block';
 }
 
 function toggleFilaPago(alId){ abrirDetallePago(alId); }
@@ -4727,10 +4723,8 @@ async function abrirHistorialPago(alId){
 
 async function refreshKanban(alId){
   try{ W._kanban=await api('GET','/api/pagos/resumen-kanban'); }catch{}
-  // Invalidar cache del panel inline
-  if(alId){ const p=document.getElementById('panelHistorialPago-'+alId); if(p)delete p.dataset.loaded; }
   renderTablaPagos();
-  if(alId) setTimeout(()=>toggleFilaPago(alId),120);
+  if(alId) setTimeout(()=>abrirDetallePago(alId),120);
 }
 
 function volverListaPago(){ cm(); }
@@ -5234,8 +5228,10 @@ async function svPago(){
         const r=await api('POST','/api/pagos',pd);
         cm();
         const alId=pd.alumno_id;
-        // Recargar overlay o panel si estamos en la sección de pagos
-        if(alId&&(document.getElementById('alPagoOverlay')||document.getElementById('panelHistorialPago'))){
+        // Recargar vista de pagos
+        if(alId&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
+          refreshKanban(alId);
+        } else if(alId&&document.getElementById('alPagoOverlay')){
           selAlumnoPago(alId);
         } else {
           go('pagos');
