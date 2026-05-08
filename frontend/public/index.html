@@ -252,6 +252,9 @@ tr:hover td{background:#fafaf7}
   <div class="tr2">
     <span id="un" style="font-size:13px;color:var(--t2)"></span>
     <span id="rp" class="rp"></span>
+    <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
+      🔔 <span id="notif-bell-count">0</span>
+    </button>
     <button class="xb" onclick="logout()">Salir</button>
   </div>
 </div>
@@ -378,7 +381,16 @@ function startApp(){
       }
       const total=nuevos.length+examCount;
 
-      // ── 1. Botón flotante en la cima del sidebar ──────────────────────────
+      // ── 1. Botón de notificación en el header (siempre visible) ──────────
+      const bellBtn=document.getElementById('notif-bell-btn');
+      const bellCount=document.getElementById('notif-bell-count');
+      if(bellBtn){
+        bellBtn.style.display=total?'inline-block':'none';
+        if(bellCount) bellCount.textContent=total;
+        bellBtn.style.background=examCount>0?'#D85A30':'#e53935';
+        bellBtn.title=total===1?'1 aviso pendiente':`${total} avisos pendientes — clic para ver`;
+      }
+      // ── 1b. Botón en la cima del sidebar ──────────────────────────────────
       const navBtn=document.getElementById('nav-avisos-btn');
       const navTxt=document.getElementById('nav-avisos-txt');
       if(navBtn){
@@ -683,9 +695,11 @@ async function pgDash(el){
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 async function pgAvisos(el){
-  // Ocultar botón flotante mientras el usuario está en la sección de avisos
+  // Ocultar notificaciones mientras el usuario está en la sección de avisos
   const nb=document.getElementById('nav-avisos-btn');
   if(nb) nb.style.display='none';
+  const bb=document.getElementById('notif-bell-btn');
+  if(bb) bb.style.display='none';
   const [avs, actividad] = await Promise.all([
     api('GET','/api/avisos'),
     me.rol==='director' ? api('GET','/api/actividad-reciente').catch(()=>[]) : Promise.resolve([])
