@@ -1310,8 +1310,10 @@ async function pgDocentes(el){
   el.innerHTML=`<div class="ph"><h3>Docentes (${d.length})</h3>
     <div class="ph-right"><button class="bn" onclick="mDoc()">+ Nuevo docente</button></div></div>
   <div style="margin-bottom:12px"><input id="filtDocs" placeholder="🔍 Buscar por nombre, CI o especialidad..." oninput="renderDocentes()" style="max-width:380px"/></div>
-  <div id="tablaDocentes"><div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
-  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
+  <div id="tablaDocentes"><div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
+    <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
+    <td style="font-size:12px">${d2.email||'-'}</td>
     <td><span class="bx ba">${d2.titulo||'—'}</span></td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
     <td><div class="abs">
@@ -1329,8 +1331,10 @@ function renderDocentes(){
   }):W._docsAll||[];
   const el=document.getElementById('tablaDocentes');
   if(!el)return;
-  el.innerHTML=`<div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Email</th><th>Especialidad</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
-  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td><td style="font-size:12px">${d2.email||'-'}</td>
+  el.innerHTML=`<div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
+    <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
+    <td style="font-size:12px">${d2.email||'-'}</td>
     <td><span class="bx ba">${d2.titulo||'—'}</span></td>
     <td><span class="bx ${d2.activo?'bg':'br'}">${d2.activo?'Activo':'Inactivo'}</span></td>
     <td><div class="abs">
@@ -1338,7 +1342,7 @@ function renderDocentes(){
       <button class="bs s" onclick="mPass('${d2.id}')">Clave</button>
       <button class="bs o" onclick="verMateriasDocente('${d2.docente_id}','${d2.nombre} ${d2.apellido}')">Ver materias</button>
       <button class="bs d" onclick="del('${d2.id}','docentes')">Eliminar</button>
-    </div></td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin resultados</td></tr>'}
+    </div></td></tr>`).join('')||'<tr><td colspan="8" class="es">Sin resultados</td></tr>'}
   </tbody></table></div></div>`;
 }
 function mDoc(d){const e=!!d;modal(`<h4>${e?'Editar':'Nuevo'} docente</h4><div class="fg">
@@ -1955,6 +1959,7 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
+      ${esDir?`<button class="bs" style="background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7" onclick="verEstadoWA()">📱 Estado WhatsApp</button>`:''}
 
       ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
@@ -2044,7 +2049,7 @@ function exRow(e){
         ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
         ${btnAdjuntar}
         ${btnVer}
-        ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#dcfce7;color:#166534" onclick="enviarRecordatorio('${e.id}')" title="Enviar recordatorio">✉</button>`:''}
+        ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#dcfce7;color:#166534" onclick="waExamen('${e.id}')" title="Enviar recordatorio WhatsApp al docente">💬 WA</button>`:''}
         ${me.rol==='director'?`<button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>`:''}
       </div>
     </td>
@@ -2228,6 +2233,36 @@ function filtExAll(){
 }
 function filtEx(t,val){filtExAll();}
 
+async function waExamen(exId){
+  try{
+    toast('Enviando mensaje WhatsApp…','info',2500);
+    await api('POST','/api/examenes/'+exId+'/whatsapp');
+    toast('✅ Mensaje WhatsApp enviado al docente','ok',4000);
+  }catch(e){
+    if(e.message.includes('teléfono'))
+      toast('⚠️ El docente no tiene teléfono registrado. Editalo en la sección Docentes.','err',5000);
+    else
+      toast('Error: '+e.message,'err',5000);
+  }
+}
+async function verEstadoWA(){
+  try{
+    const s=await api('GET','/api/whatsapp/status');
+    const color=s.estado==='open'?'#2e7d32':s.estado==='connecting'?'#e65100':'#b71c1c';
+    const label=s.estado==='open'?'✅ Conectado':s.estado==='connecting'?'⏳ Conectando…':s.estado==='sin_variables'?'⚙️ Sin configurar':'❌ Desconectado';
+    if(!s.configurado||s.estado!=='open'){
+      const qr=await api('GET','/api/whatsapp/qr').catch(()=>null);
+      modal(`<h4>📱 WhatsApp — Estado: <span style="color:${color}">${label}</span></h4>
+        ${qr?.qr?`<p style="font-size:13px">Escaneá este QR con WhatsApp → Dispositivos vinculados → Vincular dispositivo:</p>
+          <div style="text-align:center;margin:12px 0"><img src="${qr.qr}" style="max-width:240px;border-radius:10px;border:2px solid #e2e8f0"/></div>
+          <p style="font-size:11px;color:#666">El QR expira en 45 segundos. Cerrá y volvé a abrir si expira.</p>`
+        :`<p style="font-size:13px;color:#666">${s.configurado?'No se pudo obtener QR. Verificar que Evolution API esté corriendo.':'Configurar variables EVOLUTION_API_URL y EVOLUTION_API_KEY en Railway.'}</p>`}
+        <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();setTimeout(verEstadoWA,300)">🔄 Actualizar</button></div>`,true);
+    } else {
+      toast(`WhatsApp ${label} — instancia: ${s.instancia}`,'ok',4000);
+    }
+  }catch(e){toast('Error al consultar WA: '+e.message,'err');}
+}
 async function borrarArchivoExamen(exId){
   if(!confirm('¿Eliminar el archivo adjunto de este examen? Esta acción no se puede deshacer.'))return;
   try{

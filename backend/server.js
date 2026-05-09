@@ -3017,7 +3017,7 @@ app.get('/api/asignaciones/:id/acta-tp', auth(['director','docente']), (req, res
   res.json({ asignacion: asig, alumnos, institucion: inst });
 });
 
-// ── HELPERS: Variables de examen para emails ──────────────────────────────────
+// ── HELPERS: Variables de examen ──────────────────────────────────────────────
 function examenVars(ex) {
   const curso = `${ex.anio||''}°${ex.division && ex.division!=='U' ? ' Sec.'+ex.division : ''}`;
   return {
@@ -3030,6 +3030,51 @@ function examenVars(ex) {
     hora:     ex.hora || 'A confirmar',
     aula:     ex.aula || 'A confirmar',
   };
+}
+
+// ── WHATSAPP — Evolution API ───────────────────────────────────────────────────
+// Variables de entorno en Railway:
+//   EVOLUTION_API_URL  → URL pública del servicio Evolution API (ej: https://evo.up.railway.app)
+//   EVOLUTION_API_KEY  → apikey configurada en Evolution API
+//   EVOLUTION_INSTANCE → nombre de la instancia (default: "its")
+function normalizarTelefono(tel) {
+  let t = String(tel || '').replace(/\D/g, '');   // solo dígitos
+  if (!t || t.length < 7) return null;
+  if (t.startsWith('0')) t = '595' + t.slice(1);  // 0981… → 595981…
+  if (!t.startsWith('595')) t = '595' + t;         // sin prefijo → agregar Paraguay
+  return t;
+}
+async function sendWhatsApp(phone, message) {
+  const url      = process.env.EVOLUTION_API_URL;
+  const key      = process.env.EVOLUTION_API_KEY;
+  const instance = process.env.EVOLUTION_INSTANCE || 'its';
+  if (!url || !key) { console.log('[WA] Variables no configuradas — saltando'); return false; }
+  const tel = normalizarTelefono(phone);
+  if (!tel) { console.log('[WA] Teléfono inválido:', phone); return false; }
+  try {
+    const resp = await fetch(`${url}/message/sendText/${instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': key },
+      body: JSON.stringify({ number: tel, textMessage: { text: message } })
+    });
+    if (resp.ok) { console.log(`[WA] ✅ Enviado a ${tel}`); return true; }
+    const err = await resp.json().catch(() => ({}));
+    console.error(`[WA] ⚠️ ${resp.status}:`, err.message || JSON.stringify(err));
+    return false;
+  } catch(e) { console.error('[WA] ⚠️', e.message); return false; }
+}
+function buildWaMsg(tplKey, vars) {
+  const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
+    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}';
+  return tpl
+    .replace(/\{docente\}/g, vars.docente)
+    .replace(/\{materia\}/g, vars.materia)
+    .replace(/\{tipo\}/g,    vars.tipo)
+    .replace(/\{carrera\}/g, vars.carrera)
+    .replace(/\{curso\}/g,   vars.curso)
+    .replace(/\{fecha\}/g,   vars.fecha)
+    .replace(/\{hora\}/g,    vars.hora)
+    .replace(/\{aula\}/g,    vars.aula);
 }
 
 // ── CRON: Recordatorios por email 72h / 48h / 24h antes del examen ───────────
@@ -3053,7 +3098,7 @@ cron.schedule('0 8 * * *', async () => {
           m.nombre as materia, ca.nombre as carrera,
           cu.anio, cu.division,
           u.nombre as doc_nombre, u.apellido as doc_apellido,
-          u.email as doc_email
+          d.telefono as doc_telefono
         FROM examenes e
         LEFT JOIN asignaciones a ON e.asignacion_id=a.id
         LEFT JOIN materias m ON a.materia_id=m.id
@@ -3067,18 +3112,94 @@ cron.schedule('0 8 * * *', async () => {
       for (const ex of examenes) {
         const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
         if (yaEnviado) continue;
+        if (!ex.doc_telefono) continue; // sin teléfono no se puede enviar
 
-        // TODO: aquí irá la integración de WhatsApp
-        // Por ahora solo registra en auditoría para no duplicar cuando se integre
-        db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
-        audit('sistema', 'NOTIFICACION_PENDIENTE', 'examenes', ex.id, { intervalo: label });
-        totalEmail++;
+        const vars = examenVars(ex);
+        const msg  = buildWaMsg(`wa_tpl_${label}`, vars);
+        const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+        if (ok) {
+          db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
+          audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_telefono });
+          totalEmail++;
+        }
       }
     }
-    console.log(`✓ Cron recordatorios: ${totalEmail} exámenes procesados (sin canal de envío aún)`);
+    console.log(`✓ Cron WA recordatorios: ${totalEmail} mensajes enviados`);
   } catch(e) { console.error('Cron recordatorios error:', e.message); }
 });
 
+
+// ── WHATSAPP: estado de conexión ──────────────────────────────────────────────
+app.get('/api/whatsapp/status', auth(ADM), async (req, res) => {
+  const url = process.env.EVOLUTION_API_URL;
+  const key = process.env.EVOLUTION_API_KEY;
+  const instance = process.env.EVOLUTION_INSTANCE || 'its';
+  if (!url || !key) return res.json({ configurado: false, estado: 'sin_variables' });
+  try {
+    const r = await fetch(`${url}/instance/connectionState/${instance}`, { headers: { apikey: key } });
+    const d = await r.json().catch(() => ({}));
+    res.json({ configurado: true, estado: d.instance?.state || d.state || 'unknown', instancia: instance });
+  } catch(e) { res.json({ configurado: true, estado: 'error', error: e.message }); }
+});
+
+// ── WHATSAPP: QR para conectar instancia ──────────────────────────────────────
+app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
+  const url = process.env.EVOLUTION_API_URL;
+  const key = process.env.EVOLUTION_API_KEY;
+  const instance = process.env.EVOLUTION_INSTANCE || 'its';
+  if (!url || !key) return res.status(400).json({ error: 'Evolution API no configurada' });
+  try {
+    // Crear instancia si no existe
+    await fetch(`${url}/instance/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: key },
+      body: JSON.stringify({ instanceName: instance, qrcode: true })
+    }).catch(() => {});
+    // Obtener QR
+    const r = await fetch(`${url}/instance/connect/${instance}`, { headers: { apikey: key } });
+    const d = await r.json().catch(() => ({}));
+    res.json({ qr: d.base64 || d.qrcode?.base64 || null, estado: d.instance?.state || 'pending' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WHATSAPP: envío manual para un examen ─────────────────────────────────────
+app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
+  const ex = db.prepare(`
+    SELECT e.id, e.tipo, e.fecha, e.hora, e.aula,
+      m.nombre as materia, ca.nombre as carrera,
+      cu.anio, cu.division,
+      u.nombre as doc_nombre, u.apellido as doc_apellido,
+      d.telefono as doc_telefono
+    FROM examenes e
+    LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+    LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id
+    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    WHERE e.id=?`).get(req.params.id);
+  if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
+  if (!ex.doc_telefono) return res.status(400).json({ error: 'El docente no tiene teléfono registrado' });
+  const vars = examenVars(ex);
+  const msg  = buildWaMsg('wa_tpl_24h', vars);
+  const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificar Evolution API.' });
+  audit(req.user.id, 'WHATSAPP_MANUAL', 'examenes', ex.id, { tel: ex.doc_telefono });
+  res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
+});
+
+// ── WHATSAPP: plantillas (ver / editar) ───────────────────────────────────────
+app.get('/api/whatsapp/plantillas', auth(ADM), (req, res) => {
+  const claves = ['wa_tpl_72h','wa_tpl_48h','wa_tpl_24h'];
+  const rows = claves.map(c => db.prepare('SELECT clave,valor,descripcion FROM configuracion WHERE clave=?').get(c)).filter(Boolean);
+  res.json(rows);
+});
+app.put('/api/whatsapp/plantillas/:clave', auth(ADM), (req, res) => {
+  const { valor } = req.body;
+  if (!valor) return res.status(400).json({ error: 'Falta el texto de la plantilla' });
+  db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(valor, req.params.clave);
+  res.json({ ok: true });
+});
 
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
 app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
