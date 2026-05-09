@@ -3386,26 +3386,37 @@ function abrirDetalleDia(fecha){
       ${lista.map(e=>{
         const prof=e.docente_nombre?`${e.docente_apellido||''} ${e.docente_nombre||''}`.trim():'Sin docente';
         const cursos=e._cursos?.join(', ')||e.carrera_nombre||'';
-        const tipoColor=e.tipo==='Extraordinario'?'#9c27b0':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#e53935':'#1565c0';
-        return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;border-left:4px solid ${tipoColor};background:#fff;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-          <div style="flex:1;min-width:180px">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-              <span style="background:${tipoColor};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${e.tipo||''}</span>
-              <strong style="font-size:14px;color:#1e293b">${e.materia_nombre||'—'}</strong>
+        const tc=e.tipo==='Extraordinario'?'#9c27b0':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#e53935':'#1565c0';
+        const puedeAdjuntar=esDir||(me.rol==='docente');
+        const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,20)+(e.archivo_nombre.length>20?'…':'')):'';
+        return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;border-left:4px solid ${tc};background:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+            <div style="flex:1;min-width:180px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span style="background:${tc};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${e.tipo||''}</span>
+                <strong style="font-size:14px;color:#1e293b">${e.materia_nombre||'—'}</strong>
+              </div>
+              <div style="font-size:12px;color:#475569;margin-bottom:3px">👤 <strong>${prof}</strong></div>
+              <div style="font-size:12px;color:#64748b">🎓 ${cursos}</div>
+              ${e.aula?`<div style="font-size:11px;color:#94a3b8;margin-top:2px">🏫 Aula ${e.aula}</div>`:''}
             </div>
-            <div style="font-size:12px;color:#475569;margin-bottom:3px">👤 <strong>${prof}</strong></div>
-            <div style="font-size:12px;color:#64748b">🎓 ${cursos}</div>
-            ${e.aula?`<div style="font-size:11px;color:#94a3b8;margin-top:2px">🏫 Aula ${e.aula}</div>`:''}
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:13px;font-weight:700;color:${tc}">${e.hora||'—'}</div>
+              <div style="font-size:11px;color:#94a3b8">${e.puntos_max||'—'} pts</div>
+            </div>
           </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:13px;font-weight:700;color:${tipoColor}">${e.hora||'—'}</div>
-            <div style="font-size:11px;color:#94a3b8">${e.puntos_max||'—'} pts</div>
-            ${e.archivo_nombre?`<div style="font-size:10px;color:#166534;margin-top:4px">📎 Arch. adjunto</div>`:''}
-          </div>
-          ${!me.rol==='alumno'?`<div style="display:flex;gap:4px;flex-wrap:wrap;width:100%">
-            ${esDir?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
-            ${e.archivo_nombre&&esDir?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')">⬇ Descargar</button>`:''}
-            ${e.archivo_nombre&&me.rol==='docente'?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')">📄 Ver</button>`:''}
+          ${me.rol!=='alumno'?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:8px;border-top:1px solid #f1f5f9">
+            ${esDir?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">📊 Notas</button>`:''}
+            ${e.archivo_nombre?`
+              <span style="font-size:11px;color:#166534;font-weight:600">📎 ${nombreCorto}</span>
+              <button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')">⬇ Descargar</button>
+              ${puedeAdjuntar?`<button class="bs d" style="font-size:11px" title="Eliminar archivo adjunto" onclick="borrarArchivoCalendario('${e.id}','${fecha}')">🗑 Eliminar</button>`:''}
+            `:`${puedeAdjuntar?`
+              <label class="bs" style="font-size:11px;cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100" title="Adjuntar examen Word o PDF">
+                📎 Adjuntar archivo
+                <input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoCalendario('${e.id}','${fecha}',this)"/>
+              </label>
+            `:''}`}
           </div>`:''}
         </div>`;
       }).join('')}
@@ -3427,6 +3438,30 @@ function abrirDetalleDia(fecha){
       </div>
     </div>`;
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function subirArchivoCalendario(exId,fecha,input){
+  const file=input.files[0]; if(!file)return;
+  const fd=new FormData(); fd.append('archivo',file);
+  try{
+    toast('Subiendo archivo…','');
+    const resp=await fetch(`${API}/api/examenes/${exId}/archivo`,{method:'POST',headers:{Authorization:'Bearer '+tk()},body:fd});
+    if(!resp.ok){const err=await resp.json().catch(()=>({}));throw new Error(err.error||resp.status);}
+    // Actualizar caché local para que el panel se refresque correctamente
+    const ex=(W._calExs||[]).find(e=>String(e.id)===String(exId));
+    if(ex) ex.archivo_nombre=file.name;
+    toast('✓ Archivo adjuntado: '+file.name,'ok',4000);
+    abrirDetalleDia(fecha);
+  }catch(e){toast('Error al subir: '+e.message,'err');}
+}
+async function borrarArchivoCalendario(exId,fecha){
+  if(!confirm('¿Eliminar el archivo adjunto de este examen? Esta acción no se puede deshacer.'))return;
+  try{
+    await api('DELETE','/api/examenes/'+exId+'/archivo');
+    const ex=(W._calExs||[]).find(e=>String(e.id)===String(exId));
+    if(ex){ex.archivo_nombre=null;}
+    toast('✓ Archivo eliminado','ok');
+    abrirDetalleDia(fecha);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function verListaFeriados(){
   const feriados=await api('GET','/api/feriados').catch(()=>[]);
