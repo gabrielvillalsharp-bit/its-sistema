@@ -3441,12 +3441,12 @@ function abrirDetalleDia(fecha){
 }
 async function subirArchivoCalendario(exId,fecha,input){
   const file=input.files[0]; if(!file)return;
+  input.value='';
   const fd=new FormData(); fd.append('archivo',file);
   try{
-    toast('Subiendo archivo…','');
-    const resp=await fetch(`${API}/api/examenes/${exId}/archivo`,{method:'POST',headers:{Authorization:'Bearer '+tk()},body:fd});
-    if(!resp.ok){const err=await resp.json().catch(()=>({}));throw new Error(err.error||resp.status);}
-    // Actualizar caché local para que el panel se refresque correctamente
+    toast('Subiendo archivo...','info',2000);
+    await api('POST','/api/examenes/'+exId+'/archivo',fd,true);
+    // Actualizar caché local para refrescar el panel sin recargar el mes
     const ex=(W._calExs||[]).find(e=>String(e.id)===String(exId));
     if(ex) ex.archivo_nombre=file.name;
     toast('✓ Archivo adjuntado: '+file.name,'ok',4000);
