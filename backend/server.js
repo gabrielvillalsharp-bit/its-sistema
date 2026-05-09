@@ -8,41 +8,9 @@ const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
-const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 
-// ── EMAIL CONFIG ──────────────────────────────────────────────────────────────
-const MAIL_USER = process.env.MAIL_USER || 'institutosantisimatrinidadpjc@gmail.com';
-const MAIL_PASS = process.env.MAIL_PASS || 'gestionsantisimatrinidad';
-const mailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: MAIL_USER, pass: MAIL_PASS }
-});
-async function sendMail(to, subject, html) {
-  if (!to || !to.includes('@')) return false;
-  try {
-    await mailTransporter.sendMail({
-      from: `"ITS Santísima Trinidad" <${MAIL_USER}>`, to, subject, html
-    });
-    return true;
-  } catch(e) { console.error('Email error:', e.message); return false; }
-}
-function htmlEmail(titulo, cuerpo, pie='') {
-  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-    <div style="background:linear-gradient(135deg,#185FA5,#1D9E75);padding:20px;text-align:center">
-      <h2 style="color:#fff;margin:0">Instituto Técnico Superior</h2>
-      <p style="color:#e0f0ff;margin:4px 0;font-size:13px">Santísima Trinidad</p>
-    </div>
-    <div style="padding:24px;background:#fff;border:1px solid #e0e0e0">
-      <h3 style="color:#1a2a4a">${titulo}</h3>
-      ${cuerpo}
-    </div>
-    <div style="padding:12px;background:#f5f5f5;text-align:center;font-size:11px;color:#888">
-      ${pie||'Sistema de Gestión Académica ITS — No responder este correo'}
-    </div>
-  </div>`;
-}
 
 const app = express();
 app.set('trust proxy', 1); // Railway usa proxy — necesario para rate-limit y IPs reales
@@ -84,28 +52,6 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
-// ── BACKUP POR EMAIL AL ARRANCAR ──────────────────────────────────────────────
-// Si hay datos, manda el archivo .db como adjunto al email del director.
-// Así aunque el volumen de Railway falle, siempre hay copia en el email.
-setTimeout(async () => {
-  try {
-    const n = db.prepare('SELECT COUNT(*) as n FROM alumnos').get()?.n || 0;
-    if (n < 1) { console.log('[EMAIL-BACKUP] Sin alumnos, no se envía backup.'); return; }
-    const fs2 = require('fs');
-    if (!fs2.existsSync(DB_PATH)) return;
-    const stats = fs2.statSync(DB_PATH);
-    const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-    const fecha = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion' });
-    await mailTransporter.sendMail({
-      from: `"ITS Backup" <${MAIL_USER}>`,
-      to: MAIL_USER,
-      subject: `🔒 Backup BD — ITS Santísima Trinidad — ${fecha}`,
-      text: `Backup automático al iniciar el servidor.\nAlumnos: ${n}\nTamaño: ${sizeMB} MB\nFecha: ${fecha}\nRuta: ${DB_PATH}`,
-      attachments: [{ filename: `its_backup_${Date.now()}.db`, path: DB_PATH }]
-    });
-    console.log(`[EMAIL-BACKUP] ✅ Backup enviado por email — ${n} alumnos, ${sizeMB} MB`);
-  } catch(e) { console.error('[EMAIL-BACKUP] ⚠️', e.message); }
-}, 10000); // 10s después del arranque
 
 // Backup a Google Drive (requiere GOOGLE_SERVICE_ACCOUNT_JSON y GOOGLE_DRIVE_FOLDER_ID en Railway)
 const { cloudBackupDrive } = require('./cloud-backup');
@@ -3122,66 +3068,17 @@ cron.schedule('0 8 * * *', async () => {
         const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
         if (yaEnviado) continue;
 
-        const vars = examenVars(ex);
-        let enviado = false;
-
-        if (ex.doc_email) {
-          const html = htmlEmail(
-            `📋 Recordatorio examen (${label}): ${ex.materia}`,
-            `<p>Estimado/a <strong>${vars.docente}</strong>,</p>
-            <p>Recordatorio: tiene un examen en <strong>${label}</strong>:</p>
-            <table style="width:100%;border-collapse:collapse;font-size:13px">
-              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.materia}</td></tr>
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.tipo}</td></tr>
-              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Carrera / Curso</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.carrera} ${vars.curso}</td></tr>
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Fecha</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.fecha}</td></tr>
-              <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${vars.hora}</td></tr>
-            </table>`
-          );
-          await sendMail(ex.doc_email, `📋 Recordatorio examen (${label}): ${ex.materia} — ${ex.fecha}`, html).catch(() => {});
-          enviado = true; totalEmail++;
-        }
-
-        if (enviado) {
-          db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
-          audit('sistema', 'NOTIFICACION_EMAIL', 'examenes', ex.id, { intervalo: label, email: ex.doc_email });
-        }
+        // TODO: aquí irá la integración de WhatsApp
+        // Por ahora solo registra en auditoría para no duplicar cuando se integre
+        db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
+        audit('sistema', 'NOTIFICACION_PENDIENTE', 'examenes', ex.id, { intervalo: label });
+        totalEmail++;
       }
     }
-    console.log(`✓ Cron recordatorios: ${totalEmail} emails enviados`);
+    console.log(`✓ Cron recordatorios: ${totalEmail} exámenes procesados (sin canal de envío aún)`);
   } catch(e) { console.error('Cron recordatorios error:', e.message); }
 });
 
-// ── ENDPOINT: Enviar recordatorio manual ─────────────────────────────────────
-app.post('/api/examenes/:id/recordatorio', auth(ADM), async (req, res) => {
-  const ex = db.prepare(`
-    SELECT e.*, m.nombre as materia, ca.nombre as carrera, cu.anio,
-      u.nombre as doc_nombre, u.apellido as doc_apellido, u.email as doc_email
-    FROM examenes e
-    LEFT JOIN asignaciones a ON e.asignacion_id=a.id
-    LEFT JOIN materias m ON a.materia_id=m.id
-    LEFT JOIN cursos cu ON a.curso_id=cu.id
-    LEFT JOIN carreras ca ON cu.carrera_id=ca.id
-    LEFT JOIN docentes d ON a.docente_id=d.id
-    LEFT JOIN usuarios u ON d.usuario_id=u.id
-    WHERE e.id=?`).get(req.params.id);
-  if (!ex) return res.status(404).json({ error: 'Examen no encontrado' });
-  if (!ex.doc_email) return res.status(400).json({ error: 'El docente no tiene email registrado' });
-  const html = htmlEmail(
-    `📋 Recordatorio de examen — ${ex.fecha}`,
-    `<p>Estimado/a <strong>${ex.doc_nombre} ${ex.doc_apellido}</strong>,</p>
-    <p>El Director le envía este recordatorio sobre el examen programado:</p>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Materia</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.materia}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd"><strong>Tipo</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.tipo}</td></tr>
-      <tr style="background:#f0f4f8"><td style="padding:8px;border:1px solid #ddd"><strong>Fecha</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.fecha}</td></tr>
-      <tr><td style="padding:8px;border:1px solid #ddd"><strong>Hora</strong></td><td style="padding:8px;border:1px solid #ddd">${ex.hora||'A confirmar'}</td></tr>
-    </table>`
-  );
-  const ok = await sendMail(ex.doc_email, `📋 Recordatorio: ${ex.materia} — ${ex.fecha}`, html);
-  if (ok) { audit(req.user.id,'NOTIFICACION_EMAIL','examenes',ex.id,{manual:true}); res.json({ ok: true }); }
-  else res.status(500).json({ error: 'No se pudo enviar el email. Verificar configuración.' });
-});
 
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
 app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
