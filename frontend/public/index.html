@@ -3220,71 +3220,210 @@ async function renderCalendario(el){
   const ferSet=new Set(feriados.map(f=>f.fecha));
   const ferMap=Object.fromEntries(feriados.map(f=>[f.fecha,f]));
   const porFecha={};
-  // Agrupar exámenes unificados: misma materia+tipo+hora+fecha → un solo item con múltiples cursos
+
+  // Agrupar exámenes: misma materia+tipo+hora+fecha+docente → un solo item con múltiples cursos
   const exsAgrupados=[];
   const exGrpMap={};
   exs.forEach(e=>{
-    const key=`${e.fecha}|${e.materia_nombre}|${e.tipo}|${e.hora||''}`;
+    const key=`${e.fecha}|${e.materia_nombre}|${e.tipo}|${e.hora||''}|${e.docente_nombre||''}`;
+    const cursoLabel=`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
     if(exGrpMap[key]){
-      const g=exGrpMap[key];
-      const cursoLabel=`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
-      if(!g._cursos.includes(cursoLabel))g._cursos.push(cursoLabel);
+      if(!exGrpMap[key]._cursos.includes(cursoLabel))exGrpMap[key]._cursos.push(cursoLabel);
     } else {
-      const cursoLabel=`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
       const grp={...e,_tipo:'examen',_cursos:[cursoLabel]};
-      exGrpMap[key]=grp;
-      exsAgrupados.push(grp);
+      exGrpMap[key]=grp; exsAgrupados.push(grp);
     }
   });
   exsAgrupados.forEach(e=>{if(!porFecha[e.fecha])porFecha[e.fecha]=[];porFecha[e.fecha].push(e);});
   (acts||[]).forEach(a=>{if(!porFecha[a.fecha])porFecha[a.fecha]=[];porFecha[a.fecha].push({...a,_tipo:'actividad'});});
+  W._calExs=exsAgrupados; W._calActs=acts||[];
+
+  // Colores y helpers
+  const tipoColor=t=>t==='Extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
+  const turnoLabel=e=>e.asig_turno===2?{lbl:'T2 · 20:40',col:'#4a148c'}:{lbl:'T1 · 19:00',col:'#0d47a1'};
+  const esAlumno=me.rol==='alumno';
+  const esDir=me.rol==='director';
+
+  // Chip de examen dentro del calendario
+  function chipExamen(e){
+    const tc=tipoColor(e.tipo);
+    const prof=e.docente_nombre?`${e.docente_apellido||''} ${e.docente_nombre||''}`.trim():'';
+    const cursos=e._cursos?.join(' · ')||e.carrera_nombre||'';
+    const tipoCorto=e.tipo==='Recuperatorio'?'Recup.':e.tipo==='Extraordinario'?'Extra.':e.tipo==='Complementario'?'Compl.':(e.tipo||'');
+    return `<div style="background:${tc.bg};border-radius:6px;padding:4px 6px;margin-bottom:3px;font-size:10px;border-left:3px solid ${tc.bdr};cursor:${esAlumno?'default':'pointer'}"
+      ${!esAlumno?`onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''} — ${prof}"`:''}>
+      <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+        <span style="background:${tc.bdr};color:#fff;border-radius:3px;padding:0 3px;font-size:8px;font-weight:800;flex-shrink:0">${tipoCorto}</span>
+        <strong style="color:${tc.txt};font-size:10px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${e.materia_nombre||'—'}</strong>
+      </div>
+      ${prof?`<div style="color:#555;font-size:9px;font-weight:600">👤 ${prof}</div>`:''}
+      <div style="color:#777;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cursos}</div>
+    </div>`;
+  }
+
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const hoyStr=new Date().toISOString().split('T')[0];
   const primerDia=new Date(anio,mes,1).getDay();
   const totalDias=ultimo.getDate();
   let celdas='';
+
   for(let i=0;i<primerDia;i++)celdas+=`<div></div>`;
   for(let d=1;d<=totalDias;d++){
     const fs=`${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const esHoy=fs===hoyStr;
     const esFeriado=ferSet.has(fs);
-    const evs=porFecha[fs]||[];
-    celdas+=`<div style="border:1px solid var(--bdr);border-radius:8px;padding:6px 8px;min-height:70px;background:${esFeriado?'#fff3e0':esHoy?'#dcfce7':'#fff'};${esHoy?'border-color:#166534;':''}">
-      <div style="font-weight:${esHoy?'900':'600'};font-size:13px;color:${esFeriado?'#e65100':esHoy?'#166534':'var(--txt)'};margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
-        <span>${d}</span>
-        ${esFeriado?`<span style="font-size:9px;background:#fff3e0;color:#e65100;padding:1px 5px;border-radius:8px;border:1px solid #ffcc02" title="${ferMap[fs]?.nombre}">🏖 Feriado</span>`:''}
+    const evs=(porFecha[fs]||[]);
+    const examenes=evs.filter(e=>e._tipo==='examen');
+    const actividades=evs.filter(e=>e._tipo==='actividad');
+
+    // Separar por turno
+    const t1=examenes.filter(e=>e.asig_turno!==2&&!(e.hora&&e.hora>='20'));
+    const t2=examenes.filter(e=>e.asig_turno===2||(e.hora&&e.hora>='20'));
+
+    // Ordenar cada turno por tipo (Parcial→Final→Extra) y luego por materia
+    const ordenTipo=t=>t==='Parcial'?0:t==='Recuperatorio'?1:t?.startsWith('Final')?2:t==='Complementario'?3:4;
+    const sortEx=(a,b)=>ordenTipo(a.tipo)-ordenTipo(b.tipo)||(a.materia_nombre||'').localeCompare(b.materia_nombre||'');
+    t1.sort(sortEx); t2.sort(sortEx);
+
+    const MAX_VISIBLE=3; // máximo chips sin "ver más"
+    const totalEx=examenes.length;
+    const showAll=totalEx<=MAX_VISIBLE;
+    const t1Vis=showAll?t1:t1.slice(0,Math.min(t1.length,MAX_VISIBLE));
+    const t2Vis=showAll?t2:t2.slice(0,Math.max(0,MAX_VISIBLE-t1.length));
+    const resto=totalEx-(t1Vis.length+t2Vis.length);
+
+    let cellContent='';
+
+    // Actividades
+    cellContent+=actividades.map(a=>`<div style="background:#e8f5e9;border-radius:4px;padding:2px 5px;margin-bottom:2px;font-size:9px;border-left:2px solid #4caf50">📌 ${a.titulo||''}</div>`).join('');
+
+    // Turno 1
+    if(t1Vis.length){
+      cellContent+=`<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px;margin-top:${actividades.length?'3px':'0'}">
+        <div style="height:1px;flex:1;background:#1565c0;opacity:.25"></div>
+        <span style="font-size:8px;font-weight:800;color:#1565c0;white-space:nowrap">T1 · 19:00</span>
+        <div style="height:1px;flex:1;background:#1565c0;opacity:.25"></div>
+      </div>${t1Vis.map(chipExamen).join('')}`;
+    }
+
+    // Turno 2
+    if(t2Vis.length){
+      cellContent+=`<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px;margin-top:${t1Vis.length?'3px':'0'}">
+        <div style="height:1px;flex:1;background:#4a148c;opacity:.25"></div>
+        <span style="font-size:8px;font-weight:800;color:#4a148c;white-space:nowrap">T2 · 20:40</span>
+        <div style="height:1px;flex:1;background:#4a148c;opacity:.25"></div>
+      </div>${t2Vis.map(chipExamen).join('')}`;
+    }
+
+    // "Ver más" si hay muchos
+    if(resto>0){
+      cellContent+=`<div onclick="abrirDetalleDia('${fs}')" style="text-align:center;font-size:9px;color:#1565c0;font-weight:700;cursor:pointer;background:#e8f0fe;border-radius:4px;padding:2px;margin-top:2px">+${resto} más →</div>`;
+    }
+
+    // Botón agregar
+    if(esDir){
+      cellContent+=`<button onclick="mExamen()" style="font-size:8px;padding:1px 5px;border:1px dashed #ccc;border-radius:4px;background:transparent;cursor:pointer;margin-top:2px;color:var(--t3);width:100%">+ Examen</button>`;
+    }
+
+    celdas+=`<div style="border:1px solid ${esHoy?'#166534':esFeriado?'#ffcc02':'var(--bdr)'};border-radius:8px;padding:5px 7px;min-height:${examenes.length?'90px':'60px'};background:${esFeriado?'#fff8e1':esHoy?'#f0fdf4':'#fff'};${esHoy?'box-shadow:0 0 0 2px #bbf7d0;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+        <span style="font-weight:${esHoy?'900':'700'};font-size:12px;color:${esFeriado?'#e65100':esHoy?'#166534':'var(--txt)'}">
+          ${d}${esHoy?` <span style="font-size:8px;background:#166534;color:#fff;border-radius:3px;padding:0 3px">hoy</span>`:''}
+        </span>
+        ${totalEx>0?`<span style="font-size:9px;background:${totalEx>=4?'#fee2e2':'#dbeafe'};color:${totalEx>=4?'#b91c1c':'#1d4ed8'};border-radius:10px;padding:1px 5px;font-weight:700">${totalEx}</span>`:''}
+        ${esFeriado?`<span style="font-size:8px;color:#e65100" title="${ferMap[fs]?.nombre}">🏖</span>`:''}
       </div>
-      ${esFeriado?`<div style="font-size:9px;color:#e65100;font-style:italic;margin-bottom:3px">${ferMap[fs]?.nombre}</div>`:''}
-      ${evs.map(e=>e._tipo==='examen'
-        ?`<div style="background:${e.tipo==='Extraordinario'?'#f3e5f5':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#ffebee':'#e3f2fd'};border-radius:5px;padding:3px 6px;margin-bottom:3px;font-size:10px;cursor:${me.rol==='alumno'?'default':'pointer'};border-left:3px solid ${e.tipo?.startsWith('Final')?'#e53935':'#1565c0'}" ${me.rol!=='alumno'?'onclick="verExamen(\''+e.id+'\')" title="'+(e.tipo||'')+' — '+(e.materia_nombre||'')+'"':''}>
-          <strong style="font-size:11px">${e.materia_nombre||'Sin materia'}</strong>
-          ${e._cursos&&e._cursos.length>1?`<span style="background:#1565c0;color:#fff;border-radius:3px;padding:0 3px;font-size:9px;margin-left:3px">${e._cursos.length} cursos</span>`:''}
-          <br><span style="color:#555">${e._cursos?e._cursos.join(' · '):e.carrera_nombre||''}</span><br>
-          <span style="color:#888">${e.hora||''} · ${e.tipo||''}</span>
-        </div>`
-        :`<div style="background:#e8f5e9;border-radius:5px;padding:2px 5px;margin-bottom:2px;font-size:10px">📌 ${e.titulo||e.descripcion||''}</div>`
-      ).join('')}
-      ${me.rol==='director'?`<button onclick="mExamen()" style="font-size:9px;padding:1px 5px;border:1px dashed #ccc;border-radius:4px;background:transparent;cursor:pointer;margin-top:2px;color:var(--t3)">+ Examen</button>`:''}
+      ${esFeriado?`<div style="font-size:8px;color:#e65100;font-style:italic;margin-bottom:2px">${ferMap[fs]?.nombre}</div>`:''}
+      ${cellContent}
     </div>`;
   }
-  const esDir=me.rol==='director';
+
   el.innerHTML=`<div class="ph"><h3>Calendario de Exámenes</h3>
     <div class="ph-right">
       ${esDir?`<button class="bs o" onclick="mFeriado()" title="Gestionar feriados">📅 Feriados</button>`:''}
       ${esDir?`<button class="bs" onclick="verListaFeriados()">Ver todos los feriados</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
-  <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+
+  <!-- Leyenda de turnos -->
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
     <button class="bs" onclick="W._calFecha.mes--;if(W._calFecha.mes<0){W._calFecha.mes=11;W._calFecha.anio--;}renderCalendario(W._calEl)">◀</button>
     <span style="font-size:16px;font-weight:700">${meses[mes]} ${anio}</span>
     <button class="bs" onclick="W._calFecha.mes++;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}renderCalendario(W._calEl)">▶</button>
-    ${feriados.length?`<span style="font-size:11px;color:#e65100">🏖 ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length} feriados este mes</span>`:''}
+    <div style="display:flex;gap:8px;margin-left:8px;flex-wrap:wrap">
+      <span style="font-size:10px;background:#e8f0fe;color:#1565c0;border-left:3px solid #1565c0;padding:2px 7px;border-radius:4px;font-weight:700">■ Parcial</span>
+      <span style="font-size:10px;background:#fff0f0;color:#b71c1c;border-left:3px solid #e53935;padding:2px 7px;border-radius:4px;font-weight:700">■ Final</span>
+      <span style="font-size:10px;background:#f3e5f5;color:#6a1b9a;border-left:3px solid #9c27b0;padding:2px 7px;border-radius:4px;font-weight:700">■ Extra</span>
+      ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length?`<span style="font-size:10px;color:#e65100">🏖 ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length} feriados</span>`:''}
+    </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px">
-    ${dias.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;color:var(--t2)">${d}</div>`).join('')}
+
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+    ${dias.map(d=>`<div style="text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:4px 0">${d}</div>`).join('')}
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${celdas}</div>`;
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${celdas}</div>
+
+  <!-- Panel de detalle del día -->
+  <div id="diaDetalle" style="margin-top:16px"></div>`;
+}
+
+function abrirDetalleDia(fecha){
+  const exs=(W._calExs||[]).filter(e=>e.fecha===fecha);
+  const acts=(W._calActs||[]).filter(a=>a.fecha===fecha);
+  const esDir=me.rol==='director';
+
+  // Agrupar por turno
+  const t1=exs.filter(e=>e.asig_turno!==2&&!(e.hora&&e.hora>='20'));
+  const t2=exs.filter(e=>e.asig_turno===2||(e.hora&&e.hora>='20'));
+
+  const renderGrupo=(lista,titulo,color)=>lista.length?`
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.07em;padding:5px 12px;background:${color}18;border-radius:6px;margin-bottom:8px">${titulo}</div>
+      ${lista.map(e=>{
+        const prof=e.docente_nombre?`${e.docente_apellido||''} ${e.docente_nombre||''}`.trim():'Sin docente';
+        const cursos=e._cursos?.join(', ')||e.carrera_nombre||'';
+        const tipoColor=e.tipo==='Extraordinario'?'#9c27b0':e.tipo?.startsWith('Final')||e.tipo==='Complementario'?'#e53935':'#1565c0';
+        return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:8px;border-left:4px solid ${tipoColor};background:#fff;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div style="flex:1;min-width:180px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="background:${tipoColor};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${e.tipo||''}</span>
+              <strong style="font-size:14px;color:#1e293b">${e.materia_nombre||'—'}</strong>
+            </div>
+            <div style="font-size:12px;color:#475569;margin-bottom:3px">👤 <strong>${prof}</strong></div>
+            <div style="font-size:12px;color:#64748b">🎓 ${cursos}</div>
+            ${e.aula?`<div style="font-size:11px;color:#94a3b8;margin-top:2px">🏫 Aula ${e.aula}</div>`:''}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:700;color:${tipoColor}">${e.hora||'—'}</div>
+            <div style="font-size:11px;color:#94a3b8">${e.puntos_max||'—'} pts</div>
+            ${e.archivo_nombre?`<div style="font-size:10px;color:#166534;margin-top:4px">📎 Arch. adjunto</div>`:''}
+          </div>
+          ${!me.rol==='alumno'?`<div style="display:flex;gap:4px;flex-wrap:wrap;width:100%">
+            ${esDir?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
+            ${e.archivo_nombre&&esDir?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')">⬇ Descargar</button>`:''}
+            ${e.archivo_nombre&&me.rol==='docente'?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')">📄 Ver</button>`:''}
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`:''  ;
+
+  const panel=document.getElementById('diaDetalle');
+  if(!panel)return;
+  panel.innerHTML=`
+    <div style="border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+      <div style="background:linear-gradient(90deg,#1e3a5f,#1565c0);color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:14px">📅 ${fmtFecha(fecha)} — ${exs.length} examen${exs.length!==1?'es':''}</span>
+        <button onclick="document.getElementById('diaDetalle').innerHTML=''" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">✕ Cerrar</button>
+      </div>
+      <div style="padding:14px">
+        ${acts.length?`<div style="margin-bottom:12px">${acts.map(a=>`<div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;font-size:12px;border-left:3px solid #4caf50">📌 <strong>${a.titulo||''}</strong>${a.descripcion?': '+a.descripcion:''}</div>`).join('')}</div>`:''}
+        ${renderGrupo(t1,'🔵 Turno 1 — 19:00 hs','#1565c0')}
+        ${renderGrupo(t2,'🟣 Turno 2 — 20:40 hs','#4a148c')}
+        ${!exs.length&&!acts.length?'<div class="es">Sin eventos este día</div>':''}
+      </div>
+    </div>`;
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 async function verListaFeriados(){
   const feriados=await api('GET','/api/feriados').catch(()=>[]);
