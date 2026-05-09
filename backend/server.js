@@ -450,6 +450,8 @@ app.delete('/api/alumnos/grupo', auth(ADM), (req, res) => {
         db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
         db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
         db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(a.id);
+        db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(a.id);
         db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
         if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
       });
@@ -470,6 +472,8 @@ app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
       db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(req.params.id);
       db.prepare('DELETE FROM becas WHERE alumno_id=?').run(req.params.id);
       db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(req.params.id);
+      db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(req.params.id);
       db.prepare('DELETE FROM alumnos WHERE id=?').run(req.params.id);
       if (a.usuario_id) db.prepare('DELETE FROM usuarios WHERE id=?').run(a.usuario_id);
     })();
