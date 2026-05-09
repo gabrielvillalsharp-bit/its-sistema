@@ -2248,20 +2248,24 @@ async function waExamen(exId){
 async function verEstadoWA(){
   try{
     const s=await api('GET','/api/whatsapp/status');
-    const color=s.estado==='open'?'#2e7d32':s.estado==='connecting'?'#e65100':'#b71c1c';
-    const label=s.estado==='open'?'✅ Conectado':s.estado==='connecting'?'⏳ Conectando…':s.estado==='sin_variables'?'⚙️ Sin configurar':'❌ Desconectado';
-    if(!s.configurado||s.estado!=='open'){
-      const qr=await api('GET','/api/whatsapp/qr').catch(()=>null);
-      modal(`<h4>📱 WhatsApp — Estado: <span style="color:${color}">${label}</span></h4>
-        ${qr?.qr?`<p style="font-size:13px">Escaneá este QR con WhatsApp → Dispositivos vinculados → Vincular dispositivo:</p>
-          <div style="text-align:center;margin:12px 0"><img src="${qr.qr}" style="max-width:240px;border-radius:10px;border:2px solid #e2e8f0"/></div>
-          <p style="font-size:11px;color:#666">El QR expira en 45 segundos. Cerrá y volvé a abrir si expira.</p>`
-        :`<p style="font-size:13px;color:#666">${s.configurado?'No se pudo obtener QR. Verificar que Evolution API esté corriendo.':'Configurar variables EVOLUTION_API_URL y EVOLUTION_API_KEY en Railway.'}</p>`}
-        <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();setTimeout(verEstadoWA,300)">🔄 Actualizar</button></div>`,true);
+    if(s.estado==='activo'){
+      toast(`✅ Twilio WhatsApp activo — Cuenta: ${s.cuenta||''} — Número: ${s.numero||''}`,'ok',5000);
     } else {
-      toast(`WhatsApp ${label} — instancia: ${s.instancia}`,'ok',4000);
+      const msg=s.estado==='sin_variables'
+        ?'Faltan variables en Railway: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WA_NUMBER'
+        :s.estado==='error_credenciales'?'Credenciales incorrectas: '+s.detalle
+        :'Error de conexión con Twilio: '+(s.error||s.estado);
+      modal(`<h4>📱 WhatsApp Twilio — ⚠️ Sin configurar</h4>
+        <p style="font-size:13px;color:#b71c1c">${msg}</p>
+        <p style="font-size:12px;color:#666;margin-top:10px">Agregá estas variables en Railway → tu servicio → Variables:</p>
+        <div style="background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;margin-top:8px">
+          TWILIO_ACCOUNT_SID = ACxxxxxxxxxxxxxxxx<br>
+          TWILIO_AUTH_TOKEN = xxxxxxxxxxxxxxxx<br>
+          TWILIO_WA_NUMBER = +14155238886
+        </div>
+        <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();setTimeout(verEstadoWA,300)">🔄 Verificar</button></div>`,true);
     }
-  }catch(e){toast('Error al consultar WA: '+e.message,'err');}
+  }catch(e){toast('Error al consultar estado WA: '+e.message,'err');}
 }
 async function borrarArchivoExamen(exId){
   if(!confirm('¿Eliminar el archivo adjunto de este examen? Esta acción no se puede deshacer.'))return;

@@ -3032,36 +3032,38 @@ function examenVars(ex) {
   };
 }
 
-// ── WHATSAPP — Evolution API ───────────────────────────────────────────────────
+// ── WHATSAPP — Twilio ─────────────────────────────────────────────────────────
 // Variables de entorno en Railway:
-//   EVOLUTION_API_URL  → URL pública del servicio Evolution API (ej: https://evo.up.railway.app)
-//   EVOLUTION_API_KEY  → apikey configurada en Evolution API
-//   EVOLUTION_INSTANCE → nombre de la instancia (default: "its")
+//   TWILIO_ACCOUNT_SID  → Account SID (empieza con AC...)
+//   TWILIO_AUTH_TOKEN   → Auth Token
+//   TWILIO_WA_NUMBER    → Número WhatsApp Twilio sin whatsapp: (ej: +14155238886)
 function normalizarTelefono(tel) {
-  let t = String(tel || '').replace(/\D/g, '');   // solo dígitos
+  let t = String(tel || '').replace(/\D/g, '');
   if (!t || t.length < 7) return null;
-  if (t.startsWith('0')) t = '595' + t.slice(1);  // 0981… → 595981…
-  if (!t.startsWith('595')) t = '595' + t;         // sin prefijo → agregar Paraguay
-  return t;
+  if (t.startsWith('0')) t = '595' + t.slice(1);   // 0981… → 595981…
+  if (!t.startsWith('595')) t = '595' + t;           // sin prefijo → agregar Paraguay
+  return '+' + t;                                     // Twilio necesita el + adelante
 }
 async function sendWhatsApp(phone, message) {
-  const url      = process.env.EVOLUTION_API_URL;
-  const key      = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE || 'its';
-  if (!url || !key) { console.log('[WA] Variables no configuradas — saltando'); return false; }
+  const sid   = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from  = process.env.TWILIO_WA_NUMBER;
+  if (!sid || !token || !from) { console.log('[WA-Twilio] Variables no configuradas — saltando'); return false; }
   const tel = normalizarTelefono(phone);
-  if (!tel) { console.log('[WA] Teléfono inválido:', phone); return false; }
+  if (!tel) { console.log('[WA-Twilio] Teléfono inválido:', phone); return false; }
   try {
-    const resp = await fetch(`${url}/message/sendText/${instance}`, {
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const fromNum = from.startsWith('+') ? from : '+' + from;
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': key },
-      body: JSON.stringify({ number: tel, textMessage: { text: message } })
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ From: `whatsapp:${fromNum}`, To: `whatsapp:${tel}`, Body: message })
     });
-    if (resp.ok) { console.log(`[WA] ✅ Enviado a ${tel}`); return true; }
-    const err = await resp.json().catch(() => ({}));
-    console.error(`[WA] ⚠️ ${resp.status}:`, err.message || JSON.stringify(err));
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) { console.log(`[WA-Twilio] ✅ Enviado a ${tel} SID:${data.sid}`); return true; }
+    console.error(`[WA-Twilio] ⚠️ ${resp.status}:`, data.message || JSON.stringify(data));
     return false;
-  } catch(e) { console.error('[WA] ⚠️', e.message); return false; }
+  } catch(e) { console.error('[WA-Twilio] ⚠️', e.message); return false; }
 }
 function buildWaMsg(tplKey, vars) {
   const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
@@ -3129,37 +3131,21 @@ cron.schedule('0 8 * * *', async () => {
 });
 
 
-// ── WHATSAPP: estado de conexión ──────────────────────────────────────────────
+// ── WHATSAPP: estado de configuración Twilio ──────────────────────────────────
 app.get('/api/whatsapp/status', auth(ADM), async (req, res) => {
-  const url = process.env.EVOLUTION_API_URL;
-  const key = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE || 'its';
-  if (!url || !key) return res.json({ configurado: false, estado: 'sin_variables' });
+  const sid   = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from  = process.env.TWILIO_WA_NUMBER;
+  if (!sid || !token || !from) return res.json({ configurado: false, estado: 'sin_variables' });
   try {
-    const r = await fetch(`${url}/instance/connectionState/${instance}`, { headers: { apikey: key } });
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
+      headers: { 'Authorization': `Basic ${auth}` }
+    });
     const d = await r.json().catch(() => ({}));
-    res.json({ configurado: true, estado: d.instance?.state || d.state || 'unknown', instancia: instance });
+    if (r.ok) res.json({ configurado: true, estado: 'activo', cuenta: d.friendly_name, numero: from });
+    else res.json({ configurado: true, estado: 'error_credenciales', detalle: d.message });
   } catch(e) { res.json({ configurado: true, estado: 'error', error: e.message }); }
-});
-
-// ── WHATSAPP: QR para conectar instancia ──────────────────────────────────────
-app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
-  const url = process.env.EVOLUTION_API_URL;
-  const key = process.env.EVOLUTION_API_KEY;
-  const instance = process.env.EVOLUTION_INSTANCE || 'its';
-  if (!url || !key) return res.status(400).json({ error: 'Evolution API no configurada' });
-  try {
-    // Crear instancia si no existe
-    await fetch(`${url}/instance/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: key },
-      body: JSON.stringify({ instanceName: instance, qrcode: true })
-    }).catch(() => {});
-    // Obtener QR
-    const r = await fetch(`${url}/instance/connect/${instance}`, { headers: { apikey: key } });
-    const d = await r.json().catch(() => ({}));
-    res.json({ qr: d.base64 || d.qrcode?.base64 || null, estado: d.instance?.state || 'pending' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── WHATSAPP: envío manual para un examen ─────────────────────────────────────
@@ -3183,7 +3169,7 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   const vars = examenVars(ex);
   const msg  = buildWaMsg('wa_tpl_24h', vars);
   const ok   = await sendWhatsApp(ex.doc_telefono, msg);
-  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificar Evolution API.' });
+  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificar credenciales Twilio en Railway.' });
   audit(req.user.id, 'WHATSAPP_MANUAL', 'examenes', ex.id, { tel: ex.doc_telefono });
   res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
 });
