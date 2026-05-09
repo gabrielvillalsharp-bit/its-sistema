@@ -3250,14 +3250,13 @@ async function renderCalendario(el){
     const prof=e.docente_nombre?`${e.docente_apellido||''} ${e.docente_nombre||''}`.trim():'';
     const cursos=e._cursos?.join(' · ')||e.carrera_nombre||'';
     const tipoCorto=e.tipo==='Recuperatorio'?'Recup.':e.tipo==='Extraordinario'?'Extra.':e.tipo==='Complementario'?'Compl.':(e.tipo||'');
-    return `<div style="background:${tc.bg};border-radius:6px;padding:4px 6px;margin-bottom:3px;font-size:10px;border-left:3px solid ${tc.bdr};cursor:${esAlumno?'default':'pointer'}"
+    return `<div style="background:${tc.bg};border-radius:5px;padding:3px 5px;margin-bottom:2px;font-size:10px;border-left:3px solid ${tc.bdr};cursor:${esAlumno?'default':'pointer'}"
       ${!esAlumno?`onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''} — ${prof}"`:''}>
-      <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px">
+      <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px;overflow:hidden">
         <span style="background:${tc.bdr};color:#fff;border-radius:3px;padding:0 3px;font-size:8px;font-weight:800;flex-shrink:0">${tipoCorto}</span>
-        <strong style="color:${tc.txt};font-size:10px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${e.materia_nombre||'—'}</strong>
+        <strong style="color:${tc.txt};font-size:10px;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${e.materia_nombre||'—'}</strong>
       </div>
-      ${prof?`<div style="color:#555;font-size:9px;font-weight:600">👤 ${prof}</div>`:''}
-      <div style="color:#777;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cursos}</div>
+      ${prof?`<div style="color:#555;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${prof}</div>`:''}
     </div>`;
   }
 
@@ -3286,7 +3285,7 @@ async function renderCalendario(el){
     const sortEx=(a,b)=>ordenTipo(a.tipo)-ordenTipo(b.tipo)||(a.materia_nombre||'').localeCompare(b.materia_nombre||'');
     t1.sort(sortEx); t2.sort(sortEx);
 
-    const MAX_VISIBLE=3; // máximo chips sin "ver más"
+    const MAX_VISIBLE=2; // máximo chips sin "ver más"
     const totalEx=examenes.length;
     const showAll=totalEx<=MAX_VISIBLE;
     const t1Vis=showAll?t1:t1.slice(0,Math.min(t1.length,MAX_VISIBLE));
@@ -3326,7 +3325,7 @@ async function renderCalendario(el){
       cellContent+=`<button onclick="mExamen()" style="font-size:8px;padding:1px 5px;border:1px dashed #ccc;border-radius:4px;background:transparent;cursor:pointer;margin-top:2px;color:var(--t3);width:100%">+ Examen</button>`;
     }
 
-    celdas+=`<div style="border:1px solid ${esHoy?'#166534':esFeriado?'#ffcc02':'var(--bdr)'};border-radius:8px;padding:5px 7px;min-height:${examenes.length?'90px':'60px'};background:${esFeriado?'#fff8e1':esHoy?'#f0fdf4':'#fff'};${esHoy?'box-shadow:0 0 0 2px #bbf7d0;':''}">
+    celdas+=`<div style="border:1px solid ${esHoy?'#166534':esFeriado?'#ffcc02':'var(--bdr)'};border-radius:8px;padding:5px 6px;min-height:60px;background:${esFeriado?'#fff8e1':esHoy?'#f0fdf4':'#fff'};${esHoy?'box-shadow:0 0 0 2px #bbf7d0;':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
         <span style="font-weight:${esHoy?'900':'700'};font-size:12px;color:${esFeriado?'#e65100':esHoy?'#166534':'var(--txt)'}">
           ${d}${esHoy?` <span style="font-size:8px;background:#166534;color:#fff;border-radius:3px;padding:0 3px">hoy</span>`:''}
@@ -3359,10 +3358,14 @@ async function renderCalendario(el){
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-    ${dias.map(d=>`<div style="text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:4px 0">${d}</div>`).join('')}
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;padding-bottom:4px">
+    <div style="min-width:840px">
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:4px;margin-bottom:4px">
+        ${dias.map(d=>`<div style="text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:4px 0;letter-spacing:.04em">${d}</div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:4px">${celdas}</div>
+    </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${celdas}</div>
 
   <!-- Panel de detalle del día -->
   <div id="diaDetalle" style="margin-top:16px"></div>`;
