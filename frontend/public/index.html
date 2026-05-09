@@ -1453,7 +1453,7 @@ function mEliminarGrupo(){
   const cursos=W._cursos||[];
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   modal(`<div class="mh"><h4>🗑 Eliminar por Grupo</h4><button class="mc" onclick="cm()">✕</button></div>
-    <div class="mb">
+    <div class="fg">
       <div class="ir" style="background:#fce4ec;border:1px solid #e57373;color:#b71c1c;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
         ⚠ <strong>Esta acción es irreversible.</strong> Se eliminarán permanentemente todos los alumnos del grupo seleccionado, incluyendo sus pagos, notas, asistencia y cuentas de acceso.
       </div>
