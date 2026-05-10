@@ -5792,6 +5792,8 @@ function mostrarRevisionPlanilla(data){
 
   const nuevos=data.filas.filter(f=>!f.alumno_existente).length;
   const totalConMonto=data.filas.reduce((s,f)=>s+(f.montos.some(m=>m>0)?1:0),0);
+  const conPagosOtraCarrera=data.filas.filter(f=>f.alumno_existente&&f.tiene_pagos&&f.carrera_anterior).length;
+  const aReasignar=data.filas.filter(f=>f.alumno_existente&&!f.tiene_pagos&&f.carrera_anterior).length;
 
   const colOpts=CONCEPTOS_OPTS.map(o=>`<option value="${o}">${o}</option>`).join('');
   const colHeaders=data.conceptos.map((c,j)=>`
@@ -5803,16 +5805,26 @@ function mostrarRevisionPlanilla(data){
     </th>`).join('');
 
   const rows=data.filas.map((f,i)=>{
-    const badge=f.alumno_existente
-      ?'<span style="font-size:10px;color:#2e7d32;background:#e8f5e9;border-radius:3px;padding:1px 4px;margin-right:4px">✓</span>'
-      :'<span style="font-size:10px;color:#e65100;background:#fff3e0;border-radius:3px;padding:1px 4px;margin-right:4px">🆕</span>';
+    let badge;
+    if(f.alumno_existente){
+      if(f.tiene_pagos&&f.carrera_anterior){
+        badge=`<span style="font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:3px;padding:1px 5px;margin-right:4px" title="Tiene pagos en ${f.carrera_anterior.nombre} — no se reasignará">⚠️ ${f.carrera_anterior.nombre}</span>`;
+      } else if(!f.tiene_pagos&&f.carrera_anterior){
+        badge=`<span style="font-size:10px;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:3px;padding:1px 5px;margin-right:4px" title="Sin pagos — se reasignará a la carrera importada">ℹ️ ${f.carrera_anterior.nombre}</span>`;
+      } else {
+        badge='<span style="font-size:10px;color:#2e7d32;background:#e8f5e9;border-radius:3px;padding:1px 4px;margin-right:4px">✓</span>';
+      }
+    } else {
+      badge='<span style="font-size:10px;color:#e65100;background:#fff3e0;border-radius:3px;padding:1px 4px;margin-right:4px">🆕</span>';
+    }
     const cells=f.montos.map((m,j)=>`
       <td style="padding:2px 4px;border:1px solid #e0e0e0;background:#fff;text-align:right">
         <input id="pv_${i}_${j}" type="number" min="0" step="1" value="${m||''}"
           style="width:95px;text-align:right;font-size:12px;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-family:inherit"/>
       </td>`).join('');
-    return `<tr style="background:${i%2===0?'#fff':'#fafafa'}">
-      <td style="padding:5px 10px;border:1px solid #e0e0e0;position:sticky;left:0;background:${i%2===0?'#fff':'#fafafa'};z-index:1;min-width:200px;white-space:nowrap">
+    const rowBg=f.alumno_existente&&f.tiene_pagos&&f.carrera_anterior?'#fffdf0':(f.alumno_existente&&!f.tiene_pagos&&f.carrera_anterior?'#f0f7ff':(i%2===0?'#fff':'#fafafa'));
+    return `<tr style="background:${rowBg}">
+      <td style="padding:5px 10px;border:1px solid #e0e0e0;position:sticky;left:0;background:${rowBg};z-index:1;min-width:200px;white-space:nowrap">
         ${badge}<strong style="font-size:12px">${f.nombreCompleto||(f.nombre+' '+f.apellido).trim()}</strong>
       </td>
       <td style="padding:5px 8px;border:1px solid #e0e0e0;font-size:11px;color:#777;font-family:monospace;white-space:nowrap">${f.ci}</td>
@@ -5831,6 +5843,14 @@ function mostrarRevisionPlanilla(data){
       </div>
       <button onclick="cerrarRevisionPlanilla()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px">✕ Cancelar</button>
     </div>
+    ${conPagosOtraCarrera>0?`<div style="background:#fffbeb;padding:7px 20px;font-size:12px;color:#92400e;flex-shrink:0;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px">
+      <span style="font-size:15px">⚠️</span>
+      <span><strong>${conPagosOtraCarrera} alumno${conPagosOtraCarrera>1?'s':''} con pagos previos</strong> — su carrera <strong>no se modificará</strong>. Solo se importarán los nuevos pagos. Aparecen con fondo amarillo en la tabla.</span>
+    </div>`:''}
+    ${aReasignar>0?`<div style="background:#eff6ff;padding:7px 20px;font-size:12px;color:#1e40af;flex-shrink:0;border-bottom:1px solid #bfdbfe;display:flex;align-items:center;gap:8px">
+      <span style="font-size:15px">ℹ️</span>
+      <span><strong>${aReasignar} alumno${aReasignar>1?'s':''} sin pagos</strong> estaban asignados a otra carrera — <strong>se reasignarán</strong> a la carrera importada. Aparecen con fondo azul.</span>
+    </div>`:''}
     <div style="background:#e3f2fd;padding:7px 20px;font-size:12px;color:#1565c0;flex-shrink:0;border-bottom:1px solid #bbdefb">
       <strong>⚠ Revisá el encabezado de cada columna:</strong> el selector muestra el concepto detectado. Si el mes está incorrecto, cambialo antes de confirmar. Los campos en <strong>0 o vacíos</strong> no se registran.
     </div>

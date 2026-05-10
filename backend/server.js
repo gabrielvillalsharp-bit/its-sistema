@@ -2320,7 +2320,7 @@ function parsearPlanillaXLSX(buffer) {
     let existente = null;
     let alumno_id = null;
     if (ci && ci.length >= 5) {
-      existente = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
+      existente = db.prepare('SELECT a.id, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.ci=?').get(ci);
       if (existente) alumno_id = existente.id;
     }
     if (!alumno_id && nombreCompleto) {
@@ -2329,10 +2329,21 @@ function parsearPlanillaXLSX(buffer) {
         return normNombre(al.apellido + ' ' + al.nombre) === normTarget ||
                normNombre(al.nombre + ' ' + al.apellido) === normTarget;
       });
-      if (match) { alumno_id = match.id; existente = match; }
+      if (match) {
+        alumno_id = match.id;
+        existente = db.prepare('SELECT a.id, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.id=?').get(match.id) || match;
+      }
     }
 
-    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, alumno_id: alumno_id||null, montos });
+    let carrera_anterior = null;
+    let tiene_pagos = false;
+    if (existente) {
+      const pc = db.prepare('SELECT COUNT(*) as n FROM pagos WHERE alumno_id=?').get(existente.id);
+      tiene_pagos = pc.n > 0;
+      if (existente.carrera_id) carrera_anterior = { id: existente.carrera_id, nombre: existente.carrera_nombre || existente.carrera_id };
+    }
+
+    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, alumno_id: alumno_id||null, montos, carrera_anterior: carrera_anterior||null, tiene_pagos });
   });
 
   return { columnas: pagoIdxs.map(p => p.h), conceptos, filas };
@@ -2401,12 +2412,17 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
             al = { id: aid };
             results.alumnos_creados++;
           } else if (al && carrera_id) {
-            const cN = curso_id || al.curso_id;
-            if (al.carrera_id !== carrera_id || al.curso_id !== cN) {
-              stmtUpdAl.run(carrera_id, cN, al.id);
-              if (cN && cN !== al.curso_id) stmtAsigs.all(cN, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, a.id, 'Pendiente'); } catch {} });
-              results.alumnos_actualizados++;
+            // Solo reasignar si el alumno no tiene pagos previos registrados
+            const pCount = db.prepare('SELECT COUNT(*) as n FROM pagos WHERE alumno_id=?').get(al.id);
+            if (pCount.n === 0) {
+              const cN = curso_id || al.curso_id;
+              if (al.carrera_id !== carrera_id || al.curso_id !== cN) {
+                stmtUpdAl.run(carrera_id, cN, al.id);
+                if (cN && cN !== al.curso_id) stmtAsigs.all(cN, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, a.id, 'Pendiente'); } catch {} });
+                results.alumnos_actualizados++;
+              }
             }
+            // Si tiene pagos: no cambiar carrera, solo importar los pagos abajo
           }
 
           if (!al) return;
