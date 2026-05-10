@@ -1,11 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
-
-[phases.install]
-cmds = ["cd backend && npm install --production"]
-
-[phases.build]
-cmds = []
+nixPkgs = ["python3", "gcc", "gnumake"]
 
 [start]
 cmd = "node backend/server.js"
