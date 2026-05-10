@@ -4371,7 +4371,7 @@ function confirm2(titulo, cuerpo, onAceptar, onModificar){
   window._cfm[id+'_mod']=onModificar?function(){document.getElementById(id)?.remove();onModificar();}:null;
   const div=document.createElement('div');
   div.id=id;
-  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9990;display:flex;align-items:center;justify-content:center';
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;align-items:center;justify-content:center';
   div.innerHTML=`<div style="background:#fff;border-radius:14px;padding:22px;max-width:440px;width:92%;box-shadow:0 8px 40px rgba(0,0,0,.3)">
     <h4 style="font-size:15px;font-weight:700;color:#1a2a4a;margin-bottom:10px">${titulo}</h4>
     <div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:16px">${cuerpo}</div>
