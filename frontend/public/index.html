@@ -4860,7 +4860,13 @@ async function pgPagos(el){
   <div class="ph"><h3>Pagos y matrículas</h3>
     <div class="ph-right">
       <button class="bs" onclick="mCuotaLabels()">⚙ Cuotas</button>
-      <button class="bs i" onclick="mImportarPlanilla()">📊 Importar Planilla</button>
+      <div style="position:relative;display:inline-block" id="menuImportarWrap">
+        <button class="bs i" onclick="toggleMenuImportar()" style="display:flex;align-items:center;gap:5px">📊 Importar <span style="font-size:10px">▼</span></button>
+        <div id="menuImportar" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:200;min-width:200px;overflow:hidden">
+          <button onclick="toggleMenuImportar();mImportarPlanilla()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📋 Con carrera y sección</button>
+          <button onclick="toggleMenuImportar();mImportarSinAsignar()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📌 Sin asignar carrera</button>
+        </div>
+      </div>
       <button class="bn" onclick="btnRegistrarPago()">+ Registrar pago</button>
     </div>
   </div>
@@ -4875,6 +4881,7 @@ async function pgPagos(el){
         <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="renderTablaPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
         <select id="filtPagoCarr" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
           <option value="">Todas las carreras</option>
+          <option value="SIN_ASIGNAR">📌 Sin asignar</option>
           ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
         <select id="filtPagoAnio" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;min-width:90px">
@@ -4933,9 +4940,11 @@ function renderTablaPagos(){
   const cursoAnioMap={};
   (W._pagosCursos||[]).forEach(cu=>{cursoAnioMap[String(cu.id)]=String(cu.anio);});
   if(bus) als=als.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').includes(bus)||(a.display_apellido||'').toLowerCase().concat(' ',(a.display_nombre||'').toLowerCase()).includes(bus));
-  if(carrId) als=als.filter(a=>String(a.carrera_id||'')===carrId);
+  if(carrId==='SIN_ASIGNAR') als=als.filter(a=>!a.carrera_id);
+  else if(carrId) als=als.filter(a=>String(a.carrera_id||'')===carrId);
   if(anio)   als=als.filter(a=>(cursoAnioMap[String(a.curso_id||'')]||String(a.curso_anio||''))===anio);
   if(cursoId)als=als.filter(a=>String(a.curso_id||'')===cursoId);
+  const mostrandoSinAsignar=(carrId==='SIN_ASIGNAR');
 
   const kanban=W._kanban||{};
   const mes=new Date().getMonth()+1;
@@ -4993,7 +5002,11 @@ function renderTablaPagos(){
         </div>
       </td>
       <td style="padding:11px 12px;text-align:right;font-weight:800;color:#166534;white-space:nowrap;font-size:12px">Gs. ${totalGs.toLocaleString()}</td>
-      <td style="padding:11px 12px;text-align:center">${estadoBadge}</td>
+      <td style="padding:11px 12px;text-align:center">
+        ${mostrandoSinAsignar
+          ?`<button onclick="event.stopPropagation();mMoverAlumno('${a.id}')" style="font-size:11px;padding:4px 10px;border:1px solid #7c3aed;border-radius:6px;background:#fff;color:#7c3aed;cursor:pointer;font-weight:600;white-space:nowrap">↕ Asignar</button>`
+          :estadoBadge}
+      </td>
     </tr>`;
   }).join('');
 }
@@ -5046,6 +5059,8 @@ function filtPagoCursos(){
   const carrId=String(v('filtPagoCarr')||''), anio=String(v('filtPagoAnio')||'');
   const sel=document.getElementById('filtPagoCurso');
   if(!sel)return;
+  // "SIN_ASIGNAR" no tiene cursos
+  if(carrId==='SIN_ASIGNAR'){sel.innerHTML='<option value="">—</option>';return;}
   let cursos=W._pagosCursos||[];
   if(carrId)cursos=cursos.filter(cu=>String(cu.carrera_id||'')===carrId);
   if(anio)cursos=cursos.filter(cu=>String(cu.anio||'')===anio);
@@ -5206,6 +5221,7 @@ async function selAlumnoPago(alId){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button onclick="mPagoDirecto('${alId}')" style="background:#fff;color:#166534;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Registrar pago</button>
+          <button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">↕ Mover sección</button>
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
         </div>
       </div>
@@ -5604,6 +5620,107 @@ async function importarPagos(input){
     }
   }catch(e){alert('Error: '+e.message);}
 }
+// ── DROPDOWN IMPORTAR ─────────────────────────────────────────────────────────
+function toggleMenuImportar(){
+  const m=document.getElementById('menuImportar');
+  if(!m)return;
+  if(m.style.display==='none'){
+    m.style.display='block';
+    setTimeout(()=>document.addEventListener('click',function h(e){
+      if(!document.getElementById('menuImportarWrap')?.contains(e.target)){
+        m.style.display='none'; document.removeEventListener('click',h);
+      }
+    }),10);
+  } else { m.style.display='none'; }
+}
+
+// ── IMPORTAR SIN ASIGNAR CARRERA ──────────────────────────────────────────────
+function mImportarSinAsignar(){
+  modal(`<h4>📌 Importar alumnos sin asignar</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Importa alumnos y registra sus pagos <strong>sin asignarlos a ninguna carrera ni sección</strong>. Después podés moverlos a donde correspondan.</p>
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 14px;font-size:11px;color:#166534;margin-bottom:14px">
+    ✓ Formato: encabezado con <strong>Cédula</strong>, <strong>Nombre</strong> (y opcionalmente <strong>Apellido</strong>) y columnas de pago (Marzo, Abril… o Cuota 1, Cuota 2…)<br>
+    ✓ Los alumnos quedan en la categoría <em>"Sin asignar"</em> hasta que los muevas a una carrera
+  </div>
+  <div class="fg">
+    <div class="f"><label>Archivo Excel (.xlsx)</label>
+      <input type="file" id="archSinAsignar" accept=".xlsx,.xls" style="font-size:13px"/>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="ejecutarImportSinAsignar()">📥 Importar</button>
+  </div>`);
+}
+async function ejecutarImportSinAsignar(){
+  const inp=document.getElementById('archSinAsignar');
+  if(!inp?.files[0])return alert('Seleccioná un archivo Excel');
+  const fd=new FormData(); fd.append('archivo',inp.files[0]);
+  try{
+    toast('Importando…','info',3000);
+    const r=await api('POST','/api/pagos/importar-sin-asignar',fd,true);
+    cm();
+    let msg=`✓ ${r.ok} pagos importados`;
+    if(r.alumnos_creados) msg+=`\n👤 ${r.alumnos_creados} alumnos creados (sin asignar)`;
+    if(r.errores?.length) msg+=`\n⚠ ${r.errores.length} errores`;
+    alert(msg);
+    go('pagos');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── MOVER ALUMNO ENTRE SECCIONES ──────────────────────────────────────────────
+async function mMoverAlumno(alId){
+  const carrs=W._pagosCarrs||W._carrs||[];
+  const cursos=W._pagosCursos||W._cursos||[];
+  const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
+  modal(`<h4>↕ Mover alumno</h4>
+  <div style="font-size:12px;color:var(--t2);padding:5px 10px;background:#f0f4ff;border-radius:6px;margin-bottom:14px">
+    👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong>
+    ${al.carrera_nombre?`<br>Actualmente en: <em>${al.carrera_nombre} ${al.curso_anio?al.curso_anio+'°':''}</em>`:'<br><em>Sin asignar</em>'}
+  </div>
+  <div class="fg">
+    <div class="f"><label>Nueva carrera</label>
+      <select id="moverCarr" onchange="filtCursosMover()" style="width:100%">
+        <option value="">— Sin asignar —</option>
+        ${carrs.map(c=>`<option value="${c.id}" ${String(al.carrera_id)===String(c.id)?'selected':''}>${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Sección</label>
+      <select id="moverCurso" style="width:100%">
+        <option value="">— Sin sección —</option>
+        ${cursos.filter(cu=>String(cu.carrera_id)===String(al.carrera_id)).map(cu=>`<option value="${cu.id}" ${String(al.curso_id)===String(cu.id)?'selected':''}>${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="ejecutarMoverAlumno('${alId}')">↕ Mover</button>
+  </div>`);
+}
+function filtCursosMover(){
+  const carrId=document.getElementById('moverCarr')?.value||'';
+  const sel=document.getElementById('moverCurso');
+  if(!sel)return;
+  const cursos=W._pagosCursos||W._cursos||[];
+  sel.innerHTML='<option value="">— Sin sección —</option>'+
+    cursos.filter(cu=>String(cu.carrera_id)===carrId).map(cu=>`<option value="${cu.id}">${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
+}
+async function ejecutarMoverAlumno(alId){
+  const carrId=document.getElementById('moverCarr')?.value||null;
+  const cursoId=document.getElementById('moverCurso')?.value||null;
+  try{
+    await api('PUT','/api/alumnos/'+alId+'/asignar',{carrera_id:carrId||null,curso_id:cursoId||null});
+    cm();
+    toast('✓ Alumno movido correctamente','ok',3000);
+    // Recargar datos de alumnos
+    const als=await api('GET','/api/alumnos');
+    if(W._pdata) W._pdata.als=als;
+    if(W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
+      refreshKanban(alId);
+    } else { go('pagos'); }
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
 function mImportarPlanilla(){
   const carrs=W._carrs||[];
   const cursos=W._cursos||[];

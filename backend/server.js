@@ -2070,6 +2070,137 @@ app.get('/api/alumnos/:id/habilitacion', auth(), (req, res) => {
   });
 });
 
+// ── MOVER ALUMNO A OTRA CARRERA/SECCIÓN ──────────────────────────────────────
+app.put('/api/alumnos/:id/asignar', auth(ADM), (req, res) => {
+  const { carrera_id, curso_id } = req.body;
+  const al = db.prepare('SELECT id,carrera_id,curso_id FROM alumnos WHERE id=?').get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=? WHERE id=?').run(carrera_id||null, curso_id||null, al.id);
+  // Si hay nueva sección, crear registros de notas pendientes
+  if (curso_id) {
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (periodo) {
+      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo.id);
+      const stmtNota = db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)');
+      asigs.forEach(asig => {
+        try { stmtNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, asig.id, 'Pendiente'); } catch {}
+      });
+    }
+  }
+  res.json({ ok: true });
+});
+
+// ── IMPORTAR PAGOS SIN ASIGNAR CARRERA/SECCIÓN ───────────────────────────────
+app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', header: 1, raw: true });
+    if (!rawRows.length) return res.status(400).json({ error: 'Archivo vacío' });
+
+    // Detectar fila de encabezados
+    function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(rawRows.length, 6); i++) {
+      const row = rawRows[i];
+      if (row.some(c => /cedula|c\.i\.|^ci$/i.test(norm(c)))) { headerRowIdx = i; break; }
+    }
+    if (headerRowIdx < 0) return res.status(400).json({ error: 'No se encontró fila de encabezados (necesita columna "Cédula" o "CI")' });
+
+    const headers   = rawRows[headerRowIdx].map(h => norm(h));
+    const dataRows  = rawRows.slice(headerRowIdx + 1);
+    const ciIdx     = headers.findIndex(h => /cedula|c\.i\.|^ci$/.test(h));
+    const nombreIdx = headers.findIndex(h => /nombre|alumno/i.test(h));
+    const apellidoIdx = headers.findIndex(h => /apellido/i.test(h));
+
+    // Columnas de pago
+    const pagoStart = Math.max(ciIdx, nombreIdx, apellidoIdx) + 1;
+    const pagoIdxs  = headers.reduce((acc, h, idx) => { if (idx >= pagoStart) acc.push({ idx, h }); return acc; }, []);
+
+    const mesMap = {
+      marzo:'Cuota 1',  abril:'Cuota 2',  mayo:'Cuota 3',   junio:'Cuota 4',
+      julio:'Cuota 5',  agosto:'Cuota 6', septiembre:'Cuota 7', setiembre:'Cuota 7',
+      octubre:'Cuota 8',noviembre:'Cuota 9',diciembre:'Cuota 10',
+      enero:'Cuota 11', febrero:'Cuota 12',
+      'cuota 1':'Cuota 1','cuota 2':'Cuota 2','cuota 3':'Cuota 3','cuota 4':'Cuota 4',
+      'cuota 5':'Cuota 5','cuota 6':'Cuota 6','cuota 7':'Cuota 7','cuota 8':'Cuota 8',
+      'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
+    };
+
+    function normId(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''); }
+
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const stmtBuscarCI   = db.prepare('SELECT id FROM alumnos WHERE ci=?');
+    const stmtUsuExiste  = db.prepare('SELECT id FROM usuarios WHERE ci=?');
+    const stmtCheckEmail = db.prepare("SELECT id FROM usuarios WHERE email=? AND COALESCE(ci,'')!=?");
+    const stmtInsertUsu  = db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)');
+    const stmtInsertAl   = db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    const stmtCheckPago  = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtInsertPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
+
+    const results = { ok: 0, errores: [], alumnos_creados: 0, columnas: pagoIdxs.map(p => p.h) };
+
+    db.transaction(() => {
+      dataRows.forEach(row => {
+        const ciRaw = ciIdx >= 0 ? row[ciIdx] : '';
+        const ci = typeof ciRaw === 'number' ? String(Math.round(ciRaw)) : String(ciRaw||'').replace(/[^0-9]/g,'');
+        if (!ci || ci.length < 5) return;
+
+        const nombreRaw = nombreIdx >= 0 ? String(row[nombreIdx]||'').trim() : '';
+        const apellidoRaw = apellidoIdx >= 0 ? String(row[apellidoIdx]||'').trim() : '';
+        let nombre = nombreRaw, apellido = apellidoRaw;
+        // Si no hay columna separada de apellido, intentar separar del nombre completo
+        if (!apellido && nombreRaw) {
+          const partes = nombreRaw.split(/\s+/).filter(Boolean);
+          if (partes.length >= 2) { nombre = partes[0]; apellido = partes.slice(1).join(' '); }
+        }
+
+        try {
+          let al = stmtBuscarCI.get(ci);
+          if (!al) {
+            // Crear alumno SIN carrera ni curso
+            const nPart = normId(nombre.split(' ')[0]);
+            const aPart = normId(apellido.split(' ').pop()).slice(0,4);
+            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
+            let emailAuto = `${emailBase}@its.edu.py`;
+            if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+
+            const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+            let uid = null;
+            const usuExiste = stmtUsuExiste.get(ci);
+            if (!usuExiste) {
+              uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+              try { stmtInsertUsu.run(uid, nombre, apellido, ci, emailAuto, bcrypt.hashSync(ci,10), 'alumno'); } catch { uid = null; }
+            } else { uid = usuExiste.id; }
+
+            stmtInsertAl.run(aid, uid, null, null, null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+            al = { id: aid };
+            results.alumnos_creados++;
+          }
+
+          // Registrar pagos
+          pagoIdxs.forEach(({ idx, h }) => {
+            const cellVal = row[idx];
+            let monto;
+            if (typeof cellVal === 'number') { monto = Math.round(cellVal); }
+            else {
+              const s = String(cellVal||'').replace(/[^0-9,\.]/g,'').replace(',','.');
+              monto = s ? Math.round(parseFloat(s)) : 0;
+            }
+            if (!monto || monto <= 0) return;
+            const concepto = mesMap[h] || (h.includes('matricula') ? 'Matrícula' : h.charAt(0).toUpperCase()+h.slice(1));
+            const periodoId = periodo?.id || null;
+            if (stmtCheckPago.get(al.id, concepto, periodoId)) return; // ya existe
+            stmtInsertPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, periodoId, concepto, monto, new Date().toISOString().split('T')[0], 'Pagado', 'Importado');
+            results.ok++;
+          });
+        } catch(e) { results.errores.push(`CI ${ci}: ${e.message}`); }
+      });
+    })();
+
+    res.json(results);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── IMPORTACIÓN MASIVA DE PAGOS DESDE EXCEL ───────────────────────────────────
 app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
   try {
