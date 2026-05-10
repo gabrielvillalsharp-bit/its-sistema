@@ -4906,6 +4906,7 @@ async function pgPagos(el){
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:linear-gradient(90deg,#f0fdf4,#f8fafc);border-bottom:2px solid var(--bdr)">
+            <th style="padding:11px 10px;text-align:center;font-weight:700;color:#94a3b8;font-size:11px;width:36px">#</th>
             <th style="padding:11px 16px;text-align:left;font-weight:700;color:#475569;font-size:12px">Alumno</th>
             <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px">Carrera / Año</th>
             <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Matrícula</th>
@@ -4958,7 +4959,7 @@ function renderTablaPagos(){
 
   const tbody=document.getElementById('tablaPagosCuerpo');
   if(!tbody)return;
-  if(!als.length){ tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos</td></tr>`; return; }
+  if(!als.length){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos</td></tr>`; return; }
 
   tbody.innerHTML=als.map((a,i)=>{
     const k=kanban[a.id]||{};
@@ -4982,6 +4983,7 @@ function renderTablaPagos(){
         onclick="abrirDetallePago('${a.id}')"
         onmouseover="this.style.background='#f0fdf4'"
         onmouseout="if(W._pagoSel!=='${a.id}')this.style.background='${rowBg}'">
+      <td style="padding:11px 10px;text-align:center;color:#94a3b8;font-size:12px;font-weight:600;width:36px;white-space:nowrap">${i+1}</td>
       <td style="padding:11px 16px">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${col},${col}bb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${ini}</div>
