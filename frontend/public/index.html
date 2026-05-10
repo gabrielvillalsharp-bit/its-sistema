@@ -7180,14 +7180,14 @@ async function cargarAuditoria(){
     if(!el)return;
     if(!regs.length){el.innerHTML='<div class="es">Sin registros para los filtros seleccionados</div>';return;}
     const accionColor={LOGIN:'bg',UPDATE_NOTA:'bb',DELETE:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba'};
-    el.innerHTML=`<div class="card"><div class="tw" style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;min-width:800px">
+    el.innerHTML=`<div class="card"><div class="tw" style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;min-width:900px">
       <thead><tr style="background:#f0f4f8">
         <th style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">Fecha / Hora</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Usuario</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Rol</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Tabla</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Registro ID</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">¿Qué se hizo?</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción técnica</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr)">Módulo</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Detalle</th>
       </tr></thead>
       <tbody id="audBody">
@@ -7197,18 +7197,102 @@ async function cargarAuditoria(){
     <p style="font-size:11px;color:var(--t3);margin-top:6px">Mostrando ${regs.length} registros · Última actualización: ${new Date().toLocaleTimeString('es-PY')}</p>`;
   }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
 }
+function describirAccion(r){
+  let det={};
+  try{det=JSON.parse(r.detalle||'{}');}catch{}
+  const tabla=(r.tabla||'').toLowerCase();
+  const accion=(r.accion||'').toUpperCase();
+  const al=det.alumno||det.alumno_nombre||det.nombre||'';
+  const doc=det.docente||det.docente_nombre||'';
+  const mat=det.materia||det.materia_nombre||'';
+  const conc=det.concepto||'';
+  const monto=det.monto?`Gs. ${Number(det.monto).toLocaleString('es-PY')}`:'';
+  const carrera=det.carrera||det.carrera_nombre||'';
+  const nota=det.nota_nueva!=null?det.nota_nueva:(det.nota!=null?det.nota:'');
+
+  if(accion==='LOGIN')        return `🔐 Inició sesión en el sistema`;
+  if(accion==='LOGOUT')       return `🚪 Cerró sesión`;
+  if(accion==='BACKUP')       return `💾 Realizó un respaldo de la base de datos`;
+  if(accion==='ERROR')        return `❌ Error del sistema${det.mensaje?' — '+det.mensaje:''}`;
+
+  if(accion==='PAGO'||tabla==='pagos'&&accion==='CREATE'){
+    let txt=`💰 Registró un pago`;
+    if(conc) txt+=` de <strong>${conc}</strong>`;
+    if(monto) txt+=` por <strong>${monto}</strong>`;
+    if(al)   txt+=` para ${al}`;
+    return txt;
+  }
+  if(accion==='UPDATE_NOTA'){
+    let txt=`📝 Modificó una nota`;
+    if(mat)  txt+=` de <strong>${mat}</strong>`;
+    if(nota!=='') txt+=` → <strong>${nota}</strong>`;
+    if(al)   txt+=` (${al})`;
+    return txt;
+  }
+  if(accion==='UPDATE_ASISTENCIA'){
+    let txt=`📅 Modificó la asistencia`;
+    if(mat) txt+=` en <strong>${mat}</strong>`;
+    if(al)  txt+=` del alumno ${al}`;
+    return txt;
+  }
+  if(accion==='HABILITAR'){
+    let txt=`✅ Habilitó a <strong>${al||'un alumno'}</strong> para rendir examen`;
+    if(det.tipo_examen) txt+=` (${det.tipo_examen.replace(/_/g,' ')})`;
+    return txt;
+  }
+  if(accion==='REEMPLAZO'){
+    let txt=`🔄 Registró un reemplazo de docente`;
+    if(doc) txt+=`: <strong>${doc}</strong>`;
+    if(mat) txt+=` en ${mat}`;
+    return txt;
+  }
+  if(accion==='HONORARIO'){
+    let txt=`💵 Registró un honorario`;
+    if(doc)   txt+=` para <strong>${doc}</strong>`;
+    if(monto) txt+=` de <strong>${monto}</strong>`;
+    return txt;
+  }
+  if(accion==='DELETE'){
+    if(tabla==='pagos')      return `🗑 Eliminó un pago${conc?' ('+conc+')':''}${al?' de '+al:''}`;
+    if(tabla==='notas')      return `🗑 Eliminó una nota${mat?' de '+mat:''}${al?' ('+al+')':''}`;
+    if(tabla==='alumnos')    return `🗑 Eliminó el alumno${al?' <strong>'+al+'</strong>':''}${carrera?' — '+carrera:''}`;
+    if(tabla==='examenes')   return `🗑 Eliminó un examen${mat?' de '+mat:''}`;
+    if(tabla==='asignaciones')return `🗑 Eliminó una asignación de docente`;
+    if(tabla==='docentes'||tabla==='usuarios') return `🗑 Eliminó el usuario${al?' <strong>'+al+'</strong>':''}`;
+    return `🗑 Eliminó un registro${tabla?' en '+tabla:''}`;
+  }
+  if(accion==='CREATE'||accion==='INSERT'){
+    if(tabla==='alumnos')     return `👤 Dio de alta al alumno${al?' <strong>'+al+'</strong>':''}${carrera?' en '+carrera:''}`;
+    if(tabla==='examenes')    return `📝 Creó un examen${mat?' de '+mat:''}`;
+    if(tabla==='asignaciones')return `📋 Asignó un docente${doc?' (<strong>'+doc+'</strong>)':''}${mat?' a '+mat:''}`;
+    if(tabla==='reemplazos')  return `🔄 Registró un reemplazo${doc?' de '+doc:''}`;
+    return `➕ Creó un registro en ${tabla}`;
+  }
+  if(accion==='UPDATE'){
+    if(tabla==='alumnos')  return `✏ Modificó datos del alumno${al?' <strong>'+al+'</strong>':''}`;
+    if(tabla==='notas')    return `📝 Actualizó nota${mat?' de '+mat:''}${nota!==''?' → <strong>'+nota+'</strong>':''}`;
+    if(tabla==='examenes') return `✏ Modificó un examen${mat?' de '+mat:''}`;
+    if(tabla==='docentes'||tabla==='usuarios') return `✏ Modificó datos del usuario${al?' '+al:''}`;
+    return `✏ Actualizó un registro en ${tabla}`;
+  }
+  // Fallback
+  const labels={LOGIN:'Inicio de sesión',UPDATE_NOTA:'Modificación de nota',UPDATE_ASISTENCIA:'Modificación asistencia',DELETE:'Eliminación',BACKUP:'Respaldo del sistema',HABILITAR:'Habilitación',PAGO:'Pago registrado',REEMPLAZO:'Reemplazo docente',HONORARIO:'Honorario',ERROR:'Error del sistema',CREATE:'Creación',UPDATE:'Modificación',INSERT:'Creación'};
+  return `${labels[accion]||accion}${tabla&&tabla!=='sistema'?' en '+tabla:''}`;
+}
+
 function audRow(r,accionColor){
   let detalle='';
   try{const d=JSON.parse(r.detalle||'{}');detalle=Object.entries(d).map(([k,vl])=>`<span style="font-size:10px;color:var(--t3)">${k}:</span> ${JSON.stringify(vl)}`).join(' · ');}catch{detalle=r.detalle||'';}
   const c=accionColor||{};
+  const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones'}[r.tabla||'']||r.tabla||'—';
   return `<tr>
     <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${(r.fecha||'').replace('T',' ').split('.')[0]}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap"><strong>${r.user_nombre||'Sistema'}</strong> ${r.user_apellido||''}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':'bg'}" style="font-size:9px">${r.rol||'—'}</span></td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:280px">${describirAccion(r)}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${c[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span></td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr)">${r.tabla||'—'}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:10px;color:var(--t3);max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.registro_id||'—'}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:#475569">${tablaLabel}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
   </tr>`;
 }
 function filtAudit(){
