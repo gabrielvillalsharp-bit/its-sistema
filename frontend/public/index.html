@@ -4861,7 +4861,7 @@ async function pgPagos(el){
     <div class="ph-right">
       <button class="bs" onclick="mCuotaLabels()">⚙ Cuotas</button>
       <button class="bs i" onclick="mImportarPlanilla()">📊 Importar Planilla</button>
-      <button class="bn" onclick="mPago()">+ Registrar pago</button>
+      <button class="bn" onclick="btnRegistrarPago()">+ Registrar pago</button>
     </div>
   </div>
 
@@ -5290,7 +5290,8 @@ function mPagoParaAlumno(alId){
   mPagoDirecto(alId);
 }
 async function mPagoDirecto(alId){
-  const al=(W._pdata?.als||[]).find(a=>a.id===alId)||{};
+  W._pagoSel=alId; // asegurar referencia al alumno actual
+  const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
   const {pers,aranceles}=W._pdata||{};
   let becaHTML='',moraHTML='';
   try{
@@ -5399,6 +5400,14 @@ async function cargarPagos(){
   if(cursoId)url+=`&curso_id=${cursoId}`;
   return api('GET',url).catch(()=>[]);
 }
+function btnRegistrarPago(){
+  // Si el panel de detalle de un alumno está abierto, registrar directamente para ese alumno
+  if(W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
+    mPagoDirecto(W._pagoSel);
+  } else {
+    mPago();
+  }
+}
 function mPago(){
   const {als,pers,aranceles}=W._pdata||{};
   modal(`<h4>Registrar pago</h4>
@@ -5496,10 +5505,13 @@ function filtrarAlPago(){
   sel.innerHTML=filtrados.map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre}</option>`).join('');
 }
 async function svPago(){
-  const o={alumno_id:v('pgal'),concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
+  // v('pgal') puede ser un <select> (mPago general) o <input hidden> (mPagoDirecto).
+  // Si está vacío, usar W._pagoSel que se setea al abrir el panel de detalle.
+  const alumnoId=v('pgal')||String(W._pagoSel||'');
+  const o={alumno_id:alumnoId,concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   window._pagoData=o;
-  const al=(W._pdata?.als||[]).find(a=>a.id===o.alumno_id);
+  const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(o.alumno_id));
   const nom=al?`${al.display_apellido||''}, ${al.display_nombre||''}`:'—';
   // Buscar arancel esperado para el concepto seleccionado
   const aranceles=W._pdata?.aranceles||[];
@@ -5543,9 +5555,10 @@ async function svPago(){
       try{
         const r=await api('POST','/api/pagos',pd);
         cm();
-        const alId=pd.alumno_id;
+        const alId=pd.alumno_id||String(W._pagoSel||'');
         // Recargar vista de pagos
-        if(alId&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
+        const enDetalle=W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none';
+        if(enDetalle){
           refreshKanban(alId);
         } else if(alId&&document.getElementById('alPagoOverlay')){
           selAlumnoPago(alId);
