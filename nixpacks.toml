@@ -1,5 +1,10 @@
+providers = ["node"]
+
 [phases.setup]
 nixPkgs = ["python3", "gcc", "gnumake"]
+
+[phases.install]
+cmds = ["npm install"]
 
 [start]
 cmd = "node backend/server.js"
