@@ -1502,7 +1502,7 @@ app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
 });
 // Perfil financiero de un alumno (consulta para rol alumno)
 app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
-  const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.alumno_id);
+  const al = db.prepare('SELECT a.*, cu.anio as curso_anio FROM alumnos a LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
   // Alumno solo puede ver su propio perfil
   if (req.user.rol === 'alumno' && al?.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
   const pagos = db.prepare(`SELECT p.*,c.nombre as carrera FROM pagos p JOIN alumnos al ON p.alumno_id=al.id JOIN carreras c ON al.carrera_id=c.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);

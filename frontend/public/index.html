@@ -4960,7 +4960,9 @@ function renderTablaPagos(){
     const barCol=pct>=80?'#22c55e':pct>=40?'#f59e0b':'#ef4444';
     const totalGs=Number(k.total_pagado||0);
     const tieneMat=k.tiene_matricula;
-    const estado=!tieneMat?'sinmat':(pagadas>=cuotasEsp?'aldia':'mora');
+    const es1erAnio=Number(a.curso_anio)===1;
+    // 1er año no paga matrícula — ignorar tiene_matricula para el estado
+    const estado=(!tieneMat&&!es1erAnio)?'sinmat':(pagadas>=cuotasEsp?'aldia':'mora');
     const estadoBadge={
       aldia:'<span style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">✅ Al día</span>',
       mora: '<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">⚠️ En mora</span>',
@@ -5075,7 +5077,8 @@ async function selAlumnoPago(alId){
       api('GET','/api/habilitaciones/'+alId).catch(()=>[])
     ]);
     const {pagos,totalPagado,alumno}=rPagos;
-    const al=alumno||(W._pdata?.als||[]).find(a=>a.id===alId)||{};
+    const al=alumno||(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
+    const es1erAnio=Number(al.curso_anio)===1;
     const becasActivas=(rBecas||[]).filter(b=>b.activa);
     const habsActivos=(rHabEspeciales||[]).filter(h=>h.habilitado);
     const aranceles=W._pdata?.aranceles||[];
@@ -5103,6 +5106,13 @@ async function selAlumnoPago(alId){
 
     // Grid de cuotas — TODAS las 12 + matrícula (match EXACTO para evitar bug Cuota 1 vs Cuota 10)
     const cuotasGrid=['Matrícula',...Array.from({length:12},(_,i)=>i+1)].map(n=>{
+      // 1er año no paga matrícula
+      if(n==='Matrícula'&&es1erAnio){
+        return `<div style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:10px 8px;text-align:center;min-width:80px" title="1er año: no paga matrícula">
+          <div style="font-size:20px;margin-bottom:4px">➖</div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.2">Matrícula<br>No aplica</div>
+        </div>`;
+      }
       const key=n==='Matrícula'?'Matrícula':'Cuota '+n;
       const lbl=n==='Matrícula'?'Matrícula':lb[n]||'Cuota '+n;
       // Comparación EXACTA: evitar que 'Cuota 10'.includes('Cuota 1') sea true
@@ -5312,18 +5322,18 @@ async function mPagoDirecto(alId){
       </div>`;
     }
   }catch{}
+  const es1erAnioForm=Number(al.curso_anio)===1;
   modal(`<h4>+ Registrar pago</h4>
   <div style="font-size:12px;color:var(--t2);padding:4px 10px;background:#f0f4ff;border-radius:6px;margin-bottom:10px">
     👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong> &nbsp;·&nbsp; ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}
   </div>
+  ${es1erAnioForm?'<div style="font-size:11px;padding:5px 10px;background:#e8f5e9;border-radius:5px;color:#2e7d32;margin-bottom:8px">ℹ 1er año — no paga matrícula</div>':''}
   ${moraHTML}${becaHTML}
   <input type="hidden" id="pgal" value="${alId}"/>
   <div class="fg">
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel()">
-        <optgroup label="Matrícula">
-          <option>Matrícula 2025</option><option>Matrícula 2026</option>
-        </optgroup>
+        ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option>Matrícula 2025</option><option>Matrícula 2026</option></optgroup>'}
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
