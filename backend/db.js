@@ -887,6 +887,14 @@ function init() {
     fecha_actualizacion TEXT DEFAULT (date('now')))`); } catch {}
   // Migración: agregar columna fecha_actualizacion a aranceles si no existe (bases de datos existentes)
   try { db.exec(`ALTER TABLE aranceles ADD COLUMN fecha_actualizacion TEXT DEFAULT (date('now'))`); } catch {}
+  // Migración: agregar columna anio a aranceles (para diferenciar por año de cursado)
+  try { db.exec(`ALTER TABLE aranceles ADD COLUMN anio INTEGER`); } catch {}
+  // Aranceles diferenciados por año (1° y 2°)
+  try {
+    const ins = db.prepare('INSERT OR IGNORE INTO aranceles (id,concepto,tipo,monto,anio,descripcion,activo) VALUES (?,?,?,?,?,?,1)');
+    ins.run('ar_cuota_1anio','Cuota mensual 1° año','cuota',300000,1,'Cuota para alumnos de primer año');
+    ins.run('ar_cuota_2anio','Cuota mensual 2° año','cuota',400000,2,'Cuota para alumnos de segundo año');
+  } catch {}
   // Migración: director_pts en notas (10 pts asignados por dirección)
   try { db.prepare('ALTER TABLE notas ADD COLUMN director_pts REAL').run(); } catch {}
   // Migración: normalizar tipo de examen a mayúscula inicial

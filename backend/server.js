@@ -1057,7 +1057,29 @@ app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
       }
     }
   })();
-  audit(req.user.id, 'UPDATE_ASISTENCIA', 'asistencia', asignacion_id, { fecha, total: registros.length });
+  // Obtener info de la asignación para auditoría detallada
+  try {
+    const asigInfo = db.prepare(`
+      SELECT m.nombre as materia, ca.nombre as carrera, cu.anio, cu.division,
+             u.nombre as doc_nombre, u.apellido as doc_apellido
+      FROM asignaciones a
+      JOIN materias m ON a.materia_id=m.id
+      JOIN cursos cu ON a.curso_id=cu.id
+      JOIN carreras ca ON cu.carrera_id=ca.id
+      JOIN docentes d ON a.docente_id=d.id
+      JOIN usuarios u ON d.usuario_id=u.id
+      WHERE a.id=?`).get(asignacion_id);
+    const presentes = registros.filter(r=>r.estado==='P').length;
+    const ausentes  = registros.filter(r=>r.estado==='A').length;
+    audit(req.user.id, 'UPDATE_ASISTENCIA', 'asistencia', asignacion_id, {
+      fecha, total: registros.length, presentes, ausentes,
+      materia: asigInfo?.materia,
+      carrera: asigInfo?.carrera,
+      anio: asigInfo?.anio ? asigInfo.anio+'° año' : null,
+      seccion: asigInfo?.division && asigInfo.division!=='U' ? 'Sección '+asigInfo.division : 'Única',
+      docente: asigInfo ? `${asigInfo.doc_nombre} ${asigInfo.doc_apellido}` : null
+    });
+  } catch { audit(req.user.id, 'UPDATE_ASISTENCIA', 'asistencia', asignacion_id, { fecha, total: registros.length }); }
   res.json({ ok: true });
 });
 app.get('/api/honorarios', auth(ADM), (req, res) => {
@@ -1585,7 +1607,8 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
     const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
     db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
-    audit(req.user.id,'PAGO','pagos',id,{alumno_id,concepto,monto:montoPagado,medio_pago});
+    const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
+    audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago});
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2843,14 +2866,14 @@ app.get('/api/aranceles', auth(), (req, res) => {
     LEFT JOIN carreras c ON a.carrera_id=c.id ${where} ORDER BY a.tipo,a.concepto`).all(...params));
 });
 app.post('/api/aranceles', auth(ADM), (req, res) => {
-  const { concepto, monto, tipo, carrera_id, descripcion } = req.body;
+  const { concepto, monto, tipo, carrera_id, descripcion, anio } = req.body;
   const id = 'ar_'+Date.now();
-  db.prepare('INSERT INTO aranceles (id,concepto,monto,tipo,carrera_id,descripcion) VALUES (?,?,?,?,?,?)').run(id,concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null);
+  db.prepare('INSERT INTO aranceles (id,concepto,monto,tipo,carrera_id,descripcion,anio) VALUES (?,?,?,?,?,?,?)').run(id,concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null,anio||null);
   res.json({ id });
 });
 app.put('/api/aranceles/:id', auth(ADM), (req, res) => {
-  const { concepto, monto, tipo, carrera_id, descripcion, activo } = req.body;
-  db.prepare("UPDATE aranceles SET concepto=?,monto=?,tipo=?,carrera_id=?,descripcion=?,activo=?,fecha_actualizacion=date('now') WHERE id=?").run(concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null,activo?1:0,req.params.id);
+  const { concepto, monto, tipo, carrera_id, descripcion, activo, anio } = req.body;
+  db.prepare("UPDATE aranceles SET concepto=?,monto=?,tipo=?,carrera_id=?,descripcion=?,activo=?,anio=?,fecha_actualizacion=date('now') WHERE id=?").run(concepto,monto||0,tipo||'cuota',carrera_id||null,descripcion||null,activo?1:0,anio||null,req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/aranceles/:id', auth(ADM), (req, res) => {

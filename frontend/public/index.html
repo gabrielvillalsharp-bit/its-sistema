@@ -4036,15 +4036,15 @@ async function pgAsist(el){
   W._asistAsigs=asigs; W._asistHorarios=horarios;
   const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const diaHoy=diasN[new Date().getDay()];
-  const hoyStr=new Date().toISOString().split('T')[0];
   let asigsFiltradas=asigs;
   if(me.rol==='docente'){
     const asigIdsHoy=new Set(horarios.filter(h=>h.dia===diaHoy&&h.asignacion_id).map(h=>h.asignacion_id));
     asigsFiltradas=asigs.filter(a=>asigIdsHoy.has(a.id));
   }
-  // Carreras y años únicos desde asignaciones reales
+  // Carreras, años y docentes únicos desde asignaciones reales
   const carrsEnAsigs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const aniosEnAsigs=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
+  const docentesEnAsigs=[...new Map(asigs.filter(a=>a.docente_id).map(a=>[a.docente_id,{id:a.docente_id,nombre:`${a.docente_apellido||''}, ${a.docente_nombre||''}`}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
 
   el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
     ${me.rol==='director'?`<div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -4059,15 +4059,19 @@ async function pgAsist(el){
       <option value="">Todas las carreras</option>
       ${carrsEnAsigs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>
+    <select id="filtAsistAnio" onchange="filtAsistAsigs()" style="min-width:100px">
+      <option value="">Todos los años</option>
+      ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+    </select>
     <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:130px">
       <option value="">Ambos turnos</option>
       <option value="1">T1 (19:00–20:20)</option>
       <option value="2">T2 (20:40–22:00)</option>
     </select>
-    <select id="filtAsistAnio" onchange="filtAsistAsigs()" style="min-width:100px">
-      <option value="">Todos los años</option>
-      ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-    </select>
+    ${me.rol==='director'?`<select id="filtAsistDocente" onchange="filtAsistAsigs()" style="min-width:180px">
+      <option value="">Todos los docentes</option>
+      ${docentesEnAsigs.map(d=>`<option value="${d.id}">${d.nombre}</option>`).join('')}
+    </select>`:''}
     <select id="selAsistAsig" onchange="cargarFechasAsist(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
@@ -4077,7 +4081,7 @@ async function pgAsist(el){
       }).join('')}
     </select>
     <select id="fecAsist" onchange="if(W._asistId)W.loadAsist(W._asistId)" style="min-width:160px">
-      <option value="">— Seleccioná la materia primero —</option>
+      <option value="">📅 Seleccionar fecha</option>
     </select>
   </div>
   <div id="ac"></div>`;
@@ -4128,12 +4132,14 @@ function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
   const turno=v('filtAsistTurno');
   const anio=v('filtAsistAnio');
+  const docenteId=v('filtAsistDocente');
   const sel=document.getElementById('selAsistAsig');
   if(!sel)return;
   let asigs=W._asistAsigs||[];
   const horarios=W._asistHorarios||[];
-  if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
-  if(anio)   asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(carrId)    asigs=asigs.filter(a=>a.carrera_id===carrId);
+  if(anio)      asigs=asigs.filter(a=>String(a.curso_anio)===anio);
+  if(docenteId) asigs=asigs.filter(a=>a.docente_id===docenteId);
   if(turno){
     const ids=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
     asigs=asigs.filter(a=>ids.has(a.id));
@@ -4460,10 +4466,13 @@ function imprimirAsistDia(asigId, fecha){
   const estadoColor={P:'#2e7d32',A:'#c62828',T:'#e65100',J:'#166534'};
   const filas=alumnos.map((al,i)=>{
     const est=estMap[al.id]||'P';
+    const ap=al.alumno_apellido||al.apellido||'';
+    const nm=al.alumno_nombre||al.nombre||'';
+    const ci=al.alumno_ci||al.ci||'—';
     return `<tr>
       <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${i+1}</td>
-      <td style="padding:6px 10px;border:1px solid #ccc">${al.apellido||''}, ${al.nombre||''}</td>
-      <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${al.ci||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc">${ap}, ${nm}</td>
+      <td style="padding:6px 10px;border:1px solid #ccc;text-align:center">${ci}</td>
       <td style="padding:6px 10px;border:1px solid #ccc;text-align:center;font-weight:700;color:${estadoColor[est]||'#333'}">${estadoLabel[est]||est}</td>
       <td style="padding:6px 10px;border:1px solid #ccc;width:120px"></td>
     </tr>`;
@@ -6054,18 +6063,19 @@ async function pgAranceles(el){
   </div>
   <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Estos valores se autocompletan al registrar pagos según el concepto seleccionado.</p>
   <div class="card"><div class="tw"><table><thead><tr>
-    <th>Concepto</th><th>Tipo</th><th>Carrera</th><th style="text-align:right">Monto (Gs.)</th><th></th>
+    <th>Concepto</th><th>Tipo</th><th>Carrera</th><th>Año</th><th style="text-align:right">Monto (Gs.)</th><th></th>
   </tr></thead><tbody>
   ${aranceles.map(a=>`<tr>
     <td><strong>${a.concepto}</strong>${a.descripcion?`<br><span style="font-size:11px;color:var(--t3)">${a.descripcion}</span>`:''}</td>
     <td><span class="bx ${tipoColor[a.tipo]||'bgr'}">${tipoLabel[a.tipo]||a.tipo}</span></td>
     <td style="font-size:12px">${a.carrera_nombre||'Todas las carreras'}</td>
+    <td style="font-size:12px;text-align:center">${a.anio?`<span class="bx bb">${a.anio}° año</span>`:'<span style="color:var(--t2)">Todos</span>'}</td>
     <td style="text-align:right"><strong>Gs. ${Number(a.monto).toLocaleString()}</strong></td>
     <td><div class="abs">
       <button class="bs i" onclick="mArancel(${JSON.stringify(a).replace(/"/g,'&quot;')})">Editar</button>
       <button class="bs d" onclick="delArancel('${a.id}')">Eliminar</button>
     </div></td>
-  </tr>`).join('')||'<tr><td colspan="5" class="es">Sin aranceles configurados</td></tr>'}
+  </tr>`).join('')||'<tr><td colspan="6" class="es">Sin aranceles configurados</td></tr>'}
   </tbody></table></div></div>`;
   W._aranCarrs=carrs;
 }
@@ -6090,12 +6100,19 @@ function mArancel(a){
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
     </select></div>
+    <div class="f"><label>Año de cursado (dejar vacío para todos)</label><select id="arAnio">
+      <option value="">Todos los años</option>
+      <option value="1" ${e&&a.anio===1?'selected':''}>1° año</option>
+      <option value="2" ${e&&a.anio===2?'selected':''}>2° año</option>
+      <option value="3" ${e&&a.anio===3?'selected':''}>3° año</option>
+    </select></div>
     <div class="f"><label>Descripción</label><input id="arDesc" value="${e?a.descripcion||'':''}" placeholder="Opcional"/></div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svArancel('${e?a.id:''}')">Guardar</button></div>`);
 }
 async function svArancel(id){
-  const o={concepto:v('arCon'),tipo:v('arTip'),monto:parseFloat(v('arMon'))||0,carrera_id:v('arCarr')||null,descripcion:v('arDesc')||null,activo:1};
+  const anioVal=v('arAnio');
+  const o={concepto:v('arCon'),tipo:v('arTip'),monto:parseFloat(v('arMon'))||0,carrera_id:v('arCarr')||null,anio:anioVal?parseInt(anioVal):null,descripcion:v('arDesc')||null,activo:1};
   if(!o.concepto)return alert('El concepto es obligatorio');
   if(!o.monto||o.monto<=0)return alert('Ingresá un monto válido mayor a 0');
   try{
@@ -7324,7 +7341,9 @@ function describirAccion(r){
     let txt=`💰 Registró un pago`;
     if(conc) txt+=` de <strong>${conc}</strong>`;
     if(monto) txt+=` por <strong>${monto}</strong>`;
-    if(al)   txt+=` para ${al}`;
+    const alumnoNom=det.alumno||al;
+    if(alumnoNom) txt+=` — Alumno: <strong>${alumnoNom}</strong>`;
+    if(det.medio_pago) txt+=` (${det.medio_pago})`;
     return txt;
   }
   if(accion==='UPDATE_NOTA'){
@@ -7335,9 +7354,15 @@ function describirAccion(r){
     return txt;
   }
   if(accion==='UPDATE_ASISTENCIA'){
-    let txt=`📅 Modificó la asistencia`;
-    if(mat) txt+=` en <strong>${mat}</strong>`;
-    if(al)  txt+=` del alumno ${al}`;
+    let txt=`📅 Llamó lista`;
+    if(det.materia) txt+=` — <strong>${det.materia}</strong>`;
+    if(det.carrera) txt+=` · ${det.carrera}`;
+    if(det.anio)    txt+=` ${det.anio}`;
+    if(det.seccion) txt+=` ${det.seccion}`;
+    if(det.fecha)   txt+=` · Fecha: ${det.fecha}`;
+    if(det.presentes!=null) txt+=` · <span style="color:#2e7d32">${det.presentes}P</span>`;
+    if(det.ausentes!=null)  txt+=`/<span style="color:#c62828">${det.ausentes}A</span>`;
+    if(det.docente) txt+=` · Docente: ${det.docente}`;
     return txt;
   }
   if(accion==='HABILITAR'){
