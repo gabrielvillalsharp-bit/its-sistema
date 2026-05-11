@@ -2412,8 +2412,8 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
               stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
               results.credenciales.push({ nombre: nombreCompleto||`${nombre} ${apellido}`, usuario: emailAuto, password: ci });
             } else {
-              // Sin CI: estado Pendiente, sin cuenta de usuario
-              stmtInsAl.run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Pendiente', null, nombre, apellido);
+              // Sin CI: estado Activo (CI nula es el indicador de que falta la cédula)
+              stmtInsAl.run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', null, nombre, apellido);
             }
             if (curso_id) stmtAsigs.all(curso_id, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {} });
             al = { id: aid };
