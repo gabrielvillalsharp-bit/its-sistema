@@ -52,6 +52,28 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
+// ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
+// Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
+try {
+  const exFacial = db.prepare(`
+    SELECT e.id FROM examenes e
+    JOIN asignaciones a ON e.asignacion_id = a.id
+    JOIN materias m ON a.materia_id = m.id
+    JOIN cursos cu ON a.curso_id = cu.id
+    JOIN carreras ca ON cu.carrera_id = ca.id
+    WHERE e.fecha = '2026-05-12'
+      AND cu.division = 'B'
+      AND cu.anio = 1
+      AND (m.nombre LIKE '%acial%' OR m.nombre LIKE '%ecnica%facial%' OR m.nombre LIKE '%aciales%')
+      AND (ca.nombre LIKE '%osmiat%' OR ca.nombre LIKE '%osmet%')
+    LIMIT 1
+  `).get();
+  if (exFacial) {
+    db.prepare("UPDATE examenes SET fecha='2026-05-19' WHERE id=? AND fecha='2026-05-12'").run(exFacial.id);
+    console.log('[Migración] Examen Técnicas Faciales Cosm. 1° B: fecha actualizada a 2026-05-19');
+  }
+} catch(e) { console.warn('[Migración] Técnicas Faciales:', e.message); }
+
 
 // Backup a Google Drive (requiere GOOGLE_SERVICE_ACCOUNT_JSON y GOOGLE_DRIVE_FOLDER_ID en Railway)
 const { cloudBackupDrive } = require('./cloud-backup');

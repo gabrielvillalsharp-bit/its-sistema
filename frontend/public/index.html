@@ -2001,9 +2001,9 @@ async function pgExamenes(el){
     </select>`:''}
   </div>
   <div class="card"><div class="tw"><table><thead><tr>
-    <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Materia</th><th>Carrera / Curso</th><th>Docente</th><th>Aula</th><th>Alumnos</th><th>Notas</th><th></th>
+    <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Materia</th><th>Carrera</th><th>Sección</th><th>Docente</th><th>Aula</th><th>Alumnos</th><th>Notas</th><th></th>
   </tr></thead><tbody id="extb">
-  ${exs.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin exámenes programados</td></tr>'}
+  ${exs.map(exRow).join('')||'<tr><td colspan="11" class="es">Sin exámenes programados</td></tr>'}
   </tbody></table></div></div>`;
 }
 function exRow(e){
@@ -2037,7 +2037,8 @@ function exRow(e){
     <td style="white-space:nowrap">${e.hora||'—'}</td>
     <td><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px">${e.tipo||'—'}</span></td>
     <td><strong>${e.materia_nombre||'—'}</strong></td>
-    <td style="font-size:12px">${e.carrera_nombre||'—'} ${e.curso_anio?e.curso_anio+'°':''}</td>
+    <td style="font-size:12px">${e.carrera_nombre||'—'}${e.curso_anio?' '+e.curso_anio+'°':''}</td>
+    <td style="font-size:12px;white-space:nowrap">${e.curso_division&&e.curso_division!=='U'?'<span class="bx bb" style="font-size:10px">Secc. '+e.curso_division+'</span>':'<span style="color:var(--t2)">Única</span>'}</td>
     <td style="font-size:12px">${e.docente_nombre||''} ${e.docente_apellido||''}</td>
     <td style="font-size:12px">${e.aula||'—'}</td>
     <td style="text-align:center;font-size:12px">${e.total_alumnos||0}</td>
