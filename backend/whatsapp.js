@@ -19,7 +19,7 @@ let _baileys    = null; // cache del módulo
 
 async function loadBaileys() {
   if (_baileys) return _baileys;
-  const B = await import('@whiskeysockets/baileys');
+  const B = await import('baileys');
 
   const makeWASocket =
     (typeof B.makeWASocket === 'function' ? B.makeWASocket : null) ??
