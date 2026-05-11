@@ -77,22 +77,25 @@ async function conectar(telefono) {
   let codigoPairing = null;
   if (!state.creds.registered && telefono) {
     const num = String(telefono).replace(/[^0-9]/g, '');
-    // Esperar a que el WebSocket esté listo antes de pedir el código
-    await new Promise(resolve => {
-      const unsub = sock.ev.on('connection.update', ({ connection }) => {
-        if (connection === 'connecting' || connection === 'open') {
-          resolve();
-        }
-      });
-      // Fallback: esperar máximo 5s igual
-      setTimeout(resolve, 5000);
-    });
+    // Baileys requiere que se pida el código ANTES de que la conexión se complete
+    // El delay mínimo es solo para que el WebSocket TCP se establezca
+    await new Promise(r => setTimeout(r, 1500));
     try {
       codigoPairing = await sock.requestPairingCode(num);
       console.log(`[WhatsApp] Pairing code generado: ${codigoPairing}`);
     } catch (e) {
       ultimoError = 'Error al generar pairing code: ' + e.message;
       console.error('[WhatsApp]', ultimoError);
+      // Si falla, intentar una vez más tras 2s
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        codigoPairing = await sock.requestPairingCode(num);
+        ultimoError = null;
+        console.log(`[WhatsApp] Pairing code (reintento): ${codigoPairing}`);
+      } catch(e2) {
+        ultimoError = 'Error al generar pairing code: ' + e2.message;
+        console.error('[WhatsApp] Reintento fallido:', e2.message);
+      }
     }
   }
 
