@@ -5,6 +5,11 @@
 const path = require('path');
 const fs   = require('fs');
 
+// Node 18 no expone crypto globalmente — requerido por Baileys v7
+if (!globalThis.crypto) {
+  globalThis.crypto = require('crypto').webcrypto;
+}
+
 // Directorio donde se guarda la sesión (persiste en el Volume de Railway)
 const AUTH_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'wa_auth')
