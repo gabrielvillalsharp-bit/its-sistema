@@ -18,11 +18,19 @@ let _reconnTimer = null;
 // ── Cargar Baileys (ESM) mediante dynamic import ─────────────────────────────
 async function loadBaileys() {
   const B = await import('@whiskeysockets/baileys');
+  // v7 exporta makeWASocket como named export; v6 lo ponía en default
+  const makeWASocket =
+    (typeof B.makeWASocket === 'function' ? B.makeWASocket : null) ??
+    (typeof B.default === 'function'      ? B.default      : null) ??
+    B.default?.makeWASocket;
+  if (typeof makeWASocket !== 'function') {
+    throw new Error('No se pudo cargar makeWASocket de baileys. Exports: ' + Object.keys(B).join(', '));
+  }
   return {
-    makeWASocket:              B.default ?? B.makeWASocket,
-    useMultiFileAuthState:     B.useMultiFileAuthState,
-    DisconnectReason:          B.DisconnectReason,
-    fetchLatestBaileysVersion: B.fetchLatestBaileysVersion,
+    makeWASocket,
+    useMultiFileAuthState:       B.useMultiFileAuthState,
+    DisconnectReason:            B.DisconnectReason,
+    fetchLatestBaileysVersion:   B.fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore: B.makeCacheableSignalKeyStore,
   };
 }
