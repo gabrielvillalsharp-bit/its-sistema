@@ -370,6 +370,29 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     res.json({ id, matricula, credencial });
   } catch(e) { res.status(500).json({ error: 'Error al crear alumno: '+e.message }); }
 });
+// ── ALUMNOS FALTANTES ────────────────────────────────────────────────────────
+app.get('/api/alumnos-faltantes', auth(ADM), (req, res) => {
+  const rows = db.prepare(`
+    SELECT af.*, c.nombre as carrera_nombre
+    FROM alumnos_faltantes af
+    LEFT JOIN carreras c ON af.carrera_id = c.id
+    ORDER BY af.fecha_registro DESC
+  `).all();
+  res.json(rows);
+});
+app.post('/api/alumnos-faltantes', auth(ADM), (req, res) => {
+  const { nombre, apellido, carrera_id, ci } = req.body;
+  if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'nombre, apellido y carrera son requeridos' });
+  const id = 'af_' + Date.now();
+  const ciLimpio = ci ? String(ci).replace(/[^0-9]/g, '') : null;
+  db.prepare('INSERT INTO alumnos_faltantes (id,nombre,apellido,carrera_id,ci,registrado_por) VALUES (?,?,?,?,?,?)').run(id, nombre.trim(), apellido.trim(), carrera_id, ciLimpio || null, req.user.id);
+  res.json({ id, ok: true });
+});
+app.delete('/api/alumnos-faltantes/:id', auth(ADM), (req, res) => {
+  db.prepare('DELETE FROM alumnos_faltantes WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id, usuario_id } = req.body;
   if (usuario_id !== undefined) {

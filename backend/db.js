@@ -932,6 +932,16 @@ function init() {
       fecha_deteccion TEXT DEFAULT (date('now'))
     )`);
   } catch {}
+  // Tabla de alumnos faltantes (registro rápido para identificación)
+  try { db.exec(`CREATE TABLE IF NOT EXISTS alumnos_faltantes (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    apellido TEXT NOT NULL,
+    carrera_id TEXT NOT NULL REFERENCES carreras(id),
+    ci TEXT,
+    registrado_por TEXT NOT NULL,
+    fecha_registro TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
   seedDatos();
   seedHorarios();
   migrateMatrixV2();

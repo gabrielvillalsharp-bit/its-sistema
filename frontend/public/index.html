@@ -4871,6 +4871,7 @@ async function pgPagos(el){
           <button onclick="toggleMenuImportar();mImportarSinAsignar()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📌 Sin asignar carrera</button>
         </div>
       </div>
+      <button class="bs" onclick="mRegistrarFaltante()" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa">👤 Alumno faltante</button>
       <button class="bn" onclick="btnRegistrarPago()">+ Registrar pago</button>
     </div>
   </div>
@@ -5408,6 +5409,80 @@ function getCuotaLabels(){
 function cuotaOptions(){
   const lb=getCuotaLabels();
   return [1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<option value="Cuota '+n+'">'+lb[n]+'</option>').join('');
+}
+// ── ALUMNOS FALTANTES ─────────────────────────────────────────────────────────
+async function mRegistrarFaltante(){
+  const carrs=W._pagosCarrs||[];
+  let lista=[];
+  try{ lista=await api('GET','/api/alumnos-faltantes'); }catch{}
+  function renderLista(items){
+    if(!items.length) return '<p style="color:var(--t2);font-size:13px;text-align:center;padding:16px 0">No hay alumnos registrados como faltantes.</p>';
+    return `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f8fafc;border-bottom:1px solid var(--bdr)">
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--t2)">Nombre y apellido</th>
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--t2)">Carrera</th>
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--t2)">Cédula</th>
+        <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--t2)">Fecha</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${items.map(f=>`<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 10px;font-weight:600">${f.apellido}, ${f.nombre}</td>
+        <td style="padding:8px 10px;color:var(--t2)">${f.carrera_nombre||'—'}</td>
+        <td style="padding:8px 10px;color:var(--t2)">${f.ci||'—'}</td>
+        <td style="padding:8px 10px;color:var(--t2);font-size:11px">${(f.fecha_registro||'').split(' ')[0]}</td>
+        <td style="padding:8px 10px"><button class="bs" style="font-size:11px;padding:3px 8px;color:#dc2626;border-color:#fecaca" onclick="elimFaltante('${f.id}')">✕</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  function build(items){
+    return `<h4 style="margin:0 0 16px;display:flex;align-items:center;gap:8px"><span style="font-size:20px">👤</span> Alumnos faltantes</h4>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 16px;line-height:1.5">Registrá alumnos que aún no están en el sistema para identificarlos y buscarlos en la base de datos física de la institución.</p>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:#c2410c;margin-bottom:12px">📋 Registrar nuevo faltante</div>
+      <div class="fg" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="f"><label>Nombre *</label><input id="fANombre" placeholder="Nombre" /></div>
+        <div class="f"><label>Apellido *</label><input id="fAApellido" placeholder="Apellido" /></div>
+        <div class="f"><label>Carrera *</label><select id="fACarrera"><option value="">Seleccionar...</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+        <div class="f"><label>Cédula <span style="color:var(--t2);font-weight:400">(opcional)</span></label><input id="fACedula" placeholder="Sin puntos ni guiones" inputmode="numeric" /></div>
+      </div>
+      <button class="bn" style="margin-top:12px;width:100%" onclick="guardarFaltante()">+ Registrar</button>
+    </div>
+    <div id="faltantesCount" style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:10px">📋 Listado (${items.length})</div>
+    <div id="listaFaltantes" style="max-height:260px;overflow-y:auto;border:1px solid var(--bdr);border-radius:10px">${renderLista(items)}</div>`;
+  }
+  modal(build(lista), true);
+  W._faltantesData=lista;
+  W.guardarFaltante=async function(){
+    const nombre=document.getElementById('fANombre')?.value?.trim();
+    const apellido=document.getElementById('fAApellido')?.value?.trim();
+    const carrera_id=document.getElementById('fACarrera')?.value;
+    const ci=document.getElementById('fACedula')?.value?.trim();
+    if(!nombre||!apellido||!carrera_id){showToast('Completá nombre, apellido y carrera','w');return;}
+    try{
+      await api('POST','/api/alumnos-faltantes',{nombre,apellido,carrera_id,ci:ci||null});
+      W._faltantesData=await api('GET','/api/alumnos-faltantes');
+      // Actualizar listado en el modal sin cerrarlo
+      const cont=document.getElementById('listaFaltantes');
+      if(cont) cont.innerHTML=renderLista(W._faltantesData);
+      const hd=document.getElementById('faltantesCount');
+      if(hd) hd.textContent='📋 Listado ('+W._faltantesData.length+')';
+      document.getElementById('fANombre').value='';
+      document.getElementById('fAApellido').value='';
+      document.getElementById('fACarrera').value='';
+      document.getElementById('fACedula').value='';
+      showToast('Alumno faltante registrado','s');
+    }catch(e){showToast('Error: '+e.message,'e');}
+  };
+  W.elimFaltante=async function(id){
+    if(!confirm('¿Eliminar este registro?')) return;
+    try{
+      await api('DELETE','/api/alumnos-faltantes/'+id);
+      W._faltantesData=await api('GET','/api/alumnos-faltantes');
+      const cont=document.getElementById('listaFaltantes');
+      if(cont) cont.innerHTML=renderLista(W._faltantesData);
+      showToast('Eliminado','s');
+    }catch(e){showToast('Error','e');}
+  };
 }
 function mCuotaLabels(){
   const lb=getCuotaLabels();
