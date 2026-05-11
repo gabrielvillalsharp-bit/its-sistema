@@ -5806,13 +5806,15 @@ function mostrarRevisionPlanilla(data){
       </select>
     </th>`).join('');
 
+  // Nombre de la carrera destino del import (para el selector)
+  const carrDestNombre=(()=>{const c=(W._carrs||[]).find(x=>x.id===data.carrera_id);return c?c.nombre:'Carrera importada';})();
+
   const rows=data.filas.map((f,i)=>{
+    const tieneConflicto=f.alumno_existente&&f.carrera_anterior;
     let badge;
     if(f.alumno_existente){
-      if(f.tiene_pagos&&f.carrera_anterior){
-        badge=`<span style="font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:3px;padding:1px 5px;margin-right:4px" title="Tiene pagos en ${f.carrera_anterior.nombre} — no se reasignará">⚠️ ${f.carrera_anterior.nombre}</span>`;
-      } else if(!f.tiene_pagos&&f.carrera_anterior){
-        badge=`<span style="font-size:10px;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:3px;padding:1px 5px;margin-right:4px" title="Sin pagos — se reasignará a la carrera importada">ℹ️ ${f.carrera_anterior.nombre}</span>`;
+      if(f.carrera_anterior){
+        badge=`<span style="font-size:10px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:3px;padding:1px 5px;margin-right:4px">⚠️ ${f.carrera_anterior.nombre}</span>`;
       } else {
         badge='<span style="font-size:10px;color:#2e7d32;background:#e8f5e9;border-radius:3px;padding:1px 4px;margin-right:4px">✓</span>';
       }
@@ -5824,12 +5826,24 @@ function mostrarRevisionPlanilla(data){
         <input id="pv_${i}_${j}" type="number" min="0" step="1" value="${m||''}"
           style="width:95px;text-align:right;font-size:12px;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-family:inherit"/>
       </td>`).join('');
-    const rowBg=f.alumno_existente&&f.tiene_pagos&&f.carrera_anterior?'#fffdf0':(f.alumno_existente&&!f.tiene_pagos&&f.carrera_anterior?'#f0f7ff':(i%2===0?'#fff':'#fafafa'));
+    const rowBg=tieneConflicto?'#fffdf0':(i%2===0?'#fff':'#fafafa');
+    // Celda de asignación: selector solo para alumnos con conflicto
+    const defaultChoice=f.tiene_pagos?'mantener':'mover';
+    const asigCell=tieneConflicto
+      ?`<td style="padding:4px 8px;border:1px solid #e0e0e0;background:#fffdf0;min-width:190px">
+          ${f.tiene_pagos?'<div style="font-size:9px;color:#92400e;margin-bottom:2px">⚠️ Tiene pagos</div>':''}
+          <select id="pvchoice_${i}" style="width:100%;font-size:11px;border:1px solid #fbbf24;border-radius:4px;padding:3px 4px;background:#fff">
+            <option value="mantener" ${defaultChoice==='mantener'?'selected':''}>↩ Mantener en ${f.carrera_anterior.nombre}</option>
+            <option value="mover" ${defaultChoice==='mover'?'selected':''}>↗ Mover a ${carrDestNombre}</option>
+          </select>
+        </td>`
+      :`<td style="padding:4px 8px;border:1px solid #e0e0e0;text-align:center;font-size:11px;color:#94a3b8">${f.alumno_existente?'Sin conflicto':'—'}</td>`;
     return `<tr style="background:${rowBg}">
       <td style="padding:5px 10px;border:1px solid #e0e0e0;position:sticky;left:0;background:${rowBg};z-index:1;min-width:200px;white-space:nowrap">
         ${badge}<strong style="font-size:12px">${f.nombreCompleto||(f.nombre+' '+f.apellido).trim()}</strong>
       </td>
       <td style="padding:5px 8px;border:1px solid #e0e0e0;font-size:11px;color:#777;font-family:monospace;white-space:nowrap">${f.ci}</td>
+      ${asigCell}
       ${cells}
     </tr>`;
   }).join('');
@@ -5845,13 +5859,9 @@ function mostrarRevisionPlanilla(data){
       </div>
       <button onclick="cerrarRevisionPlanilla()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px">✕ Cancelar</button>
     </div>
-    ${conPagosOtraCarrera>0?`<div style="background:#fffbeb;padding:7px 20px;font-size:12px;color:#92400e;flex-shrink:0;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px">
+    ${(conPagosOtraCarrera+aReasignar)>0?`<div style="background:#fff8f0;padding:7px 20px;font-size:12px;color:#92400e;flex-shrink:0;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px">
       <span style="font-size:15px">⚠️</span>
-      <span><strong>${conPagosOtraCarrera} alumno${conPagosOtraCarrera>1?'s':''} con pagos previos</strong> — su carrera <strong>no se modificará</strong>. Solo se importarán los nuevos pagos. Aparecen con fondo amarillo en la tabla.</span>
-    </div>`:''}
-    ${aReasignar>0?`<div style="background:#eff6ff;padding:7px 20px;font-size:12px;color:#1e40af;flex-shrink:0;border-bottom:1px solid #bfdbfe;display:flex;align-items:center;gap:8px">
-      <span style="font-size:15px">ℹ️</span>
-      <span><strong>${aReasignar} alumno${aReasignar>1?'s':''} sin pagos</strong> estaban asignados a otra carrera — <strong>se reasignarán</strong> a la carrera importada. Aparecen con fondo azul.</span>
+      <span><strong>${conPagosOtraCarrera+aReasignar} alumno${(conPagosOtraCarrera+aReasignar)>1?'s':''} con conflicto de carrera</strong> — usá la columna <strong>Asignación</strong> para elegir si mantenerlos en su carrera actual o moverlos a la importada.</span>
     </div>`:''}
     <div style="background:#e3f2fd;padding:7px 20px;font-size:12px;color:#1565c0;flex-shrink:0;border-bottom:1px solid #bbdefb">
       <strong>⚠ Revisá el encabezado de cada columna:</strong> el selector muestra el concepto detectado. Si el mes está incorrecto, cambialo antes de confirmar. Los campos en <strong>0 o vacíos</strong> no se registran.
@@ -5862,6 +5872,7 @@ function mostrarRevisionPlanilla(data){
           <tr>
             <th style="padding:8px 10px;text-align:left;background:#1565c0;color:#fff;position:sticky;top:0;left:0;z-index:3;min-width:200px">Alumno</th>
             <th style="padding:8px 10px;text-align:left;background:#1565c0;color:#fff;position:sticky;top:0;z-index:2;min-width:100px">C.I.</th>
+            <th style="padding:8px 10px;text-align:left;background:#e65100;color:#fff;position:sticky;top:0;z-index:2;min-width:190px">Asignación</th>
             ${colHeaders}
           </tr>
         </thead>
@@ -5906,14 +5917,17 @@ async function confirmarImportacionPlanilla(){
     const sel=document.getElementById('pvh_'+j);
     return sel?sel.value:c;
   });
-  // Leer montos editados
-  const filas=data.filas.map((f,i)=>({
-    ...f,
-    montos:f.montos.map((_,j)=>{
+  // Leer montos editados y elección de asignación por fila
+  const filas=data.filas.map((f,i)=>{
+    const montos=f.montos.map((_,j)=>{
       const inp=document.getElementById('pv_'+i+'_'+j);
       return inp?(parseFloat(inp.value)||0):0;
-    })
-  }));
+    });
+    // Si el alumno tiene conflicto de carrera, leer la elección del selector
+    const choiceSel=document.getElementById('pvchoice_'+i);
+    const reasignar=choiceSel?choiceSel.value==='mover':(!f.alumno_existente||!f.carrera_anterior);
+    return {...f, montos, reasignar};
+  });
 
   const payload={carrera_id:data.carrera_id,curso_id:data.curso_id,conceptos,filas};
   try{

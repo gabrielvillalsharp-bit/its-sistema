@@ -2384,7 +2384,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
 
     const stmtByID = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE id=?');
     db.transaction(() => {
-      filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos, alumno_id }) => {
+      filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos, alumno_id, reasignar }) => {
         // Necesita CI válida O un alumno_id resuelto por nombre en el preview
         if ((!ci || ci.length < 5) && !alumno_id) return;
         try {
@@ -2412,9 +2412,8 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
             al = { id: aid };
             results.alumnos_creados++;
           } else if (al && carrera_id) {
-            // Solo reasignar si el alumno no tiene pagos previos registrados
-            const pCount = db.prepare('SELECT COUNT(*) as n FROM pagos WHERE alumno_id=?').get(al.id);
-            if (pCount.n === 0) {
+            // Respetar la elección del admin: reasignar=true → mover, reasignar=false → mantener
+            if (reasignar !== false) {
               const cN = curso_id || al.curso_id;
               if (al.carrera_id !== carrera_id || al.curso_id !== cN) {
                 stmtUpdAl.run(carrera_id, cN, al.id);
@@ -2422,7 +2421,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
                 results.alumnos_actualizados++;
               }
             }
-            // Si tiene pagos: no cambiar carrera, solo importar los pagos abajo
+            // reasignar=false → solo importar pagos, sin cambiar carrera
           }
 
           if (!al) return;
