@@ -495,6 +495,7 @@ function navFor(r){
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
+      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -554,7 +555,7 @@ function go(p){
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
-    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
+    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,whatsapp:pgWhatsApp,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
   pages[p]?.(el);
@@ -7415,6 +7416,129 @@ async function limpiarAuditoria(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function verAuditoria(){go('auditoria');}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── WHATSAPP ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+async function pgWhatsApp(el){
+  el.innerHTML=`<div class="ph"><h3>💬 WhatsApp</h3></div><div class="es">Cargando estado...</div>`;
+  let st;
+  try{ st=await api('GET','/api/whatsapp/status'); }catch(e){ el.innerHTML=`<div class="ph"><h3>💬 WhatsApp</h3></div><div class="es" style="color:#ef4444">Error: ${e.message}</div>`; return; }
+
+  const colorEstado=st.conectado?'#22c55e':st.estado==='conectando'?'#f59e0b':'#ef4444';
+  const labelEstado=st.conectado?'✅ Conectado':st.estado==='conectando'?'⏳ Conectando...':'❌ Desconectado';
+
+  el.innerHTML=`
+  <div class="ph"><h3>💬 WhatsApp — Notificaciones</h3></div>
+
+  <!-- Estado actual -->
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="width:14px;height:14px;border-radius:50%;background:${colorEstado};flex-shrink:0"></div>
+      <span style="font-weight:700;font-size:15px">${labelEstado}</span>
+      ${st.error?`<span style="color:#ef4444;font-size:12px;margin-left:8px">· ${st.error}</span>`:''}
+    </div>
+    ${st.tiene_sesion&&!st.conectado?`<p style="font-size:12px;color:#6b7280;margin:0 0 12px">Hay una sesión guardada. Podés reconectar sin escanear de nuevo.</p>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="waRefrescarEstado()" class="bs s">🔄 Actualizar estado</button>
+      ${st.conectado?`<button onclick="waDesconectar()" class="bs d">🔌 Desconectar y borrar sesión</button>`:''}
+    </div>
+  </div>
+
+  <!-- Conectar / Pairing code -->
+  ${!st.conectado?`
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
+    <h4 style="margin:0 0 10px;font-size:14px">🔐 Vincular WhatsApp con pairing code</h4>
+    <p style="font-size:12px;color:#6b7280;margin:0 0 12px">Ingresá tu número de teléfono (con código de país, sin +). Se generará un código de 8 dígitos que deberás ingresar en WhatsApp → Dispositivos vinculados → Vincular con número de teléfono.</p>
+    <div class="fb" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Número de teléfono</label>
+        <input id="waTelefono" type="text" placeholder="595981234567" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:200px">
+      </div>
+      <button onclick="waConectar()" class="bs p" style="background:#25D366;color:#fff;border:none">📱 Obtener pairing code</button>
+    </div>
+    <div id="waPairingResult" style="margin-top:12px"></div>
+  </div>`:''}
+
+  <!-- Mensaje de prueba -->
+  ${st.conectado?`
+  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
+    <h4 style="margin:0 0 10px;font-size:14px">🧪 Enviar mensaje de prueba</h4>
+    <div class="fb" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Número destino</label>
+        <input id="waTestNumero" type="text" placeholder="595981234567" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:180px">
+      </div>
+      <div style="flex:1;min-width:200px">
+        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Mensaje</label>
+        <input id="waTestMsg" type="text" value="✅ Mensaje de prueba desde ITS Sistema" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%">
+      </div>
+      <button onclick="waEnviarPrueba()" class="bs p" style="background:#25D366;color:#fff;border:none">📤 Enviar</button>
+    </div>
+    <div id="waTestResult" style="margin-top:10px"></div>
+  </div>`:''}
+
+  <!-- Instrucciones -->
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;font-size:12px;color:#166534">
+    <strong>ℹ️ Cómo vincular por primera vez:</strong>
+    <ol style="margin:8px 0 0 16px;padding:0;line-height:1.8">
+      <li>Ingresá tu número (ej: 595981234567) y hacé clic en <em>"Obtener pairing code"</em></li>
+      <li>Abrí WhatsApp en tu celular → Menú ⋮ → Dispositivos vinculados</li>
+      <li>Tocá <em>"Vincular un dispositivo"</em> → <em>"Vincular con número de teléfono"</em></li>
+      <li>Ingresá el código de 8 dígitos que aparece aquí</li>
+      <li>La sesión queda guardada — no necesitás repetir este proceso al reiniciar</li>
+    </ol>
+  </div>`;
+}
+
+async function waRefrescarEstado(){go('whatsapp');}
+
+async function waConectar(){
+  const tel=document.getElementById('waTelefono')?.value?.trim();
+  if(!tel){alert('Ingresá el número de teléfono con código de país (ej: 595981234567)');return;}
+  const res=document.getElementById('waPairingResult');
+  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Generando pairing code... puede tardar hasta 10 segundos</div>`;
+  try{
+    const r=await api('POST','/api/whatsapp/conectar',{telefono:tel});
+    if(r.codigo_pairing){
+      if(res) res.innerHTML=`
+        <div style="background:#f0fdf4;border:2px solid #25D366;border-radius:10px;padding:14px;text-align:center">
+          <div style="font-size:11px;color:#166534;font-weight:600;margin-bottom:6px">TU CÓDIGO DE VINCULACIÓN</div>
+          <div style="font-size:32px;font-weight:900;letter-spacing:8px;color:#166534;font-family:monospace">${r.codigo_pairing}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:6px">Ingresalo en WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</div>
+        </div>`;
+      // Refrescar estado automáticamente tras 15s para mostrar si conectó
+      setTimeout(()=>go('whatsapp'),20000);
+    } else if(r.ok){
+      if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Reconectando con sesión existente...</div>`;
+      setTimeout(()=>go('whatsapp'),5000);
+    }
+  }catch(e){
+    if(res) res.innerHTML=`<div style="color:#ef4444;font-size:12px">❌ Error: ${e.message}</div>`;
+  }
+}
+
+async function waEnviarPrueba(){
+  const num=document.getElementById('waTestNumero')?.value?.trim();
+  const msg=document.getElementById('waTestMsg')?.value?.trim();
+  const res=document.getElementById('waTestResult');
+  if(!num){alert('Ingresá el número destino');return;}
+  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Enviando...</div>`;
+  try{
+    await api('POST','/api/whatsapp/test',{numero:num,mensaje:msg});
+    if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Mensaje enviado correctamente a ${num}</div>`;
+  }catch(e){
+    if(res) res.innerHTML=`<div style="color:#ef4444;font-size:12px">❌ Error: ${e.message}</div>`;
+  }
+}
+
+async function waDesconectar(){
+  if(!confirm('¿Desconectar WhatsApp y borrar la sesión guardada?')) return;
+  try{
+    await api('POST','/api/whatsapp/desconectar');
+    go('whatsapp');
+  }catch(e){alert('Error: '+e.message);}
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ── DASHBOARD ANALÍTICO ───────────────────────────────────────────────────

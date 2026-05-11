@@ -57,6 +57,10 @@ init();
 const { cloudBackupDrive } = require('./cloud-backup');
 setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
 
+// ── WHATSAPP ──────────────────────────────────────────────────────────────────
+const { conectar: waConectar, enviarMensaje: waEnviar, desconectar: waDesconectar, getEstado: waEstado, autoConectar: waAutoConectar } = require('./whatsapp');
+setTimeout(() => waAutoConectar(), 3000);
+
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
@@ -3231,38 +3235,21 @@ function examenVars(ex) {
   };
 }
 
-// ── WHATSAPP — Twilio ─────────────────────────────────────────────────────────
-// Variables de entorno en Railway:
-//   TWILIO_ACCOUNT_SID  → Account SID (empieza con AC...)
-//   TWILIO_AUTH_TOKEN   → Auth Token
-//   TWILIO_WA_NUMBER    → Número WhatsApp Twilio sin whatsapp: (ej: +14155238886)
+// ── WHATSAPP — Baileys ────────────────────────────────────────────────────────
 function normalizarTelefono(tel) {
   let t = String(tel || '').replace(/\D/g, '');
   if (!t || t.length < 7) return null;
-  if (t.startsWith('0')) t = '595' + t.slice(1);   // 0981… → 595981…
-  if (!t.startsWith('595')) t = '595' + t;           // sin prefijo → agregar Paraguay
-  return '+' + t;                                     // Twilio necesita el + adelante
+  if (t.startsWith('0')) t = '595' + t.slice(1);
+  if (!t.startsWith('595')) t = '595' + t;
+  return t;
 }
 async function sendWhatsApp(phone, message) {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_WA_NUMBER;
-  if (!sid || !token || !from) { console.log('[WA-Twilio] Variables no configuradas — saltando'); return false; }
-  const tel = normalizarTelefono(phone);
-  if (!tel) { console.log('[WA-Twilio] Teléfono inválido:', phone); return false; }
+  const num = normalizarTelefono(phone);
+  if (!num) { console.log('[WA] Teléfono inválido:', phone); return false; }
   try {
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const fromNum = from.startsWith('+') ? from : '+' + from;
-    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ From: `whatsapp:${fromNum}`, To: `whatsapp:${tel}`, Body: message })
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (resp.ok) { console.log(`[WA-Twilio] ✅ Enviado a ${tel} SID:${data.sid}`); return true; }
-    console.error(`[WA-Twilio] ⚠️ ${resp.status}:`, data.message || JSON.stringify(data));
-    return false;
-  } catch(e) { console.error('[WA-Twilio] ⚠️', e.message); return false; }
+    await waEnviar(num, message);
+    return true;
+  } catch(e) { console.log('[WA] No enviado (WA no conectado?):', e.message); return false; }
 }
 function buildWaMsg(tplKey, vars) {
   const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
@@ -3330,23 +3317,6 @@ cron.schedule('0 8 * * *', async () => {
 });
 
 
-// ── WHATSAPP: estado de configuración Twilio ──────────────────────────────────
-app.get('/api/whatsapp/status', auth(ADM), async (req, res) => {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_WA_NUMBER;
-  if (!sid || !token || !from) return res.json({ configurado: false, estado: 'sin_variables' });
-  try {
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
-      headers: { 'Authorization': `Basic ${auth}` }
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) res.json({ configurado: true, estado: 'activo', cuenta: d.friendly_name, numero: from });
-    else res.json({ configurado: true, estado: 'error_credenciales', detalle: d.message });
-  } catch(e) { res.json({ configurado: true, estado: 'error', error: e.message }); }
-});
-
 // ── WHATSAPP: envío manual para un examen ─────────────────────────────────────
 app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   const ex = db.prepare(`
@@ -3368,7 +3338,7 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   const vars = examenVars(ex);
   const msg  = buildWaMsg('wa_tpl_24h', vars);
   const ok   = await sendWhatsApp(ex.doc_telefono, msg);
-  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificar credenciales Twilio en Railway.' });
+  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. WhatsApp no está conectado — vinculá el dispositivo en la sección WhatsApp.' });
   audit(req.user.id, 'WHATSAPP_MANUAL', 'examenes', ex.id, { tel: ex.doc_telefono });
   res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
 });
@@ -3876,6 +3846,49 @@ try {
     CREATE INDEX IF NOT EXISTS idx_honorarios_docente_fecha ON honorarios(docente_id, fecha);
   `);
 } catch {}
+
+// ── WHATSAPP API ──────────────────────────────────────────────────────────────
+// Estado de la conexión WhatsApp
+app.get('/api/whatsapp/status', auth(ADM), (req, res) => {
+  res.json(waEstado());
+});
+
+// Iniciar conexión / obtener pairing code
+app.post('/api/whatsapp/conectar', auth(ADM), async (req, res) => {
+  try {
+    const { telefono } = req.body;
+    const codigo = await waConectar(telefono);
+    audit(req.user.id, 'WA_CONECTAR', 'whatsapp', 'sistema', { telefono: telefono || 'reconexion' });
+    res.json({ ok: true, codigo_pairing: codigo || null });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Enviar mensaje de prueba
+app.post('/api/whatsapp/test', auth(ADM), async (req, res) => {
+  try {
+    const { numero, mensaje } = req.body;
+    if (!numero) return res.status(400).json({ error: 'Falta el número' });
+    const txt = mensaje || '✅ Mensaje de prueba desde ITS Sistema';
+    await waEnviar(numero, txt);
+    audit(req.user.id, 'WA_TEST', 'whatsapp', 'sistema', { numero });
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Desconectar y borrar sesión
+app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
+  try {
+    await waDesconectar();
+    audit(req.user.id, 'WA_DESCONECTAR', 'whatsapp', 'sistema', {});
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
