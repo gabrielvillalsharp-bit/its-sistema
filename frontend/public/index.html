@@ -346,6 +346,8 @@ function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp')
 function startApp(){
   hide('lp');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
+  // Cargar logo institucional globalmente para todas las actas
+  api('GET','/api/institucion').then(i=>{ W._instLogo=i.logo_base64||''; }).catch(()=>{ W._instLogo=''; });
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
   const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':'alumnos';
@@ -4401,8 +4403,10 @@ async function generarActaAsistDia(asigId){
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
     <title>Acta de Asistencia</title>
     <style>
-      body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}
-      h2{text-align:center;font-size:16px;margin-bottom:4px}
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#111}
+      .header{text-align:center;margin-bottom:12px}
+      .header img{height:65px;display:block;margin:0 auto 6px;object-fit:contain}
+      .header h2{font-size:15px;margin:2px 0}.header p{font-size:9px;font-style:italic;margin:1px 0}
       .sub{text-align:center;font-size:12px;color:#555;margin-bottom:8px}
       table{width:100%;border-collapse:collapse}
       th{background:#166534;color:#fff;padding:7px 10px;border:1px solid #166534;text-align:left}
@@ -4412,9 +4416,13 @@ async function generarActaAsistDia(asigId){
       .firma{margin-top:40px;display:flex;justify-content:space-between}
       .firma-box{text-align:center;width:200px}
       .firma-box div{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:11px}
-      @media print{button{display:none}}
+      @page{size:A4;margin:15mm 12mm}@media print{button{display:none}}
     </style></head><body>
-    <h2>Instituto Técnico Superior Santísima Trinidad</h2>
+    <div class="header">
+      ${W._instLogo?`<img src="${W._instLogo}"/>`:''}
+      <h2>INSTITUTO TÉCNICO SUPERIOR — SANTÍSIMA TRINIDAD</h2>
+      <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+    </div>
     <div class="sub">Acta de Asistencia</div>
     <div class="sub"><strong>Materia:</strong> ${asig.materia_nombre||''} &nbsp;·&nbsp; <strong>Carrera:</strong> ${asig.carrera_nombre||''} ${asig.curso_anio?asig.curso_anio+'°':''}</div>
     <div class="sub"><strong>Fecha:</strong> ${fecha} &nbsp;·&nbsp; <strong>Horario:</strong> ${hor?`${hor.dia} T${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'—'} &nbsp;·&nbsp; <strong>Docente:</strong> ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div>
@@ -4475,9 +4483,11 @@ function imprimirAsistDia(asigId, fecha){
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Acta de Asistencia</title>
   <style>
-    body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#111}
-    h2{text-align:center;font-size:16px;margin-bottom:4px}
-    .sub{text-align:center;font-size:12px;color:#555;margin-bottom:16px}
+    *{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:20px;color:#111}
+    .header{text-align:center;margin-bottom:12px}
+    .header img{height:65px;display:block;margin:0 auto 6px;object-fit:contain}
+    .header h2{font-size:15px;margin:2px 0}.header p{font-size:9px;font-style:italic;margin:1px 0}
+    .sub{text-align:center;font-size:12px;color:#555;margin-bottom:10px}
     table{width:100%;border-collapse:collapse}
     th{background:#166534;color:#fff;padding:7px 10px;border:1px solid #166534;text-align:left}
     .resumen{display:flex;gap:20px;margin:14px 0;font-size:12px}
@@ -4486,9 +4496,13 @@ function imprimirAsistDia(asigId, fecha){
     .firma{margin-top:40px;display:flex;justify-content:space-between}
     .firma-box{text-align:center;width:200px}
     .firma-box div{border-top:1px solid #333;margin-top:40px;padding-top:4px;font-size:11px}
-    @media print{button{display:none}}
+    @page{size:A4;margin:15mm 12mm}@media print{button{display:none}}
   </style></head><body>
-  <h2>Instituto Técnico Superior Santísima Trinidad</h2>
+  <div class="header">
+    ${W._instLogo?`<img src="${W._instLogo}"/>`:''}
+    <h2>INSTITUTO TÉCNICO SUPERIOR — SANTÍSIMA TRINIDAD</h2>
+    <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+  </div>
   <div class="sub">Acta de Asistencia — ${asig.materia_nombre||''} · ${asig.carrera_nombre||''} ${asig.curso_anio?asig.curso_anio+'°':''}</div>
   <div class="sub"><strong>Fecha:</strong> ${fmtFecha(fecha)} &nbsp;·&nbsp; <strong>Horario:</strong> ${hor?`${hor.dia} T${hor.turno} (${hor.hora_inicio}–${hor.hora_fin})`:'—'} &nbsp;·&nbsp; <strong>Docente:</strong> ${asig.docente_nombre||''} ${asig.docente_apellido||''}</div>
   <div class="resumen">
