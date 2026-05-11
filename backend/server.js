@@ -10,6 +10,7 @@ const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
+const { cloudBackupDrive } = require('./cloud-backup');
 
 
 const app = express();
@@ -2960,19 +2961,21 @@ const BACKUP_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
   : path.join(__dirname, '../backups');
 if (!fs.existsSync(BACKUP_DIR)) { try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {} }
 
-function hacerBackupAutomatico() {
+async function hacerBackupAutomatico() {
   try {
     const fecha = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const destino = path.join(BACKUP_DIR, `ITS_auto_${fecha}.db`);
     fs.copyFileSync(DB_PATH, destino);
-    // Mantener solo los últimos 10 backups automáticos
+    // Mantener solo los últimos 10 backups automáticos en el Volume
     const archivos = fs.readdirSync(BACKUP_DIR)
       .filter(f => f.startsWith('ITS_auto_'))
       .sort().reverse();
     archivos.slice(10).forEach(f => {
       try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
     });
-    console.log(`✅ Backup automático: ${destino}`);
+    console.log(`✅ Backup local: ${destino}`);
+    // Subir también a GitHub (capa externa de seguridad)
+    await cloudBackupDrive(DB_PATH);
     return destino;
   } catch(e) {
     console.error('Error en backup automático:', e.message);
@@ -2985,11 +2988,11 @@ function programarBackupDiario() {
   const ahora = new Date();
   const proximas23 = new Date(ahora);
   proximas23.setHours(23, 0, 0, 0);
-  if (proximas23 <= ahora) proximas23.setDate(proximas23.getDate() + 1); // si ya pasó las 23, ir al día siguiente
+  if (proximas23 <= ahora) proximas23.setDate(proximas23.getDate() + 1);
   const msHasta23 = proximas23.getTime() - ahora.getTime();
   setTimeout(() => {
     hacerBackupAutomatico();
-    setInterval(hacerBackupAutomatico, 24 * 60 * 60 * 1000); // repetir cada 24h
+    setInterval(hacerBackupAutomatico, 24 * 60 * 60 * 1000);
   }, msHasta23);
   console.log(`⏰ Próximo backup automático: ${proximas23.toLocaleString('es-PY', {timeZone:'America/Asuncion'})}`);
 }
