@@ -1,7 +1,4 @@
 // ── WHATSAPP VIA BAILEYS ──────────────────────────────────────────────────────
-// Conexión sin navegador (WebSocket directo). Sesión persistida en Railway Volume.
-// Pairing code en vez de QR → funciona sin pantalla/terminal interactiva.
-// ─────────────────────────────────────────────────────────────────────────────
 const path = require('path');
 const fs   = require('fs');
 
@@ -10,42 +7,49 @@ if (!globalThis.crypto) {
   globalThis.crypto = require('crypto').webcrypto;
 }
 
-// Directorio donde se guarda la sesión (persiste en el Volume de Railway)
 const AUTH_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'wa_auth')
   : path.join(__dirname, '../data/wa_auth');
 
 let sock        = null;
-let estado      = 'desconectado'; // desconectado | conectando | conectado
+let estado      = 'desconectado';
 let ultimoError = null;
 let _reconnTimer = null;
+let _baileys    = null; // cache del módulo
 
-// ── Cargar Baileys (ESM) mediante dynamic import ─────────────────────────────
 async function loadBaileys() {
+  if (_baileys) return _baileys;
   const B = await import('@whiskeysockets/baileys');
-  // v7 exporta makeWASocket como named export; v6 lo ponía en default
+
   const makeWASocket =
     (typeof B.makeWASocket === 'function' ? B.makeWASocket : null) ??
     (typeof B.default === 'function'      ? B.default      : null) ??
     B.default?.makeWASocket;
+
   if (typeof makeWASocket !== 'function') {
-    throw new Error('No se pudo cargar makeWASocket de baileys. Exports: ' + Object.keys(B).join(', '));
+    throw new Error('makeWASocket no encontrado. Exports: ' + Object.keys(B).join(', '));
   }
-  return {
+
+  // Browsers helper — disponible en v6, puede no estar en v7
+  const Browsers = B.Browsers ?? null;
+
+  _baileys = {
     makeWASocket,
+    Browsers,
     useMultiFileAuthState:       B.useMultiFileAuthState,
     DisconnectReason:            B.DisconnectReason,
     fetchLatestBaileysVersion:   B.fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore: B.makeCacheableSignalKeyStore,
   };
+  return _baileys;
 }
 
-// ── Conectar / obtener pairing code ──────────────────────────────────────────
+// ── Conectar ──────────────────────────────────────────────────────────────────
 async function conectar(telefono) {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
   const {
-    makeWASocket, useMultiFileAuthState, DisconnectReason,
+    makeWASocket, Browsers, useMultiFileAuthState, DisconnectReason,
     fetchLatestBaileysVersion, makeCacheableSignalKeyStore
   } = await loadBaileys();
 
@@ -55,9 +59,13 @@ async function conectar(telefono) {
   estado      = 'conectando';
   ultimoError = null;
 
-  // Logger silencioso para no contaminar los logs del servidor
   const { default: pino } = await import('pino');
   const logger = pino({ level: 'silent' });
+
+  // Usar Browsers.ubuntu si está disponible (mejor compatibilidad con pairing code)
+  const browserConfig = Browsers
+    ? Browsers.ubuntu('Chrome')
+    : ['Ubuntu', 'Chrome', '22.0.0.0'];
 
   sock = makeWASocket({
     version,
@@ -67,35 +75,38 @@ async function conectar(telefono) {
     },
     printQRInTerminal: false,
     logger,
-    browser: ['ITS Sistema', 'Chrome', '1.0.0'],
-    markOnlineOnConnect: false,
-    keepAliveIntervalMs: 10000,   // ping cada 10s para mantener conexión estable
-    retryRequestDelayMs: 2000,
+    browser:              browserConfig,
+    markOnlineOnConnect:  false,
+    keepAliveIntervalMs:  15000,
+    connectTimeoutMs:     60000,
+    defaultQueryTimeoutMs: 60000,
   });
 
-  // ── Pairing code (solo si no hay sesión previa y se pasa teléfono) ─────────
+  // ── Pairing code ─────────────────────────────────────────────────────────
   let codigoPairing = null;
   if (!state.creds.registered && telefono) {
     const num = String(telefono).replace(/[^0-9]/g, '');
-    // Baileys requiere que se pida el código ANTES de que la conexión se complete
-    // El delay mínimo es solo para que el WebSocket TCP se establezca
-    await new Promise(r => setTimeout(r, 1500));
+    console.log(`[WhatsApp] Solicitando pairing code para ${num}...`);
+
+    // Esperar exactamente a que el socket esté en estado 'connecting'
+    // (después del handshake de ruido pero antes de autenticar)
+    await new Promise(resolve => {
+      let resolved = false;
+      sock.ev.on('connection.update', ({ connection }) => {
+        if (!resolved && (connection === 'connecting' || connection === 'open')) {
+          resolved = true;
+          resolve();
+        }
+      });
+      setTimeout(() => { if (!resolved) { resolved = true; resolve(); } }, 3000);
+    });
+
     try {
       codigoPairing = await sock.requestPairingCode(num);
-      console.log(`[WhatsApp] Pairing code generado: ${codigoPairing}`);
+      console.log(`[WhatsApp] ✅ Pairing code: ${codigoPairing}`);
     } catch (e) {
-      ultimoError = 'Error al generar pairing code: ' + e.message;
-      console.error('[WhatsApp]', ultimoError);
-      // Si falla, intentar una vez más tras 2s
-      try {
-        await new Promise(r => setTimeout(r, 2000));
-        codigoPairing = await sock.requestPairingCode(num);
-        ultimoError = null;
-        console.log(`[WhatsApp] Pairing code (reintento): ${codigoPairing}`);
-      } catch(e2) {
-        ultimoError = 'Error al generar pairing code: ' + e2.message;
-        console.error('[WhatsApp] Reintento fallido:', e2.message);
-      }
+      console.error('[WhatsApp] Error pairing code:', e.message);
+      ultimoError = 'Error: ' + e.message;
     }
   }
 
@@ -107,16 +118,15 @@ async function conectar(telefono) {
       estado      = 'conectado';
       ultimoError = null;
       if (_reconnTimer) { clearTimeout(_reconnTimer); _reconnTimer = null; }
-      console.log('[WhatsApp] ✅ Conectado correctamente');
+      console.log('[WhatsApp] ✅ Conectado');
 
     } else if (connection === 'close') {
       estado = 'desconectado';
-      const code = lastDisconnect?.error?.output?.statusCode;
+      const code  = lastDisconnect?.error?.output?.statusCode;
       const razon = lastDisconnect?.error?.message || 'desconocido';
 
       if (code === DisconnectReason.loggedOut) {
-        // Sesión revocada desde el teléfono → borrar auth
-        console.log('[WhatsApp] Sesión cerrada (logout desde teléfono)');
+        console.log('[WhatsApp] Sesión cerrada desde el teléfono');
         borrarSesion();
       } else {
         ultimoError = `Desconectado (${code ?? razon}) — reconectando en 15s`;
@@ -129,50 +139,41 @@ async function conectar(telefono) {
   return codigoPairing;
 }
 
-// ── Enviar mensaje de texto ───────────────────────────────────────────────────
+// ── Enviar mensaje ────────────────────────────────────────────────────────────
 async function enviarMensaje(numero, texto) {
-  if (!sock || estado !== 'conectado') {
-    throw new Error('WhatsApp no está conectado');
-  }
-  // Normalizar número: agregar 595 (Paraguay) si no empieza con código de país
+  if (!sock || estado !== 'conectado') throw new Error('WhatsApp no está conectado');
   let num = String(numero).replace(/[^0-9]/g, '');
   if (!num.startsWith('595') && num.length <= 10) num = '595' + num;
-  const jid = num + '@s.whatsapp.net';
-  await sock.sendMessage(jid, { text: texto });
+  await sock.sendMessage(num + '@s.whatsapp.net', { text: texto });
   console.log(`[WhatsApp] Mensaje enviado a ${num}`);
 }
 
-// ── Desconectar y borrar sesión ───────────────────────────────────────────────
+// ── Desconectar ───────────────────────────────────────────────────────────────
 async function desconectar() {
   if (_reconnTimer) { clearTimeout(_reconnTimer); _reconnTimer = null; }
   try { if (sock) await sock.logout(); } catch {}
   sock   = null;
   estado = 'desconectado';
   borrarSesion();
-  console.log('[WhatsApp] Sesión cerrada y borrada');
 }
 
 function borrarSesion() {
   try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
 }
 
-// ── Estado actual ─────────────────────────────────────────────────────────────
 function getEstado() {
   return {
     estado,
-    conectado:   estado === 'conectado',
-    error:       ultimoError,
+    conectado:    estado === 'conectado',
+    error:        ultimoError,
     tiene_sesion: fs.existsSync(path.join(AUTH_DIR, 'creds.json')),
   };
 }
 
-// ── Auto-conectar al iniciar si hay sesión guardada ───────────────────────────
 function autoConectar() {
   if (fs.existsSync(path.join(AUTH_DIR, 'creds.json'))) {
-    console.log('[WhatsApp] Sesión guardada encontrada — reconectando...');
-    conectar().catch(e => console.error('[WhatsApp] Error al auto-conectar:', e.message));
-  } else {
-    console.log('[WhatsApp] Sin sesión previa — esperando pairing code');
+    console.log('[WhatsApp] Sesión guardada — reconectando...');
+    conectar().catch(e => console.error('[WhatsApp] Auto-conectar error:', e.message));
   }
 }
 
