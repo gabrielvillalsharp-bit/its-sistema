@@ -2982,23 +2982,16 @@ async function hacerBackupAutomatico() {
   }
 }
 
-// Backup automático diario a las 23:00
-function programarBackupDiario() {
-  const ahora = new Date();
-  const proximas23 = new Date(ahora);
-  proximas23.setHours(23, 0, 0, 0);
-  if (proximas23 <= ahora) proximas23.setDate(proximas23.getDate() + 1);
-  const msHasta23 = proximas23.getTime() - ahora.getTime();
-  setTimeout(() => {
-    hacerBackupAutomatico();
-    setInterval(hacerBackupAutomatico, 24 * 60 * 60 * 1000);
-  }, msHasta23);
-  console.log(`⏰ Próximo backup automático: ${proximas23.toLocaleString('es-PY', {timeZone:'America/Asuncion'})}`);
-}
-setTimeout(() => {
-  hacerBackupAutomatico(); // backup inmediato al iniciar
-  programarBackupDiario(); // luego programar el diario a las 23:00
-}, 5000);
+// Backup automático diario a las 23:00 hora Paraguay (America/Asuncion)
+cron.schedule('0 23 * * *', () => {
+  console.log('[BACKUP] Ejecutando backup diario 23:00 PY...');
+  hacerBackupAutomatico();
+}, { timezone: 'America/Asuncion' });
+
+console.log('⏰ Backup programado: todos los días a las 23:00 (hora Paraguay) → Volume + GitHub');
+
+// Backup inmediato al iniciar (5s de gracia para que la DB esté lista)
+setTimeout(() => hacerBackupAutomatico(), 5000);
 
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
   const fecha = new Date().toISOString().split('T')[0];
