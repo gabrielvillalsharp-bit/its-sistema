@@ -2385,30 +2385,37 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
     const stmtByID = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE id=?');
     db.transaction(() => {
       filas.forEach(({ ci, nombre, apellido, nombreCompleto, montos, alumno_id, reasignar }) => {
-        // Necesita CI válida O un alumno_id resuelto por nombre en el preview
-        if ((!ci || ci.length < 5) && !alumno_id) return;
+        // Saltar solo filas completamente vacías (sin nombre ni alumno_id)
+        if (!nombreCompleto && !nombre && !alumno_id) return;
+        const ciValida = ci && ci.length >= 5;
         try {
           let al = alumno_id ? stmtByID.get(alumno_id) : null;
-          if (!al && ci && ci.length >= 5) al = stmtCI.get(ci);
+          if (!al && ciValida) al = stmtCI.get(ci);
 
           if (!al && carrera_id) {
-            const nPart = normId((nombre||'').split(' ')[0]);
-            const aPart = normId((apellido||'').split(' ').pop()).slice(0,4);
-            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
-            let emailAuto = `${emailBase}@its.edu.py`;
-            if (stmtChkMail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
             const cnt = stmtCnt.get(carrera_id).n;
             const matricula = carr ? `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
             const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
             let uid = null;
-            const usuEx = stmtUsuEx.get(ci);
-            if (!usuEx) {
-              uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-              try { stmtInsUsu.run(uid, nombre, apellido, ci, emailAuto, bcrypt.hashSync(ci,10), 'alumno'); } catch { uid = null; }
-            } else { uid = usuEx.id; }
-            stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+            if (ciValida) {
+              // Con CI: crear cuenta de usuario
+              const nPart = normId((nombre||'').split(' ')[0]);
+              const aPart = normId((apellido||'').split(' ').pop()).slice(0,4);
+              let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
+              let emailAuto = `${emailBase}@its.edu.py`;
+              if (stmtChkMail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+              const usuEx = stmtUsuEx.get(ci);
+              if (!usuEx) {
+                uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+                try { stmtInsUsu.run(uid, nombre, apellido, ci, emailAuto, bcrypt.hashSync(ci,10), 'alumno'); } catch { uid = null; }
+              } else { uid = usuEx.id; }
+              stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+              results.credenciales.push({ nombre: nombreCompleto||`${nombre} ${apellido}`, usuario: emailAuto, password: ci });
+            } else {
+              // Sin CI: estado Pendiente, sin cuenta de usuario
+              stmtInsAl.run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Pendiente', null, nombre, apellido);
+            }
             if (curso_id) stmtAsigs.all(curso_id, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {} });
-            results.credenciales.push({ nombre: nombreCompleto||`${nombre} ${apellido}`, usuario: emailAuto, password: ci });
             al = { id: aid };
             results.alumnos_creados++;
           } else if (al && carrera_id) {

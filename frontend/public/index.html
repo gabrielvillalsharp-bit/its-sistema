@@ -4989,7 +4989,9 @@ function renderTablaPagos(){
           <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${col},${col}bb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${ini}</div>
           <div>
             <div style="font-weight:700;color:#1e293b;font-size:13px">${a.display_apellido||''}, ${a.display_nombre||''}</div>
-            <div style="font-size:11px;color:#94a3b8">C.I. ${a.display_ci||'—'}</div>
+            ${a.display_ci
+              ?`<div style="font-size:11px;color:#94a3b8">C.I. ${a.display_ci}</div>`
+              :`<div style="font-size:11px;color:#dc2626;font-weight:700">⚠ Sin cédula — Pendiente</div>`}
           </div>
         </div>
       </td>
@@ -5200,7 +5202,9 @@ async function selAlumnoPago(alId){
       <div style="background:linear-gradient(135deg,#14532d,#1D9E75);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0">
         <div style="font-size:16px;font-weight:800;line-height:1.2;margin-bottom:6px">${al.display_apellido||al.apellido||''}, ${al.display_nombre||al.nombre||''}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;opacity:.9;margin-bottom:10px">
-          <span>📄 C.I. ${al.display_ci||al.ci||'—'}</span>
+          ${(al.display_ci||al.ci)
+            ?`<span>📄 C.I. ${al.display_ci||al.ci}</span>`
+            :`<span style="color:#fca5a5;font-weight:700">⚠ Sin cédula — Pendiente</span>`}
           <span>🎓 ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°'+((al.curso_division&&al.curso_division!=='U')?' '+al.curso_division:''):''}</span>
           <span>🪪 Mat. ${al.matricula||'—'}</span>
           <span>📞 ${al.telefono||'—'}</span>
