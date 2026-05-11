@@ -3853,13 +3853,12 @@ app.get('/api/whatsapp/status', auth(ADM), (req, res) => {
   res.json(waEstado());
 });
 
-// Iniciar conexión / obtener pairing code
+// Iniciar conexión (genera QR)
 app.post('/api/whatsapp/conectar', auth(ADM), async (req, res) => {
   try {
-    const { telefono } = req.body;
-    const codigo = await waConectar(telefono);
-    audit(req.user.id, 'WA_CONECTAR', 'whatsapp', 'sistema', { telefono: telefono || 'reconexion' });
-    res.json({ ok: true, codigo_pairing: codigo || null });
+    await waConectar();
+    audit(req.user.id, 'WA_CONECTAR', 'whatsapp', 'sistema', {});
+    res.json({ ok: true });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }

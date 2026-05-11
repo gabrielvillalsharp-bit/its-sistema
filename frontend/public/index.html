@@ -7426,38 +7426,44 @@ async function pgWhatsApp(el){
   try{ st=await api('GET','/api/whatsapp/status'); }catch(e){ el.innerHTML=`<div class="ph"><h3>💬 WhatsApp</h3></div><div class="es" style="color:#ef4444">Error: ${e.message}</div>`; return; }
 
   const colorEstado=st.conectado?'#22c55e':st.estado==='conectando'?'#f59e0b':'#ef4444';
-  const labelEstado=st.conectado?'✅ Conectado':st.estado==='conectando'?'⏳ Conectando...':'❌ Desconectado';
+  const labelEstado=st.conectado?'✅ Conectado':st.estado==='conectando'?'⏳ Esperando escaneo...':'❌ Desconectado';
+
+  // QR como imagen via API pública
+  const qrHtml = st.qr ? `
+  <div style="background:#fff;border:2px solid #25D366;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center">
+    <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:12px">📱 Escaneá este QR con WhatsApp</div>
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(st.qr)}"
+         style="width:250px;height:250px;border-radius:8px" alt="QR WhatsApp">
+    <div style="font-size:11px;color:#6b7280;margin-top:10px">WhatsApp → ⋮ → Dispositivos vinculados → Vincular dispositivo</div>
+    <div style="font-size:11px;color:#ef4444;margin-top:4px;font-weight:600">⏱ El QR expira en ~60 segundos</div>
+    <button onclick="waRefrescarEstado()" style="margin-top:10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">🔄 Refrescar QR</button>
+  </div>` : '';
 
   el.innerHTML=`
   <div class="ph"><h3>💬 WhatsApp — Notificaciones</h3></div>
 
-  <!-- Estado actual -->
+  <!-- Estado -->
   <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <div style="width:14px;height:14px;border-radius:50%;background:${colorEstado};flex-shrink:0"></div>
       <span style="font-weight:700;font-size:15px">${labelEstado}</span>
       ${st.error?`<span style="color:#ef4444;font-size:12px;margin-left:8px">· ${st.error}</span>`:''}
     </div>
-    ${st.tiene_sesion&&!st.conectado?`<p style="font-size:12px;color:#6b7280;margin:0 0 12px">Hay una sesión guardada. Podés reconectar sin escanear de nuevo.</p>`:''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button onclick="waRefrescarEstado()" class="bs s">🔄 Actualizar estado</button>
-      ${st.conectado?`<button onclick="waDesconectar()" class="bs d">🔌 Desconectar y borrar sesión</button>`:''}
+      <button onclick="waRefrescarEstado()" class="bs s">🔄 Actualizar</button>
+      ${st.conectado?`<button onclick="waDesconectar()" class="bs d">🔌 Desconectar</button>`:''}
     </div>
   </div>
 
-  <!-- Conectar / Pairing code -->
-  ${!st.conectado?`
+  ${qrHtml}
+
+  <!-- Botón conectar -->
+  ${!st.conectado&&!st.qr?`
   <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
-    <h4 style="margin:0 0 10px;font-size:14px">🔐 Vincular WhatsApp con pairing code</h4>
-    <p style="font-size:12px;color:#6b7280;margin:0 0 12px">Ingresá tu número de teléfono (con código de país, sin +). Se generará un código de 8 dígitos que deberás ingresar en WhatsApp → Dispositivos vinculados → Vincular con número de teléfono.</p>
-    <div class="fb" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div>
-        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Número de teléfono</label>
-        <input id="waTelefono" type="text" placeholder="595981234567" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:200px">
-      </div>
-      <button onclick="waConectar()" class="bs p" style="background:#25D366;color:#fff;border:none">📱 Obtener pairing code</button>
-    </div>
-    <div id="waPairingResult" style="margin-top:12px"></div>
+    <h4 style="margin:0 0 8px;font-size:14px">📲 Vincular WhatsApp por QR</h4>
+    <p style="font-size:12px;color:#6b7280;margin:0 0 12px">Hacé clic para generar el código QR, luego escanealo con tu celular.</p>
+    <button onclick="waConectar()" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer">📱 Generar QR</button>
+    <div id="waConectarResult" style="margin-top:10px"></div>
   </div>`:''}
 
   <!-- Mensaje de prueba -->
@@ -7480,39 +7486,30 @@ async function pgWhatsApp(el){
 
   <!-- Instrucciones -->
   <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;font-size:12px;color:#166534">
-    <strong>ℹ️ Cómo vincular por primera vez:</strong>
-    <ol style="margin:8px 0 0 16px;padding:0;line-height:1.8">
-      <li>Ingresá tu número (ej: 595981234567) y hacé clic en <em>"Obtener pairing code"</em></li>
-      <li>Abrí WhatsApp en tu celular → Menú ⋮ → Dispositivos vinculados</li>
-      <li>Tocá <em>"Vincular un dispositivo"</em> → <em>"Vincular con número de teléfono"</em></li>
-      <li>Ingresá el código de 8 dígitos que aparece aquí</li>
-      <li>La sesión queda guardada — no necesitás repetir este proceso al reiniciar</li>
+    <strong>ℹ️ Cómo vincular:</strong>
+    <ol style="margin:8px 0 0 16px;padding:0;line-height:1.9">
+      <li>Hacé clic en <strong>"Generar QR"</strong></li>
+      <li>Abrí WhatsApp en tu celular → <strong>⋮ → Dispositivos vinculados → Vincular dispositivo</strong></li>
+      <li>Apuntá la cámara al QR que aparece aquí</li>
+      <li>La sesión queda guardada — no repetís este proceso al reiniciar</li>
     </ol>
   </div>`;
+
+  // Si hay QR activo, refrescar automáticamente cada 20s para detectar cuando conecta
+  if(st.qr && !st.conectado){
+    setTimeout(()=>{ if(cur==='whatsapp') go('whatsapp'); }, 20000);
+  }
 }
 
 async function waRefrescarEstado(){go('whatsapp');}
 
 async function waConectar(){
-  const tel=document.getElementById('waTelefono')?.value?.trim();
-  if(!tel){alert('Ingresá el número de teléfono con código de país (ej: 595981234567)');return;}
-  const res=document.getElementById('waPairingResult');
-  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Generando pairing code... puede tardar hasta 10 segundos</div>`;
+  const res=document.getElementById('waConectarResult');
+  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Iniciando conexión...</div>`;
   try{
-    const r=await api('POST','/api/whatsapp/conectar',{telefono:tel});
-    if(r.codigo_pairing){
-      if(res) res.innerHTML=`
-        <div style="background:#f0fdf4;border:2px solid #25D366;border-radius:10px;padding:14px;text-align:center">
-          <div style="font-size:11px;color:#166534;font-weight:600;margin-bottom:6px">TU CÓDIGO DE VINCULACIÓN</div>
-          <div style="font-size:32px;font-weight:900;letter-spacing:8px;color:#166534;font-family:monospace">${r.codigo_pairing}</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:6px">Ingresalo en WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</div>
-        </div>`;
-      // Refrescar estado automáticamente tras 15s para mostrar si conectó
-      setTimeout(()=>go('whatsapp'),20000);
-    } else if(r.ok){
-      if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Reconectando con sesión existente...</div>`;
-      setTimeout(()=>go('whatsapp'),5000);
-    }
+    await api('POST','/api/whatsapp/conectar');
+    if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Conectando... actualizando en 5 segundos</div>`;
+    setTimeout(()=>go('whatsapp'),5000);
   }catch(e){
     if(res) res.innerHTML=`<div style="color:#ef4444;font-size:12px">❌ Error: ${e.message}</div>`;
   }

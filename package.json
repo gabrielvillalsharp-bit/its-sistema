@@ -7,7 +7,7 @@
     "start": "node backend/server.js"
   },
   "dependencies": {
-    "baileys": "latest",
+    "baileys": "^7.0.0-rc10",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.3",
     "cors": "^2.8.5",

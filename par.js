@@ -22,18 +22,20 @@ if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
   const { default: pino } = await import('pino');
   const logger = pino({ level: 'silent' });
 
-  const { version } = await fetchLatestBaileysVersion();
+  // Versión fija conocida que funciona — no usar fetchLatestBaileysVersion (puede fallar con RC)
+  const version = [2, 3000, 1023141582];
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
-  console.log('Conectando a WhatsApp...');
+  console.log('Conectando a WhatsApp (version ' + version.join('.') + ')...');
 
   const sock = makeWASocket({
     version, logger,
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
     printQRInTerminal: false,
-    browser: Browsers ? Browsers.ubuntu('Chrome') : ['Ubuntu','Chrome','22.0.0.0'],
+    browser: ['Windows', 'Chrome', '124.0.0'],
     markOnlineOnConnect: false,
     keepAliveIntervalMs: 15000,
+    connectTimeoutMs: 60000,
   });
 
   sock.ev.on('creds.update', saveCreds);
