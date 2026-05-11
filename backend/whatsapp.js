@@ -69,14 +69,24 @@ async function conectar(telefono) {
     logger,
     browser: ['ITS Sistema', 'Chrome', '1.0.0'],
     markOnlineOnConnect: false,
+    keepAliveIntervalMs: 10000,   // ping cada 10s para mantener conexión estable
+    retryRequestDelayMs: 2000,
   });
 
   // ── Pairing code (solo si no hay sesión previa y se pasa teléfono) ─────────
   let codigoPairing = null;
   if (!state.creds.registered && telefono) {
     const num = String(telefono).replace(/[^0-9]/g, '');
-    // Dar 2s para que el socket se inicialice antes de pedir el código
-    await new Promise(r => setTimeout(r, 2000));
+    // Esperar a que el WebSocket esté listo antes de pedir el código
+    await new Promise(resolve => {
+      const unsub = sock.ev.on('connection.update', ({ connection }) => {
+        if (connection === 'connecting' || connection === 'open') {
+          resolve();
+        }
+      });
+      // Fallback: esperar máximo 5s igual
+      setTimeout(resolve, 5000);
+    });
     try {
       codigoPairing = await sock.requestPairingCode(num);
       console.log(`[WhatsApp] Pairing code generado: ${codigoPairing}`);
