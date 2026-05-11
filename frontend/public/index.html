@@ -496,7 +496,6 @@ function navFor(r){
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
-      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -556,7 +555,7 @@ function go(p){
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
-    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,whatsapp:pgWhatsApp,
+    escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
   pages[p]?.(el);

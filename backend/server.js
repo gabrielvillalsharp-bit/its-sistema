@@ -57,9 +57,6 @@ init();
 const { cloudBackupDrive } = require('./cloud-backup');
 setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
 
-// ── WHATSAPP ──────────────────────────────────────────────────────────────────
-const { conectar: waConectar, enviarMensaje: waEnviar, desconectar: waDesconectar, getEstado: waEstado, autoConectar: waAutoConectar } = require('./whatsapp');
-setTimeout(() => waAutoConectar(), 3000);
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
@@ -3235,7 +3232,7 @@ function examenVars(ex) {
   };
 }
 
-// ── WHATSAPP — Baileys ────────────────────────────────────────────────────────
+// ── WHATSAPP — deshabilitado temporalmente ────────────────────────────────────
 function normalizarTelefono(tel) {
   let t = String(tel || '').replace(/\D/g, '');
   if (!t || t.length < 7) return null;
@@ -3244,12 +3241,8 @@ function normalizarTelefono(tel) {
   return t;
 }
 async function sendWhatsApp(phone, message) {
-  const num = normalizarTelefono(phone);
-  if (!num) { console.log('[WA] Teléfono inválido:', phone); return false; }
-  try {
-    await waEnviar(num, message);
-    return true;
-  } catch(e) { console.log('[WA] No enviado (WA no conectado?):', e.message); return false; }
+  console.log('[WA] WhatsApp deshabilitado temporalmente');
+  return false;
 }
 function buildWaMsg(tplKey, vars) {
   const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
@@ -3847,47 +3840,6 @@ try {
   `);
 } catch {}
 
-// ── WHATSAPP API ──────────────────────────────────────────────────────────────
-// Estado de la conexión WhatsApp
-app.get('/api/whatsapp/status', auth(ADM), (req, res) => {
-  res.json(waEstado());
-});
-
-// Iniciar conexión (genera QR)
-app.post('/api/whatsapp/conectar', auth(ADM), async (req, res) => {
-  try {
-    await waConectar();
-    audit(req.user.id, 'WA_CONECTAR', 'whatsapp', 'sistema', {});
-    res.json({ ok: true });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Enviar mensaje de prueba
-app.post('/api/whatsapp/test', auth(ADM), async (req, res) => {
-  try {
-    const { numero, mensaje } = req.body;
-    if (!numero) return res.status(400).json({ error: 'Falta el número' });
-    const txt = mensaje || '✅ Mensaje de prueba desde ITS Sistema';
-    await waEnviar(numero, txt);
-    audit(req.user.id, 'WA_TEST', 'whatsapp', 'sistema', { numero });
-    res.json({ ok: true });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Desconectar y borrar sesión
-app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
-  try {
-    await waDesconectar();
-    audit(req.user.id, 'WA_DESCONECTAR', 'whatsapp', 'sistema', {});
-    res.json({ ok: true });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
