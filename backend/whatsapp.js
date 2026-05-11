@@ -17,7 +17,7 @@ let _reconnTimer = null;
 
 // ── Cargar Baileys (ESM) mediante dynamic import ─────────────────────────────
 async function loadBaileys() {
-  const B = await import('baileys');
+  const B = await import('@whiskeysockets/baileys');
   return {
     makeWASocket:              B.default ?? B.makeWASocket,
     useMultiFileAuthState:     B.useMultiFileAuthState,
