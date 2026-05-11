@@ -4063,11 +4063,6 @@ async function pgAsist(el){
       <option value="">Todos los años</option>
       ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    <select id="filtAsistTurno" onchange="filtAsistAsigs()" style="min-width:130px">
-      <option value="">Ambos turnos</option>
-      <option value="1">T1 (19:00–20:20)</option>
-      <option value="2">T2 (20:40–22:00)</option>
-    </select>
     ${me.rol==='director'?`<select id="filtAsistDocente" onchange="filtAsistAsigs()" style="min-width:180px">
       <option value="">Todos los docentes</option>
       ${docentesEnAsigs.map(d=>`<option value="${d.id}">${d.nombre}</option>`).join('')}
@@ -4130,7 +4125,6 @@ function cargarFechasAsist(asigId){
 }
 function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
-  const turno=v('filtAsistTurno');
   const anio=v('filtAsistAnio');
   const docenteId=v('filtAsistDocente');
   const sel=document.getElementById('selAsistAsig');
@@ -4140,10 +4134,6 @@ function filtAsistAsigs(){
   if(carrId)    asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(anio)      asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   if(docenteId) asigs=asigs.filter(a=>a.docente_id===docenteId);
-  if(turno){
-    const ids=new Set(horarios.filter(h=>String(h.turno)===turno&&h.asignacion_id).map(h=>h.asignacion_id));
-    asigs=asigs.filter(a=>ids.has(a.id));
-  }
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>{
     const h=horarios.find(x=>x.asignacion_id===a.id);
     const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
