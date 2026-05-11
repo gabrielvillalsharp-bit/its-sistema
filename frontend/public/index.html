@@ -5833,9 +5833,11 @@ function mostrarRevisionPlanilla(data){
     const rowBg=tieneConflicto?'#fffdf0':(i%2===0?'#fff':'#fafafa');
     // Celda de asignación: selector solo para alumnos con conflicto
     const defaultChoice=f.tiene_pagos?'mantener':'mover';
-    const matchBadge=f.match_tipo==='ci'
-      ?`<div style="font-size:9px;color:#1e40af;background:#dbeafe;border-radius:3px;padding:1px 4px;margin-bottom:3px;display:inline-block">🔢 Coincide por cédula</div>`
-      :`<div style="font-size:9px;color:#6d28d9;background:#ede9fe;border-radius:3px;padding:1px 4px;margin-bottom:3px;display:inline-block">👤 Coincide por nombre completo</div>`;
+    const matchBadge=f.match_tipo==='ci_nombre'
+      ?`<div style="font-size:9px;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:3px;padding:1px 5px;margin-bottom:3px;display:inline-block;font-weight:700">🔢👤 Coincide por cédula y nombre</div>`
+      :f.match_tipo==='ci'
+      ?`<div style="font-size:9px;color:#1e40af;background:#dbeafe;border-radius:3px;padding:1px 5px;margin-bottom:3px;display:inline-block">🔢 Coincide por cédula</div>`
+      :`<div style="font-size:9px;color:#6d28d9;background:#ede9fe;border-radius:3px;padding:1px 5px;margin-bottom:3px;display:inline-block">👤 Coincide por nombre completo</div>`;
     const nombreSistBadge=f.nombre_sistema?`<div style="font-size:9px;color:#475569;margin-bottom:2px">En sistema: <strong>${f.nombre_sistema}</strong></div>`:'';
     const asigCell=tieneConflicto
       ?`<td style="padding:4px 8px;border:1px solid #e0e0e0;background:#fffdf0;min-width:210px">

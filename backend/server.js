@@ -2325,7 +2325,15 @@ function parsearPlanillaXLSX(buffer) {
     const tieneCI = ci && ci.length >= 5;
     if (tieneCI) {
       existente = db.prepare('SELECT a.id, a.ci as ci_sistema, a.nombre as nombre_sistema, a.apellido as apellido_sistema, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.ci=?').get(ci);
-      if (existente) { alumno_id = existente.id; match_tipo = 'ci'; }
+      if (existente) {
+        alumno_id = existente.id;
+        // Verificar si el nombre también coincide exactamente
+        const normSis = normNombre((existente.nombre_sistema||'') + ' ' + (existente.apellido_sistema||''));
+        const normSisInv = normNombre((existente.apellido_sistema||'') + ' ' + (existente.nombre_sistema||''));
+        const normPlan = normNombre(nombreCompleto);
+        const nombreCoincide = nombreCompleto && (normSis === normPlan || normSisInv === normPlan);
+        match_tipo = nombreCoincide ? 'ci_nombre' : 'ci';
+      }
       // SI tiene CI pero no coincide con nadie → es alumno nuevo, NO buscar por nombre
     } else if (nombreCompleto) {
       // Solo buscar por nombre cuando la fila no tiene CI
