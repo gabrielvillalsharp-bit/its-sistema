@@ -248,7 +248,7 @@ tr:hover td{background:#fafaf7}
 <div class="tb">
   <div class="tl"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
   <h2>Santísima Trinidad — Sistema Académico</h2>
-  <p style="font-size:9px;color:#a0b0c0;margin-top:2px;font-style:italic">Sistema académico creado por el Prof. Gabriel Sharp</p>
+  <p style="font-size:9px;color:#a0b0c0;margin-top:2px;font-style:italic">Sistema académico desarrollado por Abg. Gabriel Sharp</p>
   <div class="tr2">
     <span id="un" style="font-size:13px;color:var(--t2)"></span>
     <span id="rp" class="rp"></span>
@@ -570,6 +570,7 @@ function show(id){document.getElementById(id)?.classList.remove('hidden');}
 function hide(id){document.getElementById(id)?.classList.add('hidden');}
 function notaCls(n){return n?'n'+Math.min(5,Math.max(1,n)):'n-';}
 function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function fmtFechaHora(f){if(!f)return '-';try{return new Date(f).toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return String(f).replace('T',' ').slice(0,16);}}
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
 function delPagoAlumno(pagoId, alId){
@@ -804,11 +805,13 @@ async function pgAvisos(el){
         let det={};try{det=JSON.parse(a.detalle||'{}');}catch{}
         const quien=(a.user_apellido||'')+' '+(a.user_nombre||'');
         const quienHtml=`<strong>${quien.trim()||'Sistema'}</strong>`;
-        const hora=a.fecha?a.fecha.split(' ')[1]?.slice(0,5)||'':'';
-        const fecha=a.fecha?a.fecha.split(' ')[0]:'';
-        const hoy=new Date().toISOString().split('T')[0];
-        const ayer=new Date(Date.now()-86400000).toISOString().split('T')[0];
-        const cuandoLabel=fecha===hoy?`Hoy ${hora}`:fecha===ayer?`Ayer ${hora}`:`${fmtFecha(fecha)} ${hora}`;
+        const dPY=a.fecha?new Date(a.fecha):null;
+        const ahoraOpts={timeZone:'America/Asuncion'};
+        const fechaPY=dPY?dPY.toLocaleDateString('es-PY',{...ahoraOpts,year:'numeric',month:'2-digit',day:'2-digit'}):'';
+        const horaPY=dPY?dPY.toLocaleTimeString('es-PY',{...ahoraOpts,hour:'2-digit',minute:'2-digit'}):'';
+        const hoyPY=new Date().toLocaleDateString('es-PY',ahoraOpts);
+        const ayerPY=new Date(Date.now()-86400000).toLocaleDateString('es-PY',ahoraOpts);
+        const cuandoLabel=fechaPY===hoyPY?`Hoy ${horaPY}`:fechaPY===ayerPY?`Ayer ${horaPY}`:`${fechaPY} ${horaPY}`;
         const mapa={
           PAGO:{icon:'💰',fn:d=>`registró pago <em>${d.concepto||''}</em>${d.monto?' — Gs. '+Number(d.monto).toLocaleString():''}`,color:'#dcfce7'},
           'EDIT':{icon:'✏️',fn:(d,t)=>t==='pagos'?`modificó un pago`:`editó en ${t}`,color:'#e0f2fe'},
@@ -7345,7 +7348,7 @@ function audRow(r,accionColor){
   const c=accionColor||{};
   const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones'}[r.tabla||'']||r.tabla||'—';
   return `<tr>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${(r.fecha||'').replace('T',' ').split('.')[0]}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${fmtFechaHora(r.fecha)}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap"><strong>${r.user_nombre||'Sistema'}</strong> ${r.user_apellido||''}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':'bg'}" style="font-size:9px">${r.rol||'—'}</span></td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:280px">${describirAccion(r)}</td>
