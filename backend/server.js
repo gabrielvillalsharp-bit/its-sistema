@@ -2316,34 +2316,43 @@ function parsearPlanillaXLSX(buffer) {
       return (!isNaN(m) && m > 0) ? m : 0;
     });
 
-    // Buscar alumno: primero por CI, luego por nombre (para alumnos sin CI)
+    // Buscar alumno:
+    // 1) Si la fila TIENE CI → buscar SOLO por CI exacta. Si no coincide = alumno nuevo (no caer al nombre).
+    // 2) Si la fila NO tiene CI → buscar SOLO por nombre+apellido exacto contra alumnos sin CI en el sistema.
     let existente = null;
     let alumno_id = null;
-    if (ci && ci.length >= 5) {
-      existente = db.prepare('SELECT a.id, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.ci=?').get(ci);
-      if (existente) alumno_id = existente.id;
-    }
-    if (!alumno_id && nombreCompleto) {
+    let match_tipo = null;
+    const tieneCI = ci && ci.length >= 5;
+    if (tieneCI) {
+      existente = db.prepare('SELECT a.id, a.ci as ci_sistema, a.nombre as nombre_sistema, a.apellido as apellido_sistema, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.ci=?').get(ci);
+      if (existente) { alumno_id = existente.id; match_tipo = 'ci'; }
+      // SI tiene CI pero no coincide con nadie → es alumno nuevo, NO buscar por nombre
+    } else if (nombreCompleto) {
+      // Solo buscar por nombre cuando la fila no tiene CI
       const normTarget = normNombre(nombreCompleto);
       const match = alumnosSinCI.find(al => {
-        return normNombre(al.apellido + ' ' + al.nombre) === normTarget ||
-               normNombre(al.nombre + ' ' + al.apellido) === normTarget;
+        const nombreAp = normNombre((al.nombre||'') + ' ' + (al.apellido||''));
+        const apNombre = normNombre((al.apellido||'') + ' ' + (al.nombre||''));
+        return nombreAp === normTarget || apNombre === normTarget;
       });
       if (match) {
         alumno_id = match.id;
-        existente = db.prepare('SELECT a.id, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.id=?').get(match.id) || match;
+        existente = db.prepare('SELECT a.id, a.ci as ci_sistema, a.nombre as nombre_sistema, a.apellido as apellido_sistema, a.carrera_id, c.nombre as carrera_nombre FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id WHERE a.id=?').get(match.id) || match;
+        match_tipo = 'nombre';
       }
     }
 
     let carrera_anterior = null;
     let tiene_pagos = false;
+    let nombre_sistema = null;
     if (existente) {
       const pc = db.prepare('SELECT COUNT(*) as n FROM pagos WHERE alumno_id=?').get(existente.id);
       tiene_pagos = pc.n > 0;
       if (existente.carrera_id) carrera_anterior = { id: existente.carrera_id, nombre: existente.carrera_nombre || existente.carrera_id };
+      nombre_sistema = ((existente.nombre_sistema||'') + ' ' + (existente.apellido_sistema||'')).trim() || null;
     }
 
-    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, alumno_id: alumno_id||null, montos, carrera_anterior: carrera_anterior||null, tiene_pagos });
+    filas.push({ ci, nombre, apellido, nombreCompleto, alumno_existente: !!existente, alumno_id: alumno_id||null, montos, carrera_anterior: carrera_anterior||null, tiene_pagos, match_tipo, nombre_sistema });
   });
 
   return { columnas: pagoIdxs.map(p => p.h), conceptos, filas };
