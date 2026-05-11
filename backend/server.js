@@ -10,7 +10,6 @@ const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
-const { cloudBackupDrive } = require('./cloud-backup');
 
 
 const app = express();
@@ -3008,6 +3007,36 @@ app.get('/api/admin/backup', auth(ADM), (req, res) => {
   res.setHeader('Content-Type', 'application/octet-stream');
   audit(req.user.id, 'BACKUP', 'sistema', 'backup', { fecha });
   res.sendFile(dbPath);
+});
+
+// Probar backup a GitHub manualmente desde el panel
+app.post('/api/admin/backup/github-test', auth(ADM), async (req, res) => {
+  const token  = process.env.GITHUB_BACKUP_TOKEN;
+  const repo   = process.env.GITHUB_BACKUP_REPO;
+  if (!token || !repo) {
+    return res.json({ ok: false, error: 'Variables GITHUB_BACKUP_TOKEN o GITHUB_BACKUP_REPO no configuradas en Railway' });
+  }
+  try {
+    const fecha    = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+    const nombre   = `its_test_${fecha}.db`;
+    const contenido = fs.readFileSync(DB_PATH).toString('base64');
+    const url = `https://api.github.com/repos/${repo}/contents/backups/${nombre}`;
+    const resp = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `Test backup manual ${fecha}`, content: contenido })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      audit(req.user.id, 'BACKUP', 'sistema', 'github-test', { repo, archivo: nombre });
+      res.json({ ok: true, repo, archivo: nombre, url: data.content?.html_url || `https://github.com/${repo}` });
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      res.json({ ok: false, error: `GitHub respondió ${resp.status}: ${err.message || 'error desconocido'}` });
+    }
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
