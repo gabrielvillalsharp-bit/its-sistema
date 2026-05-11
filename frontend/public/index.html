@@ -1963,7 +1963,7 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-      ${esDir?`<button class="bs" style="background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7" onclick="verEstadoWA()">📱 Estado WhatsApp</button>`:''}
+
 
       ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
@@ -2054,7 +2054,7 @@ function exRow(e){
         ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
         ${btnAdjuntar}
         ${btnVer}
-        ${me.rol==='director'?`<button class="bs" style="font-size:11px;background:#dcfce7;color:#166534" onclick="waExamen('${e.id}')" title="Enviar recordatorio WhatsApp al docente">💬 WA</button>`:''}
+
         ${me.rol==='director'?`<button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>`:''}
       </div>
     </td>
@@ -2238,40 +2238,6 @@ function filtExAll(){
 }
 function filtEx(t,val){filtExAll();}
 
-async function waExamen(exId){
-  try{
-    toast('Enviando mensaje WhatsApp…','info',2500);
-    await api('POST','/api/examenes/'+exId+'/whatsapp');
-    toast('✅ Mensaje WhatsApp enviado al docente','ok',4000);
-  }catch(e){
-    if(e.message.includes('teléfono'))
-      toast('⚠️ El docente no tiene teléfono registrado. Editalo en la sección Docentes.','err',5000);
-    else
-      toast('Error: '+e.message,'err',5000);
-  }
-}
-async function verEstadoWA(){
-  try{
-    const s=await api('GET','/api/whatsapp/status');
-    if(s.estado==='activo'){
-      toast(`✅ Twilio WhatsApp activo — Cuenta: ${s.cuenta||''} — Número: ${s.numero||''}`,'ok',5000);
-    } else {
-      const msg=s.estado==='sin_variables'
-        ?'Faltan variables en Railway: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WA_NUMBER'
-        :s.estado==='error_credenciales'?'Credenciales incorrectas: '+s.detalle
-        :'Error de conexión con Twilio: '+(s.error||s.estado);
-      modal(`<h4>📱 WhatsApp Twilio — ⚠️ Sin configurar</h4>
-        <p style="font-size:13px;color:#b71c1c">${msg}</p>
-        <p style="font-size:12px;color:#666;margin-top:10px">Agregá estas variables en Railway → tu servicio → Variables:</p>
-        <div style="background:#f8f9fa;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;margin-top:8px">
-          TWILIO_ACCOUNT_SID = ACxxxxxxxxxxxxxxxx<br>
-          TWILIO_AUTH_TOKEN = xxxxxxxxxxxxxxxx<br>
-          TWILIO_WA_NUMBER = +14155238886
-        </div>
-        <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="cm();setTimeout(verEstadoWA,300)">🔄 Verificar</button></div>`,true);
-    }
-  }catch(e){toast('Error al consultar estado WA: '+e.message,'err');}
-}
 async function borrarArchivoExamen(exId){
   if(!confirm('¿Eliminar el archivo adjunto de este examen? Esta acción no se puede deshacer.'))return;
   try{
@@ -7492,126 +7458,6 @@ async function limpiarAuditoria(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function verAuditoria(){go('auditoria');}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ── WHATSAPP ───────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
-async function pgWhatsApp(el){
-  el.innerHTML=`<div class="ph"><h3>💬 WhatsApp</h3></div><div class="es">Cargando estado...</div>`;
-  let st;
-  try{ st=await api('GET','/api/whatsapp/status'); }catch(e){ el.innerHTML=`<div class="ph"><h3>💬 WhatsApp</h3></div><div class="es" style="color:#ef4444">Error: ${e.message}</div>`; return; }
-
-  const colorEstado=st.conectado?'#22c55e':st.estado==='conectando'?'#f59e0b':'#ef4444';
-  const labelEstado=st.conectado?'✅ Conectado':st.estado==='conectando'?'⏳ Esperando escaneo...':'❌ Desconectado';
-
-  // QR como imagen via API pública
-  const qrHtml = st.qr ? `
-  <div style="background:#fff;border:2px solid #25D366;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center">
-    <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:12px">📱 Escaneá este QR con WhatsApp</div>
-    <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(st.qr)}"
-         style="width:250px;height:250px;border-radius:8px" alt="QR WhatsApp">
-    <div style="font-size:11px;color:#6b7280;margin-top:10px">WhatsApp → ⋮ → Dispositivos vinculados → Vincular dispositivo</div>
-    <div style="font-size:11px;color:#ef4444;margin-top:4px;font-weight:600">⏱ El QR expira en ~60 segundos</div>
-    <button onclick="waRefrescarEstado()" style="margin-top:10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">🔄 Refrescar QR</button>
-  </div>` : '';
-
-  el.innerHTML=`
-  <div class="ph"><h3>💬 WhatsApp — Notificaciones</h3></div>
-
-  <!-- Estado -->
-  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div style="width:14px;height:14px;border-radius:50%;background:${colorEstado};flex-shrink:0"></div>
-      <span style="font-weight:700;font-size:15px">${labelEstado}</span>
-      ${st.error?`<span style="color:#ef4444;font-size:12px;margin-left:8px">· ${st.error}</span>`:''}
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button onclick="waRefrescarEstado()" class="bs s">🔄 Actualizar</button>
-      ${st.conectado?`<button onclick="waDesconectar()" class="bs d">🔌 Desconectar</button>`:''}
-    </div>
-  </div>
-
-  ${qrHtml}
-
-  <!-- Botón conectar -->
-  ${!st.conectado&&!st.qr?`
-  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
-    <h4 style="margin:0 0 8px;font-size:14px">📲 Vincular WhatsApp por QR</h4>
-    <p style="font-size:12px;color:#6b7280;margin:0 0 12px">Hacé clic para generar el código QR, luego escanealo con tu celular.</p>
-    <button onclick="waConectar()" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer">📱 Generar QR</button>
-    <div id="waConectarResult" style="margin-top:10px"></div>
-  </div>`:''}
-
-  <!-- Mensaje de prueba -->
-  ${st.conectado?`
-  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">
-    <h4 style="margin:0 0 10px;font-size:14px">🧪 Enviar mensaje de prueba</h4>
-    <div class="fb" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div>
-        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Número destino</label>
-        <input id="waTestNumero" type="text" placeholder="595981234567" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:180px">
-      </div>
-      <div style="flex:1;min-width:200px">
-        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Mensaje</label>
-        <input id="waTestMsg" type="text" value="✅ Mensaje de prueba desde ITS Sistema" style="padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%">
-      </div>
-      <button onclick="waEnviarPrueba()" class="bs p" style="background:#25D366;color:#fff;border:none">📤 Enviar</button>
-    </div>
-    <div id="waTestResult" style="margin-top:10px"></div>
-  </div>`:''}
-
-  <!-- Instrucciones -->
-  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;font-size:12px;color:#166534">
-    <strong>ℹ️ Cómo vincular:</strong>
-    <ol style="margin:8px 0 0 16px;padding:0;line-height:1.9">
-      <li>Hacé clic en <strong>"Generar QR"</strong></li>
-      <li>Abrí WhatsApp en tu celular → <strong>⋮ → Dispositivos vinculados → Vincular dispositivo</strong></li>
-      <li>Apuntá la cámara al QR que aparece aquí</li>
-      <li>La sesión queda guardada — no repetís este proceso al reiniciar</li>
-    </ol>
-  </div>`;
-
-  // Si hay QR activo, refrescar automáticamente cada 20s para detectar cuando conecta
-  if(st.qr && !st.conectado){
-    setTimeout(()=>{ if(cur==='whatsapp') go('whatsapp'); }, 20000);
-  }
-}
-
-async function waRefrescarEstado(){go('whatsapp');}
-
-async function waConectar(){
-  const res=document.getElementById('waConectarResult');
-  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Iniciando conexión...</div>`;
-  try{
-    await api('POST','/api/whatsapp/conectar');
-    if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Conectando... actualizando en 5 segundos</div>`;
-    setTimeout(()=>go('whatsapp'),5000);
-  }catch(e){
-    if(res) res.innerHTML=`<div style="color:#ef4444;font-size:12px">❌ Error: ${e.message}</div>`;
-  }
-}
-
-async function waEnviarPrueba(){
-  const num=document.getElementById('waTestNumero')?.value?.trim();
-  const msg=document.getElementById('waTestMsg')?.value?.trim();
-  const res=document.getElementById('waTestResult');
-  if(!num){alert('Ingresá el número destino');return;}
-  if(res) res.innerHTML=`<div style="color:#f59e0b;font-size:12px">⏳ Enviando...</div>`;
-  try{
-    await api('POST','/api/whatsapp/test',{numero:num,mensaje:msg});
-    if(res) res.innerHTML=`<div style="color:#22c55e;font-size:12px">✅ Mensaje enviado correctamente a ${num}</div>`;
-  }catch(e){
-    if(res) res.innerHTML=`<div style="color:#ef4444;font-size:12px">❌ Error: ${e.message}</div>`;
-  }
-}
-
-async function waDesconectar(){
-  if(!confirm('¿Desconectar WhatsApp y borrar la sesión guardada?')) return;
-  try{
-    await api('POST','/api/whatsapp/desconectar');
-    go('whatsapp');
-  }catch(e){alert('Error: '+e.message);}
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ── DASHBOARD ANALÍTICO ───────────────────────────────────────────────────
