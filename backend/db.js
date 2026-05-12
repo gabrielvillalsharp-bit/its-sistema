@@ -121,6 +121,9 @@ autoRestoreIfEmpty(DB_PATH);
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('cache_size = -32000');   // 32 MB de caché en memoria
+db.pragma('synchronous = NORMAL');  // más rápido, igual de seguro con WAL
+db.pragma('temp_store = MEMORY');   // tablas temporales en RAM
 
 // ── CÁLCULO DE PUNTAJE (lógica ITS) ──────────────────────────────────────────
 // Parcial: si hay recuperatorio, REEMPLAZA al ordinario (no importa cuál es mayor)
@@ -895,6 +898,29 @@ function init() {
     ins.run('ar_cuota_1anio','Cuota mensual 1° año','cuota',300000,1,'Cuota para alumnos de primer año');
     ins.run('ar_cuota_2anio','Cuota mensual 2° año','cuota',400000,2,'Cuota para alumnos de segundo año');
   } catch {}
+  // Migración: permitir carrera_id NULL en alumnos (para alumnos "sin asignar")
+  try {
+    const info = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='alumnos'").get();
+    if (info && info.sql && info.sql.includes('carrera_id TEXT NOT NULL')) {
+      db.exec(`
+        PRAGMA foreign_keys=OFF;
+        CREATE TABLE alumnos_new (
+          id TEXT PRIMARY KEY, usuario_id TEXT REFERENCES usuarios(id),
+          matricula TEXT UNIQUE, carrera_id TEXT REFERENCES carreras(id),
+          curso_id TEXT REFERENCES cursos(id), fecha_ingreso TEXT,
+          estado TEXT NOT NULL DEFAULT 'Activo' CHECK(estado IN ('Activo','Inactivo','Egresado','Retirado')),
+          ci TEXT, nombre TEXT, apellido TEXT, telefono TEXT, email TEXT
+        );
+        INSERT INTO alumnos_new SELECT id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono,NULL FROM alumnos;
+        DROP TABLE alumnos;
+        ALTER TABLE alumnos_new RENAME TO alumnos;
+        CREATE INDEX IF NOT EXISTS idx_alumnos_carrera ON alumnos(carrera_id);
+        CREATE INDEX IF NOT EXISTS idx_alumnos_curso ON alumnos(curso_id);
+        CREATE INDEX IF NOT EXISTS idx_alumnos_estado ON alumnos(estado);
+        PRAGMA foreign_keys=ON;
+      `);
+    }
+  } catch(e) { console.warn('Migración alumnos carrera_id nullable:', e.message); }
   // Migración: director_pts en notas (10 pts asignados por dirección)
   try { db.prepare('ALTER TABLE notas ADD COLUMN director_pts REAL').run(); } catch {}
   // Migración: normalizar tipo de examen a mayúscula inicial

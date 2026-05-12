@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260511-QR -->
+<!-- build:20260512-PERF-C -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -370,14 +370,14 @@ function startApp(){
       let examCount=0;
       if(me.rol==='docente'&&me.docenteId){
         try{
-          const todos=await api('GET','/api/examenes');
           const hoy=new Date().toISOString().split('T')[0];
           const lim=new Date();lim.setDate(lim.getDate()+7);
           const limStr=lim.toISOString().split('T')[0];
+          const todos=await api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`);
           const vistoEx=JSON.parse(localStorage.getItem('its_exam_vistos')||'[]');
           examCount=todos.filter(e=>{
             const esDoc=e.docente_id===me.docenteId||(e.docente_nombre&&`${e.docente_nombre} ${e.docente_apellido}`===`${me.nombre} ${me.apellido}`);
-            return esDoc&&e.fecha>=hoy&&e.fecha<=limStr&&!vistoEx.includes(e.id);
+            return esDoc&&!vistoEx.includes(e.id);
           }).length;
           W._examNotifCount=examCount;
         }catch{}
@@ -716,15 +716,12 @@ async function pgAvisos(el){
   let misExamenes=[];
   if(me.rol==='docente'){
     try{
-      const todos=await api('GET','/api/examenes');
       const hoy=new Date().toISOString().split('T')[0];
-      // Filtrar los del docente y los próximos 30 días
       const limite=new Date();limite.setDate(limite.getDate()+30);
       const limStr=limite.toISOString().split('T')[0];
-      misExamenes=todos.filter(e=>{
-        const esDocente=e.docente_nombre&&`${e.docente_nombre} ${e.docente_apellido}`===`${me.nombre} ${me.apellido}`;
-        return esDocente&&e.fecha>=hoy&&e.fecha<=limStr;
-      }).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+      // El backend ya filtra por docente y rango de fechas
+      misExamenes=(await api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`))
+        .sort((a,b)=>a.fecha.localeCompare(b.fecha));
     }catch{}
   }
 
@@ -2171,9 +2168,7 @@ async function irAlExamenDesdeActividad(exId){
 async function verExamen(exId){
   if(!exId)return;
   try{
-    // Buscar el examen directamente por ID
-    const exs=await api('GET','/api/examenes');
-    const ex=exs.find(e=>e.id===exId);
+    const ex=await api('GET','/api/examenes/'+exId);
     if(!ex){toast('Examen no encontrado','warn');return;}
     const esDocente=me.rol==='docente';
     const esAlumno=me.rol==='alumno';
@@ -4830,14 +4825,13 @@ async function verAsistMesGen(){
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 async function pgPagos(el){
-  const [als,pers,carrs,cursos,aranceles,kanban]=await Promise.all([
-    api('GET','/api/alumnos'),api('GET','/api/periodos'),
+  const [pers,carrs,cursos,aranceles]=await Promise.all([
+    api('GET','/api/periodos'),
     api('GET','/api/carreras'),api('GET','/api/cursos'),
-    api('GET','/api/aranceles').catch(()=>[]),
-    api('GET','/api/pagos/resumen-kanban').catch(()=>({}))
+    api('GET','/api/aranceles').catch(()=>[])
   ]);
-  W._pdata={als,pers,aranceles};
-  W._pagosCarrs=carrs; W._pagosCursos=cursos; W._kanban=kanban;
+  W._pdata={als:[],pers,aranceles};
+  W._pagosCarrs=carrs; W._pagosCursos=cursos; W._kanban={};
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
 
   el.innerHTML=`
@@ -4863,16 +4857,16 @@ async function pgPagos(el){
     <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
       <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="renderTablaPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
-        <select id="filtPagoCarr" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
-          <option value="">Todas las carreras</option>
+        <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="debounceBusPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
+        <select id="filtPagoCarr" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:13px;flex:1;min-width:150px">
+          <option value="">— Seleccioná una carrera —</option>
           <option value="SIN_ASIGNAR">📌 Sin asignar</option>
           ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
-        <select id="filtPagoAnio" onchange="filtPagoCursos();renderTablaPagos()" style="font-size:13px;min-width:90px">
+        <select id="filtPagoAnio" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:13px;min-width:90px">
           <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
         </select>
-        <select id="filtPagoCurso" onchange="renderTablaPagos()" style="font-size:13px;flex:1;min-width:150px">
+        <select id="filtPagoCurso" onchange="cargarAlumnosPagos()" style="font-size:13px;flex:1;min-width:150px">
           <option value="">Todas las secciones</option>
           ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
         </select>
@@ -4882,18 +4876,26 @@ async function pgPagos(el){
           <option value="mora">⚠️ En mora</option>
           <option value="sinmat">📋 Sin matrícula</option>
         </select>
-        <button class="bs" onclick="filtrarKanban('')" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
+        <button class="bs" onclick="limpiarFiltrosPagos()" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
       </div>
     </div>
 
+    <!-- PLACEHOLDER (visible hasta que se aplique un filtro) -->
+    <div id="pagosPlaceholder" style="background:#fff;border:1px dashed #d1d5db;border-radius:14px;padding:48px 20px;text-align:center;color:#94a3b8">
+      <div style="font-size:36px;margin-bottom:12px">🔍</div>
+      <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">Seleccioná una carrera o escribí un nombre</div>
+      <div style="font-size:13px">Los alumnos se cargarán al aplicar un filtro</div>
+    </div>
+
     <!-- TABLA -->
-    <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <div id="pagosTablaWrap" style="display:none;background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:linear-gradient(90deg,#f0fdf4,#f8fafc);border-bottom:2px solid var(--bdr)">
             <th style="padding:11px 10px;text-align:center;font-weight:700;color:#94a3b8;font-size:11px;width:36px">#</th>
             <th style="padding:11px 16px;text-align:left;font-weight:700;color:#475569;font-size:12px">Alumno</th>
             <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px">Carrera / Año</th>
+            <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Sección</th>
             <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Matrícula</th>
             <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px;min-width:120px">Cuotas</th>
             <th style="padding:11px 12px;text-align:right;font-weight:700;color:#475569;font-size:12px">Total</th>
@@ -4914,7 +4916,84 @@ async function pgPagos(el){
     <div id="panelHistorialPago" style="background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)"></div>
   </div>`;
 
-  renderTablaPagos();
+  // No se carga nada al inicio — esperar que el usuario aplique un filtro
+}
+
+function limpiarFiltrosPagos(){
+  const el=document.getElementById('filtPagoBus'); if(el)el.value='';
+  const ec=document.getElementById('filtPagoCarr'); if(ec)ec.value='';
+  const ea=document.getElementById('filtPagoAnio'); if(ea)ea.value='';
+  const ecu=document.getElementById('filtPagoCurso'); if(ecu)ecu.value='';
+  const ek=document.getElementById('filtKanbanCol'); if(ek)ek.value='';
+  filtPagoCursos();
+  // Volver al placeholder
+  W._pdata={...W._pdata,als:[]};
+  W._kanban={};
+  const ph=document.getElementById('pagosPlaceholder');
+  const tw=document.getElementById('pagosTablaWrap');
+  if(ph)ph.style.display='';
+  if(tw)tw.style.display='none';
+}
+
+let _busTimer=null;
+function debounceBusPagos(){
+  clearTimeout(_busTimer);
+  const val=(document.getElementById('filtPagoBus')||{}).value||'';
+  if(val.length===0){ limpiarFiltrosPagos(); return; }
+  if(val.length<2) return; // esperar al menos 2 caracteres
+  _busTimer=setTimeout(()=>cargarAlumnosPagos(),500);
+}
+
+async function cargarAlumnosPagos(){
+  const bus=(document.getElementById('filtPagoBus')||{}).value||'';
+  const carrId=String((document.getElementById('filtPagoCarr')||{}).value||'');
+  const anio=String((document.getElementById('filtPagoAnio')||{}).value||'');
+  const cursoId=String((document.getElementById('filtPagoCurso')||{}).value||'');
+
+  // Sin ningún filtro → mostrar placeholder
+  const hayFiltro=bus.length>=2||carrId||anio||cursoId;
+  const ph=document.getElementById('pagosPlaceholder');
+  const tw=document.getElementById('pagosTablaWrap');
+  if(!hayFiltro){
+    if(ph)ph.style.display='';
+    if(tw)tw.style.display='none';
+    return;
+  }
+
+  // Mostrar tabla con loading
+  if(ph)ph.style.display='none';
+  if(tw)tw.style.display='';
+  const tbody=document.getElementById('tablaPagosCuerpo');
+  if(tbody)tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8">⏳ Cargando...</td></tr>`;
+
+  // Construir parámetros
+  const qs=new URLSearchParams();
+  if(bus.length>=2) qs.set('busqueda',bus);
+  // carrera_id se envía al servidor (incluye SIN_ASIGNAR)
+  if(carrId) qs.set('carrera_id',carrId);
+  if(cursoId) qs.set('curso_id',cursoId);
+
+  // Para kanban usamos carrera_id / curso_id
+  const kanbanQs=new URLSearchParams();
+  if(carrId) kanbanQs.set('carrera_id',carrId);
+  if(cursoId) kanbanQs.set('curso_id',cursoId);
+
+  try{
+    const [als,kanban]=await Promise.all([
+      api('GET','/api/alumnos?'+qs.toString()),
+      api('GET','/api/pagos/resumen-kanban?'+kanbanQs.toString()).catch(()=>({}))
+    ]);
+    // Filtro de año sigue siendo client-side (viene en el alumno)
+    const cursoAnioMap={};
+    (W._pagosCursos||[]).forEach(cu=>{cursoAnioMap[String(cu.id)]=String(cu.anio);});
+    let lista=als;
+    if(anio) lista=lista.filter(a=>(cursoAnioMap[String(a.curso_id||'')]||String(a.curso_anio||''))===anio);
+    W._pdata={...W._pdata,als:lista};
+    W._kanban=kanban;
+    renderTablaPagos();
+  }catch(e){
+    if(tbody)tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:32px;color:#b91c1c">Error al cargar: ${e.message}</td></tr>`;
+  }
 }
 
 function renderTablaPagos(){
@@ -4944,7 +5023,7 @@ function renderTablaPagos(){
 
   const tbody=document.getElementById('tablaPagosCuerpo');
   if(!tbody)return;
-  if(!als.length){ tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos</td></tr>`; return; }
+  if(!als.length){ tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos</td></tr>`; return; }
 
   tbody.innerHTML=als.map((a,i)=>{
     const k=kanban[a.id]||{};
@@ -4980,7 +5059,8 @@ function renderTablaPagos(){
           </div>
         </div>
       </td>
-      <td style="padding:11px 12px;color:#475569;font-size:12px">${a.carrera_nombre||'—'}${a.curso_anio?'<br><span style="font-size:11px;color:#94a3b8">'+a.curso_anio+'° año</span>':''}</td>
+      <td style="padding:11px 12px;color:#475569;font-size:12px">${a.carrera_nombre||'<span style="color:#94a3b8;font-style:italic">Sin asignar</span>'}${a.curso_anio?'<br><span style="font-size:11px;color:#94a3b8">'+a.curso_anio+'° año</span>':''}</td>
+      <td style="padding:11px 12px;text-align:center">${a.curso_division&&a.curso_division!=='U'?`<span style="background:#ede9fe;color:#7c3aed;font-size:11px;padding:2px 8px;border-radius:4px;font-weight:700">Secc. ${a.curso_division}</span>`:(a.curso_division==='U'?`<span style="font-size:11px;color:#94a3b8">Única</span>`:`<span style="font-size:11px;color:#cbd5e1">—</span>`)}</td>
       <td style="padding:11px 12px;text-align:center">${tieneMat?'<span style="font-size:16px">✅</span>':'<span style="font-size:16px">❌</span>'}</td>
       <td style="padding:11px 12px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -5026,7 +5106,8 @@ function toggleFilaPago(alId){ abrirDetallePago(alId); }
 function filtrarKanban(estado){
   const s=document.getElementById('filtKanbanCol');
   if(s)s.value=estado;
-  renderTablaPagos();
+  // Si hay datos cargados, re-renderizar; si no, no hacer nada
+  if((W._pdata?.als||[]).length>0) renderTablaPagos();
 }
 
 async function abrirHistorialPago(alId){
@@ -5035,7 +5116,13 @@ async function abrirHistorialPago(alId){
 }
 
 async function refreshKanban(alId){
-  try{ W._kanban=await api('GET','/api/pagos/resumen-kanban'); }catch{}
+  // Refrescar solo con los filtros actuales para no cargar todos los alumnos
+  const carrId=String((document.getElementById('filtPagoCarr')||{}).value||'');
+  const cursoId=String((document.getElementById('filtPagoCurso')||{}).value||'');
+  const kanbanQs=new URLSearchParams();
+  if(carrId) kanbanQs.set('carrera_id',carrId);
+  if(cursoId) kanbanQs.set('curso_id',cursoId);
+  try{ W._kanban=await api('GET','/api/pagos/resumen-kanban?'+kanbanQs.toString()); }catch{}
   renderTablaPagos();
   if(alId) setTimeout(()=>abrirDetallePago(alId),120);
 }
@@ -5491,11 +5578,15 @@ async function cargarPagos(){
   if(cursoId)url+=`&curso_id=${cursoId}`;
   return api('GET',url).catch(()=>[]);
 }
-function btnRegistrarPago(){
+async function btnRegistrarPago(){
   // Si el panel de detalle de un alumno está abierto, registrar directamente para ese alumno
   if(W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
     mPagoDirecto(W._pagoSel);
   } else {
+    // Si aún no hay alumnos cargados, traer todos para el modal de registro
+    if(!(W._pdata?.als||[]).length){
+      try{ const all=await api('GET','/api/alumnos'); if(W._pdata)W._pdata.als=all; }catch{}
+    }
     mPago();
   }
 }
@@ -5702,10 +5793,10 @@ function toggleMenuImportar(){
 // ── IMPORTAR SIN ASIGNAR CARRERA ──────────────────────────────────────────────
 function mImportarSinAsignar(){
   modal(`<h4>📌 Importar alumnos sin asignar</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Importa alumnos y registra sus pagos <strong>sin asignarlos a ninguna carrera ni sección</strong>. Después podés moverlos a donde correspondan.</p>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Importa alumnos y registra sus pagos <strong>sin asignarlos a ninguna carrera</strong>. El sistema verificará coincidencias antes de importar.</p>
   <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 14px;font-size:11px;color:#166534;margin-bottom:14px">
-    ✓ Formato: encabezado con <strong>Cédula</strong>, <strong>Nombre</strong> (y opcionalmente <strong>Apellido</strong>) y columnas de pago (Marzo, Abril… o Cuota 1, Cuota 2…)<br>
-    ✓ Los alumnos quedan en la categoría <em>"Sin asignar"</em> hasta que los muevas a una carrera
+    ✓ Encabezado con <strong>Cédula</strong>, <strong>Nombre</strong> (y opcionalmente <strong>Apellido</strong>) y columnas de pago (Marzo, Abril… o Cuota 1, Cuota 2…)<br>
+    ✓ Se detectan alumnos ya registrados por cédula o nombre completo
   </div>
   <div class="fg">
     <div class="f"><label>Archivo Excel (.xlsx)</label>
@@ -5714,20 +5805,148 @@ function mImportarSinAsignar(){
   </div>
   <div class="mf">
     <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="ejecutarImportSinAsignar()">📥 Importar</button>
+    <button class="bn" onclick="previsualizarSinAsignar()">🔍 Analizar y previsualizar</button>
   </div>`);
 }
-async function ejecutarImportSinAsignar(){
+
+async function previsualizarSinAsignar(){
   const inp=document.getElementById('archSinAsignar');
   if(!inp?.files[0])return alert('Seleccioná un archivo Excel');
+  W._fileSinAsignar=inp.files[0];
   const fd=new FormData(); fd.append('archivo',inp.files[0]);
+  try{
+    toast('Analizando planilla…','info',4000);
+    const r=await api('POST','/api/pagos/previsualizar-sin-asignar',fd,true);
+    mostrarPrevSinAsignar(r);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+function mostrarPrevSinAsignar(data){
+  const {filas,columnas}=data;
+  if(!filas.length)return alert('No se encontraron alumnos con cédula válida en el archivo.');
+  W._prevSinAsignarFilas=filas;
+  const nuevos=filas.filter(f=>f.esNuevo).length;
+  const existentes=filas.filter(f=>!f.esNuevo).length;
+  const conCarrera=filas.filter(f=>!f.esNuevo&&f.existente?.carrera_nombre).length;
+
+  const rows=filas.map((f,i)=>{
+    // ── Columna 1: Alumno
+    const nom=f.esNuevo
+      ?`${f.apellido||''}, ${f.nombre||''}`
+      :`${f.existente.apellido||f.apellido||''}, ${f.existente.nombre||f.nombre||''}`;
+    const colAlumno=`<td style="padding:8px 10px;min-width:140px">
+      <div style="font-size:12px;font-weight:700;color:#1e293b">${nom}</div>
+      <div style="font-size:10px;color:#64748b">CI: ${f.ci}</div>
+    </td>`;
+
+    // ── Columna 2: Pagos en la planilla
+    const pagosPlani=f.pagos.filter(p=>p.monto>0);
+    const totalPlani=pagosPlani.reduce((s,p)=>s+p.monto,0);
+    const colPlani=pagosPlani.length>0
+      ?`<td style="padding:8px 10px;min-width:150px">
+          <div style="font-size:12px;font-weight:700;color:#166534">${pagosPlani.length} pago${pagosPlani.length>1?'s':''} · Gs.${totalPlani.toLocaleString()}</div>
+          <div style="font-size:10px;color:#64748b;margin-top:2px">${pagosPlani.map(p=>p.concepto).join(', ')}</div>
+        </td>`
+      :`<td style="padding:8px 10px;font-size:11px;color:#cbd5e1">Sin pagos</td>`;
+
+    // ── Columna 3: Estado actual en el sistema
+    let colSistema='';
+    if(f.esNuevo){
+      colSistema=`<td style="padding:8px 10px;min-width:160px">
+        <span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700">NUEVO</span>
+        <div style="font-size:10px;color:#64748b;margin-top:3px">Se creará sin carrera asignada</div>
+      </td>`;
+    } else {
+      const pa=f.existente?.pagosActuales||[];
+      const cuotas=pa.filter(p=>/cuota/i.test(p.concepto));
+      const matric=pa.some(p=>/matr/i.test(p.concepto));
+      const totalGs=pa.reduce((s,p)=>s+(p.monto||0),0);
+      const carNom=f.existente?.carrera_nombre;
+      const cursoStr=carNom?`${carNom}${f.existente.curso_anio?' '+f.existente.curso_anio+'°':''}`:null;
+      const pagoStr=[matric?'✓ Matrícula':'',cuotas.length>0?cuotas.length+' cuota'+(cuotas.length>1?'s':''):'Sin cuotas'].filter(Boolean).join(' · ');
+      colSistema=`<td style="padding:8px 10px;min-width:160px">
+        <div style="font-size:12px;font-weight:700;color:${cursoStr?'#7c3aed':'#94a3b8'}">${cursoStr||'Sin asignar'}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px">${pagoStr}${totalGs>0?' · Gs.'+totalGs.toLocaleString():''}</div>
+      </td>`;
+    }
+
+    // ── Columna 4: Decisión de carrera
+    let colDecision='';
+    if(f.esNuevo){
+      colDecision=`<td style="padding:8px 10px;font-size:10px;color:#94a3b8;text-align:center">—</td>`;
+    } else if(f.existente?.carrera_nombre){
+      const carNom=f.existente.carrera_nombre+(f.existente.curso_anio?' '+f.existente.curso_anio+'°':'');
+      colDecision=`<td style="padding:8px 10px;min-width:170px">
+        <select id="dec_${i}" style="width:100%;font-size:11px;padding:4px 7px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#1e293b">
+          <option value="mantener" selected>📚 Mantener en ${carNom}</option>
+          <option value="sin_asignar">📌 Pasar a sin asignar</option>
+        </select>
+      </td>`;
+    } else {
+      colDecision=`<td style="padding:8px 10px;font-size:10px;color:#94a3b8;text-align:center">Ya sin asignar</td>`;
+    }
+
+    const bg=f.esNuevo?(i%2===0?'#fff':'#f8fafc'):'#fffbf5';
+    return `<tr style="background:${bg};border-bottom:1px solid #f1f5f9">${colAlumno}${colPlani}${colSistema}${colDecision}</tr>`;
+  }).join('');
+
+  const aviso=existentes>0?`<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:9px 14px;font-size:11px;color:#92400e;margin-bottom:10px;display:flex;align-items:flex-start;gap:8px">
+    <span style="font-size:16px;flex-shrink:0">⚠️</span>
+    <span><strong>${existentes} alumno${existentes>1?'s':''} ya registrado${existentes>1?'s':''}</strong> en el sistema. Solo se agregarán los pagos que aún no tengan cargados (sin duplicar).${conCarrera>0?' Para los <strong>'+conCarrera+' con carrera asignada</strong>, elegí si mantenerlos en su carrera o pasarlos a "sin asignar".':''}</span>
+  </div>`:'';
+
+  modal(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+    <h4 style="margin:0">📋 Verificación antes de importar — ${filas.length} alumnos</h4>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${nuevos>0?`<span style="background:#dbeafe;color:#1e40af;font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600">🆕 ${nuevos} nuevos</span>`:''}
+      ${existentes>0?`<span style="background:#fff7ed;color:#c2410c;font-size:11px;padding:3px 10px;border-radius:5px;font-weight:600">⚠ ${existentes} ya existen</span>`:''}
+    </div>
+  </div>
+  ${aviso}
+  <div style="overflow:auto;max-height:380px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px">
+    <table style="border-collapse:collapse;width:100%">
+      <thead style="background:#f1f5f9;position:sticky;top:0;z-index:2">
+        <tr>
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#475569">Alumno</th>
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#475569">Pagos en planilla</th>
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#475569">Estado en sistema</th>
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#475569">Decisión carrera</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <button class="bs" onclick="mImportarSinAsignar()">← Volver</button>
+    <button class="bn" onclick="ejecutarImportSinAsignar()">✅ Confirmar e importar (${filas.length})</button>
+  </div>`,true);
+}
+
+async function ejecutarImportSinAsignar(){
+  const archivo=W._fileSinAsignar||document.getElementById('archSinAsignar')?.files[0];
+  if(!archivo)return alert('No hay archivo seleccionado');
+  const filas=W._prevSinAsignarFilas||[];
+  // Recopilar decisiones de carrera para alumnos existentes con carrera
+  const decisiones={};
+  filas.forEach((f,i)=>{
+    if(!f.esNuevo){
+      const sel=document.getElementById('dec_'+i);
+      if(sel) decisiones[f.ci]=sel.value;
+    }
+  });
+  const fd=new FormData();
+  fd.append('archivo',archivo);
+  if(Object.keys(decisiones).length) fd.append('decisiones',JSON.stringify(decisiones));
   try{
     toast('Importando…','info',3000);
     const r=await api('POST','/api/pagos/importar-sin-asignar',fd,true);
     cm();
+    W._fileSinAsignar=null; W._prevSinAsignarFilas=null;
+    const sinAsignarCount=filas.filter((f,i)=>!f.esNuevo&&document.getElementById('dec_'+i)?.value==='sin_asignar').length;
     let msg=`✓ ${r.ok} pagos importados`;
-    if(r.alumnos_creados) msg+=`\n👤 ${r.alumnos_creados} alumnos creados (sin asignar)`;
-    if(r.errores?.length) msg+=`\n⚠ ${r.errores.length} errores`;
+    if(r.alumnos_creados) msg+=`\n👤 ${r.alumnos_creados} alumnos nuevos registrados`;
+    if(sinAsignarCount) msg+=`\n📌 ${sinAsignarCount} alumno${sinAsignarCount>1?'s':''} pasado${sinAsignarCount>1?'s':''} a sin asignar`;
+    if(r.errores?.length) msg+=`\n⚠ ${r.errores.length} errores: ${r.errores.slice(0,5).join('\n')}`;
     alert(msg);
     go('pagos');
   }catch(e){toast('Error: '+e.message,'err');}
@@ -5738,28 +5957,29 @@ async function mMoverAlumno(alId){
   const carrs=W._pagosCarrs||W._carrs||[];
   const cursos=W._pagosCursos||W._cursos||[];
   const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
-  modal(`<h4>↕ Mover alumno</h4>
-  <div style="font-size:12px;color:var(--t2);padding:5px 10px;background:#f0f4ff;border-radius:6px;margin-bottom:14px">
+  modal(`<h4>↕ Asignar / mover alumno</h4>
+  <div style="font-size:12px;color:var(--t2);padding:8px 12px;background:#f0f4ff;border-radius:6px;margin-bottom:14px">
     👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong>
-    ${al.carrera_nombre?`<br>Actualmente en: <em>${al.carrera_nombre} ${al.curso_anio?al.curso_anio+'°':''}</em>`:'<br><em>Sin asignar</em>'}
+    ${al.display_ci?`<span style="color:#94a3b8;margin-left:8px">CI: ${al.display_ci}</span>`:''}
+    <br>${al.carrera_nombre?`Actualmente en: <em>${al.carrera_nombre}${al.curso_anio?' '+al.curso_anio+'°':''}${al.curso_division&&al.curso_division!=='U'?' Secc. '+al.curso_division:''}</em>`:'<em style="color:#94a3b8">Sin carrera asignada</em>'}
   </div>
   <div class="fg">
-    <div class="f"><label>Nueva carrera</label>
+    <div class="f"><label>Mover a carrera</label>
       <select id="moverCarr" onchange="filtCursosMover()" style="width:100%">
         <option value="">— Sin asignar —</option>
         ${carrs.map(c=>`<option value="${c.id}" ${String(al.carrera_id)===String(c.id)?'selected':''}>${c.nombre}</option>`).join('')}
       </select>
     </div>
-    <div class="f"><label>Sección</label>
+    <div class="f"><label>Año y sección</label>
       <select id="moverCurso" style="width:100%">
         <option value="">— Sin sección —</option>
-        ${cursos.filter(cu=>String(cu.carrera_id)===String(al.carrera_id)).map(cu=>`<option value="${cu.id}" ${String(al.curso_id)===String(cu.id)?'selected':''}>${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
+        ${cursos.filter(cu=>String(cu.carrera_id)===String(al.carrera_id)).map(cu=>`<option value="${cu.id}" ${String(al.curso_id)===String(cu.id)?'selected':''}>${cu.anio}° año — ${cu.division==='U'?'Sección Única':'Sección '+cu.division}</option>`).join('')}
       </select>
     </div>
   </div>
   <div class="mf">
     <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="ejecutarMoverAlumno('${alId}')">↕ Mover</button>
+    <button class="bn" onclick="ejecutarMoverAlumno('${alId}')">✅ Confirmar asignación</button>
   </div>`);
 }
 function filtCursosMover(){
@@ -5777,12 +5997,13 @@ async function ejecutarMoverAlumno(alId){
     await api('PUT','/api/alumnos/'+alId+'/asignar',{carrera_id:carrId||null,curso_id:cursoId||null});
     cm();
     toast('✓ Alumno movido correctamente','ok',3000);
-    // Recargar datos de alumnos
-    const als=await api('GET','/api/alumnos');
-    if(W._pdata) W._pdata.als=als;
+    // Recargar con filtros actuales
     if(W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
+      await cargarAlumnosPagos();
       refreshKanban(alId);
-    } else { go('pagos'); }
+    } else {
+      await cargarAlumnosPagos();
+    }
   }catch(e){toast('Error: '+e.message,'err');}
 }
 
