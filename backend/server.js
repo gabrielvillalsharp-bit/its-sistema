@@ -1507,7 +1507,7 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
       d.id as docente_id,
       a.id as asignacion_id,
       a.turno as asig_turno,
-      (SELECT COUNT(*) FROM alumnos WHERE curso_id=a.curso_id AND estado='Activo') as total_alumnos
+      COALESCE(ac.cnt, 0) as total_alumnos
     FROM examenes e
     LEFT JOIN asignaciones a  ON e.asignacion_id=a.id
     LEFT JOIN materias m      ON a.materia_id=m.id
@@ -1515,6 +1515,7 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
     LEFT JOIN carreras ca     ON cu.carrera_id=ca.id
     LEFT JOIN docentes d      ON a.docente_id=d.id
     LEFT JOIN usuarios u      ON d.usuario_id=u.id
+    LEFT JOIN (SELECT curso_id, COUNT(*) as cnt FROM alumnos WHERE estado='Activo' GROUP BY curso_id) ac ON ac.curso_id=cu.id
     ${where} ORDER BY e.fecha, e.hora`).all(...params));
 });
 

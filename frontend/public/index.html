@@ -464,6 +464,7 @@ function navFor(r){
       {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
       {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
       {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
+      {id:'constancias',l:'Constancias',c:'#1d4ed8',r:['director']},
     ]},
     {g:'Académico',i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
@@ -549,7 +550,7 @@ function go(p){
   const el=document.getElementById('mc');
   el.innerHTML='<div class="es">Cargando...</div>';
   const pages={dashboard:pgDash,'dashboard-analitico':pgDashAnalitico,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,
-    periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,
+    periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,constancias:pgConstancias,
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
@@ -637,6 +638,8 @@ async function del(id,tipo){
     async function(){
       try{
         await api('DELETE','/api/'+tipo+'/'+id);
+        // Invalida caché del calendario si se borra un examen o actividad
+        if(tipo==='examenes'||tipo==='actividades') _calInvalidar();
         go(cur);
         toast(`✓ ${label.charAt(0).toUpperCase()+label.slice(1)} eliminado`,'ok');
       }catch(e){toast('Error al eliminar: '+e.message,'err');}
@@ -1592,8 +1595,7 @@ function aRow(a){return `<tr>
   <td><span class="bx ${a.estado==='Activo'?'bg':a.estado==='Egresado'?'bb':'br'}">${a.estado}</span></td>
   <td><div class="abs">
     <button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button>
-    ${me.rol==='director'?`<button class="bs o" onclick="imprimirBoletin('${a.id}')" title="Boletín de calificaciones">📋 Boletín</button>
-    <button class="bs" onclick="imprimirConstancia('${a.id}')" title="Constancia de estudios">📄 Constancia</button>`:''}
+    ${me.rol==='director'?`<button class="bs o" onclick="imprimirBoletin('${a.id}')" title="Boletín de calificaciones">📋 Boletín</button>`:''}
     <button class="bs d" onclick="del('${a.id}','alumnos')">Eliminar</button>
   </div></td>
 </tr>`;}
@@ -2154,6 +2156,7 @@ function descargarPlantillaExamenes(){
 async function confirmarImportarExamenes(ids){
   try{
     const r=await api('POST','/api/examenes/confirmar-importar',{ids});
+    _calInvalidar(); // los exámenes nuevos invalidan todo el caché del calendario
     cm();
     toast(`✓ ${r.importados} exámenes importados correctamente`,'ok',5000);
     go('examenes');
@@ -2924,9 +2927,11 @@ async function svExamen(id){
   try{
     if(id){
       await api('PUT','/api/examenes/'+id,o);
+      _calInvalidar(o.fecha); // invalida el mes afectado en el caché
       cm(); go('examenes'); toast('✓ Examen actualizado','ok');
     } else {
       const r=await api('POST','/api/examenes',o);
+      _calInvalidar(o.fecha); // invalida el mes afectado en el caché
       cm(); go('examenes');
       if(r.advertencia){
         toast(`✓ Examen guardado — ⚠ ${r.advertencia}`,'warn',6000);
@@ -3211,19 +3216,81 @@ async function pgCalendario(el){
   const hoy=new Date();
   W._calFecha={anio:hoy.getFullYear(),mes:hoy.getMonth()};
   W._calEl=el;
+  // Cachés por sesión
+  if(!W._calCache) W._calCache={};       // clave 'YYYY-MM' → {exs, acts}
+  if(!W._calFeriados) W._calFeriados=null; // se carga una sola vez
   await renderCalendario(el);
 }
+
+function _calKey(anio,mes){return `${anio}-${String(mes+1).padStart(2,'0')}`;}
+// Invalida el caché del calendario (llamar al crear/editar/borrar exámenes)
+function _calInvalidar(fechaISO){
+  if(!W._calCache) return;
+  if(fechaISO){
+    // Solo invalida el mes afectado
+    const key=fechaISO.slice(0,7); // 'YYYY-MM'
+    delete W._calCache[key];
+  } else {
+    // Invalida todo
+    W._calCache={};
+  }
+}
+
+// Pre-carga silenciosa de un mes (sin bloquear)
+async function _preFetchMes(anio,mes){
+  const key=_calKey(anio,mes);
+  if(W._calCache&&W._calCache[key]) return; // ya cacheado
+  const d=new Date(anio,mes,1), u=new Date(anio,mes+1,0);
+  const desde=`${anio}-${String(mes+1).padStart(2,'0')}-01`;
+  const hasta=`${anio}-${String(mes+1).padStart(2,'0')}-${String(u.getDate()).padStart(2,'0')}`;
+  const filtDoc=me.rol==='docente'&&me.docenteId?'&docente_id='+me.docenteId:'';
+  try{
+    const [exs,acts]=await Promise.all([
+      api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
+      api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[])
+    ]);
+    if(W._calCache) W._calCache[key]={exs,acts};
+  }catch{}
+}
+
 async function renderCalendario(el){
   const {anio,mes}=W._calFecha;
+  const key=_calKey(anio,mes);
   const desde=`${anio}-${String(mes+1).padStart(2,'0')}-01`;
   const ultimo=new Date(anio,mes+1,0);
   const hasta=`${anio}-${String(mes+1).padStart(2,'0')}-${String(ultimo.getDate()).padStart(2,'0')}`;
   const filtDoc=me.rol==='docente'&&me.docenteId?'&docente_id='+me.docenteId:'';
-  const [exs,acts,feriados]=await Promise.all([
-    api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
-    api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[]),
-    api('GET','/api/feriados').catch(()=>[])
-  ]);
+
+  // Mostrar skeleton inmediatamente mientras carga
+  if(!W._calCache?.[key]){
+    el.innerHTML=`<div class="ph"><h3>📅 Calendario de exámenes</h3></div>
+    <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:24px;text-align:center;color:#94a3b8;box-shadow:var(--shadow-sm)">
+      <div style="font-size:28px;margin-bottom:8px">⏳</div>
+      <div style="font-size:14px;font-weight:600;color:#64748b">Cargando calendario...</div>
+    </div>`;
+  }
+
+  // Feriados: cargar solo una vez por sesión
+  if(!W._calFeriados){
+    W._calFeriados=await api('GET','/api/feriados').catch(()=>[]);
+  }
+  const feriados=W._calFeriados;
+
+  // Exámenes y actividades: usar caché si existe
+  let exs,acts;
+  if(W._calCache?.[key]){
+    ({exs,acts}=W._calCache[key]);
+  } else {
+    [exs,acts]=await Promise.all([
+      api('GET',`/api/examenes/calendario?desde=${desde}&hasta=${hasta}${filtDoc}`),
+      api('GET',`/api/actividades?desde=${desde}&hasta=${hasta}`).catch(()=>[])
+    ]);
+    W._calCache[key]={exs,acts};
+  }
+
+  // Pre-fetch del mes siguiente en background (sin await)
+  const sigMes=mes===11?{a:anio+1,m:0}:{a:anio,m:mes+1};
+  _preFetchMes(sigMes.a,sigMes.m);
   const ferSet=new Set(feriados.map(f=>f.fecha));
   const ferMap=Object.fromEntries(feriados.map(f=>[f.fecha,f]));
   const porFecha={};
@@ -7575,11 +7642,10 @@ async function cargarAuditoria(){
         <th style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">Fecha / Hora</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Usuario</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Rol</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">¿Qué se hizo?</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">¿Qué se hizo? <span style="font-size:9px;font-weight:400;opacity:.7">(clic para ir al registro)</span></th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción técnica</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Módulo</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Detalle</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Ir a</th>
       </tr></thead>
       <tbody id="audBody">
       ${regs.map(r=>audRow(r,accionColor)).join('')}
@@ -7679,37 +7745,123 @@ function describirAccion(r){
   return `${labels[accion]||accion}${tabla&&tabla!=='sistema'?' en '+tabla:''}`;
 }
 
-function audNavBtn(r){
+// Determina si una fila de auditoría tiene navegación disponible
+function audPuedNavegar(r){
   const tabla=(r.tabla||'').toLowerCase();
   const accion=(r.accion||'').toUpperCase();
-  // Mapa tabla → página del sistema
-  const navMap={
-    pagos:'pagos', alumnos:'alumnos', examenes:'examenes',
-    asistencia:'asistencia', notas:'notas', honorarios:'honorarios',
-    reemplazos:'reemplazos', usuarios:'usuarios', docentes:'usuarios',
-    asignaciones:'examenes', becas:'pagos', habilitaciones:'alumnos',
-  };
-  // LOGIN/LOGOUT/BACKUP/ERROR no tienen navegación útil
-  if(['LOGIN','LOGOUT','BACKUP','ERROR'].includes(accion)) return '—';
-  const page=navMap[tabla];
-  if(!page) return '—';
-  const labels={pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',notas:'Notas',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios'};
-  return `<button onclick="go('${page}')" style="font-size:10px;padding:3px 8px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:5px;cursor:pointer;white-space:nowrap;font-weight:600" title="Ir al módulo de ${labels[page]||page}">→ ${labels[page]||page}</button>`;
+  if(['LOGIN','LOGOUT','BACKUP','ERROR','PURGE_AUDIT'].includes(accion)) return false;
+  const tabsNav=['pagos','alumnos','examenes','notas','asistencia','honorarios','reemplazos','usuarios','docentes','asignaciones','constancias','becas','habilitaciones_examen','avisos'];
+  return tabsNav.includes(tabla);
 }
+
+// Navega al registro exacto según el tipo de acción
+async function audNavegar(audId){
+  const r=(W._auditData||[]).find(x=>x.id===audId);
+  if(!r) return;
+  let det={};
+  try{det=JSON.parse(r.detalle||'{}');}catch{}
+  const tabla=(r.tabla||'').toLowerCase();
+  const accion=(r.accion||'').toUpperCase();
+
+  // ── PAGOS: abre directamente el panel del alumno ──────────────────────────
+  if(tabla==='pagos'&&det.alumno_id){
+    await go('pagos');
+    setTimeout(async()=>{
+      W._pagoSel=det.alumno_id;
+      const vLista=document.getElementById('vistaListaPagos');
+      const vDetalle=document.getElementById('vistaDetallePago');
+      const hb=document.getElementById('pagosHeaderBtns');
+      if(vLista)vLista.style.display='none';
+      if(vDetalle)vDetalle.style.display='block';
+      if(hb)hb.style.display='none';
+      window.scrollTo({top:0,behavior:'smooth'});
+      await selAlumnoPago(det.alumno_id);
+    },350);
+    return;
+  }
+
+  // ── HABILITACIÓN: registro_id = alumno_id → abre panel en pagos ───────────
+  if((tabla==='habilitaciones_examen'||accion==='HABILITAR_ALUMNO')&&r.registro_id&&r.registro_id!=='bulk'){
+    await go('pagos');
+    setTimeout(async()=>{
+      const alId=r.registro_id;
+      W._pagoSel=alId;
+      const vLista=document.getElementById('vistaListaPagos');
+      const vDetalle=document.getElementById('vistaDetallePago');
+      const hb=document.getElementById('pagosHeaderBtns');
+      if(vLista)vLista.style.display='none';
+      if(vDetalle)vDetalle.style.display='block';
+      if(hb)hb.style.display='none';
+      window.scrollTo({top:0,behavior:'smooth'});
+      await selAlumnoPago(alId);
+    },350);
+    return;
+  }
+
+  // ── CONSTANCIA: detalle.alumno_id → va a constancias ──────────────────────
+  if(tabla==='constancias'){
+    await go('constancias');
+    return;
+  }
+
+  // ── ALUMNOS: va a alumnos (registro_id = alumno_id) ───────────────────────
+  if(tabla==='alumnos'||tabla==='alumnos_grupo'){
+    go('alumnos');
+    return;
+  }
+
+  // ── EXÁMENES ───────────────────────────────────────────────────────────────
+  if(tabla==='examenes'||tabla==='asignaciones'){
+    go('examenes');
+    return;
+  }
+
+  // ── NOTAS ──────────────────────────────────────────────────────────────────
+  if(tabla==='notas') { go('notas'); return; }
+
+  // ── ASISTENCIA ─────────────────────────────────────────────────────────────
+  if(tabla==='asistencia') { go('asistencia'); return; }
+
+  // ── HONORARIOS ─────────────────────────────────────────────────────────────
+  if(tabla==='honorarios') { go('honorarios'); return; }
+
+  // ── REEMPLAZOS ─────────────────────────────────────────────────────────────
+  if(tabla==='reemplazos') { go('reemplazos'); return; }
+
+  // ── USUARIOS / DOCENTES ────────────────────────────────────────────────────
+  if(tabla==='usuarios'||tabla==='docentes') { go('usuarios'); return; }
+
+  // ── BECAS ──────────────────────────────────────────────────────────────────
+  if(tabla==='becas') { go('becas'); return; }
+
+  // ── AVISOS ─────────────────────────────────────────────────────────────────
+  if(tabla==='avisos') { go('avisos'); return; }
+}
+
 function audRow(r,accionColor){
   let detalle='';
   try{const d=JSON.parse(r.detalle||'{}');detalle=Object.entries(d).map(([k,vl])=>`<span style="font-size:10px;color:var(--t3)">${k}:</span> ${JSON.stringify(vl)}`).join(' · ');}catch{detalle=r.detalle||'';}
   const c=accionColor||{};
-  const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones'}[r.tabla||'']||r.tabla||'—';
+  const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones',constancias:'Constancias',becas:'Becas',avisos:'Avisos'}[r.tabla||'']||r.tabla||'—';
+  const puedNav=audPuedNavegar(r);
+  // Celda acción: clickeable si hay navegación disponible
+  const accionCell=puedNav
+    ?`<td onclick="audNavegar('${r.id}')"
+        onmouseover="this.style.background='#fef3c7';this.querySelector('.aud-nav-hint').style.opacity='1'"
+        onmouseout="this.style.background='#fffbeb';this.querySelector('.aud-nav-hint').style.opacity='0'"
+        style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:300px;cursor:pointer;transition:background .15s">
+        ${describirAccion(r)}
+        <span class="aud-nav-hint" style="display:block;font-size:9px;color:#92400e;margin-top:3px;opacity:0;transition:opacity .15s;font-weight:600">↗ Clic para ir al registro</span>
+      </td>`
+    :`<td style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:300px">${describirAccion(r)}</td>`;
   return `<tr>
     <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${fmtFechaHora(r.fecha)}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap"><strong>${r.user_nombre||'Sistema'}</strong> ${r.user_apellido||''}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':'bg'}" style="font-size:9px">${r.rol||'—'}</span></td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:280px">${describirAccion(r)}</td>
+    ${accionCell}
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${c[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span></td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:#475569">${tablaLabel}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${audNavBtn(r)}</td>
   </tr>`;
 }
 function filtAudit(){
@@ -7990,6 +8142,135 @@ async function imprimirBoletin(alId){
     </div></body></html>`);
     ven.document.close();
   }catch(e){toast('Error al generar boletín: '+e.message,'err');}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── PÁGINA CONSTANCIAS ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+async function pgConstancias(el){
+  const [carrs,cursos]=await Promise.all([
+    api('GET','/api/carreras'),
+    api('GET','/api/cursos')
+  ]);
+  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+
+  el.innerHTML=`
+  <div class="ph"><h3>📄 Constancias de estudios</h3></div>
+
+  <!-- FILTROS -->
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
+    <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno para emitir constancia</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input id="cstBus" placeholder="Nombre, apellido o CI..." oninput="debounceConstancia()" style="font-size:13px;border-radius:8px;flex:2;min-width:220px"/>
+      <select id="cstCarr" onchange="cargarConstancias()" style="font-size:13px;flex:1;min-width:160px">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+      <select id="cstAnio" onchange="cargarConstancias()" style="font-size:13px;min-width:90px">
+        <option value="">Todos los años</option>
+        ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+      </select>
+      <button class="bs" onclick="limpiarFiltrosConstancia()" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
+    </div>
+  </div>
+
+  <!-- PLACEHOLDER -->
+  <div id="cstPlaceholder" style="background:#fff;border:1px dashed #d1d5db;border-radius:14px;padding:48px 20px;text-align:center;color:#94a3b8">
+    <div style="font-size:36px;margin-bottom:12px">📄</div>
+    <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">Seleccioná una carrera o escribí un nombre</div>
+    <div style="font-size:13px">Los alumnos se cargarán al aplicar un filtro</div>
+  </div>
+
+  <!-- TABLA -->
+  <div id="cstTablaWrap" style="display:none;background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:linear-gradient(90deg,#eff6ff,#f8fafc);border-bottom:2px solid var(--bdr)">
+          <th style="padding:11px 10px;text-align:center;font-weight:700;color:#94a3b8;font-size:11px;width:36px">#</th>
+          <th style="padding:11px 16px;text-align:left;font-weight:700;color:#475569;font-size:12px">Alumno</th>
+          <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px">Carrera</th>
+          <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Año</th>
+          <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Sección</th>
+          <th style="padding:11px 12px;text-align:left;font-weight:700;color:#475569;font-size:12px">C.I.</th>
+          <th style="padding:11px 12px;text-align:center;font-weight:700;color:#475569;font-size:12px">Constancia</th>
+        </tr>
+      </thead>
+      <tbody id="cstCuerpo"></tbody>
+    </table>
+    <div id="cstCount" style="font-size:12px;color:#94a3b8;padding:10px 16px;border-top:1px solid #f1f5f9"></div>
+  </div>`;
+}
+
+let _cstTimer=null;
+function debounceConstancia(){
+  clearTimeout(_cstTimer);
+  const val=(document.getElementById('cstBus')||{}).value||'';
+  if(val.length===0){ limpiarFiltrosConstancia(); return; }
+  if(val.length===1) return;
+  _cstTimer=setTimeout(()=>cargarConstancias(),400);
+}
+
+function limpiarFiltrosConstancia(){
+  ['cstBus','cstCarr','cstAnio'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const ph=document.getElementById('cstPlaceholder');
+  const tw=document.getElementById('cstTablaWrap');
+  if(ph)ph.style.display='';if(tw)tw.style.display='none';
+}
+
+async function cargarConstancias(){
+  const bus=(document.getElementById('cstBus')||{}).value||'';
+  const carrId=(document.getElementById('cstCarr')||{}).value||'';
+  const anio=(document.getElementById('cstAnio')||{}).value||'';
+
+  const hayFiltro=bus.length>=2||carrId||anio;
+  const ph=document.getElementById('cstPlaceholder');
+  const tw=document.getElementById('cstTablaWrap');
+  const tbody=document.getElementById('cstCuerpo');
+
+  if(!hayFiltro){
+    if(ph)ph.style.display='';if(tw)tw.style.display='none';return;
+  }
+  if(ph)ph.style.display='none';if(tw)tw.style.display='';
+  if(tbody)tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">⏳ Cargando...</td></tr>`;
+
+  try{
+    const qs=new URLSearchParams();
+    if(bus.length>=2) qs.set('busqueda',bus);
+    if(carrId) qs.set('carrera_id',carrId);
+    // anio: filtrar client-side sobre los resultados
+    let als=await api('GET','/api/alumnos?'+qs.toString());
+
+    // Filtro de año (client-side via curso_anio)
+    if(anio) als=als.filter(a=>String(a.curso_anio||'')=== String(anio));
+
+    const cnt=document.getElementById('cstCount');
+    if(!als.length){
+      if(tbody)tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">Sin alumnos con esos filtros</td></tr>`;
+      if(cnt)cnt.textContent='';return;
+    }
+    if(cnt)cnt.textContent=`${als.length} alumno${als.length!==1?'s':''} encontrado${als.length!==1?'s':''}`;
+
+    if(tbody)tbody.innerHTML=als.map((a,i)=>{
+      const nombre=`${a.display_apellido||a.apellido||''}, ${a.display_nombre||a.nombre||''}`;
+      const carrera=a.carrera_nombre||'Sin asignar';
+      const anioTxt=a.curso_anio?`${a.curso_anio}°`:'—';
+      const div=a.curso_division&&a.curso_division!=='U'?a.curso_division:'U';
+      const ci=a.display_ci||a.ci||'—';
+      return `<tr style="border-bottom:1px solid #f1f5f9;${i%2?'background:#f8fafc':''}">
+        <td style="padding:10px;text-align:center;color:#94a3b8;font-size:11px">${i+1}</td>
+        <td style="padding:10px 16px;font-weight:700;color:#1e293b">${nombre}</td>
+        <td style="padding:10px 12px;color:#475569;font-size:12px">${carrera}</td>
+        <td style="padding:10px 12px;text-align:center;color:#475569">${anioTxt}</td>
+        <td style="padding:10px 12px;text-align:center;color:#64748b;font-size:12px">${div==='U'?'Única':'Secc. '+div}</td>
+        <td style="padding:10px 12px;color:#64748b;font-size:12px">${ci}</td>
+        <td style="padding:10px 12px;text-align:center">
+          <button onclick="imprimirConstancia('${a.id}')" style="background:#eff6ff;color:#1d4ed8;border:1px solid #93c5fd;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer" title="Emitir constancia de estudios">📄 Emitir constancia</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }catch(e){
+    if(tbody)tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;padding:32px;color:#b91c1c">Error: ${e.message}</td></tr>`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
