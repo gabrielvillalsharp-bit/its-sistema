@@ -4836,7 +4836,7 @@ async function pgPagos(el){
 
   el.innerHTML=`
   <div class="ph"><h3>Pagos y matrículas</h3>
-    <div class="ph-right">
+    <div class="ph-right" id="pagosHeaderBtns">
       <button class="bs" onclick="mCuotaLabels()">⚙ Cuotas</button>
       <div style="position:relative;display:inline-block" id="menuImportarWrap">
         <button class="bs i" onclick="toggleMenuImportar()" style="display:flex;align-items:center;gap:5px">📊 Importar <span style="font-size:10px">▼</span></button>
@@ -4846,7 +4846,6 @@ async function pgPagos(el){
         </div>
       </div>
       <button class="bs" onclick="mRegistrarFaltante()" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa">👤 Alumno faltante</button>
-      <button class="bn" onclick="btnRegistrarPago()">+ Registrar pago</button>
     </div>
   </div>
 
@@ -4857,9 +4856,9 @@ async function pgPagos(el){
     <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
       <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="debounceBusPagos()" style="font-size:13px;border-radius:8px;flex:1;min-width:180px"/>
+        <input id="filtPagoBus" placeholder="Escribí nombre, apellido o CI — busca en todas las carreras..." oninput="debounceBusPagos()" style="font-size:13px;border-radius:8px;flex:2;min-width:240px"/>
         <select id="filtPagoCarr" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:13px;flex:1;min-width:150px">
-          <option value="">— Seleccioná una carrera —</option>
+          <option value="">Todas las carreras</option>
           <option value="SIN_ASIGNAR">📌 Sin asignar</option>
           ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
@@ -4883,8 +4882,9 @@ async function pgPagos(el){
     <!-- PLACEHOLDER (visible hasta que se aplique un filtro) -->
     <div id="pagosPlaceholder" style="background:#fff;border:1px dashed #d1d5db;border-radius:14px;padding:48px 20px;text-align:center;color:#94a3b8">
       <div style="font-size:36px;margin-bottom:12px">🔍</div>
-      <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">Seleccioná una carrera o escribí un nombre</div>
-      <div style="font-size:13px">Los alumnos se cargarán al aplicar un filtro</div>
+      <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">Buscá un alumno por nombre o filtrá por carrera</div>
+      <div style="font-size:13px;color:#94a3b8;margin-bottom:4px">Escribí al menos 2 letras en el buscador para ver alumnos de <strong style="color:#64748b">todas las carreras</strong></div>
+      <div style="font-size:12px">O seleccioná una carrera del desplegable para ver todos sus alumnos</div>
     </div>
 
     <!-- TABLA -->
@@ -4940,8 +4940,15 @@ function debounceBusPagos(){
   clearTimeout(_busTimer);
   const val=(document.getElementById('filtPagoBus')||{}).value||'';
   if(val.length===0){ limpiarFiltrosPagos(); return; }
-  if(val.length<2) return; // esperar al menos 2 caracteres
-  _busTimer=setTimeout(()=>cargarAlumnosPagos(),500);
+  if(val.length===1){
+    // Mostrar hint de "seguí escribiendo"
+    const ph=document.getElementById('pagosPlaceholder');
+    const tw=document.getElementById('pagosTablaWrap');
+    if(ph){ ph.style.display=''; ph.innerHTML=`<div style="font-size:28px;margin-bottom:10px">⌨️</div><div style="font-size:14px;font-weight:600;color:#64748b">Seguí escribiendo...</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">Necesitás al menos 2 caracteres para buscar en todas las carreras</div>`; }
+    if(tw) tw.style.display='none';
+    return;
+  }
+  _busTimer=setTimeout(()=>cargarAlumnosPagos(),400);
 }
 
 async function cargarAlumnosPagos(){
@@ -4973,8 +4980,9 @@ async function cargarAlumnosPagos(){
   if(carrId) qs.set('carrera_id',carrId);
   if(cursoId) qs.set('curso_id',cursoId);
 
-  // Para kanban usamos carrera_id / curso_id
+  // Para kanban: mismos filtros (incluyendo busqueda para no traer todos los alumnos)
   const kanbanQs=new URLSearchParams();
+  if(bus.length>=2) kanbanQs.set('busqueda',bus);
   if(carrId) kanbanQs.set('carrera_id',carrId);
   if(cursoId) kanbanQs.set('curso_id',cursoId);
 
@@ -5087,6 +5095,9 @@ async function abrirDetallePago(alId){
   const vDetalle=document.getElementById('vistaDetallePago');
   if(vLista) vLista.style.display='none';
   if(vDetalle) vDetalle.style.display='block';
+  // Ocultar botones del header (no aplican en vista individual)
+  const hb=document.getElementById('pagosHeaderBtns');
+  if(hb) hb.style.display='none';
   // Scroll al tope
   window.scrollTo({top:0,behavior:'smooth'});
   // Cargar historial
@@ -5099,6 +5110,9 @@ function cerrarDetallePago(){
   const vDetalle=document.getElementById('vistaDetallePago');
   if(vDetalle) vDetalle.style.display='none';
   if(vLista) vLista.style.display='block';
+  // Restaurar botones del header
+  const hb=document.getElementById('pagosHeaderBtns');
+  if(hb) hb.style.display='';
 }
 
 function toggleFilaPago(alId){ abrirDetallePago(alId); }
@@ -5209,10 +5223,21 @@ async function selAlumnoPago(alId){
       // Comparación EXACTA: evitar que 'Cuota 10'.includes('Cuota 1') sea true
       const ok=(pagos||[]).some(p=>p.concepto===key);
       const pago=ok?(pagos||[]).find(p=>p.concepto===key):null;
-      return `<div style="border:2px solid ${ok?'#4ade80':'#e2e8f0'};border-radius:10px;background:${ok?'#f0fdf4':'#fff'};padding:10px 8px;text-align:center;min-width:80px;cursor:${ok?'default':'pointer'}" title="${ok?'Gs. '+Number(pago?.monto||0).toLocaleString()+' — '+fmtFecha(pago?.fecha_pago):'No pagado'}">
-        <div style="font-size:20px;margin-bottom:4px">${ok?'✅':'○'}</div>
-        <div style="font-size:10px;font-weight:700;color:${ok?'#166534':'#94a3b8'};line-height:1.2">${lbl.replace(' — ',' —\n')}</div>
-        ${ok&&pago?`<div style="font-size:9px;color:#166534;margin-top:3px">Gs. ${Number(pago.monto||0).toLocaleString()}</div>`:''}
+      if(!ok){
+        return `<div onclick="registrarPagoCuota('${alId}','${key}')"
+          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb';this.style.boxShadow='0 2px 8px rgba(245,158,11,.25)'"
+          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.boxShadow='none'"
+          style="border:2px solid #e2e8f0;border-radius:10px;background:#fff;padding:10px 8px;text-align:center;min-width:80px;cursor:pointer;transition:all .15s"
+          title="Clic para registrar ${lbl}">
+          <div style="font-size:20px;margin-bottom:4px">○</div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.2">${lbl.replace(' — ',' —\n')}</div>
+          <div style="font-size:9px;color:#f59e0b;margin-top:3px;opacity:0" class="cuota-hint">+ Registrar</div>
+        </div>`;
+      }
+      return `<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 8px;text-align:center;min-width:80px;cursor:default" title="Gs. ${Number(pago?.monto||0).toLocaleString()} — ${fmtFecha(pago?.fecha_pago)}">
+        <div style="font-size:20px;margin-bottom:4px">✅</div>
+        <div style="font-size:10px;font-weight:700;color:#166534;line-height:1.2">${lbl.replace(' — ',' —\n')}</div>
+        ${pago?`<div style="font-size:9px;color:#166534;margin-top:3px">Gs. ${Number(pago.monto||0).toLocaleString()}</div>`:''}
       </div>`;
     }).join('');
 
@@ -5459,6 +5484,24 @@ async function mPagoDirecto(alId){
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
   setTimeout(()=>autoMontoArancel(),100);
+}
+
+// Registrar pago desde el cuadrado de cuota (pre-selecciona el concepto)
+async function registrarPagoCuota(alId, concepto){
+  await mPagoDirecto(alId);
+  setTimeout(()=>{
+    const sel=document.getElementById('pgco');
+    if(!sel) return;
+    if(concepto==='Matrícula'){
+      const yr=new Date().getFullYear();
+      const opt=[...sel.options].find(o=>o.value==='Matrícula '+yr)||[...sel.options].find(o=>o.value.startsWith('Matrícula'));
+      if(opt) sel.value=opt.value;
+    } else {
+      // 'Cuota N' — coincide exactamente con los option values
+      if([...sel.options].some(o=>o.value===concepto)) sel.value=concepto;
+    }
+    autoMontoArancel();
+  },250);
 }
 
 // ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────
@@ -7536,6 +7579,7 @@ async function cargarAuditoria(){
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción técnica</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Módulo</th>
         <th style="padding:6px 10px;border:1px solid var(--bdr)">Detalle</th>
+        <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Ir a</th>
       </tr></thead>
       <tbody id="audBody">
       ${regs.map(r=>audRow(r,accionColor)).join('')}
@@ -7635,6 +7679,23 @@ function describirAccion(r){
   return `${labels[accion]||accion}${tabla&&tabla!=='sistema'?' en '+tabla:''}`;
 }
 
+function audNavBtn(r){
+  const tabla=(r.tabla||'').toLowerCase();
+  const accion=(r.accion||'').toUpperCase();
+  // Mapa tabla → página del sistema
+  const navMap={
+    pagos:'pagos', alumnos:'alumnos', examenes:'examenes',
+    asistencia:'asistencia', notas:'notas', honorarios:'honorarios',
+    reemplazos:'reemplazos', usuarios:'usuarios', docentes:'usuarios',
+    asignaciones:'examenes', becas:'pagos', habilitaciones:'alumnos',
+  };
+  // LOGIN/LOGOUT/BACKUP/ERROR no tienen navegación útil
+  if(['LOGIN','LOGOUT','BACKUP','ERROR'].includes(accion)) return '—';
+  const page=navMap[tabla];
+  if(!page) return '—';
+  const labels={pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',notas:'Notas',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios'};
+  return `<button onclick="go('${page}')" style="font-size:10px;padding:3px 8px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:5px;cursor:pointer;white-space:nowrap;font-weight:600" title="Ir al módulo de ${labels[page]||page}">→ ${labels[page]||page}</button>`;
+}
 function audRow(r,accionColor){
   let detalle='';
   try{const d=JSON.parse(r.detalle||'{}');detalle=Object.entries(d).map(([k,vl])=>`<span style="font-size:10px;color:var(--t3)">${k}:</span> ${JSON.stringify(vl)}`).join(' · ');}catch{detalle=r.detalle||'';}
@@ -7648,6 +7709,7 @@ function audRow(r,accionColor){
     <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${c[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span></td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:#475569">${tablaLabel}</td>
     <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
+    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">${audNavBtn(r)}</td>
   </tr>`;
 }
 function filtAudit(){

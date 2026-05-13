@@ -1582,12 +1582,17 @@ app.get('/api/pagos', auth(ADM), (req, res) => {
 });
 // Resumen kanban: totales por alumno (matrícula, cuotas pagadas, total Gs.)
 app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
-  const { carrera_id, curso_id } = req.query;
+  const { carrera_id, curso_id, busqueda } = req.query;
   const params = [];
   let where = 'WHERE 1=1';
   if (carrera_id === 'SIN_ASIGNAR') { where += ' AND al.carrera_id IS NULL'; }
   else if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
   if (curso_id) { where += ' AND al.curso_id=?'; params.push(curso_id); }
+  if (busqueda) {
+    const b = '%' + busqueda + '%';
+    where += ' AND (al.nombre LIKE ? OR al.apellido LIKE ? OR al.ci LIKE ?)';
+    params.push(b, b, b);
+  }
   const filas = db.prepare(`
     SELECT
       al.id                                                                          AS alumno_id,
