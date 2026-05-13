@@ -202,6 +202,11 @@ app.put('/api/escala', auth(ADM), (req, res) => {
 });
 
 // ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
+// Endpoint público: solo devuelve el logo (para la pantalla de login)
+app.get('/api/logo', (req, res) => {
+  const inst = db.prepare('SELECT logo_base64 FROM institucion WHERE id=1').get();
+  res.json({ logo: inst?.logo_base64 || null });
+});
 app.get('/api/institucion', auth(), (req, res) => res.json(db.prepare('SELECT * FROM institucion WHERE id=1').get()));
 app.put('/api/institucion', auth(ADM), (req, res) => {
   const { nombre, telefono, email, direccion, mision } = req.body;

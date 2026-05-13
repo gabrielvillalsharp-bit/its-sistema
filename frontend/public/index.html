@@ -30,8 +30,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #lp{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#f0fdf4 0%,#ffffff 50%,#f0faf4 100%)}
 .lc{background:#fff;border:1px solid var(--bdr);border-radius:22px;padding:2.4rem;width:390px;box-shadow:var(--shadow-md)}
 .ll{text-align:center;margin-bottom:1.6rem}
-.lb{width:56px;height:56px;background:linear-gradient(135deg,#1a7a42 0%,var(--bld) 100%);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 4px 14px rgba(22,101,52,.32)}
-.lb svg{width:28px;height:28px;fill:white}
+.lb{width:80px;height:80px;background:linear-gradient(135deg,#1a7a42 0%,var(--bld) 100%);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 4px 14px rgba(22,101,52,.32)}
+.lb svg{width:36px;height:36px;fill:white}
+.lb img{width:80px;height:80px;object-fit:contain;border-radius:16px;display:block}
 .lc h1{font-size:20px;font-weight:700;margin-bottom:3px;letter-spacing:-.02em}
 .lc p{font-size:13px;color:var(--t2)}
 .f{margin-bottom:14px}
@@ -227,7 +228,10 @@ tr:hover td{background:#fafaf7}
 <div id="lp">
 <div class="lc">
   <div class="ll">
-    <div class="lb"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
+    <div class="lb" id="loginLogoCont">
+      <!-- Logo dinámico: se carga desde /api/logo; fallback al ícono SVG -->
+      <svg id="loginLogoSvg" viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg>
+    </div>
     <h1>Instituto Técnico Superior</h1>
     <p>Santísima Trinidad — Sistema Académico</p>
   </div>
@@ -237,10 +241,6 @@ tr:hover td{background:#fafaf7}
   <div id="le" style="font-size:12px;color:#b91c1c;margin-top:6px;padding:8px;background:#fff3f3;border-radius:6px;display:none">Email/CI o contraseña incorrectos</div>
   <div style="font-size:11px;color:#888;margin-top:8px;text-align:center">
     Alumnos: ingresá con tu N° de cédula como usuario y contraseña
-  </div>
-  <div class="dl">
-    <p>Acceso rápido:</p>
-    <button class="db2" onclick="ql('director@its.edu.py','director123')">Director — acceso total</button>
   </div>
 </div>
 </div>
@@ -340,8 +340,18 @@ async function doLogin(){
     document.getElementById('le').style.display='block';
   }
 }
-function ql(e,p){document.getElementById('lem').value=e;document.getElementById('lps').value=p;}
 function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
+
+// Carga el logo institucional en la pantalla de login (endpoint público)
+(function cargarLogoLogin(){
+  fetch('/api/logo').then(r=>r.json()).then(data=>{
+    if(!data.logo) return; // sin logo → mantiene el ícono SVG
+    const cont=document.getElementById('loginLogoCont');
+    if(!cont) return;
+    // Reemplaza el SVG por la imagen real
+    cont.innerHTML=`<img src="${data.logo}" alt="Logo ITS" style="width:80px;height:80px;object-fit:contain;border-radius:12px"/>`;
+  }).catch(()=>{/* silencioso — el SVG fallback queda visible */});
+})();
 
 function startApp(){
   hide('lp');show('ap');
