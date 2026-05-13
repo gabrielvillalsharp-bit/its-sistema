@@ -76,7 +76,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .lc p{font-size:13px;color:var(--t2)}
 .f{margin-bottom:14px}
 .f label{display:block;font-size:12px;color:var(--t2);margin-bottom:4px;font-weight:600;letter-spacing:.01em}
-.bp{width:100%;padding:11px;background:linear-gradient(160deg,#22a05a 0%,#166534 100%);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 3px 12px rgba(22,101,52,.28)}
+.bp{width:100%;padding:11px;background:linear-gradient(160deg,#1f8246 0%,#166534 100%);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 3px 12px rgba(22,101,52,.28)}
 .bp:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 18px rgba(22,101,52,.34)}
 .bp:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 4px rgba(22,101,52,.15)}
 .dl{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--bdr)}
@@ -86,35 +86,52 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #le{font-size:12px;color:#b91c1c;margin-top:6px;display:none}
 /* ── APP ───────────────────────────────────── */
 #ap{display:flex;flex-direction:column;min-height:100vh}
-.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;background:rgba(255,255,255,0.92);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:2px solid #166534;position:sticky;top:0;z-index:30;box-shadow:0 2px 16px rgba(22,101,52,.13)}
-.tl{width:38px;height:38px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08),0 3px 10px rgba(22,101,52,.18);flex-shrink:0;position:relative;overflow:hidden}
+.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:62px;background:linear-gradient(105deg,#1a6b3a 0%,#1f8246 35%,#166534 65%,#14532d 100%);position:sticky;top:0;z-index:30;box-shadow:0 4px 20px rgba(22,101,52,.35),0 1px 0 rgba(255,255,255,.12) inset,0 8px 0 rgba(0,0,0,.06);transform-style:preserve-3d}
+.tb::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,0) 60%);pointer-events:none}
+.tl{width:40px;height:40px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.20),0 1px 0 rgba(255,255,255,.8) inset;flex-shrink:0;position:relative;overflow:hidden}
 .tl::before{content:'';position:absolute;inset:0;border-radius:10px;padding:1px;background:linear-gradient(135deg,#22c55e,#15803d,#22c55e);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
 .tl svg{width:20px;height:20px;fill:#166534}
 .tl img{width:34px;height:34px;object-fit:contain;border-radius:8px;display:block}
-.tb h2{font-size:15px;font-weight:700;letter-spacing:-.015em;color:var(--txt)}
+.tb h2{font-size:15px;font-weight:700;letter-spacing:-.015em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.18)}
 .tr2{margin-left:auto;display:flex;align-items:center;gap:10px}
 .rp{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;letter-spacing:.01em}
-.rp-director{background:var(--bl);color:var(--bld)}
-.rp-docente{background:var(--gl);color:var(--green)}
-.rp-alumno{background:var(--al);color:var(--amb)}
+.rp-director{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.35)}
+.rp-docente{background:rgba(255,255,255,.18);color:#e0f7ea;border:1px solid rgba(255,255,255,.28)}
+.rp-alumno{background:rgba(255,255,255,.18);color:#fef3c7;border:1px solid rgba(255,255,255,.28)}
 .rp-secretaria{display:none}
-.xb{font-size:12px;padding:5px 14px;border:1px solid #c4e8d1;border-radius:8px;background:#fff;color:var(--t2);cursor:pointer;transition:all .15s;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.05)}
-.xb:hover{background:#f0fdf4;border-color:#86efac;color:var(--blue);box-shadow:0 2px 6px rgba(22,101,52,.12)}
+.xb{font-size:12px;padding:5px 14px;border:1px solid rgba(255,255,255,.30);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;transition:all .16s;font-weight:600;backdrop-filter:blur(4px)}
+.xb:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.50);box-shadow:0 2px 8px rgba(0,0,0,.15)}
 /* ── SIDEBAR ───────────────────────────────── */
 .ly{display:flex;flex:1}
-.sb{width:234px;flex-shrink:0;background:#f8fdf9;border-right:1px solid #d1e8d8;padding:10px 10px 20px;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;box-shadow:2px 0 10px rgba(22,101,52,.06)}
-.ng{font-size:10px;font-weight:700;color:#7db89a;padding:14px 10px 5px;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-.ni{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:#556b62;border:none;background:none;width:100%;text-align:left;margin-bottom:2px;transition:background .16s,color .14s,transform .16s,box-shadow .16s;font-weight:500;letter-spacing:.005em;line-height:1.3}
-.ni:hover{background:rgba(22,101,52,.09);color:#166534;transform:translateX(3px)}
-.ni.active{background:linear-gradient(90deg,rgba(22,101,52,.13) 0%,rgba(22,101,52,.05) 100%);color:#166534;font-weight:700;border-left:3px solid #166534;padding-left:11px;transform:translateX(0)}
-.nd{width:8px;height:8px;border-radius:50%;border:2px solid transparent;flex-shrink:0;transition:opacity .15s,transform .15s;opacity:.45}
-.ni:hover .nd{opacity:.8;transform:scale(1.15)}
-.ni.active .nd{opacity:1;transform:scale(1.2)}
+.sb{width:234px;flex-shrink:0;background:#0f1f16;border-right:none;padding:6px 8px 20px;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto;overflow-x:hidden;box-shadow:3px 0 16px rgba(0,0,0,.18);transition:width .25s ease;scrollbar-width:none}
+.sb::-webkit-scrollbar{display:none}
+.sb.col{width:60px}
+.sb-toggle{display:flex;align-items:center;padding:8px 4px;margin-bottom:6px}
+.sb-toggle-btn{width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);transition:all .15s;margin-left:auto;flex-shrink:0}
+.sb-toggle-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+.sb-toggle-btn svg{transition:transform .25s ease}
+.sb.col .sb-toggle-btn svg{transform:rotate(180deg)}
+.ng{font-size:9.5px;font-weight:800;color:rgba(255,255,255,.45);padding:12px 10px 4px;letter-spacing:.12em;text-transform:uppercase;transition:opacity .2s,height .2s;white-space:nowrap;overflow:hidden}
+.sb.col .ng{opacity:0;height:0;padding:0}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;font-size:12.5px;color:rgba(255,255,255,.88);border:none;background:none;width:100%;text-align:left;margin-bottom:2px;transition:background .15s,color .14s,transform .18s,box-shadow .18s;font-weight:500;line-height:1.3;white-space:nowrap;position:relative;transform-style:preserve-3d;transform-origin:left center}
+.ni:hover{background:rgba(255,255,255,.09);color:#fff;transform:translateX(3px) rotateY(-3deg);box-shadow:2px 2px 8px rgba(0,0,0,.22)}
+.ni.active{background:linear-gradient(90deg,rgba(31,130,70,.55) 0%,rgba(31,130,70,.20) 100%);color:#fff;font-weight:700;border-left:2px solid #1f8246;padding-left:10px;transform:none}
+.sb.col .ni{justify-content:center;padding:10px 6px}
+.sb.col .ni:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(0,0,0,.28)}
+.sb.col .ni.active{border-left:2px solid #1f8246;padding-left:4px}
+.ni-lbl{transition:opacity .2s,width .2s;overflow:hidden;white-space:nowrap}
+.sb.col .ni-lbl{opacity:0;width:0;pointer-events:none}
+.ni-ico{width:18px;height:18px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.ni:hover .ni-ico{transform:scale(1.10)}
+.sb.col .ni[data-l]:hover::after{content:attr(data-l);position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);background:#0a1a0f;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10)}
+.sb.col .ni[data-l]:hover::before{content:'';position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);border:6px solid transparent;border-right-color:#0a1a0f;z-index:9999}
 /* ── NAV ACCORDION ─────────────────────────── */
-.ng-hdr{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 14px 6px;background:none;border:none;cursor:pointer;font-size:10px;font-weight:800;color:#8aaa96;letter-spacing:.12em;text-transform:uppercase;border-radius:6px;transition:color .12s;margin-top:6px;text-align:left}
-.ng-hdr:hover{color:#166534}
-.ng-hdr svg{flex-shrink:0;transition:transform .22s ease;opacity:.5}
+.ng-hdr{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 12px 5px;background:none;border:none;cursor:pointer;font-size:9.5px;font-weight:800;color:rgba(255,255,255,.55);letter-spacing:.14em;text-transform:uppercase;border-radius:6px;transition:color .15s,text-shadow .15s;margin-top:4px;text-align:left;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(0,0,0,.5),0 -1px 0 rgba(255,255,255,.08),1px 1px 4px rgba(0,0,0,.4)}
+.ng-hdr:hover{color:rgba(255,255,255,.80);text-shadow:0 1px 0 rgba(0,0,0,.6),0 -1px 0 rgba(255,255,255,.12),1px 2px 8px rgba(31,130,70,.5)}
+.ng-hdr svg{flex-shrink:0;transition:transform .22s ease;opacity:.4}
 .ng-items{overflow:hidden;transition:max-height .24s ease}
+.sb.col .ng-hdr{display:none}
+.sb.col .ng-items{max-height:none!important}
 /* ── AL-PAGO-ITEM ──────────────────────────── */
 .al-pago-item{padding:12px 14px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .15s,border-left .12s;display:flex;align-items:center;gap:12px;border-left:3px solid transparent}
 .al-pago-item:hover{background:#f0faf4!important;border-left-color:#86efac}
@@ -126,7 +143,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph h3{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .ph-right{display:flex;gap:8px;flex-wrap:wrap}
 /* ── BUTTONS ───────────────────────────────── */
-.bn{padding:9px 18px;background:linear-gradient(110deg,#22a05a 0%,#166534 40%,#1db860 60%,#22a05a 80%,#166534 100%);background-size:250% 100%;background-position:100% 0;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:background-position .55s ease,transform .18s,box-shadow .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 8px rgba(22,101,52,.22)}
+.bn{padding:9px 18px;background:linear-gradient(110deg,#1f8246 0%,#166534 40%,#1a6b3a 60%,#1f8246 80%,#166534 100%);background-size:250% 100%;background-position:100% 0;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:background-position .55s ease,transform .18s,box-shadow .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 8px rgba(22,101,52,.22)}
 .bn:hover{background-position:0% 0;transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(22,101,52,.32)}
 .bn:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 4px rgba(22,101,52,.14)}
 .bs{padding:6px 14px;font-size:12px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);cursor:pointer;white-space:nowrap;transition:all .15s;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.06),0 1px 0 rgba(0,0,0,.04)}
@@ -232,18 +249,23 @@ tr:hover td{background:#fafaf7}
 .cal-event.Final{background:var(--rl);color:var(--red)}
 .cal-event.Recuperatorio{background:var(--al);color:var(--amb)}
 /* ── DASHBOARD WELCOME ─────────────────────── */
-.dash-hero{background:linear-gradient(135deg,#166534 0%,#1a7a42 40%,#22a05a 100%);border-radius:18px;padding:28px 28px 24px;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(22,101,52,.28)}
+.dash-hero{background:linear-gradient(135deg,#166534 0%,#1a6b3a 40%,#1f8246 100%);border-radius:18px;padding:22px 26px;margin-bottom:18px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(22,101,52,.28)}
 .dash-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none}
 .dash-hero::after{content:'';position:absolute;bottom:-60px;right:80px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
-.dash-greeting{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.03em;margin-bottom:4px}
-.dash-sub{font-size:13px;color:rgba(255,255,255,.75);margin-bottom:20px}
-.dash-qa{display:flex;gap:8px;flex-wrap:wrap}
-.dash-qa-btn{padding:8px 16px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,transform .15s;backdrop-filter:blur(4px)}
+.dash-hero-inner{position:relative;z-index:1;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.dash-hero-left{flex:1;min-width:200px}
+.dash-hero-right{flex:1;min-width:200px;max-width:380px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.20);border-radius:12px;padding:12px 15px;backdrop-filter:blur(4px)}
+.dash-greeting{font-size:22px;font-weight:800;color:#fff;letter-spacing:-.03em;margin-bottom:3px}
+.dash-sub{font-size:12px;color:rgba(255,255,255,.72);margin-bottom:14px}
+.dash-qa{display:flex;gap:7px;flex-wrap:wrap}
+.dash-qa-btn{padding:7px 14px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);border-radius:9px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,transform .15s}
 .dash-qa-btn:hover{background:rgba(255,255,255,.28);transform:translateY(-1px)}
+.frase-txt{font-size:11px;font-style:italic;color:#fff;line-height:1.55;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.20)}
+.frase-autor{font-size:10px;color:rgba(255,255,255,.82);margin-top:5px;font-weight:700;letter-spacing:.03em}
 .dash-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
 .kpi-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);transition:transform .22s,box-shadow .22s,border-color .22s;will-change:transform;position:relative;overflow:hidden}
 .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
-.kpi-card.green::before{background:linear-gradient(90deg,#22c55e,#166534)}
+.kpi-card.green::before{background:linear-gradient(90deg,#1f8246,#166534)}
 .kpi-card.red::before{background:linear-gradient(90deg,#f87171,#b91c1c)}
 .kpi-card.amber::before{background:linear-gradient(90deg,#fbbf24,#b45309)}
 .kpi-card.blue::before{background:linear-gradient(90deg,#60a5fa,#1d4ed8)}
@@ -254,7 +276,7 @@ tr:hover td{background:#fafaf7}
 .kpi-lbl{font-size:11px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 /* ── PROGRESO ──────────────────────────────── */
 .prog-bar{height:6px;border-radius:3px;background:#e5e4df;overflow:hidden;margin-top:4px}
-.prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1a7a42);transition:width .3s}
+.prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1f8246);transition:width .3s}
 /* ── PRINT ─────────────────────────────────── */
 @media print{
   .sb,.tb,.mf,.bn,.bs,.fb,.abs{display:none!important}
@@ -336,10 +358,10 @@ tr:hover td{background:#fafaf7}
   <div class="tl" id="sysLogoCont"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
   <div>
     <h2>Instituto Técnico Superior — Santísima Trinidad</h2>
-    <p style="font-size:9px;margin-top:1px;font-style:italic;background:linear-gradient(90deg,#1a1a1a,#555,#1a1a1a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Desarrollado por Abg. Gabriel Sharp</p>
+    <p style="font-size:9px;margin-top:1px;font-style:italic;color:rgba(255,255,255,.65)">Desarrollado por Abg. Gabriel Sharp</p>
   </div>
   <div class="tr2">
-    <span id="un" style="font-size:13px;color:var(--t2)"></span>
+    <span id="un" style="font-size:13px;color:rgba(255,255,255,.90);font-weight:600"></span>
     <span id="rp" class="rp"></span>
     <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
       🔔 <span id="notif-bell-count">0</span>
@@ -467,7 +489,7 @@ function startApp(){
   api('GET','/api/institucion').then(i=>{ W._instLogo=i.logo_base64||''; }).catch(()=>{ W._instLogo=''; });
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
-  const inicio=me.rol==='alumno'?'mis-notas':me.rol==='docente'?'notas':'alumnos';
+  const inicio='dashboard';
   go(inicio);
   // ── Notificación de avisos ─────────────────────────────────────────────────
   async function checkNotifAvisos(){
@@ -564,18 +586,61 @@ function startApp(){
   setInterval(checkNotifAvisos,60000);
 }
 
+const _NAV_ICO={
+  'dashboard':       'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10',
+  'calendario':      'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  'calendario-clases':'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+  'avisos':          'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+  'carreras':        'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
+  'cursos':          'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+  'materias':        'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  'periodos':        'M8 7V3m8 4V3M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zm7-10v4m0 0l-2-2m2 2l2-2',
+  'docentes':        'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  'alumnos':         'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  'asignaciones':    'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+  'constancias':     'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  'examenes':        'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  'notas':           'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  'asistencia':      'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  'solicitudes':     'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z',
+  'pagos':           'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+  'aranceles':       'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  'deudores':        'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+  'becas':           'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
+  'honorarios':      'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  'reemplazos':      'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+  'mis-materias':    'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  'mis-honorarios':  'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  'mis-notas':       'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  'mi-asistencia':   'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+  'mi-estado-cuenta':'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+  'repositorio-programas':'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
+  'repositorio-contenidos':'M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z',
+  'registro-habilitados':'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+  'escala':          'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  'usuarios':        'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+  'institucion':     'M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4z',
+  'auditoria':       'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
+  'feriados':        'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  '_default':        'M4 6h16M4 12h16M4 18h16',
+};
+function _niIco(id){
+  const d=_NAV_ICO[id]||_NAV_ICO['_default'];
+  return `<svg class="ni-ico" viewBox="0 0 24 24"><path d="${d}"/></svg>`;
+}
 function navFor(r){
   return [
     {g:'General',i:[
-      {id:'calendario',l:'Calendario de Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1D9E75',r:['director','docente']},
-      {id:'avisos',l:'Avisos',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'dashboard',l:'Inicio',c:'#1f8246',r:['director','docente','alumno','secretaria']},
+      {id:'calendario',l:'Calendario Exámenes',c:'#D85A30',r:['director','docente','alumno']},
+      {id:'calendario-clases',l:'Horario Semanal',c:'#1f8246',r:['director','docente']},
+      {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Estructura',i:[
       {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
       {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
       {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
-      {id:'periodos',l:'Períodos',c:'#1D9E75',r:['director']},
+      {id:'periodos',l:'Períodos',c:'#1f8246',r:['director']},
     ]},
     {g:'Personas',i:[
       {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
@@ -585,37 +650,41 @@ function navFor(r){
     ]},
     {g:'Académico',i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
-      {id:'notas',l:'Notas',c:'#166534',r:['director','docente']},
-      {id:'asistencia',l:'Asistencia',c:'#1D9E75',r:['director','docente']},
+      {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
+      {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
       {id:'solicitudes',l:'Vinculaciones',c:'#D85A30',r:['director']},
     ]},
-    {g:'Finanzas y Honorarios',i:[
+    {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
-      {id:'aranceles',l:'Aranceles / Costos',c:'#1D9E75',r:['director']},
-      {id:'becas',l:'Becas y Descuentos',c:'#1D9E75',r:['director']},
-      {id:'honorarios',l:'Honorarios Profesionales',c:'#D85A30',r:['director']},
+      {id:'aranceles',l:'Aranceles',c:'#1f8246',r:['director']},
+      {id:'becas',l:'Becas y Descuentos',c:'#1f8246',r:['director']},
+      {id:'deudores',l:'Deudores',c:'#E24B4A',r:['director']},
+      {id:'honorarios',l:'Honorarios',c:'#D85A30',r:['director']},
     ]},
-    {g:'Gestión Académica',i:[
+    {g:'Gestión',i:[
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
+      {id:'feriados',l:'Feriados',c:'#1f8246',r:['director']},
     ]},
     {g:'Mi área',i:[
-      {id:'mis-materias',l:'Mis materias',c:'#166534',r:['docente']},
-      {id:'mis-notas',l:'Mis calificaciones',c:'#166534',r:['alumno']},
-      {id:'mi-asistencia',l:'Mi asistencia',c:'#1D9E75',r:['alumno']},
+      {id:'mis-materias',l:'Mis materias',c:'#1f8246',r:['docente']},
+      {id:'mis-honorarios',l:'Mis honorarios',c:'#D85A30',r:['docente']},
+      {id:'mis-notas',l:'Mis calificaciones',c:'#1f8246',r:['alumno']},
+      {id:'mi-asistencia',l:'Mi asistencia',c:'#1f8246',r:['alumno']},
       {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
     ]},
     {g:'Recursos',i:[
-      {id:'repositorio-programas',l:'Programas de Materias',c:'#166534',r:['director','docente']},
-      {id:'repositorio-contenidos',l:'Contenidos de Clase',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'repositorio-programas',l:'Programas',c:'#1f8246',r:['director','docente']},
+      {id:'repositorio-contenidos',l:'Contenidos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Cuenta',i:[
-      {id:'perfil',l:'Mi perfil',c:'#1D9E75',r:['director','docente','alumno']},
+      {id:'escala',l:'Escala de notas',c:'#888780',r:['director']},
+      {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Configuración',i:[
-      {id:'registro-habilitados',l:'Registro de Habilitados',c:'#c0392b',r:['director']},
+      {id:'registro-habilitados',l:'Habilitados',c:'#c0392b',r:['director']},
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
-      {id:'auditoria',l:'Auditoría del sistema',c:'#c0392b',r:['director']},
+      {id:'auditoria',l:'Auditoría',c:'#c0392b',r:['director']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -623,10 +692,14 @@ function buildNav(){
   const groups=navFor(me.rol);
   window._navGroups=groups;
   const chevron=`<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 6,8 10,4"/></svg>`;
+  const toggleIco=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>`;
   document.getElementById('nav').innerHTML=`
-    <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#e53935,#ef5350);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;animation:fadeInQ .3s ease">
+    <div class="sb-toggle">
+      <button class="sb-toggle-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Colapsar menú">${toggleIco}</button>
+    </div>
+    <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#b91c1c,#dc2626);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
       <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
-      <span id="nav-avisos-txt">Tenés avisos sin leer</span>
+      <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
     </button>`+
   groups.map((g,idx)=>`
     <div>
@@ -634,16 +707,25 @@ function buildNav(){
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
-        ${g.i.map(i=>`<button class="ni" id="ni-${i.id}" onclick="go('${i.id}')"><span class="nd" style="border-color:${i.c}"></span>${i.l}</button>`).join('')}
+        ${g.i.map(i=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
       </div>
     </div>`).join('');
-  // Establecer max-height tras render
   requestAnimationFrame(()=>{
     groups.forEach((_,idx)=>{
       const el=document.getElementById('ngi-'+idx);
       if(el) el.style.maxHeight=el.scrollHeight+'px';
     });
   });
+  // Restaurar estado colapsado
+  if(localStorage.getItem('its_sb_col')==='1'){
+    document.querySelector('.sb')?.classList.add('col');
+  }
+}
+function toggleSidebar(){
+  const sb=document.querySelector('.sb');
+  if(!sb) return;
+  const isCol=sb.classList.toggle('col');
+  localStorage.setItem('its_sb_col',isCol?'1':'0');
 }
 function toggleNavGrp(idx){
   const items=document.getElementById('ngi-'+idx);
@@ -767,105 +849,237 @@ async function del(id,tipo){
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────────
+const _FRASES=[
+  {f:'La educación es el arma más poderosa que puedes usar para cambiar el mundo.',a:'Nelson Mandela'},
+  {f:'La educación no es llenar un cubo, sino encender un fuego.',a:'W.B. Yeats'},
+  {f:'Dime y lo olvido, enséñame y lo recuerdo, involúcrame y lo aprendo.',a:'Benjamin Franklin'},
+  {f:'La única persona educada es quien aprendió a aprender y a cambiar.',a:'Carl Rogers'},
+  {f:'La educación es el pasaporte hacia el futuro; el mañana pertenece a quienes se preparan hoy.',a:'Malcolm X'},
+  {f:'El conocimiento es el único bien que crece cuando se comparte.',a:'Anónimo'},
+  {f:'La mente no es un vaso por llenar, sino un fuego por encender.',a:'Plutarco'},
+  {f:'El aprendizaje es un tesoro que sigue a su dueño a todas partes.',a:'Proverbio chino'},
+  {f:'La educación no cambia el mundo; cambia a las personas que van a cambiar el mundo.',a:'Paulo Freire'},
+  {f:'El maestro que enseña sin inspirar el deseo de aprender forja hierro frío.',a:'Horace Mann'},
+  {f:'La capacidad de aprender es un don; la voluntad de aprender es una elección.',a:'Brian Herbert'},
+  {f:'Un buen maestro puede inspirar esperanza, encender la imaginación y generar amor por el aprendizaje.',a:'Brad Henry'},
+  {f:'Educar no es dar carrera para vivir, sino templar el alma para las dificultades de la vida.',a:'Pitágoras'},
+  {f:'La sabiduría no se transfiere, se construye.',a:'Jean Piaget'},
+  {f:'La educación es el arte de hacer que los seres humanos se superen a sí mismos.',a:'John Dewey'},
+];
+function _dashHero(saludo,nombre,fecha,periodo,qa){
+  const idx=Math.floor(Math.random()*_FRASES.length);
+  const fr=_FRASES[idx];
+  return `<div class="dash-hero"><div class="dash-hero-inner">
+    <div class="dash-hero-left">
+      <div class="dash-greeting">${saludo}, ${nombre} 👋</div>
+      <div class="dash-sub">${fecha} &nbsp;·&nbsp; ${periodo}</div>
+      <div class="dash-qa">${qa.map(q=>`<button class="dash-qa-btn" onclick="go('${q.p}')">${q.l}</button>`).join('')}</div>
+    </div>
+    <div class="dash-hero-right">
+      <div class="frase-txt">"${fr.f}"</div>
+      <div class="frase-autor">— ${fr.a}</div>
+    </div>
+  </div></div>`;
+}
 async function pgDash(el){
-  const d=await api('GET','/api/dashboard');
   const ahora=new Date();
   const hora=ahora.getHours();
   const saludo=hora<12?'Buenos días':hora<19?'Buenas tardes':'Buenas noches';
   const fechaLarga=ahora.toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const fechaCap=fechaLarga.charAt(0).toUpperCase()+fechaLarga.slice(1);
 
-  // Quick actions según rol
-  const qa=me.rol==='director'
-    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'⚠️ Deudores',p:'deudores'},{l:'📅 Calendario',p:'calendario'},{l:'📢 Avisos',p:'avisos'}]
-    :me.rol==='docente'
-    ?[{l:'📚 Mis materias',p:'mis-materias'},{l:'✏️ Notas',p:'notas'},{l:'✅ Asistencia',p:'asistencia'},{l:'📅 Calendario',p:'calendario'}]
-    :[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}];
+  // ── ALUMNO ────────────────────────────────────────────────────────────────────
+  if(me.rol==='alumno'){
+    if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno vinculado</div>';return;}
+    const hoy=new Date().toISOString().split('T')[0];
+    const lim=new Date();lim.setDate(lim.getDate()+30);
+    const limStr=lim.toISOString().split('T')[0];
+    const [notas,asist,pagosData,exams,avs]=await Promise.all([
+      api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]),
+      api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]),
+      api('GET','/api/pagos/alumno/'+me.alumnoId).catch(()=>({pagos:[],totalPagado:0})),
+      api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
+      api('GET','/api/avisos').catch(()=>[]),
+    ]);
+    const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
+    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')
+      &&a.destinatario!=='director'&&!(a.tipo==='examen'&&a.autor_id!==me.id));
+    const aprobadas=(notas||[]).filter(n=>n.estado==='Aprobado').length;
+    const reprobadas=(notas||[]).filter(n=>n.estado==='Reprobado').length;
+    const cursando=(notas||[]).filter(n=>!n.estado||n.estado==='Cursando').length;
+    const deuda=pagosData?.pagos?.length?0:1; // simplificado: si tiene pagos registrados
+    el.innerHTML=`
+    ${_dashHero(saludo,me.nombre,fechaCap,'Mi cuenta',[
+      {l:'✏️ Mis notas',p:'mis-notas'},{l:'✅ Mi asistencia',p:'mi-asistencia'},
+      {l:'💳 Mi estado de cuenta',p:'mi-estado-cuenta'}
+    ])}
 
-  // Avisos urgentes (fijados o urgentes no vistos)
+    ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
+    <!-- KPI alumno -->
+    <div class="dash-kpi">
+      <div class="kpi-card green"><span class="kpi-icon">✅</span><div class="kpi-val" style="color:var(--green)">${aprobadas}</div><div class="kpi-lbl">Materias aprobadas</div></div>
+      <div class="kpi-card amber"><span class="kpi-icon">📚</span><div class="kpi-val" style="color:var(--amb)">${cursando}</div><div class="kpi-lbl">En curso</div></div>
+      <div class="kpi-card red"><span class="kpi-icon">❌</span><div class="kpi-val" style="color:var(--red)">${reprobadas}</div><div class="kpi-lbl">Reprobadas</div></div>
+      <div class="kpi-card blue"><span class="kpi-icon">📅</span><div class="kpi-val">${exams.length}</div><div class="kpi-lbl">Exámenes próximos</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Mis materias / notas -->
+      <div class="card card-p">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <p style="font-size:14px;font-weight:700">📖 Mis materias</p>
+          <button class="bs" style="font-size:11px" onclick="go('mis-notas')">Ver todas →</button>
+        </div>
+        ${notas.length?notas.slice(0,6).map(n=>{
+          const cls=n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr';
+          const lbl=n.estado||'Cursando';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
+            <span style="font-size:12px;font-weight:600;color:var(--txt)">${n.materia_nombre}</span>
+            <span class="bx ${cls}">${lbl}</span>
+          </div>`;
+        }).join(''):`<div class="es" style="padding:16px">Sin notas registradas</div>`}
+        ${notas.length>6?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">+${notas.length-6} más</div>`:''}
+      </div>
+      <!-- Próximos exámenes + asistencia -->
+      <div>
+        <div class="card card-p" style="margin-bottom:16px">
+          <p style="font-size:14px;font-weight:700;margin-bottom:12px">📅 Próximos exámenes</p>
+          ${exams.length?exams.slice(0,4).map(e=>`
+            <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--bdr)">
+              <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb'}" style="flex-shrink:0">${e.tipo}</span>
+              <div><div style="font-size:12px;font-weight:700">${e.materia_nombre}</div>
+              <div style="font-size:11px;color:var(--t3)"><strong>${fmtFecha(e.fecha)}</strong>${e.hora?' '+e.hora:''}</div></div>
+            </div>`).join(''):`<div class="es" style="padding:12px">Sin exámenes próximos</div>`}
+        </div>
+        <div class="card card-p">
+          <p style="font-size:14px;font-weight:700;margin-bottom:12px">✅ Mi asistencia</p>
+          ${asist.length?asist.slice(0,4).map(a=>{
+            const color=a.pct>=75?'var(--green)':a.pct>=50?'var(--amb)':'var(--red)';
+            return `<div style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span style="font-weight:600">${a.materia}</span><span style="font-weight:700;color:${color}">${a.pct}%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:${a.pct}%;background:${color}"></div></div>
+            </div>`;
+          }).join(''):`<div class="es" style="padding:12px">Sin registros</div>`}
+        </div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  // ── DOCENTE ───────────────────────────────────────────────────────────────────
+  if(me.rol==='docente'){
+    const hoy=new Date().toISOString().split('T')[0];
+    const lim=new Date();lim.setDate(lim.getDate()+30);
+    const limStr=lim.toISOString().split('T')[0];
+    const [dash,asigs,exams,avs]=await Promise.all([
+      api('GET','/api/dashboard').catch(()=>({})),
+      me.docenteId?api('GET','/api/asignaciones?docente_id='+me.docenteId).catch(()=>[]):Promise.resolve([]),
+      api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
+      api('GET','/api/avisos').catch(()=>[]),
+    ]);
+    const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
+    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
+    const periodoActivo=dash.periodo_activo||'Período activo';
+    // Filtrar asignaciones del período activo
+    const misAsigs=(asigs||[]).filter(a=>a.periodo_nombre===periodoActivo);
+    const pendientesNotas=misAsigs.filter(a=>a.notas_cargadas<a.total_alumnos);
+    el.innerHTML=`
+    ${_dashHero(saludo,me.nombre,fechaCap,periodoActivo,[
+      {l:'📚 Mis materias',p:'mis-materias'},{l:'✏️ Notas',p:'notas'},
+      {l:'✅ Asistencia',p:'asistencia'},{l:'📅 Calendario',p:'calendario'}
+    ])}
+
+    ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
+    <!-- KPI docente -->
+    <div class="dash-kpi">
+      <div class="kpi-card blue"><span class="kpi-icon">📚</span><div class="kpi-val">${misAsigs.length}</div><div class="kpi-lbl">Materias asignadas</div></div>
+      <div class="kpi-card green"><span class="kpi-icon">🎓</span><div class="kpi-val">${misAsigs.reduce((s,a)=>s+a.total_alumnos,0)}</div><div class="kpi-lbl">Alumnos totales</div></div>
+      <div class="kpi-card amber"><span class="kpi-icon">✏️</span><div class="kpi-val" style="color:${pendientesNotas.length>0?'var(--amb)':'var(--green)'}">${pendientesNotas.length}</div><div class="kpi-lbl">Notas pendientes</div></div>
+      <div class="kpi-card purple"><span class="kpi-icon">📅</span><div class="kpi-val">${exams.length}</div><div class="kpi-lbl">Exámenes próximos</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Mis materias -->
+      <div class="card card-p">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <p style="font-size:14px;font-weight:700">📖 Mis materias — ${periodoActivo}</p>
+          <button class="bs" style="font-size:11px" onclick="go('notas')">Ir a notas →</button>
+        </div>
+        ${misAsigs.length?misAsigs.map(a=>{
+          const pend=a.total_alumnos-a.notas_cargadas;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr)">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
+              <div style="font-size:11px;color:var(--t3)">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:11px;color:var(--t3)">${a.total_alumnos} alumnos</div>
+              ${pend>0?`<span style="font-size:10px;color:var(--amb);font-weight:700">${pend} sin nota</span>`:`<span style="font-size:10px;color:var(--green);font-weight:700">✓ Al día</span>`}
+            </div>
+          </div>`;
+        }).join(''):`<div class="es" style="padding:20px">Sin materias asignadas en este período</div>`}
+      </div>
+      <!-- Próximos exámenes -->
+      <div class="card card-p">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <p style="font-size:14px;font-weight:700">📅 Mis próximos exámenes</p>
+          <button class="bs" style="font-size:11px" onclick="go('calendario')">Calendario →</button>
+        </div>
+        ${exams.length?exams.slice(0,6).map(e=>`
+          <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--bdr)">
+            <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb'}" style="flex-shrink:0;margin-top:1px">${e.tipo}</span>
+            <div style="min-width:0">
+              <div style="font-size:12px;font-weight:700">${e.materia_nombre}</div>
+              <div style="font-size:11px;color:var(--t3)">${e.carrera_nombre} · <strong>${fmtFecha(e.fecha)}</strong>${e.hora?' '+e.hora:''}</div>
+            </div>
+          </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
+      </div>
+    </div>`;
+    return;
+  }
+
+  // ── DIRECTOR / SECRETARIA ─────────────────────────────────────────────────────
+  const d=await api('GET','/api/dashboard');
   const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
   const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
-
+  const qa=me.rol==='director'
+    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'⚠️ Deudores',p:'deudores'},{l:'📅 Calendario',p:'calendario'},{l:'📢 Avisos',p:'avisos'}]
+    :[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}];
   el.innerHTML=`
-  <!-- Hero bienvenida -->
-  <div class="dash-hero">
-    <div style="position:relative;z-index:1">
-      <div class="dash-greeting">${saludo}, ${me.nombre} 👋</div>
-      <div class="dash-sub">${fechaCap} &nbsp;·&nbsp; ${d.periodo_activo}</div>
-      <div class="dash-qa">
-        ${qa.map(q=>`<button class="dash-qa-btn" onclick="go('${q.p}')">${q.l}</button>`).join('')}
-      </div>
-    </div>
-  </div>
+  ${_dashHero(saludo,me.nombre,fechaCap,d.periodo_activo,qa)}
 
-  <!-- Avisos urgentes / fijados -->
-  ${avisosAlert.length?`<div style="margin-bottom:16px">
-    ${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">
-      ${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span>
-      <div style="font-size:13px;margin-top:4px">${a.contenido}</div>
-    </div>`).join('')}
-  </div>`:''}
-
-  <!-- KPI cards -->
+  ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
   <div class="dash-kpi">
-    <div class="kpi-card green">
-      <span class="kpi-icon">🎓</span>
-      <div class="kpi-val">${d.total_alumnos}</div>
-      <div class="kpi-lbl">Alumnos activos</div>
-    </div>
-    <div class="kpi-card blue">
-      <span class="kpi-icon">👨‍🏫</span>
-      <div class="kpi-val">${d.total_docentes}</div>
-      <div class="kpi-lbl">Docentes</div>
-    </div>
-    <div class="kpi-card purple">
-      <span class="kpi-icon">🏫</span>
-      <div class="kpi-val">${d.total_carreras}</div>
-      <div class="kpi-lbl">Carreras activas</div>
-    </div>
-    <div class="kpi-card green">
-      <span class="kpi-icon">✅</span>
-      <div class="kpi-val" style="color:var(--green)">${d.aprobados}</div>
-      <div class="kpi-lbl">Aprobados</div>
-    </div>
-    <div class="kpi-card red">
-      <span class="kpi-icon">❌</span>
-      <div class="kpi-val" style="color:var(--red)">${d.reprobados}</div>
-      <div class="kpi-lbl">Reprobados</div>
-    </div>
+    <div class="kpi-card green"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos activos</div></div>
+    <div class="kpi-card blue"><span class="kpi-icon">👨‍🏫</span><div class="kpi-val">${d.total_docentes}</div><div class="kpi-lbl">Docentes</div></div>
+    <div class="kpi-card purple"><span class="kpi-icon">🏫</span><div class="kpi-val">${d.total_carreras}</div><div class="kpi-lbl">Carreras</div></div>
+    <div class="kpi-card green"><span class="kpi-icon">✅</span><div class="kpi-val" style="color:var(--green)">${d.aprobados}</div><div class="kpi-lbl">Aprobados</div></div>
+    <div class="kpi-card red"><span class="kpi-icon">❌</span><div class="kpi-val" style="color:var(--red)">${d.reprobados}</div><div class="kpi-lbl">Reprobados</div></div>
     ${me.rol==='director'?`
     <div class="kpi-card amber" style="cursor:pointer" onclick="go('deudores')">
-      <span class="kpi-icon">💳</span>
-      <div class="kpi-val" style="color:${d.deudores>0?'var(--amb)':'var(--green)'}">${d.deudores}</div>
-      <div class="kpi-lbl">Deudores</div>
+      <span class="kpi-icon">💳</span><div class="kpi-val" style="color:${d.deudores>0?'var(--amb)':'var(--green)'}">${d.deudores}</div><div class="kpi-lbl">Deudores</div>
     </div>
     <div class="kpi-card amber" style="cursor:pointer" onclick="go('calendario')">
-      <span class="kpi-icon">📅</span>
-      <div class="kpi-val" style="color:var(--amb)">${d.examenes_hoy}</div>
-      <div class="kpi-lbl">Exámenes hoy</div>
+      <span class="kpi-icon">📅</span><div class="kpi-val" style="color:var(--amb)">${d.examenes_hoy}</div><div class="kpi-lbl">Exámenes hoy</div>
     </div>`:''}
   </div>
-
-  <!-- Grilla inferior -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <!-- Alumnos por carrera -->
     <div class="card card-p">
-      <p style="font-size:14px;font-weight:700;margin-bottom:14px;letter-spacing:-.01em">📊 Alumnos por carrera</p>
+      <p style="font-size:14px;font-weight:700;margin-bottom:14px">📊 Alumnos por carrera</p>
       ${d.por_carrera.length?d.por_carrera.map(c=>{
         const pct=d.total_alumnos?Math.round(c.total/d.total_alumnos*100):0;
         return `<div style="margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-            <span style="font-weight:600;color:var(--txt)">${c.nombre}</span>
+            <span style="font-weight:600">${c.nombre}</span>
             <span style="color:var(--t2);font-weight:700">${c.total} <span style="color:var(--t3);font-weight:400">(${pct}%)</span></span>
           </div>
           <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
         </div>`;
-      }).join(''):'<div class="es" style="padding:16px">Sin datos</div>'}
+      }).join(''):`<div class="es" style="padding:16px">Sin datos</div>`}
     </div>
-    <!-- Próximos exámenes -->
     <div class="card card-p">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <p style="font-size:14px;font-weight:700;letter-spacing:-.01em">📅 Próximos exámenes</p>
+        <p style="font-size:14px;font-weight:700">📅 Próximos exámenes</p>
         <button class="bs" style="font-size:11px" onclick="go('calendario')">Ver todos →</button>
       </div>
       ${d.proximos_examenes?.length?d.proximos_examenes.map(e=>`
@@ -873,10 +1087,9 @@ async function pgDash(el){
           <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb'}" style="flex-shrink:0;margin-top:1px">${e.tipo}</span>
           <div style="min-width:0">
             <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.materia}</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:1px">${e.carrera} · ${e.anio}°${e.division==='U'?'':e.division} · <strong style="color:var(--t2)">${fmtFecha(e.fecha)}</strong>${e.hora?` ${e.hora}`:''}</div>
+            <div style="font-size:11px;color:var(--t3)">${e.carrera} · ${e.anio}°${e.division==='U'?'':e.division} · <strong style="color:var(--t2)">${fmtFecha(e.fecha)}</strong>${e.hora?' '+e.hora:''}</div>
           </div>
-        </div>`).join('')
-      :'<div class="es" style="padding:20px">Sin exámenes programados</div>'}
+        </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
     </div>
   </div>`;
 }
