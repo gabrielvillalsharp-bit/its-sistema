@@ -15,7 +15,17 @@
       "WebSearch",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.dependencies,null,2\\)\\)\")",
       "Bash(node -e \"const W=require\\('./node_modules/ws'\\);const ws=new W\\('wss://web.whatsapp.com/ws/chat',['chat'],{headers:{Origin:'https://web.whatsapp.com','User-Agent':'Mozilla/5.0'}}\\);ws.on\\('open',\\(\\)=>{console.log\\('WebSocket OK'\\);ws.close\\(\\)}\\);ws.on\\('error',e=>console.log\\('WebSocket FALLA:',e.message\\)\\);setTimeout\\(\\(\\)=>process.exit\\(0\\),5000\\)\")",
-      "Bash(node -e \"const W=require\\('./node_modules/ws'\\);const ws=new W\\('wss://web.whatsapp.com/ws/chat',{headers:{Origin:'https://web.whatsapp.com','User-Agent':'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'}}\\);ws.on\\('open',\\(\\)=>{console.log\\('WebSocket CONECTADO OK'\\);ws.close\\(\\)}\\);ws.on\\('error',e=>console.log\\('FALLA:',e.message\\)\\);setTimeout\\(\\(\\)=>process.exit\\(0\\),5000\\)\")"
+      "Bash(node -e \"const W=require\\('./node_modules/ws'\\);const ws=new W\\('wss://web.whatsapp.com/ws/chat',{headers:{Origin:'https://web.whatsapp.com','User-Agent':'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'}}\\);ws.on\\('open',\\(\\)=>{console.log\\('WebSocket CONECTADO OK'\\);ws.close\\(\\)}\\);ws.on\\('error',e=>console.log\\('FALLA:',e.message\\)\\);setTimeout\\(\\(\\)=>process.exit\\(0\\),5000\\)\")",
+      "Bash(node -e ' *)",
+      "mcp__Claude_in_Chrome__switch_browser",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__select_browser",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__find",
+      "Bash(railway variables *)",
+      "Bash(railway up *)",
+      "Read(//c/Users/Gabriel/Desktop/**)",
+      "Bash(python -c ' *)"
     ]
   }
 }

@@ -21,7 +21,7 @@
   --shadow-md:0 4px 16px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.05);
   --shadow-lg:0 20px 48px rgba(0,0,0,.13),0 8px 24px rgba(0,0,0,.08);
 }
-body{background:var(--bg);color:var(--txt);min-height:100vh}
+body{background:var(--bg);color:var(--txt);min-height:100vh;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;font-feature-settings:'cv02','cv03','cv04','cv11'}
 .hidden{display:none!important}
 input,select,textarea,button{font-family:inherit;font-size:14px}
 input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);outline:none;transition:border-color .15s,box-shadow .15s}
@@ -86,7 +86,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #le{font-size:12px;color:#b91c1c;margin-top:6px;display:none}
 /* ── APP ───────────────────────────────────── */
 #ap{display:flex;flex-direction:column;min-height:100vh}
-.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;background:linear-gradient(90deg,#f0fdf4 0%,#ffffff 60%);border-bottom:1px solid #d1fae5;position:sticky;top:0;z-index:30;box-shadow:0 2px 8px rgba(22,101,52,.08)}
+.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;background:rgba(255,255,255,0.92);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:2px solid #166534;position:sticky;top:0;z-index:30;box-shadow:0 2px 16px rgba(22,101,52,.13)}
 .tl{width:38px;height:38px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08),0 3px 10px rgba(22,101,52,.18);flex-shrink:0;position:relative;overflow:hidden}
 .tl::before{content:'';position:absolute;inset:0;border-radius:10px;padding:1px;background:linear-gradient(135deg,#22c55e,#15803d,#22c55e);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
 .tl svg{width:20px;height:20px;fill:#166534}
@@ -102,11 +102,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .xb:hover{background:#f0fdf4;border-color:#86efac;color:var(--blue);box-shadow:0 2px 6px rgba(22,101,52,.12)}
 /* ── SIDEBAR ───────────────────────────────── */
 .ly{display:flex;flex:1}
-.sb{width:234px;flex-shrink:0;background:linear-gradient(180deg,#f5fdf8 0%,#ffffff 50%,#f8fffc 100%);border-right:1px solid #d1fae5;padding:10px 10px 20px;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;box-shadow:2px 0 16px rgba(22,101,52,.06)}
+.sb{width:234px;flex-shrink:0;background:#f8fdf9;border-right:1px solid #d1e8d8;padding:10px 10px 20px;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;box-shadow:2px 0 10px rgba(22,101,52,.06)}
 .ng{font-size:10px;font-weight:700;color:#7db89a;padding:14px 10px 5px;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-.ni{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:#556b62;border:none;background:none;width:100%;text-align:left;margin-bottom:2px;transition:background .14s,color .12s;font-weight:500;letter-spacing:.005em;line-height:1.3}
-.ni:hover{background:rgba(22,101,52,.09);color:#166534}
-.ni.active{background:linear-gradient(90deg,rgba(22,101,52,.13) 0%,rgba(22,101,52,.05) 100%);color:#166534;font-weight:700;border-left:3px solid #166534;padding-left:11px}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:9px;cursor:pointer;font-size:13px;color:#556b62;border:none;background:none;width:100%;text-align:left;margin-bottom:2px;transition:background .16s,color .14s,transform .16s,box-shadow .16s;font-weight:500;letter-spacing:.005em;line-height:1.3}
+.ni:hover{background:rgba(22,101,52,.09);color:#166534;transform:translateX(3px)}
+.ni.active{background:linear-gradient(90deg,rgba(22,101,52,.13) 0%,rgba(22,101,52,.05) 100%);color:#166534;font-weight:700;border-left:3px solid #166534;padding-left:11px;transform:translateX(0)}
 .nd{width:8px;height:8px;border-radius:50%;border:2px solid transparent;flex-shrink:0;transition:opacity .15s,transform .15s;opacity:.45}
 .ni:hover .nd{opacity:.8;transform:scale(1.15)}
 .ni.active .nd{opacity:1;transform:scale(1.2)}
@@ -126,8 +126,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph h3{font-size:18px;font-weight:700;letter-spacing:-.02em}
 .ph-right{display:flex;gap:8px;flex-wrap:wrap}
 /* ── BUTTONS ───────────────────────────────── */
-.bn{padding:9px 18px;background:linear-gradient(160deg,#ffffff18 0%,#22a05a 0%,#166534 100%);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 8px rgba(22,101,52,.22)}
-.bn:hover{transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(22,101,52,.32)}
+.bn{padding:9px 18px;background:linear-gradient(110deg,#22a05a 0%,#166534 40%,#1db860 60%,#22a05a 80%,#166534 100%);background-size:250% 100%;background-position:100% 0;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:background-position .55s ease,transform .18s,box-shadow .18s;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 2px 8px rgba(22,101,52,.22)}
+.bn:hover{background-position:0% 0;transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(22,101,52,.32)}
 .bn:active{transform:translateY(1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 4px rgba(22,101,52,.14)}
 .bs{padding:6px 14px;font-size:12px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);cursor:pointer;white-space:nowrap;transition:all .15s;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.06),0 1px 0 rgba(0,0,0,.04)}
 .bs:hover{background:#f7fdf9;border-color:#a8d5b8;color:var(--blue);box-shadow:0 3px 8px rgba(22,101,52,.12);transform:translateY(-1px)}
@@ -138,14 +138,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .bs.o{color:var(--amb);border-color:#fcd34d}.bs.o:hover{background:var(--al)}
 /* ── STAT CARDS ────────────────────────────── */
 .sr{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:20px}
-.sc{background:#fff;border:1px solid var(--bdr);border-radius:13px;padding:14px 16px;cursor:default;box-shadow:var(--shadow-sm);transition:box-shadow .15s,border-color .15s,transform .12s}
+.sc{background:#fff;border:1px solid var(--bdr);border-radius:13px;padding:14px 16px;cursor:default;box-shadow:var(--shadow-sm);transition:box-shadow .22s,border-color .22s,transform .22s;will-change:transform}
 .sc .sl{font-size:10px;color:var(--t3);margin-bottom:3px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 .sc .sv{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
 .sc .ss{font-size:11px;color:var(--t2);margin-top:2px}
 .sc.clickable{cursor:pointer}
-.sc.clickable:hover{border-color:var(--blue);background:var(--bl);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.sc.clickable:hover{border-color:var(--blue);background:var(--bl);box-shadow:0 6px 20px rgba(22,101,52,.14),0 2px 6px rgba(0,0,0,.06);transform:translateY(-3px) scale(1.01)}
 /* ── CARDS ─────────────────────────────────── */
-.card{background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+.card{background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin-bottom:18px;box-shadow:var(--shadow-sm);transition:box-shadow .24s,border-color .24s,transform .24s;will-change:transform}
+.card:hover{box-shadow:0 10px 32px rgba(0,0,0,.10),0 2px 8px rgba(0,0,0,.05);border-color:#c8e6d0;transform:translateY(-3px)}
 .card-p{padding:18px}
 /* ── TABLES ────────────────────────────────── */
 .tw{overflow-x:auto}
@@ -230,6 +231,27 @@ tr:hover td{background:#fafaf7}
 .cal-event.Parcial{background:var(--bl);color:var(--bld)}
 .cal-event.Final{background:var(--rl);color:var(--red)}
 .cal-event.Recuperatorio{background:var(--al);color:var(--amb)}
+/* ── DASHBOARD WELCOME ─────────────────────── */
+.dash-hero{background:linear-gradient(135deg,#166534 0%,#1a7a42 40%,#22a05a 100%);border-radius:18px;padding:28px 28px 24px;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(22,101,52,.28)}
+.dash-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none}
+.dash-hero::after{content:'';position:absolute;bottom:-60px;right:80px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+.dash-greeting{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.03em;margin-bottom:4px}
+.dash-sub{font-size:13px;color:rgba(255,255,255,.75);margin-bottom:20px}
+.dash-qa{display:flex;gap:8px;flex-wrap:wrap}
+.dash-qa-btn{padding:8px 16px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s,transform .15s;backdrop-filter:blur(4px)}
+.dash-qa-btn:hover{background:rgba(255,255,255,.28);transform:translateY(-1px)}
+.dash-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);transition:transform .22s,box-shadow .22s,border-color .22s;will-change:transform;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+.kpi-card.green::before{background:linear-gradient(90deg,#22c55e,#166534)}
+.kpi-card.red::before{background:linear-gradient(90deg,#f87171,#b91c1c)}
+.kpi-card.amber::before{background:linear-gradient(90deg,#fbbf24,#b45309)}
+.kpi-card.blue::before{background:linear-gradient(90deg,#60a5fa,#1d4ed8)}
+.kpi-card.purple::before{background:linear-gradient(90deg,#a78bfa,#6d28d9)}
+.kpi-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(0,0,0,.09);border-color:#cde8d5}
+.kpi-icon{font-size:22px;margin-bottom:8px;display:block}
+.kpi-val{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1;margin-bottom:3px}
+.kpi-lbl{font-size:11px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
 /* ── PROGRESO ──────────────────────────────── */
 .prog-bar{height:6px;border-radius:3px;background:#e5e4df;overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1a7a42);transition:width .3s}
@@ -260,11 +282,34 @@ tr:hover td{background:#fafaf7}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#d0cfc9;border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:#b8b7b1}
+/* ── SPLASH ────────────────────────────────── */
+#splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,#f0fdf4 0%,#ffffff 50%,#ecfdf5 100%);transition:opacity .5s ease,visibility .5s ease;pointer-events:none}
+#splash.hide{opacity:0;visibility:hidden}
+.sp-logo{width:108px;height:108px;background:#fff;border-radius:26px;display:inline-flex;align-items:center;justify-content:center;position:relative;box-shadow:0 2px 4px rgba(0,0,0,.06),0 12px 32px rgba(22,101,52,.22),0 28px 56px rgba(22,101,52,.12);animation:spFloat 1.8s ease-out both;transform-style:preserve-3d}
+.sp-logo::before{content:'';position:absolute;inset:0;border-radius:26px;padding:1.5px;background:linear-gradient(135deg,#22c55e,#15803d,#22c55e);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.sp-logo img{width:96px;height:96px;object-fit:contain;border-radius:22px;display:block;position:relative;z-index:1}
+.sp-logo svg{width:52px;height:52px;fill:#166634}
+.sp-title{margin-top:24px;font-size:22px;font-weight:800;letter-spacing:-.025em;color:#166534;animation:spFade 1.8s .3s ease-out both;text-align:center}
+.sp-sub{margin-top:6px;font-size:13px;font-weight:500;color:#5a9e78;animation:spFade 1.8s .5s ease-out both}
+.sp-bar{margin-top:32px;width:140px;height:3px;border-radius:2px;background:#dcfce7;overflow:hidden;animation:spFade 1.8s .4s ease-out both}
+.sp-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#22c55e,#166534);animation:spLoad 1.1s .2s ease-out both}
+@keyframes spFloat{0%{opacity:0;transform:translateY(24px) scale(.88)}60%{transform:translateY(-6px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes spFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spLoad{from{width:0}to{width:100%}}
 </style>
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <body>
 <div id="toast-container"></div>
+
+<div id="splash">
+  <div class="sp-logo" id="splashLogoCont">
+    <svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg>
+  </div>
+  <div class="sp-title">Instituto Técnico Superior</div>
+  <div class="sp-sub">Santísima Trinidad</div>
+  <div class="sp-bar"><div class="sp-bar-fill"></div></div>
+</div>
 
 <div id="lp">
 <div class="lc">
@@ -389,6 +434,9 @@ function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp')
 (function cargarLogoLogin(){
   fetch('/api/logo').then(r=>r.json()).then(data=>{
     if(!data.logo) return;
+    // Splash
+    const sp=document.getElementById('splashLogoCont');
+    if(sp) sp.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
     // Login
     const lc=document.getElementById('loginLogoCont');
     if(lc) lc.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
@@ -398,6 +446,13 @@ function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp')
     // Guardamos para cuando startApp lo necesite
     window._itsLogo=data.logo;
   }).catch(()=>{});
+})();
+// Auto-dismiss splash after 1.4s regardless of login state
+(function dismissSplash(){
+  setTimeout(()=>{
+    const sp=document.getElementById('splash');
+    if(sp){sp.classList.add('hide');}
+  },1400);
 })();
 
 function startApp(){
@@ -714,52 +769,115 @@ async function del(id,tipo){
 // ── DASHBOARD ──────────────────────────────────────────────────────────────────
 async function pgDash(el){
   const d=await api('GET','/api/dashboard');
-  const hoy=new Date().toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long'});
-  el.innerHTML=`
-  <div class="ph"><h3>Dashboard — ${d.periodo_activo}</h3><span style="font-size:13px;color:var(--t3)">${hoy}</span></div>
+  const ahora=new Date();
+  const hora=ahora.getHours();
+  const saludo=hora<12?'Buenos días':hora<19?'Buenas tardes':'Buenas noches';
+  const fechaLarga=ahora.toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const fechaCap=fechaLarga.charAt(0).toUpperCase()+fechaLarga.slice(1);
 
-  ${d.avisos?.length?`<div style="margin-bottom:16px">
-    ${d.avisos.map(a=>`<div class="aviso-card ${a.tipo}">
+  // Quick actions según rol
+  const qa=me.rol==='director'
+    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'⚠️ Deudores',p:'deudores'},{l:'📅 Calendario',p:'calendario'},{l:'📢 Avisos',p:'avisos'}]
+    :me.rol==='docente'
+    ?[{l:'📚 Mis materias',p:'mis-materias'},{l:'✏️ Notas',p:'notas'},{l:'✅ Asistencia',p:'asistencia'},{l:'📅 Calendario',p:'calendario'}]
+    :[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}];
+
+  // Avisos urgentes (fijados o urgentes no vistos)
+  const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
+  const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
+
+  el.innerHTML=`
+  <!-- Hero bienvenida -->
+  <div class="dash-hero">
+    <div style="position:relative;z-index:1">
+      <div class="dash-greeting">${saludo}, ${me.nombre} 👋</div>
+      <div class="dash-sub">${fechaCap} &nbsp;·&nbsp; ${d.periodo_activo}</div>
+      <div class="dash-qa">
+        ${qa.map(q=>`<button class="dash-qa-btn" onclick="go('${q.p}')">${q.l}</button>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <!-- Avisos urgentes / fijados -->
+  ${avisosAlert.length?`<div style="margin-bottom:16px">
+    ${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">
       ${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span>
       <div style="font-size:13px;margin-top:4px">${a.contenido}</div>
     </div>`).join('')}
   </div>`:''}
 
-  <div class="sr">
-    <div class="sc"><div class="sl">Alumnos activos</div><div class="sv">${d.total_alumnos}</div></div>
-    <div class="sc"><div class="sl">Docentes</div><div class="sv">${d.total_docentes}</div></div>
-    <div class="sc"><div class="sl">Carreras</div><div class="sv">${d.total_carreras}</div></div>
-    <div class="sc"><div class="sl">Secciones</div><div class="sv">${d.total_cursos}</div></div>
-    <div class="sc"><div class="sl">Aprobados</div><div class="sv" style="color:var(--green)">${d.aprobados}</div></div>
-    <div class="sc"><div class="sl">Reprobados</div><div class="sv" style="color:var(--red)">${d.reprobados}</div></div>
+  <!-- KPI cards -->
+  <div class="dash-kpi">
+    <div class="kpi-card green">
+      <span class="kpi-icon">🎓</span>
+      <div class="kpi-val">${d.total_alumnos}</div>
+      <div class="kpi-lbl">Alumnos activos</div>
+    </div>
+    <div class="kpi-card blue">
+      <span class="kpi-icon">👨‍🏫</span>
+      <div class="kpi-val">${d.total_docentes}</div>
+      <div class="kpi-lbl">Docentes</div>
+    </div>
+    <div class="kpi-card purple">
+      <span class="kpi-icon">🏫</span>
+      <div class="kpi-val">${d.total_carreras}</div>
+      <div class="kpi-lbl">Carreras activas</div>
+    </div>
+    <div class="kpi-card green">
+      <span class="kpi-icon">✅</span>
+      <div class="kpi-val" style="color:var(--green)">${d.aprobados}</div>
+      <div class="kpi-lbl">Aprobados</div>
+    </div>
+    <div class="kpi-card red">
+      <span class="kpi-icon">❌</span>
+      <div class="kpi-val" style="color:var(--red)">${d.reprobados}</div>
+      <div class="kpi-lbl">Reprobados</div>
+    </div>
     ${me.rol==='director'?`
-    <div class="sc clickable" onclick="go('deudores')"><div class="sl">Deudores</div><div class="sv" style="color:${d.deudores>0?'var(--red)':'var(--green)'}">${d.deudores}</div><div class="ss">sin matrícula</div></div>
-    <div class="sc clickable" onclick="go('calendario')"><div class="sl">Exámenes hoy</div><div class="sv" style="color:var(--amb)">${d.examenes_hoy}</div></div>`:''}
+    <div class="kpi-card amber" style="cursor:pointer" onclick="go('deudores')">
+      <span class="kpi-icon">💳</span>
+      <div class="kpi-val" style="color:${d.deudores>0?'var(--amb)':'var(--green)'}">${d.deudores}</div>
+      <div class="kpi-lbl">Deudores</div>
+    </div>
+    <div class="kpi-card amber" style="cursor:pointer" onclick="go('calendario')">
+      <span class="kpi-icon">📅</span>
+      <div class="kpi-val" style="color:var(--amb)">${d.examenes_hoy}</div>
+      <div class="kpi-lbl">Exámenes hoy</div>
+    </div>`:''}
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex-wrap:wrap">
+  <!-- Grilla inferior -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <!-- Alumnos por carrera -->
     <div class="card card-p">
-      <p style="font-size:13px;font-weight:700;margin-bottom:12px">Alumnos por carrera</p>
-      ${d.por_carrera.map(c=>`
-        <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
-            <span>${c.nombre}</span><strong>${c.total}</strong>
+      <p style="font-size:14px;font-weight:700;margin-bottom:14px;letter-spacing:-.01em">📊 Alumnos por carrera</p>
+      ${d.por_carrera.length?d.por_carrera.map(c=>{
+        const pct=d.total_alumnos?Math.round(c.total/d.total_alumnos*100):0;
+        return `<div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <span style="font-weight:600;color:var(--txt)">${c.nombre}</span>
+            <span style="color:var(--t2);font-weight:700">${c.total} <span style="color:var(--t3);font-weight:400">(${pct}%)</span></span>
           </div>
-          <div class="prog-bar"><div class="prog-fill" style="width:${d.total_alumnos?Math.round(c.total/d.total_alumnos*100):0}%"></div></div>
-        </div>`).join('')}
+          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join(''):'<div class="es" style="padding:16px">Sin datos</div>'}
     </div>
-    ${d.proximos_examenes?.length?`<div class="card card-p">
-      <p style="font-size:13px;font-weight:700;margin-bottom:12px">Próximos exámenes</p>
-      ${d.proximos_examenes.map(e=>`
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--bdr)">
-          <span class="bx ${e.tipo==='Final'?'br':'bb'}">${e.tipo}</span>
-          <div>
-            <div style="font-size:12px;font-weight:600">${e.materia}</div>
-            <div style="font-size:11px;color:var(--t3)">${e.carrera} · ${e.anio}°${e.division==='U'?'':e.division} · ${fmtFecha(e.fecha)}</div>
+    <!-- Próximos exámenes -->
+    <div class="card card-p">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <p style="font-size:14px;font-weight:700;letter-spacing:-.01em">📅 Próximos exámenes</p>
+        <button class="bs" style="font-size:11px" onclick="go('calendario')">Ver todos →</button>
+      </div>
+      ${d.proximos_examenes?.length?d.proximos_examenes.map(e=>`
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--bdr)">
+          <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb'}" style="flex-shrink:0;margin-top:1px">${e.tipo}</span>
+          <div style="min-width:0">
+            <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.materia}</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:1px">${e.carrera} · ${e.anio}°${e.division==='U'?'':e.division} · <strong style="color:var(--t2)">${fmtFecha(e.fecha)}</strong>${e.hora?` ${e.hora}`:''}</div>
           </div>
-        </div>`).join('')}
-      <button class="bs" style="margin-top:4px" onclick="go('calendario')">Ver calendario completo →</button>
-    </div>`:'<div class="card card-p"><p style="font-size:13px;font-weight:700;margin-bottom:8px">Próximos exámenes</p><div class="es" style="padding:20px">Sin exámenes programados</div></div>'}
+        </div>`).join('')
+      :'<div class="es" style="padding:20px">Sin exámenes programados</div>'}
+    </div>
   </div>`;
 }
 
