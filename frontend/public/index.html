@@ -31,30 +31,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .lc{background:#fff;border:1px solid var(--bdr);border-radius:22px;padding:2.4rem;width:390px;box-shadow:var(--shadow-md)}
 .ll{text-align:center;margin-bottom:1.6rem}
 .lb{
-  width:100px;height:100px;
+  width:116px;height:116px;
   background:#ffffff;
-  border-radius:22px;
+  border-radius:24px;
   display:inline-flex;align-items:center;justify-content:center;
   margin-bottom:14px;
   position:relative;
-  /* Sombra multicapa con toque 3D */
   box-shadow:
     0 1px 0 rgba(255,255,255,.9) inset,
-    0 -1px 0 rgba(0,0,0,.04) inset,
     0 2px 4px rgba(0,0,0,.06),
-    0 8px 20px rgba(22,101,52,.18),
-    0 20px 40px rgba(22,101,52,.1);
-  /* Animación de flotación 3D continua */
+    0 8px 24px rgba(22,101,52,.20),
+    0 22px 44px rgba(22,101,52,.11);
   animation: logoFloat 4s ease-in-out infinite;
   transform-style: preserve-3d;
 }
-/* Borde sutil con degradado */
+/* Borde degradado fino y bien verde */
 .lb::before{
   content:'';
   position:absolute;inset:0;
-  border-radius:22px;
-  padding:1.5px;
-  background:linear-gradient(135deg,rgba(34,160,90,.5),rgba(255,255,255,.1),rgba(22,101,52,.4));
+  border-radius:24px;
+  padding:1px;
+  background:linear-gradient(135deg,#22c55e,#16a34a,#15803d,#22c55e);
   -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
   -webkit-mask-composite:xor;mask-composite:exclude;
   pointer-events:none;
@@ -63,18 +60,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .lb::after{
   content:'';
   position:absolute;top:0;left:0;right:0;height:45%;
-  border-radius:22px 22px 60% 60%;
-  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 100%);
-  pointer-events:none;
+  border-radius:24px 24px 60% 60%;
+  background:linear-gradient(180deg,rgba(255,255,255,.45) 0%,rgba(255,255,255,0) 100%);
+  pointer-events:none;z-index:2;
 }
 @keyframes logoFloat{
-  0%,100%{transform:translateY(0px) rotateX(0deg) rotateY(0deg);box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 20px rgba(22,101,52,.18),0 20px 40px rgba(22,101,52,.1);}
-  25%  {transform:translateY(-6px) rotateX(4deg) rotateY(-3deg);box-shadow:0 10px 30px rgba(22,101,52,.22),0 30px 50px rgba(22,101,52,.12);}
-  50%  {transform:translateY(-8px) rotateX(0deg) rotateY(3deg);box-shadow:0 14px 36px rgba(22,101,52,.24),0 34px 56px rgba(22,101,52,.12);}
-  75%  {transform:translateY(-4px) rotateX(-3deg) rotateY(-2deg);box-shadow:0 8px 24px rgba(22,101,52,.20),0 26px 44px rgba(22,101,52,.11);}
+  0%,100%{transform:translateY(0px) rotateX(0deg) rotateY(0deg);box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 24px rgba(22,101,52,.20),0 22px 44px rgba(22,101,52,.11);}
+  25%  {transform:translateY(-7px) rotateX(4deg) rotateY(-3deg);box-shadow:0 12px 32px rgba(22,101,52,.24),0 32px 52px rgba(22,101,52,.13);}
+  50%  {transform:translateY(-10px) rotateX(0deg) rotateY(4deg);box-shadow:0 16px 40px rgba(22,101,52,.26),0 36px 58px rgba(22,101,52,.13);}
+  75%  {transform:translateY(-5px) rotateX(-3deg) rotateY(-2deg);box-shadow:0 10px 28px rgba(22,101,52,.22),0 28px 48px rgba(22,101,52,.12);}
 }
-.lb svg{width:44px;height:44px;fill:#166534}
-.lb img{width:88px;height:88px;object-fit:contain;border-radius:18px;display:block;position:relative;z-index:1}
+.lb svg{width:48px;height:48px;fill:#166634}
+.lb img{width:104px;height:104px;object-fit:contain;border-radius:20px;display:block;position:relative;z-index:1}
 .lc h1{font-size:20px;font-weight:700;margin-bottom:3px;letter-spacing:-.02em}
 .lc p{font-size:13px;color:var(--t2)}
 .f{margin-bottom:14px}
@@ -90,8 +87,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* ── APP ───────────────────────────────────── */
 #ap{display:flex;flex-direction:column;min-height:100vh}
 .tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:58px;background:linear-gradient(90deg,#f0fdf4 0%,#ffffff 60%);border-bottom:1px solid #d1fae5;position:sticky;top:0;z-index:30;box-shadow:0 2px 8px rgba(22,101,52,.08)}
-.tl{width:36px;height:36px;background:linear-gradient(135deg,#1a7a42 0%,var(--bld) 100%);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(22,101,52,.35)}
-.tl svg{width:18px;height:18px;fill:white}
+.tl{width:38px;height:38px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08),0 3px 10px rgba(22,101,52,.18);flex-shrink:0;position:relative;overflow:hidden}
+.tl::before{content:'';position:absolute;inset:0;border-radius:10px;padding:1px;background:linear-gradient(135deg,#22c55e,#15803d,#22c55e);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.tl svg{width:20px;height:20px;fill:#166534}
+.tl img{width:34px;height:34px;object-fit:contain;border-radius:8px;display:block}
 .tb h2{font-size:15px;font-weight:700;letter-spacing:-.015em;color:var(--txt)}
 .tr2{margin-left:auto;display:flex;align-items:center;gap:10px}
 .rp{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;letter-spacing:.01em}
@@ -289,7 +288,7 @@ tr:hover td{background:#fafaf7}
 
 <div id="ap" class="hidden">
 <div class="tb">
-  <div class="tl"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
+  <div class="tl" id="sysLogoCont"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
   <h2>Santísima Trinidad — Sistema Académico</h2>
   <p style="font-size:9px;color:#a0b0c0;margin-top:2px;font-style:italic">Sistema académico desarrollado por Abg. Gabriel Sharp</p>
   <div class="tr2">
@@ -384,20 +383,29 @@ async function doLogin(){
 }
 function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
 
-// Carga el logo institucional en la pantalla de login (endpoint público)
+// Carga el logo institucional (login + topbar del sistema)
 (function cargarLogoLogin(){
   fetch('/api/logo').then(r=>r.json()).then(data=>{
-    if(!data.logo) return; // sin logo → mantiene el ícono SVG
-    const cont=document.getElementById('loginLogoCont');
-    if(!cont) return;
-    // Reemplaza el SVG por la imagen real
-    cont.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
-  }).catch(()=>{/* silencioso — el SVG fallback queda visible */});
+    if(!data.logo) return;
+    // Login
+    const lc=document.getElementById('loginLogoCont');
+    if(lc) lc.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
+    // Topbar del sistema (puede no existir aún; se reintenta al hacer startApp)
+    const sc=document.getElementById('sysLogoCont');
+    if(sc) sc.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
+    // Guardamos para cuando startApp lo necesite
+    window._itsLogo=data.logo;
+  }).catch(()=>{});
 })();
 
 function startApp(){
   hide('lp');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
+  // Aplicar logo en topbar (por si ya se cargó antes del login)
+  if(window._itsLogo){
+    const sc=document.getElementById('sysLogoCont');
+    if(sc) sc.innerHTML=`<img src="${window._itsLogo}" alt="Logo ITS"/>`;
+  }
   // Cargar logo institucional globalmente para todas las actas
   api('GET','/api/institucion').then(i=>{ W._instLogo=i.logo_base64||''; }).catch(()=>{ W._instLogo=''; });
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
