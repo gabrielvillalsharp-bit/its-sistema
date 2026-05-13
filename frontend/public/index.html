@@ -30,9 +30,51 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #lp{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#f0fdf4 0%,#ffffff 50%,#f0faf4 100%)}
 .lc{background:#fff;border:1px solid var(--bdr);border-radius:22px;padding:2.4rem;width:390px;box-shadow:var(--shadow-md)}
 .ll{text-align:center;margin-bottom:1.6rem}
-.lb{width:80px;height:80px;background:linear-gradient(135deg,#1a7a42 0%,var(--bld) 100%);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 4px 14px rgba(22,101,52,.32)}
-.lb svg{width:36px;height:36px;fill:white}
-.lb img{width:80px;height:80px;object-fit:contain;border-radius:16px;display:block}
+.lb{
+  width:100px;height:100px;
+  background:#ffffff;
+  border-radius:22px;
+  display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+  position:relative;
+  /* Sombra multicapa con toque 3D */
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(0,0,0,.04) inset,
+    0 2px 4px rgba(0,0,0,.06),
+    0 8px 20px rgba(22,101,52,.18),
+    0 20px 40px rgba(22,101,52,.1);
+  /* Animación de flotación 3D continua */
+  animation: logoFloat 4s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+/* Borde sutil con degradado */
+.lb::before{
+  content:'';
+  position:absolute;inset:0;
+  border-radius:22px;
+  padding:1.5px;
+  background:linear-gradient(135deg,rgba(34,160,90,.5),rgba(255,255,255,.1),rgba(22,101,52,.4));
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  pointer-events:none;
+}
+/* Reflejo superior (efecto vidrio) */
+.lb::after{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:45%;
+  border-radius:22px 22px 60% 60%;
+  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 100%);
+  pointer-events:none;
+}
+@keyframes logoFloat{
+  0%,100%{transform:translateY(0px) rotateX(0deg) rotateY(0deg);box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 20px rgba(22,101,52,.18),0 20px 40px rgba(22,101,52,.1);}
+  25%  {transform:translateY(-6px) rotateX(4deg) rotateY(-3deg);box-shadow:0 10px 30px rgba(22,101,52,.22),0 30px 50px rgba(22,101,52,.12);}
+  50%  {transform:translateY(-8px) rotateX(0deg) rotateY(3deg);box-shadow:0 14px 36px rgba(22,101,52,.24),0 34px 56px rgba(22,101,52,.12);}
+  75%  {transform:translateY(-4px) rotateX(-3deg) rotateY(-2deg);box-shadow:0 8px 24px rgba(22,101,52,.20),0 26px 44px rgba(22,101,52,.11);}
+}
+.lb svg{width:44px;height:44px;fill:#166534}
+.lb img{width:88px;height:88px;object-fit:contain;border-radius:18px;display:block;position:relative;z-index:1}
 .lc h1{font-size:20px;font-weight:700;margin-bottom:3px;letter-spacing:-.02em}
 .lc p{font-size:13px;color:var(--t2)}
 .f{margin-bottom:14px}
@@ -349,7 +391,7 @@ function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp')
     const cont=document.getElementById('loginLogoCont');
     if(!cont) return;
     // Reemplaza el SVG por la imagen real
-    cont.innerHTML=`<img src="${data.logo}" alt="Logo ITS" style="width:80px;height:80px;object-fit:contain;border-radius:12px"/>`;
+    cont.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
   }).catch(()=>{/* silencioso — el SVG fallback queda visible */});
 })();
 
