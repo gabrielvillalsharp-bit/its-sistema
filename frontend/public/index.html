@@ -561,7 +561,8 @@ function go(p){
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
-  pages[p]?.(el);
+  // Retorna la promesa para que llamadores puedan hacer await go(p)
+  return Promise.resolve(pages[p]?.(el));
 }
 
 // ── HELPERS ────────────────────────────────────────────────────────────────────
@@ -7754,6 +7755,19 @@ function audPuedNavegar(r){
   return tabsNav.includes(tabla);
 }
 
+// Abre el panel de un alumno en la sección Pagos (go ya fue llamado y esperado)
+async function _audAbrirPanelAlumno(alId){
+  W._pagoSel=alId;
+  const vLista=document.getElementById('vistaListaPagos');
+  const vDetalle=document.getElementById('vistaDetallePago');
+  const hb=document.getElementById('pagosHeaderBtns');
+  if(vLista)vLista.style.display='none';
+  if(vDetalle)vDetalle.style.display='block';
+  if(hb)hb.style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
+  await selAlumnoPago(alId);
+}
+
 // Navega al registro exacto según el tipo de acción
 async function audNavegar(audId){
   const r=(W._auditData||[]).find(x=>x.id===audId);
@@ -7765,36 +7779,15 @@ async function audNavegar(audId){
 
   // ── PAGOS: abre directamente el panel del alumno ──────────────────────────
   if(tabla==='pagos'&&det.alumno_id){
-    await go('pagos');
-    setTimeout(async()=>{
-      W._pagoSel=det.alumno_id;
-      const vLista=document.getElementById('vistaListaPagos');
-      const vDetalle=document.getElementById('vistaDetallePago');
-      const hb=document.getElementById('pagosHeaderBtns');
-      if(vLista)vLista.style.display='none';
-      if(vDetalle)vDetalle.style.display='block';
-      if(hb)hb.style.display='none';
-      window.scrollTo({top:0,behavior:'smooth'});
-      await selAlumnoPago(det.alumno_id);
-    },350);
+    await go('pagos');          // espera a que pgPagos termine de renderizar
+    await _audAbrirPanelAlumno(det.alumno_id);
     return;
   }
 
   // ── HABILITACIÓN: registro_id = alumno_id → abre panel en pagos ───────────
   if((tabla==='habilitaciones_examen'||accion==='HABILITAR_ALUMNO')&&r.registro_id&&r.registro_id!=='bulk'){
     await go('pagos');
-    setTimeout(async()=>{
-      const alId=r.registro_id;
-      W._pagoSel=alId;
-      const vLista=document.getElementById('vistaListaPagos');
-      const vDetalle=document.getElementById('vistaDetallePago');
-      const hb=document.getElementById('pagosHeaderBtns');
-      if(vLista)vLista.style.display='none';
-      if(vDetalle)vDetalle.style.display='block';
-      if(hb)hb.style.display='none';
-      window.scrollTo({top:0,behavior:'smooth'});
-      await selAlumnoPago(alId);
-    },350);
+    await _audAbrirPanelAlumno(r.registro_id);
     return;
   }
 
