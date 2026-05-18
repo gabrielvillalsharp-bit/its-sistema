@@ -3345,30 +3345,39 @@ app.get('/api/admin/disco', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Limpiar disco: VACUUM + borrar backups viejos + (opcional) borrar BLOBs de exámenes pasados
+// Limpiar disco: borrar backups viejos PRIMERO (no necesita espacio libre), luego VACUUM
 app.post('/api/admin/disco/limpiar', auth(ADM), (req, res) => {
-  const { limpiar_blobs_examen, dias_blob } = req.body;
   const log = [];
   try {
-    // 1. VACUUM de SQLite (recupera espacio de filas/BLOBs eliminados)
-    db.prepare('VACUUM').run();
-    log.push('✅ VACUUM ejecutado — base de datos compactada');
-
-    // 2. Limpiar backups locales — mantener solo los 3 más recientes
+    // 1. Borrar backups viejos PRIMERO — libera espacio sin necesitar espacio extra
+    let liberadoBytes = 0;
     try {
       const archs = fs.readdirSync(BACKUP_DIR)
         .filter(f => f.startsWith('ITS_auto_'))
         .sort().reverse();
       const aEliminar = archs.slice(3);
       aEliminar.forEach(f => {
-        try { fs.unlinkSync(path.join(BACKUP_DIR, f)); log.push(`🗑 Backup eliminado: ${f}`); } catch {}
+        try {
+          const filePath = path.join(BACKUP_DIR, f);
+          const size = fs.statSync(filePath).size;
+          fs.unlinkSync(filePath);
+          liberadoBytes += size;
+          log.push(`🗑 Backup eliminado: ${f} (${(size/1048576).toFixed(1)} MB)`);
+        } catch {}
       });
       if (!aEliminar.length) log.push('ℹ Solo hay ≤3 backups locales, nada que eliminar');
+      else log.push(`✅ Espacio liberado por backups: ${(liberadoBytes/1048576).toFixed(1)} MB`);
     } catch(e) { log.push('⚠ Error limpiando backups: ' + e.message); }
 
-    // Nota: los archivos adjuntos de exámenes (BLOBs) NUNCA se eliminan automáticamente.
-    // Solo pueden borrarse manualmente desde el panel de exámenes uno por uno.
+    // 2. VACUUM de SQLite — ahora hay espacio disponible
+    try {
+      db.prepare('VACUUM').run();
+      log.push('✅ VACUUM ejecutado — base de datos compactada');
+    } catch(e) {
+      log.push(`⚠ VACUUM no pudo ejecutarse: ${e.message} (el espacio liberado ya fue aplicado)`);
+    }
 
+    // Nota: archivos adjuntos de exámenes NUNCA se eliminan automáticamente.
     audit(req.user.id, 'LIMPIAR_DISCO', 'sistema', 'disco', { log });
     res.json({ ok: true, log });
   } catch(e) { res.status(500).json({ error: e.message, log }); }
