@@ -2041,125 +2041,157 @@ function mAl(a){
   const e=!!a;
   const carrs=W._carrs||[], cursos=W._cursos||[];
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
+  // Pre-rellenar con datos guardados al volver desde panel de conflicto
+  const pd=(!e&&W._pendingAlDatos)||{};
   modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4>
-  ${!e?`<div style="background:#f0f4ff;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 12px;margin-bottom:12px">
-    <div style="font-size:11px;font-weight:700;color:#3730a3;margin-bottom:6px">🔍 Verificar si ya existe en el sistema</div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input id="al-busq" placeholder="Buscar por CI, nombre o apellido..." oninput="debounceBuscarConflicto()" style="flex:1;padding:6px 10px;border:1px solid #c7d2fe;border-radius:7px;font-size:12px;outline:none"/>
-      <button onclick="buscarConflictoAlumno()" style="background:#4f46e5;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Buscar</button>
-    </div>
-    <div id="al-conflicto-panel" style="margin-top:8px"></div>
-  </div>`:''}
   <div class="fg">
   <div class="fr">
-    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
-    <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div>
+    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="an" value="${e?a.display_nombre||'':pd.nombre||''}" placeholder="Nombre"/></div>
+    <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="aap" value="${e?a.display_apellido||'':pd.apellido||''}" placeholder="Apellido"/></div>
   </div>
   <div class="fr">
     <div class="f"><label>C.I. <span style="color:var(--t2);font-size:11px">(opcional)</span></label>
-      <input id="aci" value="${e?a.display_ci||'':''}" placeholder="Sin CI → estado Pendiente"/>
+      <input id="aci" value="${e?a.display_ci||'':pd.ci||''}" placeholder="Sin CI → estado Pendiente"/>
     </div>
-    <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':''}" placeholder="0981-000-000"/></div>
+    <div class="f"><label>Teléfono</label><input id="atel" value="${e?a.telefono||'':pd.telefono||''}" placeholder="0981-000-000"/></div>
   </div>
   <div class="fr">
     <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
       <select id="acar" onchange="filtCursosAl()">
         <option value="">— Seleccionar —</option>
-        ${carrs.map(c=>`<option value="${c.id}" ${e&&a.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
+        ${carrs.map(c=>`<option value="${c.id}" ${(e?a.carrera_id:pd.carrera_id)===c.id?'selected':''}>${c.nombre}</option>`).join('')}
       </select></div>
     <div class="f"><label>Año</label>
       <select id="aAnio" onchange="filtCursosAl()" style="min-width:80px">
         <option value="">Año</option>
-        ${anios.map(n=>`<option value="${n}" ${e&&a.curso_anio===n?'selected':''}>${n}°</option>`).join('')}
+        ${anios.map(n=>`<option value="${n}" ${(e?a.curso_anio:pd.curso_anio)===n?'selected':''}>${n}°</option>`).join('')}
       </select></div>
   </div>
   <div class="f"><label>Sección</label>
     <select id="acur">
       <option value="">Sin asignar</option>
-      ${cursos.map(cu=>`<option value="${cu.id}" ${e&&a.curso_id===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — Secc. ${(cu.division==='U'?(cu.carrera_nombre&&cu.carrera_nombre.includes('Cosmiatría')?'2do Año':'Única'):('Secc. '+cu.division))}</option>`).join('')}
+      ${cursos.map(cu=>`<option value="${cu.id}" ${(e?a.curso_id:pd.curso_id)===cu.id?'selected':''}>${cu.carrera_nombre} ${cu.anio}° — Secc. ${(cu.division==='U'?(cu.carrera_nombre&&cu.carrera_nombre.includes('Cosmiatría')?'2do Año':'Única'):('Secc. '+cu.division))}</option>`).join('')}
     </select></div>
   <div class="fr">
-    <div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':new Date().toISOString().split('T')[0]}"/></div>
+    <div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':pd.fecha_ingreso||new Date().toISOString().split('T')[0]}"/></div>
     ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Pendiente','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
   </div>
   ${!e?'<p style="font-size:10px;color:var(--t2);margin-top:-4px">ℹ Si no tiene CI, el alumno quedará en estado <strong>Pendiente</strong> hasta completar el dato.</p>':''}
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" id="btn-guardar-al" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" id="btn-guardar-al" onclick="${e?`svAl('${a.id}')`:' buscarYGuardarAl()'}">${e?'Guardar':'🔍 Buscar y Guardar'}</button></div>`);
 }
 
-let _conflictoTimer=null;
-function debounceBuscarConflicto(){
-  clearTimeout(_conflictoTimer);
-  _conflictoTimer=setTimeout(buscarConflictoAlumno,600);
-}
-async function buscarConflictoAlumno(){
-  const busq=(document.getElementById('al-busq')?.value||'').trim();
-  const panel=document.getElementById('al-conflicto-panel');
-  if(!panel)return;
-  if(busq.length<3){panel.innerHTML='<div style="font-size:11px;color:#9ca3af;padding:4px 0">Ingresá al menos 3 caracteres para buscar.</div>';_restoreGuardarBtn();return;}
-  panel.innerHTML=`<div style="font-size:11px;color:#3730a3;padding:4px 0">⏳ Buscando...</div>`;
+// ── BUSCAR Y GUARDAR ALUMNO — verifica duplicados antes de crear ─────────────
+async function buscarYGuardarAl(){
+  const nombre=(v('an')||'').trim();
+  const apellido=(v('aap')||'').trim();
+  const ci=(v('aci')||'').trim().replace(/[^0-9]/g,'');
+  if(!nombre||!apellido){alert('Completar nombre y apellido');return;}
+  if(!v('acar')){alert('Seleccionar una carrera');return;}
+  // Guardar datos del formulario para usarlos si el usuario vuelve o confirma creación
+  W._pendingAlDatos={
+    nombre,apellido,ci,
+    telefono:(v('atel')||'').trim(),
+    carrera_id:v('acar'),
+    curso_id:v('acur')||null,
+    fecha_ingreso:v('aing')||new Date().toISOString().split('T')[0],
+    curso_anio:(W._cursos||[]).find(cu=>cu.id===v('acur'))?.anio||null
+  };
+  const btn=document.getElementById('btn-guardar-al');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Buscando...';}
   try{
-    // Detectar si es CI (mayormente numérico) o nombre/apellido
-    const esCI=/^\d+$/.test(busq.replace(/[\s\-\.]/g,''));
     const params=new URLSearchParams();
-    if(esCI){params.set('ci',busq.replace(/\D/g,''));}
-    else{
-      // Separar en palabras: la última como apellido (más discriminante), resto como nombre
-      const partes=busq.split(/\s+/).filter(Boolean);
-      if(partes.length===1){params.set('apellido',partes[0]);}
-      else{params.set('apellido',partes.slice(-1).join(' '));params.set('nombre',partes.slice(0,-1).join(' '));}
-    }
+    if(ci) params.set('ci',ci);
+    if(apellido) params.set('apellido',apellido);
+    if(nombre) params.set('nombre',nombre);
     const res=await api('GET','/api/alumnos/buscar-conflicto?'+params.toString());
     if(!res.total){
-      panel.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:7px 12px;font-size:11px;color:#166534;margin-bottom:10px">✅ Sin conflictos — alumno no registrado en el sistema</div>`;
-      _restoreGuardarBtn();
+      // Sin conflictos → guardar directo
+      await svAl('');
       return;
     }
-    // Hay conflictos
-    const cards=res.conflictos.map(c=>{
-      const estadoBadge=c.estado==='Activo'?'background:#dcfce7;color:#166534':c.estado==='Inactivo'?'background:#fee2e2;color:#991b1b':'background:#fef9c3;color:#92400e';
-      const ubicacion=c.carrera_nombre?`${c.carrera_nombre}${c.curso_anio?' · '+c.curso_anio+'° año':''}`:'Sin carrera asignada';
-      return `<div style="background:#fff;border:1.5px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:6px">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <span style="font-size:18px">👤</span>
-          <div style="flex:1">
-            <div style="font-weight:800;font-size:13px;color:#1f2937">${c.nombre||''} ${c.apellido||''}</div>
-            ${c.ci?`<div style="font-size:11px;color:#6b7280">CI: <strong>${c.ci}</strong></div>`:''}
-            <div style="font-size:11px;color:#374151;margin-top:2px">📍 ${ubicacion}</div>
-            ${c.matricula?`<div style="font-size:11px;color:#6b7280">Matrícula: <strong>${c.matricula}</strong></div>`:''}
-            <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-top:3px;${estadoBadge}">${c.estado||'?'}</span>
-            <div style="font-size:10px;color:#9ca3af;margin-top:2px">Detectado por: ${c.match_por==='ci'?'número de CI':'nombre y apellido'}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-          <button onclick="alConflictoMover('${c.id}','${(c.nombre||'').replace(/'/g,"\\'")}','${(c.apellido||'').replace(/'/g,"\\'")}',this)" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;flex:1">
-            ↕ Mover / Reasignar este alumno
-          </button>
-          <button onclick="alConflictoIgnorar()" style="background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer">
-            Ignorar y crear nuevo
-          </button>
-        </div>
-      </div>`;
-    }).join('');
-    panel.innerHTML=`<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:12px;margin-bottom:10px">
-      <div style="font-size:12px;font-weight:800;color:#92400e;margin-bottom:8px">⚠ ${res.total} coincidencia${res.total>1?'s':'s'} encontrada${res.total>1?'s':''} en el sistema</div>
-      ${cards}
-    </div>`;
-    // Deshabilitar botón Guardar para evitar duplicado accidental
-    const btn=document.getElementById('btn-guardar-al');
-    if(btn){btn.disabled=true;btn.style.opacity='.5';btn.title='Resolvé el conflicto primero o hacé clic en "Ignorar y crear nuevo"';}
-  }catch(err){
-    panel.innerHTML=`<div style="font-size:11px;color:#dc2626;padding:4px 0">❌ Error al buscar: ${err.message}</div>`;
-    _restoreGuardarBtn();
+    // Hay coincidencias → mostrar panel de conflicto
+    if(btn){btn.disabled=false;btn.textContent='🔍 Buscar y Guardar';}
+    _mostrarPanelConflictoAl(res.conflictos);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='🔍 Buscar y Guardar';}
+    alert('Error al buscar: '+e.message);
   }
 }
-function _restoreGuardarBtn(){
-  const btn=document.getElementById('btn-guardar-al');
-  if(btn){btn.disabled=false;btn.style.opacity='1';btn.title='';}
+
+function _mostrarPanelConflictoAl(conflictos){
+  const pd=W._pendingAlDatos||{};
+  const cards=conflictos.map(c=>{
+    const badgeSt=c.estado==='Activo'?'background:#dcfce7;color:#166534;border:1px solid #86efac':c.estado==='Inactivo'?'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5':'background:#fef9c3;color:#92400e;border:1px solid #fde68a';
+    const div=c.curso_division&&c.curso_division!=='U'?' · Secc. '+c.curso_division:'';
+    const ubi=c.carrera_nombre?`${c.carrera_nombre}${c.curso_anio?' · '+c.curso_anio+'° año'+div:''}`:'Sin carrera asignada';
+    const ini=((c.apellido||'').charAt(0)+(c.nombre||'').charAt(0)).toUpperCase();
+    return `<div style="background:#fff;border:2px solid #f59e0b;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(245,158,11,.12)">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px;color:#1e293b;margin-bottom:2px">${c.apellido||''}, ${c.nombre||''}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#64748b;margin-bottom:4px">
+            ${c.ci?`<span>📄 CI: <strong style="color:#1e293b">${c.ci}</strong></span>`:'<span style="color:#dc2626;font-weight:700">⚠ Sin cédula</span>'}
+            ${c.matricula?`<span>🪪 Mat. <strong style="color:#1e293b">${c.matricula}</strong></span>`:''}
+            ${c.email?`<span>✉ ${c.email}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:#374151;margin-bottom:5px">📍 <strong>${ubi}</strong></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span style="padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;${badgeSt}">${c.estado||'?'}</span>
+            <span style="font-size:10px;color:#94a3b8">Detectado por: ${c.match_por==='ci'?'CI exacto 🎯':'nombre y apellido'}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button onclick="alConflictoMover('${c.id}','${(c.nombre||'').replace(/'/g,"\\'")}','${(c.apellido||'').replace(/'/g,"\\'")}',this)"
+          style="flex:1;background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+          ↕ Mover / Reasignar este alumno
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+  cm();
+  modal(`<div>
+    <div style="background:linear-gradient(135deg,#92400e,#d97706);color:#fff;padding:16px 18px;border-radius:12px 12px 0 0;margin:-16px -16px 16px">
+      <div style="font-size:16px;font-weight:800;margin-bottom:3px">⚠ Posible duplicado detectado</div>
+      <div style="font-size:12px;opacity:.85">Se encontraron <strong>${conflictos.length}</strong> alumno${conflictos.length>1?'s':''} con datos similares</div>
+    </div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#78350f">
+      <strong>Datos ingresados:</strong> ${pd.apellido||''}, ${pd.nombre||''}${pd.ci?' · CI: '+pd.ci:''}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Alumnos encontrados en el sistema</div>
+    <div style="max-height:340px;overflow-y:auto;padding-right:2px">${cards}</div>
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-top:12px">
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px">¿Los datos no corresponden a ninguno de los alumnos de arriba? Podés crear el registro de todas formas.</div>
+      <div class="mf" style="gap:8px">
+        <button class="bs" onclick="cm();W._pendingAlDatos&&mAl()">← Volver y corregir</button>
+        <button onclick="cm();svAlForzado()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer">⚠ Crear de todas formas</button>
+      </div>
+    </div>
+  </div>`,true);
 }
-function alConflictoIgnorar(){
-  const panel=document.getElementById('al-conflicto-panel');
-  if(panel){panel.innerHTML=`<div style="font-size:11px;color:#6b7280;padding:4px 0">ℹ Ignorado — podés continuar con el registro.</div>`;}
-  _restoreGuardarBtn();
+
+async function svAlForzado(){
+  const o=W._pendingAlDatos;
+  if(!o){alert('Error: datos no disponibles');return;}
+  if(!o.ci) o.estado='Pendiente';
+  try{
+    const r=await api('POST','/api/alumnos',o);
+    W._pendingAlDatos=null;
+    cm();
+    modal(`<div style="text-align:center;padding:10px">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
+      <h4 style="color:#2e7d32;margin-bottom:4px">Alumno registrado</h4>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Matrícula: <strong>${r.matricula}</strong></p>
+      <div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:10px;padding:14px;text-align:left">
+        <p style="font-weight:700;font-size:12px;color:#2e7d32;margin-bottom:8px">🔑 Credenciales de acceso:</p>
+        <p style="font-size:13px;margin:5px 0"><b>Usuario:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.email||''}</code></p>
+        <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.password||o.ci}</code></p>
+        <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. La contraseña es su N° de cédula.</p>
+      </div>
+      <div class="mf" style="margin-top:12px"><button class="bn" onclick="cm();go('alumnos')">Aceptar</button></div>
+    </div>`);
+  }catch(e){alert(e.message);}
 }
 async function alConflictoMover(alId,nombre,apellido,btn){
   cm(); // cerrar modal nuevo alumno
@@ -2541,15 +2573,11 @@ function exRow(e){
   const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
   let btnAdjuntar='';
   if(esDocumentoPropietario){
-    if(yaOcurrio && me.rol!=='director'){
-      btnAdjuntar=`<span style="font-size:10px;color:#999" title="El examen ya ocurrió">🔒 Cerrado</span>`;
-    } else {
-      const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,15)+(e.archivo_nombre.length>15?'…':'')):'';
-      btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">
-        📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${nombreCorto}</span>`:'Adjuntar'}
-        <input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
-      </label>${e.archivo_nombre?`<button class="bs d" style="font-size:11px;padding:2px 5px" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo adjunto">🗑</button>`:''}`;
-    }
+    const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,15)+(e.archivo_nombre.length>15?'…':'')):'';
+    btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">
+      📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${nombreCorto}</span>`:'Adjuntar'}
+      <input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/>
+    </label>${e.archivo_nombre?`<button class="bs d" style="font-size:11px;padding:2px 5px" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo adjunto">🗑</button>`:''}`;
   }
   // Ver/descargar: director descarga, docente ve
   const btnVer=e.archivo_nombre?(me.rol==='director'
@@ -2702,7 +2730,7 @@ async function verExamen(exId){
     const hoy=new Date();
     const fechaEx=ex.fecha?new Date(ex.fecha+'T'+( ex.hora||'19:00')+':00'):null;
     const yaOcurrio=fechaEx&&fechaEx<hoy;
-    const puedeAdjuntar=esMiExamen&&!yaOcurrio;
+    const puedeAdjuntar=esMiExamen;
     modal(`<h4>📋 ${ex.tipo||'Examen'} — ${ex.materia_nombre||'—'}</h4>
     <div style="font-size:13px;line-height:2;background:#f9f9f9;border-radius:8px;padding:12px 16px;margin-bottom:12px">
       <p><strong>Materia:</strong> ${ex.materia_nombre||'—'}</p>
@@ -2718,14 +2746,11 @@ async function verExamen(exId){
       ${esDir||esMiExamen?`<button class="bs" style="margin-left:8px;background:#e8f5e9;color:#1b5e20" onclick="descargarArchivoExamen('${exId}','${ex.archivo_nombre||'archivo.docx'}')">⬇ Descargar</button>`:''}
     </div>`:''}
     ${esDocente&&esMiExamen?`
-      <div style="background:${puedeAdjuntar?'#e3f2fd':'#fafafa'};border:1px solid ${puedeAdjuntar?'#1565c0':'#ccc'};border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
-        ${yaOcurrio
-          ?'<span style="color:#999">⏰ El examen ya se realizó</span>'
-          :`<label class="bn" style="margin-top:4px;display:inline-block;cursor:pointer;font-size:12px">
-               📎 ${ex.archivo_nombre?'Reemplazar':'Adjuntar'} archivo Word
-               <input type="file" accept=".doc,.docx" style="display:none" onchange="cm();subirArchivoExamen('${exId}',this)"/>
-             </label>`
-        }
+      <div style="background:#e3f2fd;border:1px solid #1565c0;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px">
+        <label class="bn" style="margin-top:4px;display:inline-block;cursor:pointer;font-size:12px">
+          📎 ${ex.archivo_nombre?'Reemplazar':'Adjuntar'} archivo Word
+          <input type="file" accept=".doc,.docx" style="display:none" onchange="cm();subirArchivoExamen('${exId}',this)"/>
+        </label>
       </div>`:''}
     <div class="mf">
       ${esDir?`<button class="bs o" onclick="cm();imprimirActaExamen('${exId}')">🖨 Acta</button><button class="bs i" onclick="cm();mExamen(${JSON.stringify(ex).replace(/"/g,'&quot;')})">✏ Editar</button>`:''}
