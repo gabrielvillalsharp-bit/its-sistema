@@ -450,7 +450,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
           userId = uid;
         }
       }
-      db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,userId,matricula,carrera_id||null,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],estado||(!ciRaw?'Pendiente':'Activo'),ciRaw||null,nombre,apellido,telefono||null);
+      db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,userId,matricula,carrera_id||null,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],estado||'Activo',ciRaw||null,nombre,apellido,telefono||null);
       // Crear registros de notas para cada asignación del curso CON periodo_id
       if (curso_id) {
         const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
@@ -674,7 +674,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
             const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
             const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Pendiente', null, nombre, apellido);
+            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', null, nombre, apellido);
             if (curso_id) {
               const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
               const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo?.id||null);

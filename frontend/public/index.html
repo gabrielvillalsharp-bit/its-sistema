@@ -2076,7 +2076,7 @@ function mAl(a){
     <div class="f"><label>Fecha ingreso</label><input id="aing" type="date" value="${e?a.fecha_ingreso||'':pd.fecha_ingreso||new Date().toISOString().split('T')[0]}"/></div>
     ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Pendiente','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
   </div>
-  ${!e?'<p style="font-size:10px;color:var(--t2);margin-top:-4px">ℹ Si no tiene CI, el alumno quedará en estado <strong>Pendiente</strong> hasta completar el dato.</p>':''}
+  ${!e?'<p style="font-size:10px;color:var(--t2);margin-top:-4px">ℹ Si no tiene CI, el alumno quedará registrado como <strong>Activo</strong>. Podés actualizar la cédula desde Editar alumno.</p>':''}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" id="btn-guardar-al" onclick="${e?`svAl('${a.id}')`:' buscarYGuardarAl()'}">${e?'Guardar':'🔍 Buscar y Guardar'}</button></div>`);
 }
 
@@ -2174,7 +2174,6 @@ function _mostrarPanelConflictoAl(conflictos){
 async function svAlForzado(){
   const o=W._pendingAlDatos;
   if(!o){alert('Error: datos no disponibles');return;}
-  if(!o.ci) o.estado='Pendiente';
   try{
     const r=await api('POST','/api/alumnos',o);
     W._pendingAlDatos=null;
@@ -2242,8 +2241,6 @@ async function svAl(id){
   const o={nombre:v('an'),apellido:v('aap'),ci:v('aci')||'',telefono:v('atel'),carrera_id:v('acar'),curso_id:v('acur')||null,fecha_ingreso:v('aing')};
   if(!o.nombre||!o.apellido)return alert('Completar nombre y apellido');
   if(!o.carrera_id)return alert('Seleccionar una carrera');
-  // Si no tiene CI → estado Pendiente
-  if(!o.ci) o.estado='Pendiente';
   try{
     if(id){o.estado=v('aest')||o.estado;await api('PUT','/api/alumnos/'+id,o);cm();go('alumnos');}
     else{
