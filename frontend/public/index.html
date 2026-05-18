@@ -8856,24 +8856,20 @@ async function verDiagnosticoDisco(){
         <button onclick="limpiarDisco(false)" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">
           🧹 VACUUM + limpiar backups viejos
         </button>
-        ${d.archivos_adjuntos.cantidad>0?`
-        <button onclick="limpiarDisco(true)" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">
-          🗑 Liberar archivos adjuntos >90 días (${d.archivos_adjuntos.mb} MB)
-        </button>`:''}
       </div>
+      ${d.archivos_adjuntos.cantidad>0?`<div style="font-size:11px;color:#6b7280;margin-top:6px">📎 ${d.archivos_adjuntos.cantidad} archivos adjuntos de exámenes (${d.archivos_adjuntos.mb} MB) — protegidos, no se eliminan automáticamente.</div>`:''}
       <div id="discoLimpiezaLog" style="margin-top:10px;font-size:11px"></div>
     </div>`;
   }catch(e){
     if(panel) panel.innerHTML=`<div style="font-size:12px;color:#dc2626;padding:6px 0">❌ Error: ${e.message}</div>`;
   }
 }
-async function limpiarDisco(limpiarBlobs){
+async function limpiarDisco(){
   const logEl=document.getElementById('discoLimpiezaLog');
   if(logEl) logEl.innerHTML='<span style="color:#6b7280">⏳ Limpiando...</span>';
   try{
     const r=await api('POST','/api/admin/disco/limpiar',{
-      limpiar_blobs_examen:limpiarBlobs,
-      dias_blob:90
+      limpiar_blobs_examen:false
     });
     if(logEl) logEl.innerHTML=r.log.map(l=>`<div style="padding:2px 0">${l}</div>`).join('');
     toast('✅ Limpieza completada','ok',4000);

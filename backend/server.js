@@ -3366,22 +3366,10 @@ app.post('/api/admin/disco/limpiar', auth(ADM), (req, res) => {
       if (!aEliminar.length) log.push('ℹ Solo hay ≤3 backups locales, nada que eliminar');
     } catch(e) { log.push('⚠ Error limpiando backups: ' + e.message); }
 
-    // 3. (Opcional) Eliminar BLOBs de exámenes cuya fecha ya pasó hace X días
-    if (limpiar_blobs_examen) {
-      const dias = parseInt(dias_blob) || 90;
-      const corte = new Date();
-      corte.setDate(corte.getDate() - dias);
-      const corteStr = corte.toISOString().split('T')[0];
-      const r = db.prepare(`
-        UPDATE examenes SET archivo_data=NULL, archivo_tipo=NULL
-        WHERE archivo_data IS NOT NULL AND (fecha IS NULL OR fecha < ?)
-      `).run(corteStr);
-      log.push(`✅ ${r.changes} archivos adjuntos de exámenes eliminados (anteriores a ${corteStr})`);
-      // VACUUM de nuevo para liberar el espacio recién vaciado
-      if (r.changes > 0) { db.prepare('VACUUM').run(); log.push('✅ VACUUM adicional tras liberar BLOBs'); }
-    }
+    // Nota: los archivos adjuntos de exámenes (BLOBs) NUNCA se eliminan automáticamente.
+    // Solo pueden borrarse manualmente desde el panel de exámenes uno por uno.
 
-    audit(req.user.id, 'LIMPIAR_DISCO', 'sistema', 'disco', { log, limpiar_blobs_examen, dias_blob });
+    audit(req.user.id, 'LIMPIAR_DISCO', 'sistema', 'disco', { log });
     res.json({ ok: true, log });
   } catch(e) { res.status(500).json({ error: e.message, log }); }
 });
