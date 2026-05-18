@@ -3269,12 +3269,14 @@ async function hacerBackupAutomatico() {
   try {
     const fecha = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const destino = path.join(BACKUP_DIR, `ITS_auto_${fecha}.db`);
+    // VACUUM antes de copiar: compacta la BD y recupera espacio de BLOBs borrados
+    try { db.prepare('VACUUM').run(); } catch {}
     fs.copyFileSync(DB_PATH, destino);
-    // Mantener solo los últimos 10 backups automáticos en el Volume
+    // Mantener solo los últimos 3 backups en el Volume (ahorra espacio en Railway)
     const archivos = fs.readdirSync(BACKUP_DIR)
       .filter(f => f.startsWith('ITS_auto_'))
       .sort().reverse();
-    archivos.slice(10).forEach(f => {
+    archivos.slice(3).forEach(f => {
       try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
     });
     console.log(`✅ Backup local: ${destino}`);
@@ -3297,6 +3299,92 @@ console.log('⏰ Backup programado: todos los días a las 23:00 (hora Paraguay) 
 
 // Backup inmediato al iniciar (5s de gracia para que la DB esté lista)
 setTimeout(() => hacerBackupAutomatico(), 5000);
+
+// ── DIAGNÓSTICO Y LIMPIEZA DE DISCO ─────────────────────────────────────────
+app.get('/api/admin/disco', auth(ADM), (req, res) => {
+  try {
+    const sizeOf = p => { try { return fs.statSync(p).size; } catch { return 0; } };
+    const dbSize = sizeOf(DB_PATH);
+
+    // Backups en el Volume
+    let backups = [];
+    try {
+      backups = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.endsWith('.db'))
+        .map(f => ({ nombre: f, bytes: sizeOf(path.join(BACKUP_DIR, f)) }))
+        .sort((a, b) => b.nombre.localeCompare(a.nombre));
+    } catch {}
+    const backupTotal = backups.reduce((s, b) => s + b.bytes, 0);
+
+    // BLOBs de archivos en la BD (exámenes adjuntos)
+    const blobInfo = db.prepare(`
+      SELECT COUNT(*) as cantidad,
+             COALESCE(SUM(LENGTH(archivo_data)),0) as bytes_total
+      FROM examenes WHERE archivo_data IS NOT NULL`).get();
+
+    // Auditoría: registros más viejos
+    const audCount = db.prepare('SELECT COUNT(*) as n FROM auditoria').get();
+    const audOld   = db.prepare("SELECT MIN(fecha) as mas_vieja FROM auditoria").get();
+
+    res.json({
+      db_bytes: dbSize,
+      db_mb: (dbSize / 1048576).toFixed(2),
+      backups_en_volume: backups,
+      backups_total_mb: (backupTotal / 1048576).toFixed(2),
+      archivos_adjuntos: {
+        cantidad: blobInfo.cantidad,
+        bytes: blobInfo.bytes_total,
+        mb: (blobInfo.bytes_total / 1048576).toFixed(2)
+      },
+      auditoria: {
+        total_registros: audCount.n,
+        mas_vieja: audOld.mas_vieja
+      },
+      total_estimado_mb: ((dbSize + backupTotal) / 1048576).toFixed(2)
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Limpiar disco: VACUUM + borrar backups viejos + (opcional) borrar BLOBs de exámenes pasados
+app.post('/api/admin/disco/limpiar', auth(ADM), (req, res) => {
+  const { limpiar_blobs_examen, dias_blob } = req.body;
+  const log = [];
+  try {
+    // 1. VACUUM de SQLite (recupera espacio de filas/BLOBs eliminados)
+    db.prepare('VACUUM').run();
+    log.push('✅ VACUUM ejecutado — base de datos compactada');
+
+    // 2. Limpiar backups locales — mantener solo los 3 más recientes
+    try {
+      const archs = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.startsWith('ITS_auto_'))
+        .sort().reverse();
+      const aEliminar = archs.slice(3);
+      aEliminar.forEach(f => {
+        try { fs.unlinkSync(path.join(BACKUP_DIR, f)); log.push(`🗑 Backup eliminado: ${f}`); } catch {}
+      });
+      if (!aEliminar.length) log.push('ℹ Solo hay ≤3 backups locales, nada que eliminar');
+    } catch(e) { log.push('⚠ Error limpiando backups: ' + e.message); }
+
+    // 3. (Opcional) Eliminar BLOBs de exámenes cuya fecha ya pasó hace X días
+    if (limpiar_blobs_examen) {
+      const dias = parseInt(dias_blob) || 90;
+      const corte = new Date();
+      corte.setDate(corte.getDate() - dias);
+      const corteStr = corte.toISOString().split('T')[0];
+      const r = db.prepare(`
+        UPDATE examenes SET archivo_data=NULL, archivo_tipo=NULL
+        WHERE archivo_data IS NOT NULL AND (fecha IS NULL OR fecha < ?)
+      `).run(corteStr);
+      log.push(`✅ ${r.changes} archivos adjuntos de exámenes eliminados (anteriores a ${corteStr})`);
+      // VACUUM de nuevo para liberar el espacio recién vaciado
+      if (r.changes > 0) { db.prepare('VACUUM').run(); log.push('✅ VACUUM adicional tras liberar BLOBs'); }
+    }
+
+    audit(req.user.id, 'LIMPIAR_DISCO', 'sistema', 'disco', { log, limpiar_blobs_examen, dias_blob });
+    res.json({ ok: true, log });
+  } catch(e) { res.status(500).json({ error: e.message, log }); }
+});
 
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
   const fecha = new Date().toISOString().split('T')[0];

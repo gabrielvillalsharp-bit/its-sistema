@@ -8112,9 +8112,11 @@ async function pgAuditoria(el){
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="descargarBackupDB()" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Descargar backup (.db)</button>
         <button onclick="probarBackupGitHub()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔄 Probar backup GitHub</button>
+        <button onclick="verDiagnosticoDisco()" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💿 Uso de disco</button>
       </div>
     </div>
     <div id="githubBackupStatus" style="display:none"></div>
+    <div id="discoDiagPanel" style="display:none;margin-top:8px"></div>
     <div style="color:#6b7280;font-size:11px">Backup local automático diario a las 23:00 · También se sube a GitHub si las variables están configuradas.</div>
   </div>
   <div style="background:#e8f5e9;border-radius:6px;padding:8px 12px;font-size:11px;color:#2e7d32;margin-bottom:10px">
@@ -8814,6 +8816,71 @@ function filtAudit(){
   const q=(v('audBus')||'').toLowerCase();
   const rows=document.querySelectorAll('#audBody tr');
   rows.forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(q)?'':'none';});
+}
+async function verDiagnosticoDisco(){
+  const panel=document.getElementById('discoDiagPanel');
+  if(!panel)return;
+  panel.style.display='block';
+  panel.innerHTML='<div style="font-size:12px;color:#6b7280;padding:6px 0">⏳ Analizando disco...</div>';
+  try{
+    const d=await api('GET','/api/admin/disco');
+    const bar=(pct,color)=>`<div style="height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin-top:4px"><div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:4px"></div></div>`;
+    const fmtMB=mb=>`<strong style="font-size:14px">${mb} MB</strong>`;
+    const dbMB=parseFloat(d.db_mb),bkMB=parseFloat(d.backups_total_mb),arMB=parseFloat(d.archivos_adjuntos.mb);
+    const totalMB=parseFloat(d.total_estimado_mb);
+    panel.innerHTML=`
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:12px">
+      <div style="font-weight:800;color:#92400e;margin-bottom:10px;font-size:13px">💿 Uso de disco en Railway Volume</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em">Base de datos</div>
+          ${fmtMB(d.db_mb)}
+          ${bar(dbMB/10,'#3b82f6')}
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em">Backups locales (${d.backups_en_volume.length})</div>
+          ${fmtMB(d.backups_total_mb)}
+          ${bar(bkMB/10,'#f59e0b')}
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em">Archivos adjuntos (${d.archivos_adjuntos.cantidad})</div>
+          ${fmtMB(d.archivos_adjuntos.mb)}
+          ${bar(arMB/10,'#8b5cf6')}
+        </div>
+      </div>
+      <div style="font-size:11px;color:#374151;margin-bottom:10px">
+        📊 Total estimado en volumen: <strong>${totalMB} MB</strong>
+        ${d.auditoria.total_registros>5000?`<span style="color:#dc2626;margin-left:8px">⚠ ${d.auditoria.total_registros.toLocaleString()} registros de auditoría — podés purgar los antiguos</span>`:''}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="limpiarDisco(false)" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">
+          🧹 VACUUM + limpiar backups viejos
+        </button>
+        ${d.archivos_adjuntos.cantidad>0?`
+        <button onclick="limpiarDisco(true)" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">
+          🗑 Liberar archivos adjuntos >90 días (${d.archivos_adjuntos.mb} MB)
+        </button>`:''}
+      </div>
+      <div id="discoLimpiezaLog" style="margin-top:10px;font-size:11px"></div>
+    </div>`;
+  }catch(e){
+    if(panel) panel.innerHTML=`<div style="font-size:12px;color:#dc2626;padding:6px 0">❌ Error: ${e.message}</div>`;
+  }
+}
+async function limpiarDisco(limpiarBlobs){
+  const logEl=document.getElementById('discoLimpiezaLog');
+  if(logEl) logEl.innerHTML='<span style="color:#6b7280">⏳ Limpiando...</span>';
+  try{
+    const r=await api('POST','/api/admin/disco/limpiar',{
+      limpiar_blobs_examen:limpiarBlobs,
+      dias_blob:90
+    });
+    if(logEl) logEl.innerHTML=r.log.map(l=>`<div style="padding:2px 0">${l}</div>`).join('');
+    toast('✅ Limpieza completada','ok',4000);
+    setTimeout(()=>verDiagnosticoDisco(),800);
+  }catch(e){
+    if(logEl) logEl.innerHTML=`<div style="color:#dc2626">❌ ${e.message}</div>`;
+  }
 }
 async function probarBackupGitHub(){
   const st=document.getElementById('githubBackupStatus');
