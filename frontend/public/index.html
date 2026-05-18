@@ -86,13 +86,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #le{font-size:12px;color:#b91c1c;margin-top:6px;display:none}
 /* ── APP ───────────────────────────────────── */
 #ap{display:flex;flex-direction:column;min-height:100vh}
-.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:62px;background:linear-gradient(105deg,#1a6b3a 0%,#1f8246 35%,#166534 65%,#14532d 100%);position:sticky;top:0;z-index:30;box-shadow:0 4px 20px rgba(22,101,52,.35),0 1px 0 rgba(255,255,255,.12) inset,0 8px 0 rgba(0,0,0,.06);transform-style:preserve-3d}
+.tb{display:flex;align-items:center;gap:12px;padding:0 20px;height:52px;background:linear-gradient(105deg,#0f4422 0%,#155c30 35%,#0e4020 65%,#0a2f16 100%);position:sticky;top:0;z-index:30;box-shadow:0 4px 24px rgba(10,47,22,.60),0 1px 0 rgba(255,255,255,.10) inset,0 8px 0 rgba(0,0,0,.12);transform-style:preserve-3d}
 .tb::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,0) 60%);pointer-events:none}
-.tl{width:40px;height:40px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.20),0 1px 0 rgba(255,255,255,.8) inset;flex-shrink:0;position:relative;overflow:hidden}
+.tl{width:34px;height:34px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.20),0 1px 0 rgba(255,255,255,.8) inset;flex-shrink:0;position:relative;overflow:hidden}
 .tl::before{content:'';position:absolute;inset:0;border-radius:10px;padding:1px;background:linear-gradient(135deg,#22c55e,#15803d,#22c55e);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.tl svg{width:20px;height:20px;fill:#166534}
-.tl img{width:34px;height:34px;object-fit:contain;border-radius:8px;display:block}
-.tb h2{font-size:15px;font-weight:700;letter-spacing:-.015em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.18)}
+.tl svg{width:18px;height:18px;fill:#166534}
+.tl img{width:28px;height:28px;object-fit:contain;border-radius:6px;display:block}
+.tb h2{font-size:13.5px;font-weight:800;letter-spacing:-.015em;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.35),0 0 20px rgba(255,255,255,.08)}
 .tr2{margin-left:auto;display:flex;align-items:center;gap:10px}
 .rp{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;letter-spacing:.01em}
 .rp-director{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.35)}
@@ -103,32 +103,38 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .xb:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.50);box-shadow:0 2px 8px rgba(0,0,0,.15)}
 /* ── SIDEBAR ───────────────────────────────── */
 .ly{display:flex;flex:1}
-.sb{width:234px;flex-shrink:0;background:#0f1f16;border-right:none;padding:6px 8px 20px;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto;overflow-x:hidden;box-shadow:3px 0 16px rgba(0,0,0,.18);transition:width .25s ease;scrollbar-width:none}
-.sb::-webkit-scrollbar{display:none}
-.sb.col{width:60px}
-.sb-toggle{display:flex;align-items:center;padding:8px 4px;margin-bottom:6px}
-.sb-toggle-btn{width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.06);cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);transition:all .15s;margin-left:auto;flex-shrink:0}
-.sb-toggle-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+.sb{width:210px;flex-shrink:0;background:linear-gradient(180deg,#ffffff 0%,#f2f2f0 100%);border-right:1.5px solid #e0dfd9;padding:6px 7px 40px;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;overflow-x:hidden;box-shadow:2px 0 10px rgba(0,0,0,.07);transition:width .25s ease;scrollbar-width:thin;scrollbar-color:#c8c7c0 transparent}
+.sb::-webkit-scrollbar{width:4px}
+.sb::-webkit-scrollbar-track{background:transparent}
+.sb::-webkit-scrollbar-thumb{background:#c8c7c0;border-radius:4px}
+.sb::-webkit-scrollbar-thumb:hover{background:#a8a7a0}
+.sb.col{width:52px}
+.sb-toggle{display:flex;align-items:center;justify-content:center;padding:5px 6px;position:sticky;bottom:0;background:linear-gradient(180deg,transparent 0%,#f0efeb 60%);margin-top:2px}
+.sb-toggle-btn{width:auto;padding:4px 10px;border-radius:6px;border:1px solid #d8d7d1;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;color:#666;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.07);font-size:10px;font-weight:600}
+.sb.col .sb-toggle-btn .sb-toggle-lbl{display:none}
+.sb-toggle-btn:hover{background:#f0fdf4;border-color:#a8d5b8;color:#166534}
+.sb-toggle-btn:hover{background:#f0fdf4;border-color:#a8d5b8;color:#166534}
 .sb-toggle-btn svg{transition:transform .25s ease}
 .sb.col .sb-toggle-btn svg{transform:rotate(180deg)}
-.ng{font-size:9.5px;font-weight:800;color:rgba(255,255,255,.45);padding:12px 10px 4px;letter-spacing:.12em;text-transform:uppercase;transition:opacity .2s,height .2s;white-space:nowrap;overflow:hidden}
+.ng{font-size:9px;font-weight:800;color:#9a9890;padding:11px 8px 3px;letter-spacing:.12em;text-transform:uppercase;transition:opacity .2s,height .2s;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(255,255,255,.9),0 -1px 0 rgba(0,0,0,.04)}
 .sb.col .ng{opacity:0;height:0;padding:0}
-.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;font-size:12.5px;color:rgba(255,255,255,.88);border:none;background:none;width:100%;text-align:left;margin-bottom:2px;transition:background .15s,color .14s,transform .18s,box-shadow .18s;font-weight:500;line-height:1.3;white-space:nowrap;position:relative;transform-style:preserve-3d;transform-origin:left center}
-.ni:hover{background:rgba(255,255,255,.09);color:#fff;transform:translateX(3px) rotateY(-3deg);box-shadow:2px 2px 8px rgba(0,0,0,.22)}
-.ni.active{background:linear-gradient(90deg,rgba(31,130,70,.55) 0%,rgba(31,130,70,.20) 100%);color:#fff;font-weight:700;border-left:2px solid #1f8246;padding-left:10px;transform:none}
-.sb.col .ni{justify-content:center;padding:10px 6px}
-.sb.col .ni:hover{transform:scale(1.08);box-shadow:0 4px 14px rgba(0,0,0,.28)}
-.sb.col .ni.active{border-left:2px solid #1f8246;padding-left:4px}
+.ni{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:9px;cursor:pointer;font-size:12px;color:#1a1a18;border:none;background:none;width:100%;text-align:left;margin-bottom:1px;transition:background .15s,color .14s,transform .18s,box-shadow .18s;font-weight:600;line-height:1.3;white-space:nowrap;position:relative;transform-style:preserve-3d;transform-origin:left center}
+.ni:hover{background:rgba(22,101,52,.08);color:#0f4d27;transform:translateX(3px) rotateY(-4deg);box-shadow:2px 2px 8px rgba(22,101,52,.10)}
+.ni.active{background:linear-gradient(90deg,rgba(22,101,52,.13) 0%,rgba(22,101,52,.05) 100%);color:#0f4d27;font-weight:700;border-left:2px solid #1f8246;padding-left:9px;transform:none;box-shadow:none}
+.sb.col .ni{justify-content:center;padding:9px 5px}
+.sb.col .ni:hover{transform:scale(1.10);box-shadow:0 4px 12px rgba(22,101,52,.15)}
+.sb.col .ni.active{border-left:2px solid #1f8246;padding-left:3px}
 .ni-lbl{transition:opacity .2s,width .2s;overflow:hidden;white-space:nowrap}
 .sb.col .ni-lbl{opacity:0;width:0;pointer-events:none}
-.ni-ico{width:18px;height:18px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
-.ni:hover .ni-ico{transform:scale(1.10)}
-.sb.col .ni[data-l]:hover::after{content:attr(data-l);position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);background:#0a1a0f;color:#fff;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10)}
-.sb.col .ni[data-l]:hover::before{content:'';position:absolute;left:calc(100% + 4px);top:50%;transform:translateY(-50%);border:6px solid transparent;border-right-color:#0a1a0f;z-index:9999}
+.ni-ico{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s;color:#4a7a5a}
+.ni:hover .ni-ico{transform:scale(1.12);color:#166534}
+.ni.active .ni-ico{color:#166534}
+.sb.col .ni[data-l]:hover::after{content:attr(data-l);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:#0f2218;color:#fff;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap;z-index:9999;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.sb.col .ni[data-l]:hover::before{content:'';position:absolute;left:calc(100% + 2px);top:50%;transform:translateY(-50%);border:6px solid transparent;border-right-color:#0f2218;z-index:9999}
 /* ── NAV ACCORDION ─────────────────────────── */
-.ng-hdr{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 12px 5px;background:none;border:none;cursor:pointer;font-size:9.5px;font-weight:800;color:rgba(255,255,255,.55);letter-spacing:.14em;text-transform:uppercase;border-radius:6px;transition:color .15s,text-shadow .15s;margin-top:4px;text-align:left;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(0,0,0,.5),0 -1px 0 rgba(255,255,255,.08),1px 1px 4px rgba(0,0,0,.4)}
-.ng-hdr:hover{color:rgba(255,255,255,.80);text-shadow:0 1px 0 rgba(0,0,0,.6),0 -1px 0 rgba(255,255,255,.12),1px 2px 8px rgba(31,130,70,.5)}
-.ng-hdr svg{flex-shrink:0;transition:transform .22s ease;opacity:.4}
+.ng-hdr{display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 10px 4px;background:none;border:none;cursor:pointer;font-size:9px;font-weight:800;color:#7a7870;letter-spacing:.13em;text-transform:uppercase;border-radius:6px;transition:color .15s;margin-top:2px;text-align:left;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(255,255,255,.9),0 -1px 0 rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.06)}
+.ng-hdr:hover{color:#166534;text-shadow:0 1px 0 rgba(255,255,255,.95),0 1px 4px rgba(22,101,52,.15)}
+.ng-hdr svg{flex-shrink:0;transition:transform .22s ease;opacity:.45;color:#7a7870}
 .ng-items{overflow:hidden;transition:max-height .24s ease}
 .sb.col .ng-hdr{display:none}
 .sb.col .ng-items{max-height:none!important}
@@ -361,7 +367,7 @@ tr:hover td{background:#fafaf7}
     <p style="font-size:9px;margin-top:1px;font-style:italic;color:rgba(255,255,255,.65)">Desarrollado por Abg. Gabriel Sharp</p>
   </div>
   <div class="tr2">
-    <span id="un" style="font-size:13px;color:rgba(255,255,255,.90);font-weight:600"></span>
+    <span id="un" style="font-size:13px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.30)"></span>
     <span id="rp" class="rp"></span>
     <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
       🔔 <span id="notif-bell-count">0</span>
@@ -658,12 +664,10 @@ function navFor(r){
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
       {id:'aranceles',l:'Aranceles',c:'#1f8246',r:['director']},
       {id:'becas',l:'Becas y Descuentos',c:'#1f8246',r:['director']},
-      {id:'deudores',l:'Deudores',c:'#E24B4A',r:['director']},
       {id:'honorarios',l:'Honorarios',c:'#D85A30',r:['director']},
     ]},
     {g:'Gestión',i:[
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
-      {id:'feriados',l:'Feriados',c:'#1f8246',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#1f8246',r:['docente']},
@@ -677,7 +681,6 @@ function navFor(r){
       {id:'repositorio-contenidos',l:'Contenidos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Cuenta',i:[
-      {id:'escala',l:'Escala de notas',c:'#888780',r:['director']},
       {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Configuración',i:[
@@ -693,10 +696,8 @@ function buildNav(){
   window._navGroups=groups;
   const chevron=`<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 6,8 10,4"/></svg>`;
   const toggleIco=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg>`;
-  document.getElementById('nav').innerHTML=`
-    <div class="sb-toggle">
-      <button class="sb-toggle-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Colapsar menú">${toggleIco}</button>
-    </div>
+  const navEl=document.getElementById('nav');
+  navEl.innerHTML=`
     <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#b91c1c,#dc2626);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
       <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
@@ -709,7 +710,12 @@ function buildNav(){
       <div class="ng-items" id="ngi-${idx}">
         ${g.i.map(i=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
       </div>
-    </div>`).join('');
+    </div>`).join('')+`
+  <div class="sb-toggle">
+    <button class="sb-toggle-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Colapsar menú">
+      ${toggleIco}<span class="sb-toggle-lbl">Reducir</span>
+    </button>
+  </div>`;
   requestAnimationFrame(()=>{
     groups.forEach((_,idx)=>{
       const el=document.getElementById('ngi-'+idx);
@@ -774,7 +780,7 @@ function show(id){document.getElementById(id)?.classList.remove('hidden');}
 function hide(id){document.getElementById(id)?.classList.add('hidden');}
 function notaCls(n){return n?'n'+Math.min(5,Math.max(1,n)):'n-';}
 function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
-function fmtFechaHora(f){if(!f)return '-';try{return new Date(f).toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return String(f).replace('T',' ').slice(0,16);}}
+function fmtFechaHora(f){if(!f)return '-';try{const s=String(f).replace(' ','T');const d=new Date(s.endsWith('Z')||s.includes('+')?s:s+'Z');return d.toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}catch{return String(f).replace('T',' ').slice(0,16);}}
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
 function delPagoAlumno(pagoId, alId){
@@ -1202,7 +1208,7 @@ async function pgAvisos(el){
         let det={};try{det=JSON.parse(a.detalle||'{}');}catch{}
         const quien=(a.user_apellido||'')+' '+(a.user_nombre||'');
         const quienHtml=`<strong>${quien.trim()||'Sistema'}</strong>`;
-        const dPY=a.fecha?new Date(a.fecha):null;
+        const dPY=a.fecha?new Date(String(a.fecha).replace(' ','T')+(String(a.fecha).includes('Z')||String(a.fecha).includes('+')?'':'Z')):null;
         const ahoraOpts={timeZone:'America/Asuncion'};
         const fechaPY=dPY?dPY.toLocaleDateString('es-PY',{...ahoraOpts,year:'numeric',month:'2-digit',day:'2-digit'}):'';
         const horaPY=dPY?dPY.toLocaleTimeString('es-PY',{...ahoraOpts,hour:'2-digit',minute:'2-digit'}):'';
@@ -2035,7 +2041,16 @@ function mAl(a){
   const e=!!a;
   const carrs=W._carrs||[], cursos=W._cursos||[];
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4><div class="fg">
+  modal(`<h4>${e?'Editar':'Nuevo'} alumno</h4>
+  ${!e?`<div style="background:#f0f4ff;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;color:#3730a3;margin-bottom:6px">🔍 Verificar si ya existe en el sistema</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input id="al-busq" placeholder="Buscar por CI, nombre o apellido..." oninput="debounceBuscarConflicto()" style="flex:1;padding:6px 10px;border:1px solid #c7d2fe;border-radius:7px;font-size:12px;outline:none"/>
+      <button onclick="buscarConflictoAlumno()" style="background:#4f46e5;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Buscar</button>
+    </div>
+    <div id="al-conflicto-panel" style="margin-top:8px"></div>
+  </div>`:''}
+  <div class="fg">
   <div class="fr">
     <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="an" value="${e?a.display_nombre||'':''}" placeholder="Nombre"/></div>
     <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="aap" value="${e?a.display_apellido||'':''}" placeholder="Apellido"/></div>
@@ -2068,7 +2083,120 @@ function mAl(a){
     ${e?`<div class="f"><label>Estado</label><select id="aest">${['Activo','Pendiente','Inactivo','Egresado','Retirado'].map(s=>`<option ${a.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
   </div>
   ${!e?'<p style="font-size:10px;color:var(--t2);margin-top:-4px">ℹ Si no tiene CI, el alumno quedará en estado <strong>Pendiente</strong> hasta completar el dato.</p>':''}
-</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);
+</div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" id="btn-guardar-al" onclick="svAl('${e?a.id:''}')">Guardar</button></div>`);
+}
+
+let _conflictoTimer=null;
+function debounceBuscarConflicto(){
+  clearTimeout(_conflictoTimer);
+  _conflictoTimer=setTimeout(buscarConflictoAlumno,600);
+}
+async function buscarConflictoAlumno(){
+  const busq=(document.getElementById('al-busq')?.value||'').trim();
+  const panel=document.getElementById('al-conflicto-panel');
+  if(!panel)return;
+  if(busq.length<3){panel.innerHTML='<div style="font-size:11px;color:#9ca3af;padding:4px 0">Ingresá al menos 3 caracteres para buscar.</div>';_restoreGuardarBtn();return;}
+  panel.innerHTML=`<div style="font-size:11px;color:#3730a3;padding:4px 0">⏳ Buscando...</div>`;
+  try{
+    // Detectar si es CI (mayormente numérico) o nombre/apellido
+    const esCI=/^\d+$/.test(busq.replace(/[\s\-\.]/g,''));
+    const params=new URLSearchParams();
+    if(esCI){params.set('ci',busq.replace(/\D/g,''));}
+    else{
+      // Separar en palabras: la última como apellido (más discriminante), resto como nombre
+      const partes=busq.split(/\s+/).filter(Boolean);
+      if(partes.length===1){params.set('apellido',partes[0]);}
+      else{params.set('apellido',partes.slice(-1).join(' '));params.set('nombre',partes.slice(0,-1).join(' '));}
+    }
+    const res=await api('GET','/api/alumnos/buscar-conflicto?'+params.toString());
+    if(!res.total){
+      panel.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:7px 12px;font-size:11px;color:#166534;margin-bottom:10px">✅ Sin conflictos — alumno no registrado en el sistema</div>`;
+      _restoreGuardarBtn();
+      return;
+    }
+    // Hay conflictos
+    const cards=res.conflictos.map(c=>{
+      const estadoBadge=c.estado==='Activo'?'background:#dcfce7;color:#166534':c.estado==='Inactivo'?'background:#fee2e2;color:#991b1b':'background:#fef9c3;color:#92400e';
+      const ubicacion=c.carrera_nombre?`${c.carrera_nombre}${c.curso_anio?' · '+c.curso_anio+'° año':''}`:'Sin carrera asignada';
+      return `<div style="background:#fff;border:1.5px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:6px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:18px">👤</span>
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:13px;color:#1f2937">${c.nombre||''} ${c.apellido||''}</div>
+            ${c.ci?`<div style="font-size:11px;color:#6b7280">CI: <strong>${c.ci}</strong></div>`:''}
+            <div style="font-size:11px;color:#374151;margin-top:2px">📍 ${ubicacion}</div>
+            ${c.matricula?`<div style="font-size:11px;color:#6b7280">Matrícula: <strong>${c.matricula}</strong></div>`:''}
+            <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-top:3px;${estadoBadge}">${c.estado||'?'}</span>
+            <div style="font-size:10px;color:#9ca3af;margin-top:2px">Detectado por: ${c.match_por==='ci'?'número de CI':'nombre y apellido'}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="alConflictoMover('${c.id}','${(c.nombre||'').replace(/'/g,"\\'")}','${(c.apellido||'').replace(/'/g,"\\'")}',this)" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;flex:1">
+            ↕ Mover / Reasignar este alumno
+          </button>
+          <button onclick="alConflictoIgnorar()" style="background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer">
+            Ignorar y crear nuevo
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+    panel.innerHTML=`<div style="background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:800;color:#92400e;margin-bottom:8px">⚠ ${res.total} coincidencia${res.total>1?'s':'s'} encontrada${res.total>1?'s':''} en el sistema</div>
+      ${cards}
+    </div>`;
+    // Deshabilitar botón Guardar para evitar duplicado accidental
+    const btn=document.getElementById('btn-guardar-al');
+    if(btn){btn.disabled=true;btn.style.opacity='.5';btn.title='Resolvé el conflicto primero o hacé clic en "Ignorar y crear nuevo"';}
+  }catch(err){
+    panel.innerHTML=`<div style="font-size:11px;color:#dc2626;padding:4px 0">❌ Error al buscar: ${err.message}</div>`;
+    _restoreGuardarBtn();
+  }
+}
+function _restoreGuardarBtn(){
+  const btn=document.getElementById('btn-guardar-al');
+  if(btn){btn.disabled=false;btn.style.opacity='1';btn.title='';}
+}
+function alConflictoIgnorar(){
+  const panel=document.getElementById('al-conflicto-panel');
+  if(panel){panel.innerHTML=`<div style="font-size:11px;color:#6b7280;padding:4px 0">ℹ Ignorado — podés continuar con el registro.</div>`;}
+  _restoreGuardarBtn();
+}
+async function alConflictoMover(alId,nombre,apellido,btn){
+  cm(); // cerrar modal nuevo alumno
+  const carrs=W._carrs||[], cursos=W._cursos||[];
+  // Obtener datos actuales del alumno
+  let alData={id:alId,display_nombre:nombre,display_apellido:apellido,display_ci:'',carrera_id:null,curso_id:null,carrera_nombre:'',curso_anio:'',curso_division:''};
+  try{
+    const lista=await api('GET','/api/alumnos');
+    const found=lista.find(x=>x.id===alId);
+    if(found)alData=found;
+  }catch{}
+  const estadoBg=alData.estado==='Activo'?'#f0fdf4':alData.estado==='Inactivo'?'#fff1f2':'#fffbeb';
+  modal(`<h4>↕ Reasignar alumno existente</h4>
+  <div style="background:${estadoBg};border:1px solid #d1d5db;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+    <div style="font-weight:800;font-size:14px;color:#1f2937">👤 ${alData.display_nombre||nombre} ${alData.display_apellido||apellido}</div>
+    ${alData.display_ci?`<div style="font-size:12px;color:#6b7280">CI: ${alData.display_ci}</div>`:''}
+    <div style="font-size:12px;color:#374151;margin-top:4px">Ubicación actual: <strong>${alData.carrera_nombre?`${alData.carrera_nombre}${alData.curso_anio?' · '+alData.curso_anio+'° año':''}` : 'Sin carrera asignada'}</strong></div>
+    ${alData.matricula?`<div style="font-size:12px;color:#6b7280">Matrícula: <strong>${alData.matricula}</strong></div>`:''}
+  </div>
+  <div class="fg">
+    <div class="f"><label>Mover a carrera</label>
+      <select id="moverCarr" onchange="filtCursosMover()" style="width:100%">
+        <option value="">— Sin asignar —</option>
+        ${carrs.map(c=>`<option value="${c.id}" ${String(alData.carrera_id)===String(c.id)?'selected':''}>${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Año y sección</label>
+      <select id="moverCurso" style="width:100%">
+        <option value="">— Sin sección —</option>
+        ${cursos.filter(cu=>String(cu.carrera_id)===String(alData.carrera_id)).map(cu=>`<option value="${cu.id}" ${String(alData.curso_id)===String(cu.id)?'selected':''}>${cu.anio}° año — ${cu.division==='U'?'Sección Única':'Sección '+cu.division}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="ejecutarMoverAlumno('${alId}')">✅ Confirmar reasignación</button>
+  </div>`);
 }
 function filtCursosAl(){
   const carrId=v('acar'), anio=v('aAnio');
@@ -5642,7 +5770,9 @@ async function selAlumnoPago(alId){
       api('GET','/api/becas?alumno_id='+alId).catch(()=>[]),
       api('GET','/api/habilitaciones/'+alId).catch(()=>[])
     ]);
-    const {pagos,totalPagado,alumno}=rPagos;
+    const {pagos:rawPagos,totalPagado,alumno}=rPagos;
+    // Normalizar: 'Matrícula 2025' / 'Matrícula 2026' → 'Matrícula' para compatibilidad con datos existentes
+    const pagos=(rawPagos||[]).map(p=>({...p,concepto:/^Matr[ií]cula/.test(p.concepto||'')?'Matrícula':p.concepto}));
     const al=alumno||(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
     const es1erAnio=Number(al.curso_anio)===1;
     const becasActivas=(rBecas||[]).filter(b=>b.activa);
@@ -5657,7 +5787,7 @@ async function selAlumnoPago(alId){
       examenes:{label:'Exámenes',icon:'📝',pagos:[],color:'#fff3e0'},
       otros:{label:'Otros',icon:'📌',pagos:[],color:'#f5f5f5'}
     };
-    (pagos||[]).forEach(p=>{
+    pagos.forEach(p=>{
       const c=p.concepto||'';
       if(c==='Matrícula') grupos.matricula.pagos.push(p);
       else if(/^Cuota \d+$/.test(c)) grupos.cuotas.pagos.push(p);
@@ -5913,7 +6043,7 @@ async function mPagoDirecto(alId){
   <div class="fg">
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel()">
-        ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option>Matrícula 2025</option><option>Matrícula 2026</option></optgroup>'}
+        ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option></optgroup>'}
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
@@ -6108,7 +6238,7 @@ function mPago(){
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel()">
         <optgroup label="Matrícula">
-          <option>Matrícula 2025</option><option>Matrícula 2026</option>
+          <option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option>
         </optgroup>
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
@@ -7946,9 +8076,11 @@ function renderRegistroHab(datos){
 async function pgAuditoria(el){
   el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
     <div class="ph-right">
+      <button class="bs" onclick="mostrarDiagnostico()" style="background:#7c3aed;color:#fff;border-color:#7c3aed">🔍 Diagnóstico</button>
       <button class="bs s" onclick="exportAuditoria()">⬇ Exportar CSV</button>
       <button class="bs d" onclick="limpiarAuditoria()">🗑 Purgar antiguos</button>
     </div></div>
+  <div id="diag-panel" style="display:none;margin-bottom:14px"></div>
   <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <strong>🛡 Respaldo de datos</strong>
@@ -8003,6 +8135,298 @@ async function pgAuditoria(el){
   <div id="audTbl"><div class="es">Cargando historial...</div></div>`;
   cargarAuditoria();
 }
+async function mostrarDiagnostico(){
+  const panel=document.getElementById('diag-panel');
+  if(!panel)return;
+  panel.style.display='block';
+  panel.innerHTML=`<div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #c4b5fd;border-radius:12px;padding:16px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🔍</span>
+      <strong style="color:#4c1d95;font-size:14px">Diagnóstico del Sistema</strong>
+      <span style="font-size:11px;color:#7c3aed;animation:pulse-bell .8s infinite">⏳ Analizando integridad de datos...</span>
+    </div>
+  </div>`;
+  try{
+    const d=await api('GET','/api/admin/diagnostico');
+    const {resumen,problemas}=d;
+    W._diagData=problemas;
+    const st=resumen.stats||{};
+    const estadoColor=resumen.criticos>0?'#fef2f2':resumen.advertencias>0?'#fffbeb':'#f0fdf4';
+    const estadoBrd=resumen.criticos>0?'#fca5a5':resumen.advertencias>0?'#fde68a':'#86efac';
+
+    // Agrupar problemas por categoría
+    const grupos={
+      'Incorporaciones':{ico:'📥',tipos:['alumno_faltante','nota_faltante','anio_incorrecto'],items:[]},
+      'Duplicados':{ico:'♊',tipos:['ci_duplicado_usuario','ci_duplicado_alumno','email_duplicado','matricula_duplicada'],items:[]},
+      'Datos incompletos':{ico:'📋',tipos:['alumno_sin_ci','alumno_sin_carrera','alumno_sin_curso','alumno_sin_notas','usuario_faltante','docente_sin_usuario','asignacion_sin_docente'],items:[]},
+      'Integridad BD':{ico:'🔗',tipos:['nota_huerfana','nota_asig_invalida','pago_sin_alumno','asistencia_huerfana'],items:[]},
+      'Período y sistema':{ico:'📅',tipos:['sin_periodo_activo','multiples_periodos_activos'],items:[]},
+      'Acceso y usuarios':{ico:'🔐',tipos:['usuario_inactivo_activo','logins_excesivos'],items:[]},
+      'Exámenes':{ico:'📝',tipos:['examen_sin_asignacion'],items:[]},
+      'Errores recientes':{ico:'❌',tipos:['error_sistema'],items:[]},
+    };
+    problemas.forEach((p,i)=>{
+      const g=Object.values(grupos).find(g=>g.tipos.includes(p.tipo));
+      if(g)g.items.push({...p,_i:i});else grupos['Datos incompletos'].items.push({...p,_i:i});
+    });
+
+    panel.innerHTML=`
+    <div style="background:${estadoColor};border:1.5px solid ${estadoBrd};border-radius:12px;overflow:hidden">
+      <!-- Header -->
+      <div style="padding:13px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid ${estadoBrd};flex-wrap:wrap;background:rgba(255,255,255,.5)">
+        <span style="font-size:22px">${resumen.criticos>0?'🔴':resumen.advertencias>0?'🟡':'✅'}</span>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:800;color:#1e1b4b">🔍 Diagnóstico Completo del Sistema</div>
+          <div style="font-size:11px;color:#4b5563;margin-top:2px">
+            ${resumen.ok?'<span style="color:#166534;font-weight:700">✓ Sin problemas críticos — integridad correcta</span>'
+              :`${resumen.criticos>0?`<span style="color:#dc2626;font-weight:700">🔴 ${resumen.criticos} crítico${resumen.criticos>1?'s':''}</span>`:''} ${resumen.advertencias>0?`<span style="color:#d97706;font-weight:700"> · 🟡 ${resumen.advertencias} advertencia${resumen.advertencias>1?'s':''}</span>`:''} ${resumen.info>0?`<span style="color:#2563eb"> · 🔵 ${resumen.info} informativo${resumen.info>1?'s':''}</span>`:''}`}
+          </div>
+        </div>
+        <button onclick="mostrarDiagnostico()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">↺ Actualizar</button>
+        <button onclick="document.getElementById('diag-panel').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;color:#6b7280">✕</button>
+      </div>
+      <!-- Stats rápidas -->
+      <div style="padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid ${estadoBrd};background:rgba(255,255,255,.35)">
+        ${[['👨‍🎓','Alumnos activos',st.total_alumnos],['👩‍🏫','Docentes',st.total_docentes],['📝','Notas total',st.total_notas],['💰','Pagos OK',st.total_pagos],['⏳','Sol. pendientes',st.solicitudes_pendientes],['❌','Errores hoy',st.errores_hoy]].map(([ico,lbl,val])=>
+          `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:5px 12px;font-size:11px;text-align:center;min-width:80px">
+            <div style="font-size:16px">${ico}</div>
+            <div style="font-weight:800;color:#1f2937;font-size:13px">${val??'—'}</div>
+            <div style="color:#6b7280;font-size:9px">${lbl}</div>
+          </div>`).join('')}
+        ${st.periodo_activo?`<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:5px 12px;font-size:11px;text-align:center;min-width:100px"><div style="font-size:16px">📅</div><div style="font-weight:800;color:#166534;font-size:12px">${st.periodo_activo.nombre}</div><div style="color:#166534;font-size:9px">Período activo</div></div>`:'<div style="background:#fff1f2;border:1px solid #fca5a5;border-radius:8px;padding:5px 12px;font-size:11px;text-align:center"><div>📅</div><div style="color:#dc2626;font-weight:800;font-size:10px">SIN PERÍODO</div></div>'}
+      </div>
+      <!-- Grupos de problemas -->
+      <div style="padding:12px;display:flex;flex-direction:column;gap:6px">
+      ${Object.entries(grupos).map(([gNombre,g])=>{
+        if(!g.items.length) return '';
+        const nCrit=g.items.filter(p=>p.gravedad==='critico').length;
+        const nAdv=g.items.filter(p=>p.gravedad==='advertencia').length;
+        const gColor=nCrit>0?'#fef2f2':nAdv>0?'#fffbeb':'#eff6ff';
+        const gBrd=nCrit>0?'#fca5a5':nAdv>0?'#fde68a':'#bfdbfe';
+        return `<div style="background:${gColor};border:1.5px solid ${gBrd};border-radius:10px;overflow:hidden">
+          <div onclick="diagGrupoToggle('${gNombre.replace(/\s+/g,'_')}')" style="padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none">
+            <span style="font-size:15px">${g.ico}</span>
+            <strong style="font-size:12px;color:#1f2937;flex:1">${gNombre}</strong>
+            ${nCrit>0?`<span style="background:#dc2626;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${nCrit} crítico${nCrit>1?'s':''}</span>`:''}
+            ${nAdv>0?`<span style="background:#d97706;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${nAdv} advert.</span>`:''}
+            ${!nCrit&&!nAdv?`<span style="background:#2563eb;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${g.items.length} info</span>`:''}
+            <span id="diag-garrow-${gNombre.replace(/\s+/g,'_')}" style="color:#6b7280;font-size:12px;transition:transform .2s">▼</span>
+          </div>
+          <div id="diag-grupo-${gNombre.replace(/\s+/g,'_')}" style="padding:0 10px 10px;display:flex;flex-direction:column;gap:6px">
+            ${g.items.map(p=>diagCard(p,p._i)).join('')}
+          </div>
+        </div>`;
+      }).filter(Boolean).join('')}
+      ${problemas.length===0?'<div style="padding:24px;text-align:center;color:#166534;font-size:13px;font-weight:600">✅ No se encontraron problemas — el sistema está en perfecto estado</div>':''}
+      </div>
+    </div>`;
+  }catch(e){
+    panel.innerHTML=`<div style="background:#fff1f2;border:1.5px solid #fca5a5;border-radius:10px;padding:14px;color:#991b1b;font-size:12px">❌ Error al ejecutar diagnóstico: ${e.message}</div>`;
+  }
+}
+
+function diagCard(p,i){
+  const critico=p.gravedad==='critico';
+  const advert=p.gravedad==='advertencia';
+  const info=p.gravedad==='info';
+  const bg=critico?'#fff8f8':advert?'#fffdf0':info?'#f0f5ff':'#f7fdf7';
+  const bdr=critico?'#fca5a5':advert?'#fde68a':info?'#bfdbfe':'#86efac';
+  const ico=critico?'🔴':advert?'🟡':info?'🔵':'✅';
+  const tipoBadgeColor=critico?'#dc2626':advert?'#d97706':info?'#2563eb':'#166534';
+  const tipoBadgeBg=critico?'#fee2e2':advert?'#fef3c7':info?'#dbeafe':'#dcfce7';
+  const tipoLabel={
+    alumno_faltante:'ALUMNO NO CREADO', nota_faltante:'NOTA FALTANTE', anio_incorrecto:'AÑO INCORRECTO',
+    usuario_faltante:'SIN CUENTA DE ACCESO', docente_sin_usuario:'DOCENTE SIN CUENTA',
+    ci_duplicado_usuario:'CI DUPLICADO (USUARIOS)', ci_duplicado_alumno:'CI DUPLICADO (ALUMNOS)',
+    email_duplicado:'EMAIL DUPLICADO', matricula_duplicada:'MATRÍCULA DUPLICADA',
+    alumno_sin_ci:'SIN NÚMERO DE CI', alumno_sin_carrera:'SIN CARRERA', alumno_sin_curso:'SIN AÑO/CURSO',
+    alumno_sin_notas:'SIN NOTAS EN PERÍODO', asignacion_sin_docente:'ASIGNACIÓN SIN DOCENTE',
+    nota_huerfana:'NOTA HUÉRFANA', nota_asig_invalida:'NOTA → ASIG INVÁLIDA',
+    pago_sin_alumno:'PAGO SIN ALUMNO', asistencia_huerfana:'ASISTENCIA HUÉRFANA',
+    sin_periodo_activo:'SIN PERÍODO ACTIVO', multiples_periodos_activos:'PERÍODOS DUPLICADOS',
+    usuario_inactivo_activo:'USUARIO INACTIVO C/ACTIVIDAD', logins_excesivos:'LOGINS EXCESIVOS',
+    examen_sin_asignacion:'EXAMEN SIN ASIGNACIÓN', error_sistema:'ERROR DEL SISTEMA',
+  }[p.tipo]||p.tipo.toUpperCase().replace(/_/g,' ');
+
+  const pago_info = p.pagos&&p.pagos.length?`<div style="margin-top:6px;padding:6px 10px;background:#f0f9ff;border-radius:6px;font-size:10px;color:#1e40af">
+    <strong>Pagos del alumno:</strong> ${p.pagos.map(pg=>`${pg.concepto} — Gs.${Number(pg.monto||0).toLocaleString('es-PY')} (${pg.estado})`).join(' · ')}
+  </div>`:'';
+
+  const hist_html = p.historial&&p.historial.length?`<div style="margin-top:8px">
+    <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">📅 Historial de eventos</div>
+    ${p.historial.map(h=>{
+      let hdet={};try{hdet=JSON.parse(h.detalle||'{}');}catch{}
+      return `<div style="display:flex;gap:8px;font-size:10px;padding:3px 0;border-bottom:1px solid #e5e7eb;align-items:flex-start">
+        <span style="color:#6b7280;white-space:nowrap;font-family:monospace">${fmtFechaHora(h.fecha)}</span>
+        <span style="color:#374151;font-weight:600">${h.user_nombre||'Sistema'} ${h.user_apellido||''}</span>
+        <span style="color:#6b7280">${h.accion||''}</span>
+        ${hdet.accion?`<span style="color:#2563eb">(${hdet.accion})</span>`:''}
+        ${hdet.error?`<span style="color:#dc2626">→ ${hdet.error}</span>`:''}
+      </div>`;
+    }).join('')}
+  </div>`:'';
+
+  const accion_btns = {
+    crear_nota:`<div style="margin-top:10px;padding:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">🔧 Acción: Crear nota faltante</div>
+      <div style="font-size:10px;color:#374151;margin-bottom:8px">
+        Vinculará a <strong>${p.nombre||''} ${p.apellido||''}</strong> (CI: ${p.ci||'?'}) con la materia <strong>${p.materia||'?'}</strong> de ${p.carrera_asig||'?'}${p.curso_asig_anio?' · '+p.curso_asig_anio+'° año':''}.
+        ${p.curso_alumno_anio&&p.curso_asig_anio&&p.curso_alumno_anio!==p.curso_asig_anio?`<br><span style="color:#d97706;font-weight:600">⚠ Alumno en ${p.curso_alumno_anio}° año pero materia es de ${p.curso_asig_anio}° año — verificar antes de continuar.</span>`:''}
+      </div>
+      <button onclick="repararSolicitud('${p.sol_id}','crear_nota',this)" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">
+        ✓ Confirmar — Crear nota en "${p.materia||'materia'}"
+      </button>
+    </div>`,
+    revertir_y_reaprobar:`<div style="margin-top:10px;padding:10px;background:#fff1f2;border:1px solid #fca5a5;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#991b1b;margin-bottom:6px">⚠ Alumno NO fue creado en el sistema</div>
+      <div style="font-size:10px;color:#374151;margin-bottom:8px">
+        La solicitud está marcada "aprobada" pero el proceso falló antes de crear al alumno.<br>
+        <strong>Opción 1:</strong> Revertir a pendiente y volver a aprobar (con el sistema ya corregido).<br>
+        <strong>Opción 2:</strong> Verificar si el alumno ya existe con otro CI en el panel de Alumnos.
+      </div>
+      <button onclick="repararSolicitud('${p.sol_id}','revertir',this)" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">
+        ↩ Revertir a "pendiente" y re-procesar
+      </button>
+    </div>`,
+    desactivar_duplicado:(()=>{
+      const dups = p.duplicados_detalle || (p.extra_ids||'').split(',').map((id,i)=>({id:id.trim(),nombre:'',matricula:''}));
+      return `<div style="margin-top:10px;padding:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:#9a3412;margin-bottom:6px">⚠ CI duplicado — Desactivar el registro incorrecto</div>
+        <div style="font-size:10px;color:#374151;margin-bottom:8px">Verifique cuál es el registro legítimo y marque el otro como <strong>Inactivo</strong>. Esta acción es reversible desde el módulo de Alumnos.</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${dups.map(d=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#fff;border:1px solid #fed7aa;border-radius:6px;font-size:10px">
+            <span style="flex:1"><strong>${d.nombre||'?'}</strong> · Matrícula: <code>${d.matricula||'?'}</code> · ID: <code style="font-size:9px">${d.id}</code></span>
+            <button onclick="repararAlumno('${d.id}','desactivar',this)" style="background:#ea580c;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">
+              🚫 Desactivar éste
+            </button>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    })(),
+    crear_cuenta:`<div style="margin-top:10px;padding:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px">🔧 Acción: Crear cuenta de acceso</div>
+      <div style="font-size:10px;color:#374151;margin-bottom:8px">
+        Se creará una cuenta de usuario para <strong>${p.nombre||''} ${p.apellido||''}</strong>
+        ${p.ci?` (CI: ${p.ci})`:'<span style="color:#d97706;font-weight:600"> — sin CI registrado</span>'}.
+        La contraseña inicial será <code style="background:#e0e7ff;padding:1px 5px;border-radius:3px">alumno123</code>.
+        ${!p.ci?'<br><span style="color:#d97706">⚠ Se recomienda registrar el CI del alumno luego.</span>':''}
+      </div>
+      <button onclick="repararAlumno('${p.alumno_id}','crear_cuenta',this)" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">
+        ✓ Confirmar — Crear cuenta para ${p.nombre||'alumno'}
+      </button>
+    </div>`,
+    informativo:`<div style="margin-top:8px;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;color:#64748b">
+      ℹ Requiere revisión manual en el módulo correspondiente.
+    </div>`
+  }[p.accion_disponible]||'';
+
+  // Sección extra para duplicados e IDs
+  const extra_ids_html = p.extra_ids ? `<div style="margin-top:6px;padding:6px 10px;background:#fef9c3;border-radius:6px;font-size:10px;color:#713f12">
+    <strong>IDs afectados:</strong> ${(p.extra_ids||'').split(',').map(id=>`<code style="background:#fde68a;padding:1px 4px;border-radius:3px">${id.trim()}</code>`).join(' ')}
+  </div>` : '';
+
+  const detail_html=`
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px">
+      <!-- Columna persona -->
+      ${(p.nombre||p.ci||p.matricula)?`<div style="flex:1;min-width:160px;background:rgba(0,0,0,.03);border-radius:8px;padding:8px 10px">
+        <div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">👤 Persona</div>
+        ${(p.nombre||p.apellido)?`<div style="font-size:12px;font-weight:700;color:#111">${p.nombre||''} ${p.apellido||''}</div>`:''}
+        ${p.ci?`<div style="font-size:11px;color:#374151">CI: <strong>${p.ci}</strong></div>`:''}
+        ${p.matricula?`<div style="font-size:11px;color:#374151">Matrícula: <strong>${p.matricula}</strong></div>`:''}
+        ${p.carrera_alumno?`<div style="font-size:11px;color:#6b7280">Carrera: ${p.carrera_alumno}</div>`:''}
+        ${p.curso_alumno_anio?`<div style="font-size:11px;color:#6b7280">Año: <strong>${p.curso_alumno_anio}°</strong> ${p.curso_alumno_division||''}</div>`:''}
+        ${p.alumno_id?`<div style="font-size:10px;color:#9ca3af">ID: <code>${p.alumno_id}</code></div>`:''}
+      </div>`:''}
+      <!-- Columna materia/asignacion -->
+      ${p.materia?`<div style="flex:1;min-width:160px;background:rgba(0,0,0,.03);border-radius:8px;padding:8px 10px">
+        <div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">📚 Materia</div>
+        <div style="font-size:12px;font-weight:700;color:#111">${p.materia}</div>
+        ${p.carrera_asig?`<div style="font-size:11px;color:#6b7280">Carrera: ${p.carrera_asig}</div>`:''}
+        ${p.curso_asig_anio?`<div style="font-size:11px;color:#6b7280">Año: <strong>${p.curso_asig_anio}°</strong> ${p.curso_asig_division||''}</div>`:''}
+        ${p.docente_solicitante?`<div style="font-size:11px;color:#374151">Docente: <strong>${p.docente_solicitante}</strong></div>`:''}
+        ${p.asignacion_id?`<div style="font-size:10px;color:#9ca3af">Asig ID: <code>${p.asignacion_id}</code></div>`:''}
+      </div>`:''}
+      <!-- Columna fechas/sol -->
+      ${p.fecha_solicitud||p.sol_id?`<div style="flex:1;min-width:140px;background:rgba(0,0,0,.03);border-radius:8px;padding:8px 10px">
+        <div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">📅 Solicitud</div>
+        ${p.fecha_solicitud?`<div style="font-size:11px;color:#374151">Fecha: <strong>${fmtFechaHora(p.fecha_solicitud)}</strong></div>`:''}
+        ${p.sol_id?`<div style="font-size:10px;color:#9ca3af">ID: <code>${p.sol_id}</code></div>`:''}
+        ${p.fecha?`<div style="font-size:11px;color:#374151">Ocurrido: <strong>${fmtFechaHora(p.fecha)}</strong></div>`:''}
+        ${p.detalle_raw?`<div style="font-size:10px;color:#9ca3af;word-break:break-all;max-width:200px">${p.detalle_raw.slice(0,120)}</div>`:''}
+      </div>`:''}
+    </div>
+    ${extra_ids_html}
+    ${pago_info}
+    ${hist_html}
+    ${accion_btns}`;
+
+  return `<div id="diag-card-${i}" style="background:${bg};border:1.5px solid ${bdr};border-radius:10px;overflow:hidden">
+    <!-- Card header — siempre visible -->
+    <div onclick="diagToggle(${i})" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none">
+      <span style="font-size:16px">${ico}</span>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:800;color:${tipoBadgeColor};background:${tipoBadgeBg};padding:2px 7px;border-radius:4px;letter-spacing:.04em">${tipoLabel}</span>
+          <span style="font-size:12px;font-weight:600;color:#1f2937">${p.nombre||''} ${p.apellido||''}</span>
+          ${p.ci?`<span style="font-size:11px;color:#6b7280">· CI: ${p.ci}</span>`:''}
+          ${p.materia?`<span style="font-size:11px;color:#374151">· <strong>${p.materia}</strong></span>`:''}
+        </div>
+        <div style="font-size:11px;color:#4b5563;margin-top:2px">${p.mensaje}</div>
+      </div>
+      <span id="diag-arrow-${i}" style="color:#6b7280;font-size:14px;transition:transform .2s">▼</span>
+    </div>
+    <!-- Card body — expandible -->
+    <div id="diag-body-${i}" style="display:none;padding:0 14px 14px;border-top:1px solid ${bdr}">
+      ${detail_html}
+    </div>
+  </div>`;
+}
+function diagToggle(i){
+  const body=document.getElementById('diag-body-'+i);
+  const arrow=document.getElementById('diag-arrow-'+i);
+  if(!body)return;
+  const open=body.style.display==='none';
+  body.style.display=open?'block':'none';
+  if(arrow)arrow.style.transform=open?'rotate(180deg)':'rotate(0deg)';
+}
+function diagGrupoToggle(key){
+  const el=document.getElementById('diag-grupo-'+key);
+  const arrow=document.getElementById('diag-garrow-'+key);
+  if(!el)return;
+  const open=el.style.display==='none'||el.style.display==='';
+  // Default open, toggle to hide
+  const currentlyVisible=el.style.display!=='none';
+  el.style.display=currentlyVisible?'none':'flex';
+  el.style.flexDirection='column';
+  el.style.gap='6px';
+  if(arrow)arrow.style.transform=currentlyVisible?'rotate(-90deg)':'rotate(0deg)';
+}
+async function repararSolicitud(solId,accion,btn){
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Procesando...';
+  try{
+    const r=await api('POST','/api/admin/reparar-solicitudes',{sol_id:solId,accion});
+    btn.textContent='✅ '+r.mensaje;btn.style.background='#166534';
+    toast('✓ '+r.mensaje,'ok');
+    setTimeout(()=>mostrarDiagnostico(),1800);
+  }catch(e){
+    btn.disabled=false;btn.textContent=orig;
+    toast('Error: '+e.message,'err');
+  }
+}
+async function repararAlumno(alumnoId,accion,btn){
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='⏳ Creando cuenta...';
+  try{
+    const r=await api('POST','/api/admin/reparar-alumno',{alumno_id:alumnoId,accion});
+    btn.textContent='✅ '+r.mensaje;btn.style.background='#166534';
+    toast('✓ '+r.mensaje+(r.email?' · Email: '+r.email:''),'ok');
+    setTimeout(()=>mostrarDiagnostico(),2000);
+  }catch(e){
+    btn.disabled=false;btn.textContent=orig;
+    toast('Error: '+e.message,'err');
+  }
+}
 function limpFiltrosAudit(){
   ['audAccion','audTabla','audDesde','audHasta'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const b=document.getElementById('audBus');if(b)b.value='';
@@ -8032,14 +8456,14 @@ async function cargarAuditoria(){
     if(!regs.length){el.innerHTML='<div class="es">Sin registros para los filtros seleccionados</div>';return;}
     const accionColor={LOGIN:'bg',UPDATE_NOTA:'bb',DELETE:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba'};
     el.innerHTML=`<div class="card"><div class="tw" style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;min-width:900px">
-      <thead><tr style="background:#f0f4f8">
-        <th style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">Fecha / Hora</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Usuario</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Rol</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">¿Qué se hizo? <span style="font-size:9px;font-weight:400;opacity:.7">(clic para ir al registro)</span></th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Acción técnica</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Módulo</th>
-        <th style="padding:6px 10px;border:1px solid var(--bdr)">Detalle</th>
+      <thead><tr style="background:#f0f4f8;font-size:11px">
+        <th style="padding:7px 10px;border:1px solid var(--bdr);white-space:nowrap;color:#374151">📅 Fecha / Hora</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">👤 Usuario</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">✍ Descripción de la acción <span style="font-size:9px;font-weight:400;opacity:.7">(clic → módulo)</span></th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">⚡ Acción / Módulo</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">🎯 Afecta a</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">🔄 Cambio</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#7c3aed">📄 Raw</th>
       </tr></thead>
       <tbody id="audBody">
       ${regs.map(r=>audRow(r,accionColor)).join('')}
@@ -8061,10 +8485,44 @@ function describirAccion(r){
   const carrera=det.carrera||det.carrera_nombre||'';
   const nota=det.nota_nueva!=null?det.nota_nueva:(det.nota!=null?det.nota:'');
 
-  if(accion==='LOGIN')        return `🔐 Inició sesión en el sistema`;
+  const ci   = det.ci||det.alumno_ci||'';
+  const ip   = det.ip||'';
+  const url  = det.url||det.endpoint||'';
+
+  if(accion==='LOGIN')        return `🔐 Inició sesión en el sistema${ip?' · IP: <code>'+ip+'</code>':''}`;
   if(accion==='LOGOUT')       return `🚪 Cerró sesión`;
   if(accion==='BACKUP')       return `💾 Realizó un respaldo de la base de datos`;
-  if(accion==='ERROR')        return `❌ Error del sistema${det.mensaje?' — '+det.mensaje:''}`;
+  if(accion==='ERROR')        return `❌ Error del sistema${url?' en <code>'+url+'</code>':''}${det.mensaje?' — '+det.mensaje:det.error?' — '+det.error:''}`;
+
+  // Solicitudes de alumnos (vinculaciones docente)
+  if(accion==='SOLICITUD_ALUMNO'){
+    let txt=`📥 Docente envió solicitud de vinculación de alumno`;
+    if(al)  txt+=`: <strong>${al}</strong>`;
+    if(det.apellido) txt+=` ${det.apellido}`;
+    if(ci)  txt+=` · CI: ${ci}`;
+    if(mat) txt+=` · Materia: ${mat}`;
+    return txt;
+  }
+  if(accion==='RESOLVER_ALUMNO'){
+    const aprobado=det.accion==='aprobar';
+    let txt=`${aprobado?'✅':'❌'} ${aprobado?'Aprobó':'Rechazó'} solicitud de vinculación de alumno`;
+    if(al)  txt+=`: <strong>${al}</strong>`;
+    if(ci)  txt+=` · CI: ${ci}`;
+    return txt;
+  }
+  if(accion==='SOLICITUD_EGRESO'||accion==='EGRESO'){
+    let txt=`🎓 Solicitud de egreso`;
+    if(al)  txt+=` de <strong>${al}</strong>`;
+    if(det.carrera) txt+=` — ${det.carrera}`;
+    return txt;
+  }
+  if(accion==='RESOLVER_EGRESO'){
+    const aprobado=det.accion==='aprobar';
+    let txt=`${aprobado?'🎓✅':'🎓❌'} ${aprobado?'Aprobó egreso':'Rechazó egreso'}`;
+    if(al) txt+=` de <strong>${al}</strong>`;
+    if(det.observacion) txt+=` · Obs: ${det.observacion}`;
+    return txt;
+  }
 
   if(accion==='PAGO'||tabla==='pagos'&&accion==='CREATE'){
     let txt=`💰 Registró un pago`;
@@ -8121,22 +8579,37 @@ function describirAccion(r){
     return `🗑 Eliminó un registro${tabla?' en '+tabla:''}`;
   }
   if(accion==='CREATE'||accion==='INSERT'){
-    if(tabla==='alumnos')     return `👤 Dio de alta al alumno${al?' <strong>'+al+'</strong>':''}${carrera?' en '+carrera:''}`;
-    if(tabla==='examenes')    return `📝 Creó un examen${mat?' de '+mat:''}`;
-    if(tabla==='asignaciones')return `📋 Asignó un docente${doc?' (<strong>'+doc+'</strong>)':''}${mat?' a '+mat:''}`;
-    if(tabla==='reemplazos')  return `🔄 Registró un reemplazo${doc?' de '+doc:''}`;
-    return `➕ Creó un registro en ${tabla}`;
+    if(tabla==='alumnos')        return `👤 Dio de alta al alumno${al?' <strong>'+al+'</strong>':''}${carrera?' en '+carrera:''}`;
+    if(tabla==='examenes')       return `📝 Creó un examen${mat?' de <strong>'+mat+'</strong>':''}`;
+    if(tabla==='asignaciones')   return `📋 Asignó un docente${doc?' <strong>'+doc+'</strong>':''}${mat?' a '+mat:''}`;
+    if(tabla==='reemplazos')     return `🔄 Registró un reemplazo${doc?' de <strong>'+doc+'</strong>':''}${mat?' en '+mat:''}`;
+    if(tabla==='periodos')       return `📅 Creó nuevo período lectivo${det.anio?' <strong>'+det.anio+'</strong>':''}${det.descripcion?' — '+det.descripcion:''}`;
+    if(tabla==='carreras')       return `🏫 Creó la carrera <strong>${det.nombre||carrera}</strong>`;
+    if(tabla==='cursos')         return `📚 Creó un curso${det.anio?' Año <strong>'+det.anio+'</strong>':''}${carrera?' — '+carrera:''}`;
+    if(tabla==='materias')       return `📖 Creó la materia <strong>${mat||det.nombre||''}</strong>`;
+    if(tabla==='docente_materias')return `🔗 Vinculó docente${doc?' <strong>'+doc+'</strong>':''} a materia${mat?' '+mat:''}`;
+    if(tabla==='avisos')         return `📢 Publicó un aviso${det.titulo?' — <strong>'+det.titulo+'</strong>':''}`;
+    if(tabla==='becas')          return `🏅 Registró beca${al?' para <strong>'+al+'</strong>':''}${det.tipo?' ('+det.tipo+')':''}`;
+    if(tabla==='constancias')    return `📄 Emitió constancia${al?' para <strong>'+al+'</strong>':''}${det.tipo?' — '+det.tipo:''}`;
+    return `➕ Creó un registro en <strong>${tabla}</strong>`;
   }
   if(accion==='UPDATE'){
-    if(tabla==='alumnos')  return `✏ Modificó datos del alumno${al?' <strong>'+al+'</strong>':''}`;
-    if(tabla==='notas')    return `📝 Actualizó nota${mat?' de '+mat:''}${nota!==''?' → <strong>'+nota+'</strong>':''}`;
-    if(tabla==='examenes') return `✏ Modificó un examen${mat?' de '+mat:''}`;
-    if(tabla==='docentes'||tabla==='usuarios') return `✏ Modificó datos del usuario${al?' '+al:''}`;
-    return `✏ Actualizó un registro en ${tabla}`;
+    if(tabla==='alumnos')    return `✏ Modificó datos del alumno${al?' <strong>'+al+'</strong>':''}`;
+    if(tabla==='notas')      return `📝 Actualizó nota${mat?' de <strong>'+mat+'</strong>':''}${nota!==''?' → <strong>'+nota+'</strong>':''}${al?' ('+al+')':''}`;
+    if(tabla==='examenes')   return `✏ Modificó un examen${mat?' de <strong>'+mat+'</strong>':''}`;
+    if(tabla==='docentes'||tabla==='usuarios') return `✏ Modificó datos del usuario${al?' <strong>'+al+'</strong>':''}`;
+    if(tabla==='periodos')   return `✏ Modificó el período lectivo${det.anio?' <strong>'+det.anio+'</strong>':''}`;
+    if(tabla==='carreras')   return `✏ Modificó la carrera <strong>${det.nombre||carrera}</strong>`;
+    if(tabla==='materias')   return `✏ Modificó la materia <strong>${mat||det.nombre||''}</strong>`;
+    if(tabla==='pagos')      return `✏ Modificó un pago${conc?' ('+conc+')':''}${al?' de <strong>'+al+'</strong>':''}`;
+    return `✏ Actualizó un registro en <strong>${tabla}</strong>`;
   }
-  // Fallback
-  const labels={LOGIN:'Inicio de sesión',UPDATE_NOTA:'Modificación de nota',UPDATE_ASISTENCIA:'Modificación asistencia',DELETE:'Eliminación',BACKUP:'Respaldo del sistema',HABILITAR:'Habilitación',PAGO:'Pago registrado',REEMPLAZO:'Reemplazo docente',HONORARIO:'Honorario',ERROR:'Error del sistema',CREATE:'Creación',UPDATE:'Modificación',INSERT:'Creación'};
-  return `${labels[accion]||accion}${tabla&&tabla!=='sistema'?' en '+tabla:''}`;
+
+  // Fallback mejorado
+  const labels={LOGIN:'Inicio de sesión',UPDATE_NOTA:'Modificación de nota',UPDATE_ASISTENCIA:'Modificación asistencia',DELETE:'Eliminación',BACKUP:'Respaldo del sistema',HABILITAR:'Habilitación',PAGO:'Pago registrado',REEMPLAZO:'Reemplazo docente',HONORARIO:'Honorario',ERROR:'Error del sistema',CREATE:'Creación',UPDATE:'Modificación',INSERT:'Creación',SOLICITUD_ALUMNO:'Solicitud vinculación alumno',RESOLVER_ALUMNO:'Resolución solicitud alumno',EGRESO:'Egreso',RESOLVER_EGRESO:'Resolución de egreso'};
+  let base=`${labels[accion]||accion}${tabla&&tabla!=='sistema'?' en '+tabla:''}`;
+  if(al) base+=` — ${al}`;
+  return base;
 }
 
 // Determina si una fila de auditoría tiene navegación disponible
@@ -8144,8 +8617,8 @@ function audPuedNavegar(r){
   const tabla=(r.tabla||'').toLowerCase();
   const accion=(r.accion||'').toUpperCase();
   if(['LOGIN','LOGOUT','BACKUP','ERROR','PURGE_AUDIT'].includes(accion)) return false;
-  const tabsNav=['pagos','alumnos','examenes','notas','asistencia','honorarios','reemplazos','usuarios','docentes','asignaciones','constancias','becas','habilitaciones_examen','avisos'];
-  return tabsNav.includes(tabla);
+  const tabsNav=['pagos','alumnos','examenes','notas','asistencia','honorarios','reemplazos','usuarios','docentes','asignaciones','constancias','becas','habilitaciones_examen','avisos','solicitudes_alumno','solicitudes_egreso','carreras','cursos','periodos','materias','docente_materias'];
+  return tabsNav.includes(tabla)||accion.includes('ALUMNO')||accion.includes('EGRESO')||accion.includes('SOLICITUD');
 }
 
 // Abre el panel de un alumno en la sección Pagos (go ya fue llamado y esperado)
@@ -8190,8 +8663,14 @@ async function audNavegar(audId){
     return;
   }
 
-  // ── ALUMNOS: va a alumnos (registro_id = alumno_id) ───────────────────────
-  if(tabla==='alumnos'||tabla==='alumnos_grupo'){
+  // ── ALUMNOS / SOLICITUDES ALUMNO ──────────────────────────────────────────
+  if(tabla==='alumnos'||tabla==='alumnos_grupo'||tabla==='solicitudes_alumno'||accion.includes('ALUMNO')){
+    go('alumnos');
+    return;
+  }
+
+  // ── SOLICITUDES EGRESO ────────────────────────────────────────────────────
+  if(tabla==='solicitudes_egreso'||accion.includes('EGRESO')){
     go('alumnos');
     return;
   }
@@ -8199,6 +8678,12 @@ async function audNavegar(audId){
   // ── EXÁMENES ───────────────────────────────────────────────────────────────
   if(tabla==='examenes'||tabla==='asignaciones'){
     go('examenes');
+    return;
+  }
+
+  // ── INSTITUCIÓN: carreras, cursos, periodos, materias ────────────────────
+  if(['carreras','cursos','periodos','materias','docente_materias'].includes(tabla)){
+    go('institucion');
     return;
   }
 
@@ -8225,30 +8710,80 @@ async function audNavegar(audId){
 }
 
 function audRow(r,accionColor){
-  let detalle='';
-  try{const d=JSON.parse(r.detalle||'{}');detalle=Object.entries(d).map(([k,vl])=>`<span style="font-size:10px;color:var(--t3)">${k}:</span> ${JSON.stringify(vl)}`).join(' · ');}catch{detalle=r.detalle||'';}
+  let det={};
+  try{det=JSON.parse(r.detalle||'{}');}catch{}
   const c=accionColor||{};
-  const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones',constancias:'Constancias',becas:'Becas',avisos:'Avisos'}[r.tabla||'']||r.tabla||'—';
+  const tablaLabel={notas:'Notas',pagos:'Pagos',alumnos:'Alumnos',examenes:'Exámenes',asistencia:'Asistencia',honorarios:'Honorarios',reemplazos:'Reemplazos',usuarios:'Usuarios',sistema:'Sistema',docentes:'Docentes',asignaciones:'Asignaciones',constancias:'Constancias',becas:'Becas',avisos:'Avisos',solicitudes_alumno:'Solicitudes',solicitudes_egreso:'Egreso',periodos:'Períodos',carreras:'Carreras',cursos:'Cursos',materias:'Materias'}[r.tabla||'']||r.tabla||'—';
   const puedNav=audPuedNavegar(r);
-  // Celda acción: clickeable si hay navegación disponible
-  const accionCell=puedNav
-    ?`<td onclick="audNavegar('${r.id}')"
-        onmouseover="this.style.background='#fef3c7';this.querySelector('.aud-nav-hint').style.opacity='1'"
-        onmouseout="this.style.background='#fffbeb';this.querySelector('.aud-nav-hint').style.opacity='0'"
-        style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:300px;cursor:pointer;transition:background .15s">
+  const rid=r.id.replace(/[^a-z0-9_]/gi,'_');
+
+  // Columna "Afecta a" — extrae la persona o registro afectado
+  const afectaNombre = det.alumno||(det.nombre&&det.apellido?(det.nombre+' '+det.apellido):null)||det.docente||det.usuario||det.alumno_nombre||'';
+  const afectaCi = det.ci||det.alumno_ci||'';
+  const afectaMateria = det.materia||det.materia_nombre||'';
+  const afectaConcepto = det.concepto||'';
+
+  // Columna "Cambio" — muestra diferencias (notas, pagos, etc.)
+  let cambioHtml='';
+  if(r.accion==='UPDATE_NOTA'||r.accion==='UPLOAD_NOTA'){
+    const vieja=det.nota_vieja!=null?det.nota_vieja:'';
+    const nueva=det.nota_nueva!=null?det.nota_nueva:det.nota!=null?det.nota:'';
+    if(nueva!=='') cambioHtml=vieja!==''&&vieja!==nueva?`<span style="color:#dc2626;text-decoration:line-through">${vieja}</span> → <strong style="color:#166534">${nueva}</strong>`:`<strong style="color:#166534">${nueva}</strong>`;
+  } else if(r.accion==='PAGO'||r.tabla==='pagos'){
+    if(det.monto) cambioHtml=`<strong style="color:#166534">Gs.${Number(det.monto).toLocaleString('es-PY')}</strong>`;
+  } else if(r.accion==='HABILITAR') {
+    cambioHtml=`<span style="color:#d97706">${det.tipo_examen||(det.habilitado?'Habilitado':'—')}</span>`;
+  } else if(r.accion==='LOGIN') {
+    cambioHtml=det.ip?`<code style="font-size:9px;color:#6b7280">${det.ip}</code>`:'';
+  } else if(r.accion==='ERROR') {
+    cambioHtml=`<span style="color:#dc2626;font-size:10px">${(det.error||det.mensaje||'').slice(0,40)}</span>`;
+  } else if(det.estado) {
+    cambioHtml=`<span style="color:#2563eb">${det.estado}</span>`;
+  }
+
+  // Detalle expandido (JSON legible)
+  const detalleExpanded = Object.entries(det).length
+    ? Object.entries(det).map(([k,vl])=>`<div style="display:flex;gap:8px;padding:2px 0;border-bottom:1px solid #f0f0f0;font-size:10px"><span style="color:#9ca3af;min-width:120px;flex-shrink:0">${k}</span><span style="color:#374151;font-weight:500;word-break:break-all">${JSON.stringify(vl)}</span></div>`).join('')
+    : '<span style="color:#9ca3af;font-size:10px">Sin detalle</span>';
+
+  const accionBadgeMap={LOGIN:'bg',UPDATE_NOTA:'bb',UPDATE_ASISTENCIA:'bb',DELETE:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba',HONORARIO:'ba',CREATE:'bg',INSERT:'bg',UPDATE:'bb',SOLICITUD_ALUMNO:'bb',RESOLVER_ALUMNO:'bg',EGRESO:'bg',CONSTANCIA:'bg',REPARAR:'ba'};
+
+  const tdStyle='padding:5px 8px;border:1px solid var(--bdr);vertical-align:top';
+  const descCell=puedNav
+    ?`<td onclick="audNavegar('${r.id}')" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fffbeb'" style="${tdStyle};background:#fffbeb;cursor:pointer;max-width:260px">
         ${describirAccion(r)}
-        <span class="aud-nav-hint" style="display:block;font-size:9px;color:#92400e;margin-top:3px;opacity:0;transition:opacity .15s;font-weight:600">↗ Clic para ir al registro</span>
+        <div class="aud-nav-hint" style="font-size:9px;color:#92400e;margin-top:2px;font-weight:600">↗ Ir al módulo</div>
       </td>`
-    :`<td style="padding:5px 10px;border:1px solid var(--bdr);background:#fffbeb;font-size:12px;max-width:300px">${describirAccion(r)}</td>`;
-  return `<tr>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap;font-family:monospace;font-size:10px">${fmtFechaHora(r.fecha)}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);white-space:nowrap"><strong>${r.user_nombre||'Sistema'}</strong> ${r.user_apellido||''}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':'bg'}" style="font-size:9px">${r.rol||'—'}</span></td>
-    ${accionCell}
-    <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx ${c[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span></td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:#475569">${tablaLabel}</td>
-    <td style="padding:5px 10px;border:1px solid var(--bdr);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.detalle||'').replace(/"/g,'&quot;')}">${detalle}</td>
+    :`<td style="${tdStyle};max-width:260px;font-size:12px">${describirAccion(r)}</td>`;
+
+  return `<tr id="aud-row-${rid}" style="transition:background .1s">
+    <td style="${tdStyle};white-space:nowrap;font-family:monospace;font-size:10px;color:#374151">${fmtFechaHora(r.fecha)}</td>
+    <td style="${tdStyle};white-space:nowrap">
+      <div style="font-size:12px;font-weight:700">${r.user_nombre||'Sistema'} ${r.user_apellido||''}</div>
+      <span class="bx ${r.rol==='director'?'br':r.rol==='docente'?'bb':r.rol==='alumno'?'bg':'bgr'}" style="font-size:9px">${r.rol||'sistema'}</span>
+    </td>
+    ${descCell}
+    <td style="${tdStyle};text-align:center;white-space:nowrap">
+      <span class="bx ${accionBadgeMap[r.accion]||'bgr'}" style="font-size:9px">${r.accion||'—'}</span>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">${tablaLabel}</div>
+    </td>
+    <td style="${tdStyle};min-width:90px">${afectaNombre?`<div style="font-size:11px;font-weight:600">${afectaNombre}</div>`:''}${afectaCi?`<div style="font-size:10px;color:#6b7280">CI: ${afectaCi}</div>`:''}${afectaMateria?`<div style="font-size:10px;color:#374151">${afectaMateria}</div>`:''}${afectaConcepto?`<div style="font-size:10px;color:#374151">${afectaConcepto}</div>`:''}</td>
+    <td style="${tdStyle};min-width:80px">${cambioHtml}</td>
+    <td style="${tdStyle};cursor:pointer" onclick="audToggleDetalle('${rid}')" title="Ver detalle completo">
+      <span style="font-size:10px;color:#7c3aed;font-weight:600">+ ver</span>
+    </td>
+  </tr>
+  <tr id="aud-det-${rid}" style="display:none;background:#f8f9fa">
+    <td colspan="7" style="padding:10px 16px;border:1px solid var(--bdr)">
+      <div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:6px">📋 Detalle completo del registro</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:2px 16px;max-width:600px">${detalleExpanded}</div>
+      <div style="margin-top:6px;font-size:10px;color:#9ca3af">ID: ${r.id} · Tabla: ${r.tabla||'—'} · Registro: ${r.registro_id||'—'}</div>
+    </td>
   </tr>`;
+}
+function audToggleDetalle(rid){
+  const el=document.getElementById('aud-det-'+rid);
+  if(el)el.style.display=el.style.display==='none'?'table-row':'none';
 }
 function filtAudit(){
   const q=(v('audBus')||'').toLowerCase();

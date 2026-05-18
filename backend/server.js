@@ -374,6 +374,51 @@ app.get('/api/alumnos', auth(), (req, res) => {
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 500`).all(...params));
 });
+
+// ── BUSCAR CONFLICTO ANTES DE CREAR ALUMNO ─────────────────────────────────
+app.get('/api/alumnos/buscar-conflicto', auth(ADM), (req, res) => {
+  const { ci, nombre, apellido } = req.query;
+  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
+  const resultados = [];
+
+  const fullSelect = `SELECT al.id, al.matricula, al.estado, al.carrera_id, al.curso_id,
+    COALESCE(al.nombre,u.nombre,'') as nombre, COALESCE(al.apellido,u.apellido,'') as apellido,
+    COALESCE(al.ci,u.ci,'') as ci, u.email,
+    c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+    FROM alumnos al
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    LEFT JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id`;
+
+  // 1. Por CI exacto (busca en ambas tablas, incluye todos los estados)
+  if (ciRaw) {
+    const porCI = db.prepare(`${fullSelect} WHERE al.ci=? OR u.ci=? LIMIT 5`).all(ciRaw, ciRaw);
+    for (const r of porCI) if (!resultados.find(x=>x.id===r.id)) resultados.push({ ...r, match_por:'ci' });
+  }
+
+  // 2. Por apellido en memoria — trae todos los activos y filtra
+  if (apellido && apellido.length >= 2) {
+    const aNorm = normStr(apellido);
+    const nNorm = nombre ? normStr(nombre) : null;
+    const todos = db.prepare(`${fullSelect} WHERE al.estado NOT IN ('Inactivo','Retirado','Egresado') LIMIT 600`).all();
+    for (const r of todos) {
+      if (resultados.find(x=>x.id===r.id)) continue;
+      const rApNorm = normStr(r.apellido);
+      // Apellido: coincidencia amplia (contiene)
+      if (!rApNorm.includes(aNorm) && !aNorm.includes(rApNorm)) continue;
+      // Nombre: si se proveyó, también debe coincidir
+      if (nNorm) {
+        const rNomNorm = normStr(r.nombre);
+        if (!rNomNorm.includes(nNorm) && !nNorm.includes(rNomNorm)) continue;
+      }
+      resultados.push({ ...r, match_por:'nombre' });
+    }
+  }
+
+  res.json({ conflictos: resultados, total: resultados.length });
+});
+
 app.post('/api/alumnos', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, telefono, carrera_id, curso_id, fecha_ingreso, estado, email } = req.body;
   const id = 'a_' + Date.now();
@@ -3372,6 +3417,233 @@ app.delete('/api/admin/auditoria', auth(ADM), (req, res) => {
   res.json({ ok: true, eliminados: result.changes });
 });
 
+// ── DIAGNÓSTICO COMPLETO DEL SISTEMA ────────────────────────────────────────
+app.get('/api/admin/diagnostico', auth(ADM), (req, res) => {
+  const problemas = [];
+  const push = (obj) => problemas.push({ historial:[], accion_disponible:'informativo', nombre:'', apellido:'', ci:'', ...obj });
+  const audTrail = (id) => db.prepare("SELECT a.fecha,a.accion,u.nombre as user_nombre,u.apellido as user_apellido,a.detalle FROM auditoria a LEFT JOIN usuarios u ON a.usuario_id=u.id WHERE a.registro_id=? ORDER BY a.fecha ASC").all(id);
+  const asigInfo = (id) => db.prepare("SELECT a.*,m.nombre as materia_nombre,ca.nombre as carrera_nombre,cu.anio as curso_anio,cu.division as curso_division,u.nombre as docente_nombre,u.apellido as docente_apellido FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id LEFT JOIN docentes d ON a.docente_id=d.id LEFT JOIN usuarios u ON d.usuario_id=u.id WHERE a.id=?").get(id);
+  const alumnoInfo = (ci) => ci ? db.prepare("SELECT al.*,c.nombre as carrera_nombre,cu.anio as curso_anio,cu.division as curso_division FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN cursos cu ON al.curso_id=cu.id WHERE al.ci=? OR u.ci=? LIMIT 1").get(ci,ci) : null;
+
+  // ── BLOQUE 1: SOLICITUDES DE INCORPORACIÓN ─────────────────────────────────
+  const solsAprobadas = db.prepare("SELECT * FROM solicitudes_alumno WHERE estado='aprobado'").all();
+  for (const sol of solsAprobadas) {
+    const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
+    const alumno = alumnoInfo(ciRaw);
+    const asig = asigInfo(sol.asignacion_id);
+    const docente = db.prepare("SELECT u.nombre,u.apellido FROM usuarios u JOIN docentes d ON d.usuario_id=u.id WHERE d.id=?").get(sol.docente_id);
+    const hist = audTrail(sol.id);
+    const base = { sol_id:sol.id, nombre:sol.nombre, apellido:sol.apellido, ci:sol.ci, asignacion_id:sol.asignacion_id, materia:asig?.materia_nombre||'?', carrera_asig:asig?.carrera_nombre||'?', curso_asig_anio:asig?.curso_anio, curso_asig_division:asig?.curso_division, docente_solicitante:docente?(docente.nombre+' '+docente.apellido):sol.docente_id, fecha_solicitud:sol.fecha, historial:hist };
+    if (!alumno) {
+      push({ ...base, tipo:'alumno_faltante', gravedad:'critico', mensaje:'Solicitud aprobada pero el alumno NO fue creado en el sistema', accion_disponible:'revertir_y_reaprobar' });
+    } else {
+      const nota = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(alumno.id, sol.asignacion_id);
+      const añoDistinto = alumno.curso_anio && asig?.curso_anio && alumno.curso_anio !== asig.curso_anio;
+      const extra = { alumno_id:alumno.id, matricula:alumno.matricula, carrera_alumno:alumno.carrera_nombre, curso_alumno_anio:alumno.curso_anio, curso_alumno_division:alumno.curso_division, pagos:db.prepare("SELECT concepto,monto,fecha_pago,estado FROM pagos WHERE alumno_id=? LIMIT 6").all(alumno.id) };
+      if (!nota) push({ ...base, ...extra, tipo:'nota_faltante', gravedad:añoDistinto?'advertencia':'critico', mensaje:añoDistinto?`Alumno en ${alumno.curso_anio}° año vinculado a materia de ${asig.curso_anio}° año — falta nota`:'Alumno creado pero falta registro de nota en la materia', accion_disponible:'crear_nota' });
+      else if (añoDistinto) push({ ...base, ...extra, tipo:'anio_incorrecto', gravedad:'advertencia', mensaje:`Alumno en ${alumno.curso_anio}° año inscripto en materia de ${asig.curso_anio}° año`, accion_disponible:'informativo' });
+    }
+  }
+
+  // ── BLOQUE 2: DUPLICADOS ────────────────────────────────────────────────────
+  // CI duplicados en usuarios
+  const ciDupUsu = db.prepare("SELECT ci, COUNT(*) as n, GROUP_CONCAT(id) as ids, GROUP_CONCAT(nombre||' '||apellido) as nombres FROM usuarios WHERE ci IS NOT NULL AND ci!='' GROUP BY ci HAVING n>1").all();
+  for (const d of ciDupUsu) push({ tipo:'ci_duplicado_usuario', gravedad:'critico', mensaje:`CI ${d.ci} aparece ${d.n} veces en usuarios`, ci:d.ci, nombre:d.nombres, extra_ids:d.ids, accion_disponible:'informativo' });
+
+  // CI duplicados en alumnos
+  const ciDupAlu = db.prepare("SELECT al.ci, COUNT(*) as n, GROUP_CONCAT(al.id) as ids, GROUP_CONCAT(COALESCE(al.nombre,u.nombre,'')||' '||COALESCE(al.apellido,u.apellido,'')) as nombres, GROUP_CONCAT(al.matricula) as matriculas, GROUP_CONCAT(al.carrera_id) as carreras FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.ci IS NOT NULL AND al.ci!='' AND al.estado='Activo' GROUP BY al.ci HAVING n>1").all();
+  for (const d of ciDupAlu) {
+    const ids = (d.ids||'').split(',');
+    const noms = (d.nombres||'').split(',');
+    const mats = (d.matriculas||'').split(',');
+    // Build per-alumno detail for deactivation choices
+    const duplicados_detalle = ids.map((id,i)=>({ id:id.trim(), nombre:(noms[i]||'').trim(), matricula:(mats[i]||'').trim() }));
+    push({ tipo:'ci_duplicado_alumno', gravedad:'critico', mensaje:`CI ${d.ci} aparece ${d.n} veces en alumnos activos — ${mats}`, ci:d.ci, nombre:d.nombres, matricula:d.matriculas, extra_ids:d.ids, duplicados_detalle, accion_disponible:'desactivar_duplicado' });
+  }
+
+  // Email duplicados en usuarios
+  const emailDup = db.prepare("SELECT email, COUNT(*) as n, GROUP_CONCAT(nombre||' '||apellido) as nombres FROM usuarios WHERE email IS NOT NULL GROUP BY email HAVING n>1").all();
+  for (const d of emailDup) push({ tipo:'email_duplicado', gravedad:'advertencia', mensaje:`Email ${d.email} asignado a ${d.n} usuarios`, nombre:d.nombres, accion_disponible:'informativo' });
+
+  // Matrículas duplicadas
+  const matDup = db.prepare("SELECT matricula, COUNT(*) as n, GROUP_CONCAT(id) as ids, GROUP_CONCAT(COALESCE(nombre,'')||' '||COALESCE(apellido,'')) as nombres FROM alumnos WHERE matricula IS NOT NULL AND estado='Activo' GROUP BY matricula HAVING n>1").all();
+  for (const d of matDup) push({ tipo:'matricula_duplicada', gravedad:'critico', mensaje:`Matrícula ${d.matricula} asignada a ${d.n} alumnos`, nombre:d.nombres, extra_ids:d.ids, accion_disponible:'informativo' });
+
+  // ── BLOQUE 3: DATOS VACÍOS / INCOMPLETOS ──────────────────────────────────
+  // Alumnos sin CI
+  const sinCI = db.prepare("SELECT al.id,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,al.matricula,c.nombre as carrera_nombre FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE (al.ci IS NULL OR al.ci='') AND (u.ci IS NULL OR u.ci='') AND al.estado='Activo' LIMIT 20").all();
+  for (const a of sinCI) push({ tipo:'alumno_sin_ci', gravedad:'advertencia', nombre:a.nombre||'', apellido:a.apellido||'', matricula:a.matricula, carrera_alumno:a.carrera_nombre, alumno_id:a.id, mensaje:'Alumno activo sin número de CI registrado', accion_disponible:'informativo' });
+
+  // Alumnos sin carrera asignada
+  const sinCarrera = db.prepare("SELECT al.id,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,al.ci,al.matricula FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.carrera_id IS NULL AND al.estado='Activo' LIMIT 20").all();
+  for (const a of sinCarrera) push({ tipo:'alumno_sin_carrera', gravedad:'advertencia', nombre:a.nombre||'', apellido:a.apellido||'', ci:a.ci||'', matricula:a.matricula, alumno_id:a.id, mensaje:'Alumno activo sin carrera asignada', accion_disponible:'informativo' });
+
+  // Alumnos sin curso asignado
+  const sinCurso = db.prepare("SELECT al.id,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,al.ci,al.matricula,c.nombre as carrera_nombre FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE al.curso_id IS NULL AND al.estado='Activo' LIMIT 20").all();
+  for (const a of sinCurso) push({ tipo:'alumno_sin_curso', gravedad:'advertencia', nombre:a.nombre||'', apellido:a.apellido||'', ci:a.ci||'', matricula:a.matricula, carrera_alumno:a.carrera_nombre, alumno_id:a.id, mensaje:'Alumno activo sin año/curso asignado', accion_disponible:'informativo' });
+
+  // Alumnos sin usuario vinculado
+  const sinUsuario = db.prepare("SELECT al.id,al.nombre,al.apellido,al.ci,al.matricula,c.nombre as carrera_nombre,cu.anio FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN cursos cu ON al.curso_id=cu.id WHERE u.id IS NULL AND al.estado='Activo' LIMIT 20").all();
+  for (const a of sinUsuario) push({ tipo:'usuario_faltante', gravedad:'critico', nombre:a.nombre||'', apellido:a.apellido||'', ci:a.ci||'', matricula:a.matricula, carrera_alumno:a.carrera_nombre, curso_alumno_anio:a.anio, alumno_id:a.id, mensaje:'Alumno activo sin cuenta de usuario (no puede ingresar al sistema)', accion_disponible:'crear_cuenta' });
+
+  // Docentes sin usuario vinculado
+  const docentesSinUsu = db.prepare("SELECT d.id,d.especialidad FROM docentes d LEFT JOIN usuarios u ON d.usuario_id=u.id WHERE u.id IS NULL LIMIT 10").all();
+  for (const d of docentesSinUsu) push({ tipo:'docente_sin_usuario', gravedad:'critico', nombre:'Docente '+d.id, mensaje:'Docente registrado sin cuenta de usuario vinculada', accion_disponible:'informativo' });
+
+  // Asignaciones sin docente
+  const asigSinDoc = db.prepare("SELECT a.id,m.nombre as materia,ca.nombre as carrera,cu.anio FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE a.docente_id IS NULL LIMIT 10").all();
+  for (const a of asigSinDoc) push({ tipo:'asignacion_sin_docente', gravedad:'advertencia', materia:a.materia, carrera_asig:a.carrera, curso_asig_anio:a.anio, mensaje:`Asignación de ${a.materia} (${a.carrera} ${a.anio}°) sin docente asignado`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 4: INTEGRIDAD DE NOTAS ─────────────────────────────────────────
+  // Notas con alumno_id que no existe en alumnos
+  const notasHuerfanas = db.prepare("SELECT n.id,n.alumno_id,n.asignacion_id FROM notas n LEFT JOIN alumnos al ON n.alumno_id=al.id WHERE al.id IS NULL LIMIT 20").all();
+  for (const n of notasHuerfanas) push({ tipo:'nota_huerfana', gravedad:'critico', mensaje:`Nota ${n.id} referencia a alumno_id inexistente (${n.alumno_id})`, accion_disponible:'informativo' });
+
+  // Notas con asignacion_id que no existe
+  const notasAsigInval = db.prepare("SELECT n.id,n.alumno_id,n.asignacion_id FROM notas n LEFT JOIN asignaciones a ON n.asignacion_id=a.id WHERE a.id IS NULL LIMIT 20").all();
+  for (const n of notasAsigInval) push({ tipo:'nota_asig_invalida', gravedad:'critico', mensaje:`Nota ${n.id} referencia a asignacion_id inexistente (${n.asignacion_id})`, accion_disponible:'informativo' });
+
+  // Alumnos activos sin ninguna nota en período activo
+  const periodo = db.prepare("SELECT id FROM periodos WHERE activo=1").get();
+  if (periodo) {
+    const sinNotas = db.prepare(`SELECT al.id,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,al.ci,al.matricula,c.nombre as carrera_nombre,cu.anio FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN cursos cu ON al.curso_id=cu.id WHERE al.estado='Activo' AND al.id NOT IN (SELECT DISTINCT n.alumno_id FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE a.periodo_id=?) LIMIT 30`).all(periodo.id);
+    for (const a of sinNotas) push({ tipo:'alumno_sin_notas', gravedad:'advertencia', nombre:a.nombre||'', apellido:a.apellido||'', ci:a.ci||'', matricula:a.matricula, carrera_alumno:a.carrera_nombre, curso_alumno_anio:a.anio, alumno_id:a.id, mensaje:'Alumno activo sin ninguna nota en el período lectivo actual', accion_disponible:'informativo' });
+  }
+
+  // ── BLOQUE 5: PAGOS ────────────────────────────────────────────────────────
+  // Pagos con alumno_id que no existe
+  const pagosSinAlumno = db.prepare("SELECT p.id,p.alumno_id,p.concepto,p.monto,p.fecha_pago FROM pagos p LEFT JOIN alumnos al ON p.alumno_id=al.id WHERE al.id IS NULL LIMIT 10").all();
+  for (const p of pagosSinAlumno) push({ tipo:'pago_sin_alumno', gravedad:'critico', mensaje:`Pago ${p.concepto} (${p.fecha_pago}) referencia alumno_id inexistente`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 6: ASISTENCIA ───────────────────────────────────────────────────
+  // Asistencia con alumno inexistente
+  const asistSinAlumno = db.prepare("SELECT COUNT(*) as n FROM asistencia a LEFT JOIN alumnos al ON a.alumno_id=al.id WHERE al.id IS NULL").get();
+  if (asistSinAlumno?.n > 0) push({ tipo:'asistencia_huerfana', gravedad:'advertencia', mensaje:`${asistSinAlumno.n} registro(s) de asistencia con alumno_id inexistente`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 7: USUARIOS Y ACCESO ────────────────────────────────────────────
+  // Usuarios inactivos con accesos recientes (últimos 7 días)
+  const inactivosActivos = db.prepare("SELECT u.id,u.nombre,u.apellido,u.ci,u.rol,MAX(a.fecha) as ultimo_acceso FROM usuarios u JOIN auditoria a ON a.usuario_id=u.id WHERE u.activo=0 AND a.fecha>=datetime('now','-7 days') GROUP BY u.id LIMIT 10").all();
+  for (const u of inactivosActivos) push({ tipo:'usuario_inactivo_activo', gravedad:'advertencia', nombre:u.nombre, apellido:u.apellido, ci:u.ci, mensaje:`Usuario INACTIVO con actividad reciente (${u.ultimo_acceso?.slice(0,16)})`, accion_disponible:'informativo' });
+
+  // Múltiples sesiones del mismo usuario en ventana corta (posible uso compartido)
+  const sesionesMultiples = db.prepare("SELECT u.nombre,u.apellido,u.ci,COUNT(*) as logins,MIN(a.fecha) as desde,MAX(a.fecha) as hasta FROM auditoria a JOIN usuarios u ON a.usuario_id=u.id WHERE a.accion='LOGIN' AND a.fecha>=datetime('now','-1 days') GROUP BY a.usuario_id HAVING logins>=5").all();
+  for (const s of sesionesMultiples) push({ tipo:'logins_excesivos', gravedad:'info', nombre:s.nombre, apellido:s.apellido, ci:s.ci, mensaje:`${s.logins} inicios de sesión en las últimas 24h (${s.desde?.slice(0,16)} → ${s.hasta?.slice(0,16)})`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 8: EXÁMENES ─────────────────────────────────────────────────────
+  // Exámenes sin asignación válida
+  const examSinAsig = db.prepare("SELECT e.id,e.tipo,e.fecha FROM examenes e LEFT JOIN asignaciones a ON e.asignacion_id=a.id WHERE a.id IS NULL LIMIT 10").all();
+  for (const e of examSinAsig) push({ tipo:'examen_sin_asignacion', gravedad:'advertencia', mensaje:`Examen de tipo "${e.tipo}" (${e.fecha}) sin asignación válida`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 9: PERÍODO ACTIVO ───────────────────────────────────────────────
+  const periodos = db.prepare("SELECT * FROM periodos WHERE activo=1").all();
+  if (periodos.length===0) push({ tipo:'sin_periodo_activo', gravedad:'critico', mensaje:'No hay período lectivo activo — el sistema no puede registrar notas ni pagos correctamente', accion_disponible:'informativo' });
+  if (periodos.length>1)  push({ tipo:'multiples_periodos_activos', gravedad:'critico', mensaje:`Hay ${periodos.length} períodos marcados como activos simultáneamente`, accion_disponible:'informativo' });
+
+  // ── BLOQUE 10: ERRORES RECIENTES ───────────────────────────────────────────
+  const erroresRecientes = db.prepare("SELECT * FROM auditoria WHERE accion='ERROR' AND fecha>=datetime('now','-48 hours') ORDER BY fecha DESC LIMIT 15").all();
+  for (const err of erroresRecientes) {
+    let det={};try{det=JSON.parse(err.detalle||'{}');}catch{}
+    push({ tipo:'error_sistema', gravedad:'info', mensaje:`[${err.fecha?.slice(0,16)}] ${err.tabla||'?'} — ${det.error||det.mensaje||'Error sin descripción'}`, fecha:err.fecha, detalle_raw:err.detalle });
+  }
+
+  const resumen = {
+    total:problemas.length,
+    criticos:problemas.filter(p=>p.gravedad==='critico').length,
+    advertencias:problemas.filter(p=>p.gravedad==='advertencia').length,
+    info:problemas.filter(p=>p.gravedad==='info').length,
+    ok:problemas.filter(p=>['critico','advertencia'].includes(p.gravedad)).length===0,
+    // Estadísticas generales del sistema
+    stats: {
+      total_alumnos: db.prepare("SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo'").get()?.n||0,
+      total_docentes: db.prepare("SELECT COUNT(*) as n FROM docentes").get()?.n||0,
+      total_notas: db.prepare("SELECT COUNT(*) as n FROM notas").get()?.n||0,
+      total_pagos: db.prepare("SELECT COUNT(*) as n FROM pagos WHERE estado='Pagado'").get()?.n||0,
+      solicitudes_pendientes: db.prepare("SELECT COUNT(*) as n FROM solicitudes_alumno WHERE estado='pendiente'").get()?.n||0,
+      errores_hoy: db.prepare("SELECT COUNT(*) as n FROM auditoria WHERE accion='ERROR' AND fecha>=date('now')").get()?.n||0,
+      periodo_activo: db.prepare("SELECT nombre,anio FROM periodos WHERE activo=1").get()||null,
+    }
+  };
+  res.json({ resumen, problemas });
+});
+
+// ── REPARAR SOLICITUDES APROBADAS ──────────────────────────────────────────
+app.post('/api/admin/reparar-solicitudes', auth(ADM), (req, res) => {
+  const { sol_id, accion } = req.body; // accion: 'crear_nota'
+  const sol = db.prepare('SELECT * FROM solicitudes_alumno WHERE id=?').get(sol_id);
+  if (!sol) return res.status(404).json({ error: 'Solicitud no encontrada' });
+  if (sol.estado !== 'aprobado') return res.status(400).json({ error: 'Solicitud no está aprobada' });
+  const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
+  if (!asig) return res.status(400).json({ error: 'Asignación no encontrada' });
+  const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
+  const alumno = ciRaw ? db.prepare("SELECT al.* FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.ci=? OR u.ci=? LIMIT 1").get(ciRaw,ciRaw) : null;
+  if (!alumno) return res.status(400).json({ error: 'Alumno no encontrado en el sistema. Revertir y re-aprobar la solicitud.' });
+  if (accion === 'crear_nota') {
+    const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(alumno.id, asig.id);
+    if (existe) return res.json({ ok:true, mensaje:'La nota ya existía', nota_id:existe.id });
+    const nid = 'n_rep_'+Date.now();
+    db.prepare("INSERT INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)").run(nid, alumno.id, asig.id, 'Pendiente');
+    audit(req.user.id,'REPARAR','notas',nid,{ sol_id, alumno_id:alumno.id, asignacion_id:asig.id, ci:sol.ci, nombre:sol.nombre+' '+sol.apellido });
+    return res.json({ ok:true, mensaje:'Nota creada correctamente', nota_id:nid, alumno_id:alumno.id });
+  }
+  if (accion === 'revertir') {
+    db.prepare("UPDATE solicitudes_alumno SET estado='pendiente' WHERE id=?").run(sol_id);
+    audit(req.user.id,'REPARAR','solicitudes_alumno',sol_id,{ accion:'revertir_a_pendiente', motivo:'corrección manual' });
+    return res.json({ ok:true, mensaje:'Solicitud revertida a pendiente. Ya puede re-aprobarla.' });
+  }
+  res.status(400).json({ error: 'Acción no reconocida' });
+});
+
+// ── REPARAR ALUMNO SIN USUARIO ─────────────────────────────────────────────────
+app.post('/api/admin/reparar-alumno', auth(ADM), (req, res) => {
+  const { alumno_id, accion } = req.body;
+  if (!alumno_id) return res.status(400).json({ error: 'alumno_id requerido' });
+  const alumno = db.prepare('SELECT * FROM alumnos WHERE id=?').get(alumno_id);
+  if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
+  if (accion === 'desactivar') {
+    if (alumno.estado === 'Inactivo') return res.json({ ok:true, mensaje:'El alumno ya estaba inactivo' });
+    db.prepare("UPDATE alumnos SET estado='Inactivo' WHERE id=?").run(alumno_id);
+    audit(req.user.id,'REPARAR','alumnos',alumno_id,{ accion:'desactivar_duplicado', alumno_id, ci:alumno.ci, matricula:alumno.matricula, nombre:(alumno.nombre||'')+(alumno.apellido?' '+alumno.apellido:'') });
+    return res.json({ ok:true, mensaje:`Alumno ${alumno.matricula||alumno_id} marcado como Inactivo (duplicado desactivado)`, alumno_id });
+  }
+  if (accion === 'crear_cuenta') {
+    // Verificar que realmente no tiene usuario
+    const yaTieneUsu = alumno.usuario_id ? db.prepare('SELECT id FROM usuarios WHERE id=?').get(alumno.usuario_id) : null;
+    if (yaTieneUsu) return res.json({ ok:true, mensaje:'El alumno ya tiene cuenta de usuario', usuario_id:yaTieneUsu.id });
+    const normStr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const nNorm = normStr(alumno.nombre);
+    const aNorm = normStr(alumno.apellido);
+    const ciRaw = String(alumno.ci||'').replace(/[^0-9]/g,'');
+    // Check by CI or name
+    let finalUid = null;
+    if (ciRaw) {
+      const exCi = db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw);
+      if (exCi) finalUid = exCi.id;
+    }
+    if (!finalUid && nNorm && aNorm) {
+      const exNombre = db.prepare("SELECT id FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(nNorm, aNorm);
+      if (exNombre) finalUid = exNombre.id;
+    }
+    if (!finalUid) {
+      // Crear nuevo usuario
+      let emailBase = (nNorm||'alumno')+'.'+(aNorm||alumno_id.slice(-4))+'@its.edu.py';
+      if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailBase)) {
+        emailBase = (nNorm||'alumno')+'.'+(aNorm||alumno_id.slice(-4))+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+      }
+      const bcrypt = require('bcryptjs');
+      const pwHash = bcrypt.hashSync('alumno123', 10);
+      finalUid = 'u_a_rep_'+Date.now();
+      db.prepare("INSERT INTO usuarios (id,nombre,apellido,email,password_hash,rol,ci,activo) VALUES (?,?,?,?,?,'alumno',?,1)")
+        .run(finalUid, alumno.nombre||'', alumno.apellido||'', emailBase, pwHash, ciRaw||null);
+    }
+    // Vincular alumno → usuario
+    db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(finalUid, alumno_id);
+    const usu = db.prepare('SELECT email FROM usuarios WHERE id=?').get(finalUid);
+    audit(req.user.id,'REPARAR','alumnos',alumno_id,{ accion:'crear_cuenta_usuario', alumno_id, usuario_id:finalUid, ci:alumno.ci, nombre:alumno.nombre+' '+alumno.apellido, email:usu?.email });
+    return res.json({ ok:true, mensaje:`Cuenta creada y vinculada — email: ${usu?.email||finalUid}`, usuario_id:finalUid, email:usu?.email });
+  }
+  res.status(400).json({ error: 'Acción no reconocida' });
+});
+
 // ── ACTA DE EXAMEN (datos para impresión) ─────────────────────────────────────
 app.get('/api/examenes/:id/acta', auth(['director','docente']), (req, res) => {
   const ex = db.prepare(`
@@ -3686,7 +3958,12 @@ app.get('/api/alumnos/:id/estado-cuenta', auth(['director','alumno']), (req, res
   const resumenCuotas = cuotasOblig.map(nombre => {
     const arancel = aranceles.find(a => a.concepto?.includes(nombre) || nombre.includes(a.tipo||''));
     const montoEsperado = arancel?.monto || 0;
-    const pagado = pagos.filter(p => p.concepto===nombre || p.concepto?.includes(nombre)).reduce((s,p)=>s+Number(p.monto||0),0);
+    // Comparación exacta para cuotas (evita que 'Cuota 10'.includes('Cuota 1') dé falso positivo)
+    // Para Matrícula, aceptar también 'Matrícula 2025', 'Matrícula 2026', etc.
+    const pagado = pagos.filter(p => {
+      if(nombre==='Matrícula') return /^Matr[ií]cula/.test(p.concepto||'');
+      return p.concepto===nombre;
+    }).reduce((s,p)=>s+Number(p.monto||0),0);
     const deuda = Math.max(0, montoEsperado - pagado);
     return { concepto: nombre, monto_esperado: montoEsperado, pagado, deuda, estado: pagado>=montoEsperado&&montoEsperado>0?'pagado':pagado>0?'parcial':'pendiente' };
   });
@@ -3850,33 +4127,52 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
   const { accion } = req.body;
   const sol = db.prepare('SELECT * FROM solicitudes_alumno WHERE id=?').get(req.params.id);
   if (!sol) return res.status(404).json({ error: 'Solicitud no encontrada' });
-  db.prepare("UPDATE solicitudes_alumno SET estado=? WHERE id=?").run(accion==='aprobar'?'aprobado':'rechazado', req.params.id);
-  if (accion === 'aprobar') {
-    // Crear alumno real vinculado a la asignación
-    const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
-    if (asig) {
+  try {
+    if (accion === 'aprobar') {
+      const asig = db.prepare('SELECT * FROM asignaciones WHERE id=?').get(sol.asignacion_id);
+      if (!asig) return res.status(400).json({ error: 'La asignación referenciada no existe' });
       const curso = db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id);
       const carreraId = curso?.carrera_id || null;
       const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carreraId);
       const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carreraId||'').n;
-      const matricula = `${carr?.codigo||'ALU'}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}`;
+      const matricula = (carr?.codigo||'ALU')+'-'+new Date().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
-      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-      let emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}@its.edu.py`;
-      if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-        emailFinal = `${norm(sol.nombre)}.${norm(sol.apellido)}.${ciRaw.slice(-3)||Date.now()%1000}@its.edu.py`;
-      const uid = 'u_a_'+Date.now();
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
       const fechaHoy = new Date().toISOString().split('T')[0];
       db.transaction(() => {
-        db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
-        const aid = 'a_'+Date.now();
-        db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid,uid,matricula,carreraId,asig.curso_id,fechaHoy,'Activo',ciRaw,sol.nombre,sol.apellido);
+        const normNombre = norm(sol.nombre||'');
+        const normApellido = norm(sol.apellido||'');
+        let finalUid;
+        const existPorCi = ciRaw ? db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw) : null;
+        const existPorNombre = !existPorCi ? db.prepare("SELECT id FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(normNombre, normApellido) : null;
+        if (existPorCi) {
+          finalUid = existPorCi.id;
+        } else if (existPorNombre) {
+          finalUid = existPorNombre.id;
+        } else {
+          let emailFinal = normNombre+'.'+normApellido+'@its.edu.py';
+          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+            emailFinal = normNombre+'.'+normApellido+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+          finalUid = 'u_a_'+Date.now();
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(finalUid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
+        }
+        const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
+        const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
+        if (!yaAlumno) {
+          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid,finalUid,matricula,carreraId,asig.curso_id,fechaHoy,'Activo',ciRaw,sol.nombre,sol.apellido);
+        }
         db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now(),aid,asig.id,'Pendiente');
+        db.prepare("UPDATE solicitudes_alumno SET estado='aprobado' WHERE id=?").run(req.params.id);
       })();
+    } else {
+      db.prepare("UPDATE solicitudes_alumno SET estado='rechazado' WHERE id=?").run(req.params.id);
     }
+    audit(req.user.id,'RESOLVER_ALUMNO','solicitudes_alumno',req.params.id,{accion});
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('Error resolviendo solicitud alumno:', e.message);
+    res.status(500).json({ error: e.message });
   }
-  audit(req.user.id,'RESOLVER_ALUMNO','solicitudes_alumno',req.params.id,{accion});
-  res.json({ ok: true });
 });
 app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
   const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
