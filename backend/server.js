@@ -580,6 +580,30 @@ app.delete('/api/alumnos/grupo', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Error al eliminar grupo: '+e.message }); }
 });
 
+// Eliminación completa desde Pagos (incluye solicitudes y cuenta de usuario)
+app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
+  try {
+    const a = db.prepare('SELECT id, usuario_id, nombre, apellido, ci FROM alumnos WHERE id=?').get(req.params.id);
+    if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
+    db.transaction(() => {
+      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(a.id);
+      // Solicitudes de incorporación asociadas al usuario
+      if (a.usuario_id) db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id);
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
+      if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
+    })();
+    audit(req.user.id,'DELETE_COMPLETO','alumnos',a.id,{ nombre: a.nombre, apellido: a.apellido, ci: a.ci });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
+});
+
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
   try {
     const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);

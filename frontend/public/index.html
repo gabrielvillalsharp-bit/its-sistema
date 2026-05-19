@@ -5804,6 +5804,45 @@ function cerrarDetallePago(){
   if(hb) hb.style.display='';
 }
 
+function eliminarAlumnoCompleto(alId, nombre){
+  modal(`
+    <div style="text-align:center;padding:8px 0 16px">
+      <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+      <h3 style="color:#dc2626;margin-bottom:8px">Eliminar alumno permanentemente</h3>
+      <p style="font-size:13px;color:#374151;margin-bottom:6px">Vas a eliminar completamente a:</p>
+      <p style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:16px">${nombre}</p>
+      <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;text-align:left;font-size:12px;color:#7f1d1d;margin-bottom:16px">
+        <div style="font-weight:700;margin-bottom:6px">⚠ Se eliminarán TODOS los datos del alumno:</div>
+        <ul style="margin:0;padding-left:18px;line-height:1.8">
+          <li>Registro del alumno y su cuenta de acceso</li>
+          <li>Todos sus pagos y matrículas</li>
+          <li>Notas y calificaciones</li>
+          <li>Registros de asistencia</li>
+          <li>Habilitaciones de exámenes</li>
+          <li>Becas y descuentos</li>
+          <li>Solicitudes de incorporación e historial</li>
+        </ul>
+      </div>
+      <p style="font-size:12px;font-weight:700;color:#dc2626">Esta acción es irreversible. ¿Confirmar eliminación?</p>
+    </div>
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-weight:700;cursor:pointer;font-size:13px" onclick="confirmarElimAlumno('${alId}')">🗑 Sí, eliminar permanentemente</button>
+    </div>`);
+}
+
+async function confirmarElimAlumno(alId){
+  try{
+    await api('DELETE','/api/alumnos/'+alId+'/completo');
+    cm();
+    toast('✓ Alumno eliminado permanentemente','ok',4000);
+    cerrarDetallePago();
+    cargarAlumnosPagos();
+  }catch(e){
+    toast('Error: '+e.message,'err');
+  }
+}
+
 function toggleFilaPago(alId){ abrirDetallePago(alId); }
 
 function filtrarKanban(estado){
@@ -6017,6 +6056,7 @@ async function selAlumnoPago(alId){
           <button onclick="mPagoDirecto('${alId}')" style="background:#fff;color:#166534;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Registrar pago</button>
           <button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">↕ Mover sección</button>
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
+          ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
       </div>
 
