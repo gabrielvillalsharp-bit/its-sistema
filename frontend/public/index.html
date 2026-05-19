@@ -3671,6 +3671,9 @@ async function pgCalClases(el){
     <label style="margin-left:12px;cursor:pointer"><input type="checkbox" id="filtHorOcultar" onchange="renderHorario()" checked> Ocultar sin docente</label>
   </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases</h3>
+    <div class="ph-right">
+      <button class="bn" onclick="descargarCalendarioAulas()" style="background:#166534;font-size:12px;padding:7px 14px">📥 Descargar PDF</button>
+    </div>
     <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs</p>
   </div>
   ${alertaHuerfanos}
@@ -3752,6 +3755,91 @@ function renderHorario(){
       </tr>
     </tbody>
   </table>`;
+}
+
+function descargarCalendarioAulas(){
+  const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const h=(W._horarios||[]).filter(x=>x.docente_nombre&&x.materia_nombre);
+  const getColor=i=>{
+    if(i?.carrera_nombre==='Cosmiatría')return i.curso_division==='A'?'#f8bbd0':i.curso_division==='B'?'#fce4ec':'#f48fb1';
+    const colores={'Agropecuaria':'#dcedc8','Contabilidad':'#bbf7d0','Criminalística':'#ffe0b2','Electricidad':'#e1bee7','Enfermería':'#b2ebf2','Farmacia':'#fff9c4','Instrumentación':'#d1c4e9','Radiología':'#c5cae9'};
+    const k=Object.keys(colores).find(k=>i?.carrera_nombre?.includes(k));return k?colores[k]:'#e8e8e8';
+  };
+  const turno1=h.filter(x=>x.turno===1);
+  const turno2=h.filter(x=>x.turno===2);
+  const cell=(lista,dia)=>{
+    const items=lista.filter(x=>x.dia===dia);
+    if(!items.length)return`<td style="border:1px solid #ccc;padding:6px;vertical-align:top;min-width:130px;background:#fafaf8"><span style="color:#bbb;font-size:11px">—</span></td>`;
+    return`<td style="border:1px solid #ccc;padding:6px;vertical-align:top;min-width:130px">${items.map(i=>`
+      <div style="background:${getColor(i)};border-radius:5px;padding:5px 7px;margin-bottom:4px;font-size:10.5px">
+        <div style="font-weight:700;color:#111;font-size:11px">${i.materia_nombre||''}</div>
+        <div style="color:#444;margin-top:1px;font-size:10px">${i.carrera_nombre||''}${i.curso_division&&i.curso_division!=='U'?' Secc. '+i.curso_division:''} ${i.curso_anio?i.curso_anio+'°':''}</div>
+        <div style="color:#666;font-size:10px;margin-top:1px">${(i.titulo?i.titulo+' ':'')}${i.docente_apellido||''}, ${i.docente_nombre||''}</div>
+        ${i.aula?`<div style="color:#888;font-size:9px;margin-top:1px">🏫 Aula: ${i.aula}</div>`:''}
+      </div>`).join('')}</td>`;
+  };
+  const hoy=new Date();
+  const fechaStr=hoy.toLocaleDateString('es-PY',{day:'2-digit',month:'long',year:'numeric'});
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Horario Semanal de Clases</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,sans-serif;padding:16px;color:#111;font-size:12px}
+    h1{font-size:18px;color:#166534;margin-bottom:2px}
+    .sub{font-size:11px;color:#555;margin-bottom:14px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#166534;color:#fff;padding:8px 10px;border:1px solid #166534;text-align:center;font-size:12px}
+    .th-turno{text-align:left}
+    td{border:1px solid #ccc;padding:6px;vertical-align:top}
+    .receso{text-align:center;color:#888;font-style:italic;padding:5px;font-size:11px;background:#f9f9f9}
+    .turno-label{font-weight:700;font-size:12px;background:#e8f5e9;white-space:nowrap}
+    .leyenda{margin-top:14px;display:flex;flex-wrap:wrap;gap:6px}
+    .ley-item{padding:3px 10px;border-radius:4px;font-size:10px;font-weight:600}
+    footer{margin-top:16px;font-size:10px;color:#888;text-align:right;border-top:1px solid #eee;padding-top:6px}
+    @media print{
+      @page{size:A4 landscape;margin:10mm}
+      body{padding:0}
+      button{display:none}
+    }
+  </style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+    <div>
+      <h1>📅 Horario Semanal de Clases</h1>
+      <div class="sub">Instituto Técnico Superior — Santísima Trinidad · Turno Nocturno · 19:00 a 22:00 hs</div>
+    </div>
+    <button onclick="window.print()" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;font-weight:700">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th class="th-turno" style="min-width:110px">Turno / Horario</th>
+        ${dias.map(d=>`<th>${d}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="turno-label">
+          <div>1er Turno</div><div style="font-size:10px;color:#555;font-weight:400">19:00 – 20:20</div>
+        </td>
+        ${dias.map(d=>cell(turno1,d)).join('')}
+      </tr>
+      <tr><td colspan="6" class="receso">✦ RECESO — 20:20 a 20:40 hs ✦</td></tr>
+      <tr>
+        <td class="turno-label" style="background:#fff8e1">
+          <div>2do Turno</div><div style="font-size:10px;color:#555;font-weight:400">20:40 – 22:00</div>
+        </td>
+        ${dias.map(d=>cell(turno2,d)).join('')}
+      </tr>
+    </tbody>
+  </table>
+  <div class="leyenda">
+    ${[...new Set(h.map(x=>x.carrera_nombre).filter(Boolean))].sort().map(c=>`<span class="ley-item" style="background:${getColor({carrera_nombre:c})}">${c}</span>`).join('')}
+  </div>
+  <footer>Generado el ${fechaStr} · Sistema ITS — Santísima Trinidad</footer>
+  </body></html>`;
+  const w=window.open('','_blank','width=1100,height=700');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── CALENDARIO DE EXÁMENES ────────────────────────────────────────────────────
