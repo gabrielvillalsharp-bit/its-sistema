@@ -3335,7 +3335,7 @@ app.get('/api/admin/disco', auth(ADM), (req, res) => {
 
     // Conteo de registros principales
     const totalAlumnos = db.prepare('SELECT COUNT(*) as n FROM alumnos').get().n;
-    const totalDocentes = db.prepare('SELECT COUNT(*) as n FROM usuarios WHERE rol="docente"').get().n;
+    const totalDocentes = db.prepare("SELECT COUNT(*) as n FROM usuarios WHERE rol='docente'").get().n;
     const totalExamenes = db.prepare('SELECT COUNT(*) as n FROM examenes').get().n;
 
     res.json({
