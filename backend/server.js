@@ -4216,15 +4216,60 @@ app.get('/api/solicitudes-alumno', auth(ADM), (req, res) => {
     JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
     ORDER BY s.fecha DESC`).all());
 });
+// ── VERIFICAR alumno antes de solicitar ─────────────────────────────────────
+app.post('/api/solicitudes-alumno/verificar', auth(['director','docente']), (req, res) => {
+  try {
+    const { nombre, apellido, ci, asignacion_id } = req.body;
+    if (!nombre || !asignacion_id) return res.status(400).json({ error: 'Faltan datos' });
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
+
+    // 1. ¿Ya hay solicitud pendiente para este alumno en esta asignación?
+    let solPend = null;
+    if (ciRaw) {
+      solPend = db.prepare(`SELECT id FROM solicitudes_alumno WHERE asignacion_id=? AND estado='pendiente' AND ci=?`).get(asignacion_id, ciRaw);
+    }
+    if (!solPend) {
+      solPend = db.prepare(`SELECT id FROM solicitudes_alumno WHERE asignacion_id=? AND estado='pendiente' AND lower(nombre)=? AND lower(apellido)=?`).get(asignacion_id, norm(nombre), norm(apellido));
+    }
+    if (solPend) {
+      return res.json({ status: 'pendiente', mensaje: 'Ya existe una solicitud pendiente para este alumno en esta materia.' });
+    }
+
+    // 2. Buscar alumno en DB por CI o nombre+apellido
+    const qAlumno = `SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
+      COALESCE(a.ci,u.ci) as ci, a.matricula, ca.nombre as carrera_nombre, cu.anio, cu.seccion,
+      a.carrera_id, a.curso_id, a.estado
+      FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id`;
+    let alumno = ciRaw ? db.prepare(qAlumno+` WHERE COALESCE(a.ci,u.ci)=?`).get(ciRaw) : null;
+    if (!alumno) {
+      alumno = db.prepare(qAlumno+` WHERE lower(COALESCE(a.nombre,u.nombre))=? AND lower(COALESCE(a.apellido,u.apellido))=? LIMIT 1`).get(norm(nombre), norm(apellido));
+    }
+
+    if (!alumno) {
+      return res.json({ status: 'no_existe', mensaje: 'El alumno no existe en la base de datos del sistema.' });
+    }
+
+    // 3. Alumno existe — ¿misma carrera que la asignación?
+    const asig = db.prepare(`SELECT a.*, cu.carrera_id FROM asignaciones a JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(asignacion_id);
+    if (alumno.carrera_id && asig?.carrera_id && alumno.carrera_id === asig.carrera_id) {
+      return res.json({ status: 'existe_misma_carrera', alumno, mensaje: 'Alumno encontrado en el sistema.' });
+    } else {
+      return res.json({ status: 'existe_otra_carrera', alumno, mensaje: 'Alumno encontrado pero registrado en otra carrera.' });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/solicitudes-alumno', auth(['director','docente']), (req, res) => {
-  const { nombre, apellido, ci, asignacion_id } = req.body;
+  const { nombre, apellido, ci, asignacion_id, observacion } = req.body;
   if (!nombre || !asignacion_id) return res.status(400).json({ error: 'Nombre y asignación requeridos' });
   const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
   const docId = doc?.id || req.body.docente_id;
   if (!docId) return res.status(400).json({ error: 'No se pudo identificar al docente' });
   const id = 'sal_'+Date.now();
-  db.prepare('INSERT INTO solicitudes_alumno (id,nombre,apellido,ci,asignacion_id,docente_id,registrado_por) VALUES (?,?,?,?,?,?,?)')
-    .run(id, nombre, apellido||'', ci||'', asignacion_id, docId, req.user.id);
+  db.prepare('INSERT INTO solicitudes_alumno (id,nombre,apellido,ci,asignacion_id,docente_id,registrado_por,observacion) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, nombre, apellido||'', ci||'', asignacion_id, docId, req.user.id, observacion||null);
   audit(req.user.id,'SOLICITUD_ALUMNO','solicitudes_alumno',id,{nombre,ci});
   res.json({ id, estado: 'pendiente' });
 });

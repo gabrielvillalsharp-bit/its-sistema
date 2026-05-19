@@ -4208,28 +4208,98 @@ function mSolicitarAlumno(){
   const asigNom=document.getElementById('selAsigNotas')?.selectedOptions[0]?.text||'';
   if(!asigId){toast('Seleccioná una materia primero','warn');return;}
   modal(`<h4>👤 Solicitar incorporación de alumno</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Materia: <strong>${asigNom}</strong></p>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:6px">Materia: <strong>${asigNom}</strong></p>
   <div class="fg">
     <div class="fr">
       <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="salNom" placeholder="Nombre del alumno"/></div>
-      <div class="f"><label>Apellido</label><input id="salApe" placeholder="Apellido"/></div>
+      <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="salApe" placeholder="Apellido"/></div>
     </div>
-    <div class="f"><label>C.I.</label><input id="salCi" placeholder="Número de cédula (opcional)"/></div>
-    <div style="background:#fff3e0;border-radius:6px;padding:8px;font-size:11px;margin-top:6px">
-      ⚠ Quedará <strong>pendiente de aprobación del Director</strong>. Al aprobarse, el alumno será creado con acceso al sistema.
-    </div>
+    <div class="f"><label>C.I. <span style="font-size:10px;color:var(--t2)">(recomendado para búsqueda exacta)</span></label><input id="salCi" placeholder="Número de cédula"/></div>
   </div>
-  <div class="mf">
+  <div id="salVerifPanel" style="margin-top:8px"></div>
+  <div class="mf" id="salBtns">
     <button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="svSolicitudAlumno('${asigId}')">Enviar solicitud al Director</button>
+    <button class="bn" onclick="verificarAlumnoSolicitud('${asigId}')">🔍 Verificar alumno</button>
   </div>`);
 }
-async function svSolicitudAlumno(asigId){
-  const nombre=v('salNom'),apellido=v('salApe'),ci=v('salCi');
-  if(!nombre)return alert('Ingresar al menos el nombre');
+async function verificarAlumnoSolicitud(asigId){
+  const nombre=(v('salNom')||'').trim();
+  const apellido=(v('salApe')||'').trim();
+  const ci=(v('salCi')||'').trim();
+  if(!nombre||!apellido){toast('Completar nombre y apellido','warn');return;}
+  const panel=document.getElementById('salVerifPanel');
+  const btns=document.getElementById('salBtns');
+  if(panel) panel.innerHTML='<div style="font-size:12px;color:#6b7280;padding:6px 0">⏳ Buscando en el sistema...</div>';
   try{
-    await api('POST','/api/solicitudes-alumno',{nombre,apellido,ci,asignacion_id:asigId});
-    cm();toast('✓ Solicitud enviada al Director','ok',4000);
+    const r=await api('POST','/api/solicitudes-alumno/verificar',{nombre,apellido,ci,asignacion_id:asigId});
+    if(r.status==='pendiente'){
+      panel.innerHTML=`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px;font-size:12px">
+        <div style="font-weight:700;color:#92400e;margin-bottom:4px">⚠ Solicitud ya en proceso</div>
+        <div style="color:#78350f">${r.mensaje}</div>
+        <div style="margin-top:6px;color:#92400e;font-size:11px">No es necesario volver a solicitarlo. El Director ya tiene la solicitud pendiente de aprobación.</div>
+      </div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Entendido</button>`;
+    } else if(r.status==='no_existe'){
+      panel.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:12px">
+        <div style="font-weight:700;color:#166534;margin-bottom:4px">ℹ Alumno no encontrado en el sistema</div>
+        <div style="color:#14532d">El alumno <strong>${apellido}, ${nombre}</strong>${ci?` (CI: ${ci})`:''}  no está registrado en la base de datos.</div>
+        <div style="margin-top:6px;color:#166534;font-size:11px">Al enviar la solicitud, el Director creará su cuenta al aprobarla.</div>
+      </div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="svSolicitudAlumno('${asigId}','normal')">📨 Enviar solicitud al Director</button>`;
+    } else if(r.status==='existe_misma_carrera'){
+      const al=r.alumno;
+      panel.innerHTML=`<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;font-size:12px">
+        <div style="font-weight:700;color:#1d4ed8;margin-bottom:6px">✅ Alumno encontrado en el sistema</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+          <div><span style="color:#64748b">Nombre:</span> <strong>${al.apellido||''}, ${al.nombre||''}</strong></div>
+          <div><span style="color:#64748b">CI:</span> <strong>${al.ci||'—'}</strong></div>
+          <div><span style="color:#64748b">Matrícula:</span> <strong>${al.matricula||'—'}</strong></div>
+          <div><span style="color:#64748b">Carrera:</span> <strong>${al.carrera_nombre||'—'}</strong></div>
+          <div><span style="color:#64748b">Año:</span> <strong>${al.anio||'—'}° ${al.seccion||''}</strong></div>
+          <div><span style="color:#64748b">Estado:</span> <strong>${al.estado||'—'}</strong></div>
+        </div>
+      </div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="svSolicitudAlumno('${asigId}','normal')">📨 Enviar solicitud al Director</button>`;
+    } else if(r.status==='existe_otra_carrera'){
+      const al=r.alumno;
+      panel.innerHTML=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;font-size:12px">
+        <div style="font-weight:700;color:#dc2626;margin-bottom:6px">⚠ Alumno registrado en otra carrera</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;margin-bottom:8px">
+          <div><span style="color:#64748b">Nombre:</span> <strong>${al.apellido||''}, ${al.nombre||''}</strong></div>
+          <div><span style="color:#64748b">CI:</span> <strong>${al.ci||'—'}</strong></div>
+          <div><span style="color:#64748b">Matrícula:</span> <strong>${al.matricula||'—'}</strong></div>
+          <div><span style="color:#64748b">Carrera actual:</span> <strong style="color:#dc2626">${al.carrera_nombre||'—'}</strong></div>
+        </div>
+        <div style="border-top:1px solid #fca5a5;padding-top:8px">
+          <label style="font-weight:700;color:#991b1b;display:block;margin-bottom:4px">📝 Por favor especificá el inconveniente para el Director:</label>
+          <textarea id="salComentario" rows="3" style="width:100%;border:1px solid #fca5a5;border-radius:6px;padding:6px;font-size:11px;resize:vertical" placeholder="Ej: El alumno cambió de carrera a Informática, su nombre puede estar mal escrito, solicito moverlo al curso correcto..."></textarea>
+          <div style="font-size:10px;color:#7f1d1d;margin-top:3px">ℹ Esta información le llegará al Director junto con los datos del alumno encontrado.</div>
+        </div>
+      </div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" style="background:#dc2626" onclick="svSolicitudAlumno('${asigId}','conflicto')">📨 Enviar con comentario al Director</button>`;
+    }
+  }catch(e){
+    if(panel) panel.innerHTML=`<div style="font-size:12px;color:#dc2626;padding:4px 0">❌ Error: ${e.message}</div>`;
+  }
+}
+async function svSolicitudAlumno(asigId,tipo){
+  const nombre=(v('salNom')||'').trim();
+  const apellido=(v('salApe')||'').trim();
+  const ci=(v('salCi')||'').trim();
+  if(!nombre||!apellido){toast('Completar nombre y apellido','warn');return;}
+  let observacion=null;
+  if(tipo==='conflicto'){
+    const comentario=(v('salComentario')||'').trim();
+    if(!comentario){toast('Por favor escribí el comentario para el Director','warn');return;}
+    observacion=JSON.stringify({tipo:'conflicto',comentario});
+  }
+  try{
+    await api('POST','/api/solicitudes-alumno',{nombre,apellido,ci,asignacion_id:asigId,observacion});
+    cm();
+    toast('✓ Solicitud enviada al Director','ok',4000);
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function verSolicitudesAlumno(){
@@ -4296,19 +4366,27 @@ async function pgSolicitudes(el){
       <th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th>
       <th style="padding:7px 10px;border:1px solid var(--bdr)"></th>
     </tr></thead><tbody>
-    ${pend.map(s=>`<tr>
-      <td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600">${s.apellido||''} ${s.nombre||''}</td>
+    ${pend.map(s=>{
+      let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}
+      const esConflicto=obs?.tipo==='conflicto';
+      const rowBg=esConflicto?'background:#fef2f2':'';
+      return `<tr style="${rowBg}">
+      <td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600">
+        ${s.apellido||''} ${s.nombre||''}
+        ${esConflicto?`<span style="margin-left:4px;background:#dc2626;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700">⚠ CONFLICTO</span>`:''}
+      </td>
       <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
       <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.materia||'—'}</td>
       <td style="padding:6px 10px;border:1px solid var(--bdr)">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
       <td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">${s.fecha?.split('T')[0]||''}</td>
       <td style="padding:6px 10px;border:1px solid var(--bdr)">
+        ${esConflicto&&obs?.comentario?`<div style="font-size:10px;color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 6px;margin-bottom:4px">💬 ${obs.comentario}</div>`:''}
         <div style="display:flex;gap:4px">
           <button class="bn" style="font-size:11px;padding:3px 10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button>
           <button class="bs d" style="font-size:11px;padding:3px 8px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>
         </div>
       </td>
-    </tr>`).join('')}
+    </tr>`;}).join('')}
     </tbody></table></div></div>`:'<div class="card card-p" style="text-align:center;color:var(--green);padding:24px"><strong>✓ Sin solicitudes pendientes</strong></div>'}
   ${otras.length?`
   <h4 style="margin-bottom:8px;color:var(--t2)">Historial</h4>
