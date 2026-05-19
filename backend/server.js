@@ -3326,6 +3326,18 @@ app.get('/api/admin/disco', auth(ADM), (req, res) => {
     const audCount = db.prepare('SELECT COUNT(*) as n FROM auditoria').get();
     const audOld   = db.prepare("SELECT MIN(fecha) as mas_vieja FROM auditoria").get();
 
+    // Memoria del proceso Node.js
+    const mem = process.memoryUsage();
+    const uptimeSeg = Math.floor(process.uptime());
+    const horas = Math.floor(uptimeSeg / 3600);
+    const minutos = Math.floor((uptimeSeg % 3600) / 60);
+    const segundos = uptimeSeg % 60;
+
+    // Conteo de registros principales
+    const totalAlumnos = db.prepare('SELECT COUNT(*) as n FROM alumnos').get().n;
+    const totalDocentes = db.prepare('SELECT COUNT(*) as n FROM usuarios WHERE rol="docente"').get().n;
+    const totalExamenes = db.prepare('SELECT COUNT(*) as n FROM examenes').get().n;
+
     res.json({
       db_bytes: dbSize,
       db_mb: (dbSize / 1048576).toFixed(2),
@@ -3340,7 +3352,15 @@ app.get('/api/admin/disco', auth(ADM), (req, res) => {
         total_registros: audCount.n,
         mas_vieja: audOld.mas_vieja
       },
-      total_estimado_mb: ((dbSize + backupTotal) / 1048576).toFixed(2)
+      total_estimado_mb: ((dbSize + backupTotal) / 1048576).toFixed(2),
+      memoria: {
+        rss_mb: (mem.rss / 1048576).toFixed(1),
+        heap_usado_mb: (mem.heapUsed / 1048576).toFixed(1),
+        heap_total_mb: (mem.heapTotal / 1048576).toFixed(1),
+        externo_mb: (mem.external / 1048576).toFixed(1)
+      },
+      uptime: { horas, minutos, segundos, texto: `${horas}h ${minutos}m ${segundos}s` },
+      registros: { alumnos: totalAlumnos, docentes: totalDocentes, examenes: totalExamenes }
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
