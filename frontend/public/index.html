@@ -4471,11 +4471,12 @@ async function resolverSolicitudAlumno(id,accion){
 // ── SOLICITUDES DE INCORPORACIÓN ──────────────────────────────────────────────
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
-  const [sols,informes,ausencias,inactivos]=await Promise.all([
+  const [sols,informes,ausencias,inactivos,sinAsignar]=await Promise.all([
     api('GET','/api/solicitudes-alumno').catch(()=>[]),
     api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
     api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
     api('GET','/api/gestion-alumnos/inactivos').catch(()=>[]),
+    api('GET','/api/gestion-alumnos/sin-asignar').catch(()=>[]),
   ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
@@ -4741,7 +4742,64 @@ async function pgSolicitudes(el){
   </div>
   `:`<div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">✓ No hay alumnos inactivos ni retirados</div>`}
 
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       BLOQUE 4 — ALUMNOS SIN ASIGNAR
+  ════════════════════════════════════════════════════════════ -->
+  <div style="background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:14px;font-weight:800">⚠ Alumnos sin asignar</div>
+      <div style="color:#ddd6fe;font-size:11px;margin-top:2px">Alumnos activos sin materias en el período lectivo actual</div>
+    </div>
+    <span style="background:${sinAsignar.length?'#fef3c7;color:#92400e':'rgba(255,255,255,0.2);color:#fff'};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700">${sinAsignar.length} alumno${sinAsignar.length!==1?'s':''}</span>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+
+  ${sinAsignar.length?`
+  <!-- Buscador -->
+  <div style="padding:10px 14px;background:#f5f3ff;border-bottom:1px solid #ede9fe">
+    <input id="busqSinAsignar" oninput="filtrarSinAsignar()" placeholder="🔍 Buscar por nombre, apellido o CI..." style="width:100%;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;box-sizing:border-box"/>
+  </div>
+  <div id="listaSinAsignar">
+  ${sinAsignar.map(a=>{
+    const divLabel=a.division&&a.division!=='U'?' '+a.division:'';
+    return `<div class="sinasig-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}"
+      style="display:flex;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f5f9">
+      <!-- Avatar -->
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4c1d95);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0">
+        ${(a.apellido||a.nombre||'?')[0].toUpperCase()}
+      </div>
+      <!-- Info -->
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:800;color:#1e293b">${a.apellido||''}, ${a.nombre||''} ${a.ci?`<span style="font-size:10px;color:var(--t3);font-weight:400">CI: ${a.ci}</span>`:''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;align-items:center">
+          ${a.carrera?`<span style="font-size:11px;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:5px;font-weight:600">${a.carrera}${a.anio?` · ${a.anio}°${divLabel}`:''}</span>`:`<span style="font-size:11px;color:#dc2626;font-weight:600">⚠ Sin carrera asignada</span>`}
+          ${a.matricula?`<span style="font-size:10px;color:var(--t3)">Matríc: ${a.matricula}</span>`:''}
+          ${a.fecha_ingreso?`<span style="font-size:10px;color:var(--t3)">Ingresó: ${a.fecha_ingreso}</span>`:''}
+          ${a.email?`<span style="font-size:10px;color:var(--t3)">✉ ${a.email}</span>`:''}
+        </div>
+      </div>
+      <!-- Acción -->
+      <div style="flex-shrink:0">
+        <button class="bn" style="font-size:11px;padding:4px 10px;white-space:nowrap;background:linear-gradient(135deg,#7c3aed,#4c1d95);border:none" onclick="irAIncorporar('${a.id}','${(a.apellido||'')+', '+(a.nombre||'')}')">📋 Vincular</button>
+      </div>
+    </div>`;
+  }).join('')}
+  </div>
+  `:`<div style="padding:24px;text-align:center;color:var(--green);font-size:13px"><strong>✓ Todos los alumnos activos están asignados al período</strong></div>`}
+
   </div>`;
+}
+
+function filtrarSinAsignar(){
+  const q=(v('busqSinAsignar')||'').toLowerCase().replace(/\s+/g,'');
+  document.querySelectorAll('.sinasig-row').forEach(row=>{
+    row.style.display=(!q||row.dataset.busq.replace(/\s+/g,'').includes(q))?'flex':'none';
+  });
+}
+function irAIncorporar(alId, nombre){
+  toast(`Para vincular a ${nombre}, pedile al docente que envíe una solicitud de incorporación desde su materia.`,'info',6000);
 }
 
 function filtrarInactivos(){
@@ -8728,7 +8786,7 @@ async function mostrarDiagnostico(){
     const grupos={
       'Incorporaciones':{ico:'📥',tipos:['alumno_faltante','nota_faltante','anio_incorrecto'],items:[]},
       'Duplicados':{ico:'♊',tipos:['ci_duplicado_usuario','ci_duplicado_alumno','email_duplicado','matricula_duplicada'],items:[]},
-      'Datos incompletos':{ico:'📋',tipos:['alumno_sin_ci','alumno_sin_carrera','alumno_sin_curso','alumno_sin_notas','usuario_faltante','docente_sin_usuario','asignacion_sin_docente'],items:[]},
+      'Datos incompletos':{ico:'📋',tipos:['alumno_sin_ci','alumno_sin_carrera','alumno_sin_curso','usuario_faltante','docente_sin_usuario','asignacion_sin_docente'],items:[]},
       'Integridad BD':{ico:'🔗',tipos:['nota_huerfana','nota_asig_invalida','pago_sin_alumno','asistencia_huerfana'],items:[]},
       'Período y sistema':{ico:'📅',tipos:['sin_periodo_activo','multiples_periodos_activos'],items:[]},
       'Acceso y usuarios':{ico:'🔐',tipos:['usuario_inactivo_activo','logins_excesivos'],items:[]},
@@ -8810,7 +8868,7 @@ function diagCard(p,i){
     ci_duplicado_usuario:'CI DUPLICADO (USUARIOS)', ci_duplicado_alumno:'CI DUPLICADO (ALUMNOS)',
     email_duplicado:'EMAIL DUPLICADO', matricula_duplicada:'MATRÍCULA DUPLICADA',
     alumno_sin_ci:'SIN NÚMERO DE CI', alumno_sin_carrera:'SIN CARRERA', alumno_sin_curso:'SIN AÑO/CURSO',
-    alumno_sin_notas:'SIN NOTAS EN PERÍODO', asignacion_sin_docente:'ASIGNACIÓN SIN DOCENTE',
+    asignacion_sin_docente:'ASIGNACIÓN SIN DOCENTE',
     nota_huerfana:'NOTA HUÉRFANA', nota_asig_invalida:'NOTA → ASIG INVÁLIDA',
     pago_sin_alumno:'PAGO SIN ALUMNO', asistencia_huerfana:'ASISTENCIA HUÉRFANA',
     sin_periodo_activo:'SIN PERÍODO ACTIVO', multiples_periodos_activos:'PERÍODOS DUPLICADOS',

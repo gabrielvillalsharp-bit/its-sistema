@@ -3632,12 +3632,7 @@ app.get('/api/admin/diagnostico', auth(ADM), (req, res) => {
   const notasAsigInval = db.prepare("SELECT n.id,n.alumno_id,n.asignacion_id FROM notas n LEFT JOIN asignaciones a ON n.asignacion_id=a.id WHERE a.id IS NULL LIMIT 20").all();
   for (const n of notasAsigInval) push({ tipo:'nota_asig_invalida', gravedad:'critico', mensaje:`Nota ${n.id} referencia a asignacion_id inexistente (${n.asignacion_id})`, accion_disponible:'informativo' });
 
-  // Alumnos activos sin ninguna nota en período activo
-  const periodo = db.prepare("SELECT id FROM periodos WHERE activo=1").get();
-  if (periodo) {
-    const sinNotas = db.prepare(`SELECT al.id,COALESCE(al.nombre,u.nombre) as nombre,COALESCE(al.apellido,u.apellido) as apellido,al.ci,al.matricula,c.nombre as carrera_nombre,cu.anio FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN cursos cu ON al.curso_id=cu.id WHERE al.estado='Activo' AND al.id NOT IN (SELECT DISTINCT n.alumno_id FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE a.periodo_id=?) LIMIT 30`).all(periodo.id);
-    for (const a of sinNotas) push({ tipo:'alumno_sin_notas', gravedad:'advertencia', nombre:a.nombre||'', apellido:a.apellido||'', ci:a.ci||'', matricula:a.matricula, carrera_alumno:a.carrera_nombre, curso_alumno_anio:a.anio, alumno_id:a.id, mensaje:'Alumno activo sin ninguna nota en el período lectivo actual', accion_disponible:'informativo' });
-  }
+  // alumno_sin_notas: movido a Gestión de Alumnos (bloque 4 — sin asignar)
 
   // ── BLOQUE 5: PAGOS ────────────────────────────────────────────────────────
   // Pagos con alumno_id que no existe
@@ -4453,6 +4448,36 @@ app.get('/api/gestion-alumnos/ausencias-consecutivas', auth(ADM), (req, res) => 
       }
     }
     res.json(resultados);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/gestion-alumnos/sin-asignar', auth(ADM), (req, res) => {
+  try {
+    const periodo = db.prepare("SELECT id FROM periodos WHERE activo=1").get();
+    if (!periodo) return res.json([]);
+    const alumnos = db.prepare(`
+      SELECT
+        al.id, al.matricula, al.fecha_ingreso,
+        COALESCE(al.nombre, u.nombre)     AS nombre,
+        COALESCE(al.apellido, u.apellido) AS apellido,
+        COALESCE(al.ci, u.ci)             AS ci,
+        u.email,
+        ca.nombre AS carrera, ca.id AS carrera_id,
+        cu.anio,   cu.division
+      FROM alumnos al
+      LEFT JOIN usuarios u  ON al.usuario_id = u.id
+      LEFT JOIN cursos cu   ON al.curso_id   = cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id  = ca.id
+      WHERE al.estado = 'Activo'
+        AND al.id NOT IN (
+          SELECT DISTINCT n.alumno_id
+          FROM notas n
+          JOIN asignaciones a ON n.asignacion_id = a.id
+          WHERE a.periodo_id = ?
+        )
+      ORDER BY ca.nombre, cu.anio, al.apellido NULLS LAST, al.nombre
+    `).all(periodo.id);
+    res.json(alumnos);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
