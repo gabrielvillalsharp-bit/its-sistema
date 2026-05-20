@@ -658,7 +658,7 @@ function navFor(r){
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
       {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
       {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
-      {id:'solicitudes',l:'Vinculaciones',c:'#D85A30',r:['director']},
+      {id:'solicitudes',l:'Gestión de Alumnos',c:'#D85A30',r:['director']},
     ]},
     {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
@@ -4470,13 +4470,103 @@ async function resolverSolicitudAlumno(id,accion){
 
 // ── SOLICITUDES DE INCORPORACIÓN ──────────────────────────────────────────────
 async function pgSolicitudes(el){
-  el.innerHTML='<div class="ph"><h3>📋 Solicitudes de incorporación</h3></div>'+skeletonTable(4,4);
-  const sols=await api('GET','/api/solicitudes-alumno').catch(()=>[]);
+  el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
+  const [sols,informes,ausencias]=await Promise.all([
+    api('GET','/api/solicitudes-alumno').catch(()=>[]),
+    api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
+    api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
+  ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
-  el.innerHTML=`<div class="ph"><h3>📋 Solicitudes de incorporación</h3>
+  const informesPend=informes.filter(i=>i.estado==='pendiente');
+  const carreras=[...new Map(ausencias.map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera}])).values()];
+  el.innerHTML=`<div class="ph"><h3>👥 Gestión de Alumnos</h3>
     <button class="bs" onclick="go('solicitudes')">↻ Actualizar</button>
   </div>
+
+  ${informes.length||ausencias.length?`
+  <!-- ── SECCIÓN: REPORTES DE SEGUIMIENTO ───────────────────── -->
+  <div style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+    <h4 style="margin:0;color:var(--sec)">📋 Seguimiento de alumnos</h4>
+    <span style="font-size:11px;color:var(--t3)">Informes de docentes y ausencias detectadas automáticamente</span>
+  </div>
+
+  <!-- Filtros -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <select id="filtGestCarr" onchange="filtrarGestionAlumnos()" style="padding:6px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+      <option value="">Todas las carreras</option>
+      ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="filtGestAnio" onchange="filtrarGestionAlumnos()" style="padding:6px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+      <option value="">Todos los años</option>
+      <option value="1">1° año</option>
+      <option value="2">2° año</option>
+      <option value="3">3° año</option>
+    </select>
+    <select id="filtGestDiv" onchange="filtrarGestionAlumnos()" style="padding:6px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+      <option value="">Todas las secciones</option>
+      <option value="A">Sección A</option>
+      <option value="B">Sección B</option>
+      <option value="U">Única</option>
+    </select>
+  </div>
+
+  <!-- Informes de docentes -->
+  ${informes.length?`
+  <div class="card" style="margin-bottom:12px;border-left:4px solid #f59e0b">
+    <div style="padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:13px;color:#92400e">🔔 Informes de docentes (${informesPend.length} pendiente${informesPend.length!==1?'s':''})</strong>
+    </div>
+    <div id="listaInformes">
+    ${informes.map(i=>`
+    <div class="gest-row" data-carrera="${i.carrera_id}" data-anio="${i.anio}" data-div="${i.division}" style="display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #f1f5f9;${i.estado!=='pendiente'?'opacity:0.5':''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${i.alumno_apellido||''}, ${i.alumno_nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${i.alumno_ci||'—'}</span></div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${i.materia} · ${i.carrera} ${i.anio}°${i.division==='U'?'':i.division}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:1px">👤 Reportado por: ${i.docente_apellido||''}, ${i.docente_nombre||''} — ${i.fecha}</div>
+        ${i.observacion?`<div style="font-size:11px;color:#374151;margin-top:3px;background:#f9fafb;padding:4px 8px;border-radius:5px;border:1px solid var(--bdr)">💬 "${i.observacion}"</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:120px">
+        ${i.estado==='pendiente'?`
+          <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-weight:700;text-align:center">⏳ PENDIENTE</span>
+          <button class="bn" style="font-size:10px;padding:3px 8px;background:#dc2626;border:none" onclick="resolverInformeGA('${i.id}','retirado','${i.alumno_id}')">🚫 Marcar Retirado</button>
+          <button class="bs" style="font-size:10px;padding:3px 8px" onclick="resolverInformeGA('${i.id}','visto',null)">✓ Visto</button>
+        `:i.estado==='visto'?`
+          <span style="font-size:9px;background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-weight:700;text-align:center">👁 VISTO</span>
+        `:`
+          <span style="font-size:9px;background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:4px;font-weight:700;text-align:center">✓ RESUELTO</span>
+        `}
+      </div>
+    </div>`).join('')}
+    </div>
+  </div>`:''}
+
+  <!-- Ausencias consecutivas automáticas -->
+  ${ausencias.length?`
+  <div class="card" style="margin-bottom:16px;border-left:4px solid #ef4444">
+    <div style="padding:10px 14px;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:13px;color:#7f1d1d">⚠ Detección automática — 5+ clases sin asistir (${ausencias.length})</strong>
+    </div>
+    <div id="listaAusencias">
+    ${ausencias.map(a=>`
+    <div class="gest-row" data-carrera="${a.carrera_id}" data-anio="${a.anio}" data-div="${a.division||''}" style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${a.ci||'—'}</span></div>
+        <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${a.materia} · ${a.carrera} ${a.anio}°${a.division&&a.division!=='U'?a.division:''}</div>
+        ${a.ultima_asistencia?`<div style="font-size:11px;color:var(--t3)">Última asistencia: ${a.ultima_asistencia}</div>`:''}
+      </div>
+      <div style="text-align:center;min-width:90px">
+        <div style="font-size:22px;font-weight:900;color:#dc2626;line-height:1">${a.ausencias_consecutivas}</div>
+        <div style="font-size:10px;color:#991b1b;font-weight:600">clases sin asistir</div>
+        <button class="bs d" style="font-size:10px;padding:2px 8px;margin-top:4px" onclick="marcarNoViene('${a.alumno_id}','${(a.apellido||'')+', '+(a.nombre||'')}','${a.asignacion_id}')">🚫 Retirar</button>
+      </div>
+    </div>`).join('')}
+    </div>
+  </div>`:''}
+
+  `:''}
+
+  <!-- ── SECCIÓN: VINCULACIONES ─────────────────────────────── -->
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <div class="card card-p" style="flex:1;min-width:120px;text-align:center">
       <div style="font-size:11px;color:var(--t2)">Pendientes</div>
@@ -5098,9 +5188,9 @@ W.loadAsist=async(asigId)=>{
         <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',J:'📋'}[s]}</button>
       </td>`).join('')}
       <td style="text-align:center;padding:4px">
-        ${me.rol==='director'?`<div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap">
-          <button class="bs i" style="font-size:10px;padding:2px 6px" onclick="editarAsist('${regId||''}','${a.id}','${nombre}','${est}')">✏</button>
-          <button class="bs d" style="font-size:10px;padding:2px 6px;background:#fff3e0;border-color:#ffb74d;color:#e65100" title="Alumno no viene más" onclick="marcarNoViene('${a.id}','${nombre}')">🚫 No viene</button>
+        ${(me.rol==='director'||me.rol==='docente')?`<div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap">
+          ${me.rol==='director'?`<button class="bs i" style="font-size:10px;padding:2px 6px" onclick="editarAsist('${regId||''}','${a.id}','${nombre}','${est}')">✏</button>`:''}
+          <button class="bs d" style="font-size:10px;padding:2px 6px;background:#fff3e0;border-color:#ffb74d;color:#e65100" title="Alumno no viene más" onclick="marcarNoViene('${a.id}','${nombre}','${asigId}')">🚫 No viene</button>
         </div>`:''}
       </td>
     </tr>`;
@@ -5110,19 +5200,69 @@ W.loadAsist=async(asigId)=>{
 };
 
 // Funciones globales — no en W.* para que funcionen desde onclick en innerHTML
-function marcarNoViene(alId, nombre){
-  confirm2('🚫 Alumno no viene más',
-    `<p>¿Confirmar que <strong>${nombre}</strong> ya no asistirá más a clases?</p>
-    <p style="font-size:12px;color:#e65100;margin-top:10px">El alumno será marcado como <strong>Retirado</strong>. Seguirá visible en el historial pero dejará de aparecer en las listas activas.</p>
-    <p style="font-size:11px;color:#6b7280;margin-top:6px">Para eliminarlo completamente del sistema, usá la sección <strong>Pagos → Eliminar alumno</strong>.</p>`,
-    async()=>{
-      try{
-        await api('PUT','/api/alumnos/'+alId,{estado:'Retirado'});
-        toast('✓ Alumno marcado como Retirado','ok',4000);
-        if(W._asistId) W.loadAsist(W._asistId);
-      }catch(e){toast('Error: '+e.message,'err');}
+function marcarNoViene(alId, nombre, asigId){
+  if(me.rol==='docente'){
+    // Docente: envía informe al director (no cambia estado directamente)
+    modal(`<h4>🚫 Reportar alumno al director</h4>
+    <p style="margin-bottom:10px;font-size:13px">Vas a informar al director que <strong>${nombre}</strong> no asiste más a clases.</p>
+    <div class="f" style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:4px;display:block">Observación (opcional)</label>
+      <textarea id="_noVieneObs" rows="3" placeholder="Ej: No asiste desde hace 3 semanas, no se comunicó..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea>
+    </div>
+    <p style="font-size:11px;color:#6b7280;margin-bottom:14px">⚠ Esta acción sólo genera un informe. El director decidirá si marca al alumno como Retirado.</p>
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="svInformeNoViene('${alId}','${asigId||W._asistId||''}')">📤 Enviar informe</button>
+    </div>`);
+  } else {
+    // Director: marca directamente como Retirado
+    confirm2('🚫 Alumno no viene más',
+      `<p>¿Confirmar que <strong>${nombre}</strong> ya no asistirá más a clases?</p>
+      <p style="font-size:12px;color:#e65100;margin-top:10px">El alumno será marcado como <strong>Retirado</strong>. Seguirá visible en el historial pero dejará de aparecer en las listas activas.</p>
+      <p style="font-size:11px;color:#6b7280;margin-top:6px">Para eliminarlo completamente del sistema, usá la sección <strong>Pagos → Eliminar alumno</strong>.</p>`,
+      async()=>{
+        try{
+          await api('PUT','/api/alumnos/'+alId,{estado:'Retirado'});
+          toast('✓ Alumno marcado como Retirado','ok',4000);
+          if(W._asistId) W.loadAsist(W._asistId);
+        }catch(e){toast('Error: '+e.message,'err');}
+      }
+    );
+  }
+}
+async function svInformeNoViene(alId, asigId){
+  const obs=v('_noVieneObs');
+  if(!asigId){toast('No se pudo identificar la materia','err');return;}
+  try{
+    await api('POST','/api/gestion-alumnos/informe',{alumno_id:alId,asignacion_id:asigId,observacion:obs});
+    cm();
+    toast('✓ Informe enviado al director','ok',4000);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function resolverInformeGA(informeId, accion, alId){
+  try{
+    if(accion==='retirado'){
+      if(!confirm('¿Marcar este alumno como Retirado?'))return;
+      await api('PUT','/api/alumnos/'+alId,{estado:'Retirado'});
+      await api('PUT','/api/gestion-alumnos/informe/'+informeId,{estado:'resuelto'});
+      toast('✓ Alumno marcado como Retirado','ok',4000);
+    } else {
+      await api('PUT','/api/gestion-alumnos/informe/'+informeId,{estado:'visto'});
+      toast('✓ Informe marcado como visto','ok');
     }
-  );
+    go('solicitudes');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+function filtrarGestionAlumnos(){
+  const carrera=v('filtGestCarr');
+  const anio=v('filtGestAnio');
+  const div=v('filtGestDiv');
+  document.querySelectorAll('.gest-row').forEach(row=>{
+    const okCarr=!carrera||row.dataset.carrera===carrera;
+    const okAnio=!anio||String(row.dataset.anio)===anio;
+    const okDiv=!div||row.dataset.div===div;
+    row.style.display=(okCarr&&okAnio&&okDiv)?'flex':'none';
+  });
 }
 function setAsist(aid,est){
   if(!W._ast)return;
@@ -6162,9 +6302,14 @@ async function selAlumnoPago(alId){
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;color:#166534;font-size:13px">Gs. ${Number(p.monto||0).toLocaleString()}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#64748b">${p.medio_pago||'Efectivo'}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#94a3b8">${p.comprobante||'—'}</td>
-              <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap;display:flex;gap:4px">
-                <button onclick="editarPago('${p.id}','${p.concepto}',${p.monto},'${p.fecha_pago}','${p.medio_pago||'Efectivo'}','${p.comprobante||''}','${alId}')" style="font-size:11px;padding:2px 7px;border:1px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:4px;cursor:pointer" title="Editar pago">✏</button>
-                <button onclick="delPagoAlumno('${p.id}','${alId}')" style="font-size:11px;padding:2px 7px;border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:4px;cursor:pointer" title="Eliminar pago">✕</button>
+              <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                  <span style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.4px">Editar pago</span>
+                  <div style="display:flex;gap:4px">
+                    <button onclick="editarPago('${p.id}','${p.concepto}',${p.monto},'${p.fecha_pago}','${p.medio_pago||'Efectivo'}','${p.comprobante||''}','${alId}')" style="font-size:11px;padding:3px 10px;border:none;background:#2563eb;color:#fff;border-radius:5px;cursor:pointer;font-weight:600" title="Editar pago">✏ Editar</button>
+                    <button onclick="delPagoAlumno('${p.id}','${alId}')" style="font-size:11px;padding:3px 7px;border:none;background:#dc2626;color:#fff;border-radius:5px;cursor:pointer;font-weight:600" title="Eliminar pago">✕</button>
+                  </div>
+                </div>
               </td>
             </tr>`).join('')}
           </tbody>

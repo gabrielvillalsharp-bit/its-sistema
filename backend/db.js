@@ -404,6 +404,15 @@ function crearTablas() {
       hora_fin TEXT NOT NULL DEFAULT '20:20',
       aula TEXT
     );
+    CREATE TABLE IF NOT EXISTS informes_asistencia (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+      docente_id TEXT NOT NULL REFERENCES docentes(id),
+      observacion TEXT,
+      fecha TEXT NOT NULL DEFAULT (date('now')),
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','visto','resuelto'))
+    );
   `);
 
   // Índices para consultas frecuentes

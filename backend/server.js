@@ -4348,6 +4348,114 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+// ── GESTIÓN DE ALUMNOS — Informes de docentes ─────────────────────────────────
+app.post('/api/gestion-alumnos/informe', auth(['director','docente']), (req, res) => {
+  try {
+    const { alumno_id, asignacion_id, observacion } = req.body;
+    if (!alumno_id || !asignacion_id) return res.status(400).json({ error: 'Faltan datos' });
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    const docId = doc?.id || req.body.docente_id;
+    if (!docId) return res.status(400).json({ error: 'No se pudo identificar al docente' });
+    const id = 'inf_' + Date.now();
+    db.prepare('INSERT INTO informes_asistencia (id,alumno_id,asignacion_id,docente_id,observacion) VALUES (?,?,?,?,?)')
+      .run(id, alumno_id, asignacion_id, docId, observacion || null);
+    audit(req.user.id, 'INFORME_NO_VIENE', 'informes_asistencia', id, { alumno_id });
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/gestion-alumnos/informes', auth(ADM), (req, res) => {
+  try {
+    const informes = db.prepare(`
+      SELECT i.*,
+        COALESCE(al.nombre, u_al.nombre) as alumno_nombre,
+        COALESCE(al.apellido, u_al.apellido) as alumno_apellido,
+        COALESCE(al.ci, u_al.ci) as alumno_ci,
+        al.estado as alumno_estado,
+        m.nombre as materia,
+        ca.nombre as carrera, ca.id as carrera_id,
+        cu.anio, cu.division,
+        u_doc.nombre as docente_nombre, u_doc.apellido as docente_apellido
+      FROM informes_asistencia i
+      JOIN alumnos al ON i.alumno_id = al.id
+      LEFT JOIN usuarios u_al ON al.usuario_id = u_al.id
+      JOIN asignaciones a ON i.asignacion_id = a.id
+      JOIN materias m ON a.materia_id = m.id
+      JOIN cursos cu ON a.curso_id = cu.id
+      JOIN carreras ca ON cu.carrera_id = ca.id
+      JOIN docentes d ON i.docente_id = d.id
+      JOIN usuarios u_doc ON d.usuario_id = u_doc.id
+      ORDER BY i.fecha DESC
+    `).all();
+    res.json(informes);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/gestion-alumnos/informe/:id', auth(ADM), (req, res) => {
+  try {
+    const { estado } = req.body;
+    db.prepare('UPDATE informes_asistencia SET estado=? WHERE id=?').run(estado, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/gestion-alumnos/ausencias-consecutivas', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, anio, division } = req.query;
+    let q = `
+      SELECT al.id, COALESCE(al.nombre, u.nombre) as nombre,
+        COALESCE(al.apellido, u.apellido) as apellido,
+        COALESCE(al.ci, u.ci) as ci,
+        ca.nombre as carrera, ca.id as carrera_id,
+        cu.anio, cu.division, cu.id as curso_id,
+        m.nombre as materia, a.id as asignacion_id
+      FROM alumnos al
+      LEFT JOIN usuarios u ON al.usuario_id = u.id
+      JOIN cursos cu ON al.curso_id = cu.id
+      JOIN carreras ca ON cu.carrera_id = ca.id
+      JOIN notas n ON n.alumno_id = al.id
+      JOIN asignaciones a ON n.asignacion_id = a.id
+      JOIN materias m ON a.materia_id = m.id
+      WHERE al.estado = 'Activo'
+    `;
+    const params = [];
+    if (carrera_id) { q += ' AND ca.id=?'; params.push(carrera_id); }
+    if (anio) { q += ' AND cu.anio=?'; params.push(Number(anio)); }
+    if (division) { q += ' AND cu.division=?'; params.push(division); }
+    const combis = db.prepare(q).all(...params);
+    const resultados = [];
+    for (const c of combis) {
+      const registros = db.prepare(
+        `SELECT estado, fecha FROM asistencia WHERE alumno_id=? AND asignacion_id=? ORDER BY fecha DESC LIMIT 20`
+      ).all(c.id, c.asignacion_id);
+      if (registros.length < 5) continue;
+      let consecutivas = 0;
+      for (const r of registros) {
+        if (r.estado === 'A') consecutivas++;
+        else break;
+      }
+      if (consecutivas >= 5) {
+        const ultimaPresente = registros.find(r => r.estado !== 'A');
+        resultados.push({
+          alumno_id: c.id,
+          nombre: c.nombre,
+          apellido: c.apellido,
+          ci: c.ci,
+          materia: c.materia,
+          asignacion_id: c.asignacion_id,
+          carrera: c.carrera,
+          carrera_id: c.carrera_id,
+          anio: c.anio,
+          division: c.division,
+          ausencias_consecutivas: consecutivas,
+          ultima_asistencia: ultimaPresente?.fecha || null
+        });
+      }
+    }
+    res.json(resultados);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
   const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
   const alumnos = db.prepare(`
