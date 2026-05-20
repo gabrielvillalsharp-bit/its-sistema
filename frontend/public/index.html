@@ -4471,10 +4471,11 @@ async function resolverSolicitudAlumno(id,accion){
 // ── SOLICITUDES DE INCORPORACIÓN ──────────────────────────────────────────────
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
-  const [sols,informes,ausencias]=await Promise.all([
+  const [sols,informes,ausencias,inactivos]=await Promise.all([
     api('GET','/api/solicitudes-alumno').catch(()=>[]),
     api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
     api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
+    api('GET','/api/gestion-alumnos/inactivos').catch(()=>[]),
   ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
@@ -4668,7 +4669,100 @@ async function pgSolicitudes(el){
       </tr>`).join('')}
     </tbody></table></div>`:''}
 
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       BLOQUE 3 — ALUMNOS INACTIVOS / RETIRADOS
+  ════════════════════════════════════════════════════════════ -->
+  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:#fff;font-size:14px;font-weight:800">🗂 Alumnos inactivos / retirados</div>
+      <div style="color:#bfdbfe;font-size:11px;margin-top:2px">Historial de alumnos que ya no están activos en el sistema</div>
+    </div>
+    <span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700">${inactivos.length} alumno${inactivos.length!==1?'s':''}</span>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+
+  ${inactivos.length?`
+  <!-- Buscador rápido -->
+  <div style="padding:10px 14px;background:#f8faff;border-bottom:1px solid #e2e8f0">
+    <input id="busqInactivo" oninput="filtrarInactivos()" placeholder="🔍 Buscar por nombre, apellido o CI..." style="width:100%;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;box-sizing:border-box"/>
+  </div>
+
+  <div id="listaInactivos">
+  ${inactivos.map(a=>{
+    const pct=a.total_clases>0?Math.round((1-a.total_ausencias/a.total_clases)*100):null;
+    const divLabel=a.division&&a.division!=='U'?' '+a.division:'';
+    return `<div class="inact-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}"
+      style="padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;gap:12px;align-items:flex-start">
+
+      <!-- Avatar -->
+      <div style="width:38px;height:38px;border-radius:50%;background:${a.estado==='Retirado'?'linear-gradient(135deg,#ef4444,#b91c1c)':'linear-gradient(135deg,#6b7280,#374151)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0">
+        ${(a.apellido||a.nombre||'?')[0].toUpperCase()}
+      </div>
+
+      <!-- Info principal -->
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:800;color:#1e293b">${a.apellido||''}, ${a.nombre||''}</span>
+          <span style="font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;${a.estado==='Retirado'?'background:#fee2e2;color:#991b1b':'background:#f1f5f9;color:#475569'}">${a.estado.toUpperCase()}</span>
+        </div>
+
+        <!-- Datos personales -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">
+          ${a.ci?`<span style="font-size:11px;color:var(--t2)">📄 CI: <strong>${a.ci}</strong></span>`:''}
+          ${a.matricula?`<span style="font-size:11px;color:var(--t2)">🎓 Matríc: <strong>${a.matricula}</strong></span>`:''}
+          ${a.email?`<span style="font-size:11px;color:var(--t2)">✉ ${a.email}</span>`:''}
+        </div>
+
+        <!-- Carrera y curso -->
+        <div style="margin-top:4px">
+          <span style="font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:5px;font-weight:600">
+            ${a.carrera||'Sin carrera'} ${a.anio?`· ${a.anio}°${divLabel}`:''}
+          </span>
+          ${a.fecha_ingreso?`<span style="font-size:10px;color:var(--t3);margin-left:8px">Ingresó: ${a.fecha_ingreso}</span>`:''}
+        </div>
+
+        <!-- Estadísticas -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          ${a.total_pagos>0?`<span style="font-size:10px;color:#166534;background:#dcfce7;padding:2px 7px;border-radius:4px">💰 ${a.total_pagos} pago${a.total_pagos!==1?'s':''} registrado${a.total_pagos!==1?'s':''}</span>`:`<span style="font-size:10px;color:#6b7280;background:#f1f5f9;padding:2px 7px;border-radius:4px">💰 Sin pagos</span>`}
+          ${a.ultimo_pago?`<span style="font-size:10px;color:var(--t3);background:#f1f5f9;padding:2px 7px;border-radius:4px">Último pago: ${a.ultimo_pago}</span>`:''}
+          ${pct!==null?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;${pct>=75?'color:#166534;background:#dcfce7':pct>=50?'color:#92400e;background:#fef3c7':'color:#991b1b;background:#fee2e2'}">📋 ${pct}% asistencia (${a.total_clases} clases)</span>`:''}
+          ${a.ultima_clase?`<span style="font-size:10px;color:var(--t3);background:#f1f5f9;padding:2px 7px;border-radius:4px">Última clase: ${a.ultima_clase}</span>`:''}
+        </div>
+      </div>
+
+      <!-- Acción -->
+      <div style="flex-shrink:0">
+        <button class="bs" style="font-size:11px;padding:4px 10px;white-space:nowrap" onclick="reactivarAlumno('${a.id}','${a.apellido||''}, ${a.nombre||''}')">↩ Reactivar</button>
+      </div>
+    </div>`;
+  }).join('')}
+  </div>
+  `:`<div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">✓ No hay alumnos inactivos ni retirados</div>`}
+
   </div>`;
+}
+
+function filtrarInactivos(){
+  const q=(v('busqInactivo')||'').toLowerCase().replace(/\s+/g,'');
+  document.querySelectorAll('.inact-row').forEach(row=>{
+    const hayq=!q||row.dataset.busq.replace(/\s+/g,'').includes(q);
+    row.style.display=hayq?'flex':'none';
+  });
+}
+async function reactivarAlumno(alId, nombre){
+  confirm2('↩ Reactivar alumno',
+    `<p>¿Reactivar a <strong>${nombre}</strong>?</p>
+    <p style="font-size:12px;color:var(--t2);margin-top:8px">El alumno pasará al estado <strong>Activo</strong> y volverá a aparecer en todas las listas.</p>`,
+    async()=>{
+      try{
+        await api('PUT','/api/alumnos/'+alId,{estado:'Activo'});
+        toast('✓ Alumno reactivado','ok',4000);
+        go('solicitudes');
+      }catch(e){toast('Error: '+e.message,'err');}
+    }
+  );
 }
 
 function cambiarAsigNotas(asigId){

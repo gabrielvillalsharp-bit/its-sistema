@@ -4456,6 +4456,36 @@ app.get('/api/gestion-alumnos/ausencias-consecutivas', auth(ADM), (req, res) => 
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/gestion-alumnos/inactivos', auth(ADM), (req, res) => {
+  try {
+    const alumnos = db.prepare(`
+      SELECT
+        al.id, al.matricula, al.estado, al.fecha_ingreso,
+        COALESCE(al.nombre, u.nombre)    AS nombre,
+        COALESCE(al.apellido, u.apellido) AS apellido,
+        COALESCE(al.ci, u.ci)            AS ci,
+        u.email,
+        ca.nombre  AS carrera,
+        ca.id      AS carrera_id,
+        cu.anio,
+        cu.division,
+        cu.seccion,
+        (SELECT COUNT(*) FROM pagos p WHERE p.alumno_id = al.id)         AS total_pagos,
+        (SELECT MAX(p.fecha_pago) FROM pagos p WHERE p.alumno_id = al.id) AS ultimo_pago,
+        (SELECT COUNT(*) FROM asistencia ast WHERE ast.alumno_id = al.id AND ast.estado = 'A') AS total_ausencias,
+        (SELECT COUNT(*) FROM asistencia ast WHERE ast.alumno_id = al.id) AS total_clases,
+        (SELECT MAX(ast.fecha) FROM asistencia ast WHERE ast.alumno_id = al.id) AS ultima_clase
+      FROM alumnos al
+      LEFT JOIN usuarios u  ON al.usuario_id = u.id
+      LEFT JOIN cursos cu   ON al.curso_id = cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id = ca.id
+      WHERE al.estado IN ('Inactivo','Retirado')
+      ORDER BY al.estado, ca.nombre, cu.anio, al.apellido NULLS LAST, al.nombre
+    `).all();
+    res.json(alumnos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
   const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
   const alumnos = db.prepare(`
