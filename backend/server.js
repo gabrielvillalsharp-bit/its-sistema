@@ -3968,6 +3968,13 @@ async function sendWhatsApp(phone, message) {
     return false;
   }
 }
+// ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay UTC-4) ─────────
+function enHoraPermitida() {
+  const py = new Date(new Date().getTime() - 4 * 60 * 60 * 1000);
+  const h = py.getUTCHours();
+  return h >= 7 && h < 22;
+}
+
 function buildWaMsg(tplKey, vars) {
   const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
     '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}';
@@ -4033,22 +4040,25 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
-// ── CRON: Recordatorios 72h / 48h / 24h — corre a las 8:00 AM diario ─────────
+// ── CRON: Recordatorios 72h / 48h / 36h / 24h — corre a las 8:00 AM diario ────
 cron.schedule('0 8 * * *', async () => {
+  if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
       { horas: 72, label: '72h' },
       { horas: 48, label: '48h' },
+      { horas: 36, label: '36h' },
       { horas: 24, label: '24h' },
     ]);
-    console.log(`✓ Cron WA 72h/48h/24h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 72/48/24h error:', e.message); }
-});
+    console.log(`✓ Cron WA 72h/48h/36h/24h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 72/48/36/24h error:', e.message); }
+}, { timezone: 'America/Asuncion' });
 
 // ── CRON: Recordatorios 12h / 6h / 3h — corre cada hora ──────────────────────
 // Usa ventana ±30 min sobre la hora del examen para no perder ninguno.
 // La tabla notif_wa_enviadas previene duplicados aunque el cron corra varias veces.
 cron.schedule('0 * * * *', async () => {
+  if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
       { horas: 12, label: '12h' },
@@ -4057,7 +4067,7 @@ cron.schedule('0 * * * *', async () => {
     ], true);
     if (total > 0) console.log(`✓ Cron WA 12h/6h/3h: ${total} mensajes enviados`);
   } catch(e) { console.error('Cron 12/6/3h error:', e.message); }
-});
+}, { timezone: 'America/Asuncion' });
 
 
 // ── CRON: Aviso 24h — carga de examen pendiente (7:00 AM diario) ─────────────
@@ -4084,6 +4094,7 @@ const stmtExamSinArch = db.prepare(`
 `);
 
 cron.schedule('0 7 * * *', async () => {
+  if (!enHoraPermitida()) return;
   try {
     const manana = new Date();
     manana.setDate(manana.getDate() + 1);
@@ -4112,6 +4123,7 @@ cron.schedule('0 7 * * *', async () => {
 // Corre cada hora. Si el examen es hoy, en ≤7h, sin archivo → manda recordatorio.
 // Sigue enviando hora a hora hasta que el docente cargue el archivo.
 cron.schedule('0 * * * *', async () => {
+  if (!enHoraPermitida()) return;
   try {
     const ahora = new Date();
     // Convertir a hora Paraguay (UTC-4)

@@ -305,6 +305,11 @@ tr:hover td{background:#fafaf7}
 .saved-ok{display:inline-block;font-size:10px;color:#2e7d32;font-weight:700;margin-left:4px;animation:fadeInQ .3s ease}
 @keyframes fadeInQ{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 @keyframes pulse-bell{0%,100%{transform:scale(1)}40%{transform:scale(1.25) rotate(-8deg)}60%{transform:scale(1.2) rotate(8deg)}}
+@keyframes navSlideIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
+@keyframes navFadeGroup{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dotPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.4)}70%{box-shadow:0 0 0 5px rgba(229,57,53,0)}}
+.ni{animation:navSlideIn .22s ease both}
+.ng-hdr{animation:navFadeGroup .18s ease both}
 /* ── SCROLLBAR ─────────────────────────────── */
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -546,41 +551,37 @@ function startApp(){
         if(navTxt) navTxt.textContent=total===1?'1 aviso sin leer':`${total} avisos sin leer`;
       }
 
-      // ── 2. Badge en el botón ni-avisos (dentro del grupo) ─────────────────
+      // ── 2. Indicador elegante en ni-avisos (dot + glow, sin círculo negro) ──
       const btn=document.getElementById('ni-avisos');
       if(btn){
-        let badge=btn.querySelector('.notif-badge');
-        if(!badge){
-          badge=document.createElement('span');
-          badge.className='notif-badge';
-          badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;border-radius:50%;min-width:20px;height:20px;padding:0 4px;margin-left:auto;box-shadow:0 2px 6px rgba(0,0,0,.3)';
-          btn.appendChild(badge);
+        let dot=btn.querySelector('.notif-dot');
+        if(!dot){
+          dot=document.createElement('span');
+          dot.className='notif-dot';
+          dot.style.cssText='margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;transition:all .2s';
+          btn.appendChild(dot);
         }
-        badge.textContent=total||'';
-        badge.style.display=total?'inline-flex':'none';
-        const col=examCount>0?'#D85A30':'#e53935';
-        badge.style.background=col;
-        badge.style.animation=total?'pulse-bell .9s infinite':'none';
-        btn.style.fontWeight=total?'800':'';
-        btn.style.color=total?'#166534':'';
+        if(total){
+          const col=examCount>0?'#D85A30':'#e53935';
+          const bg=examCount>0?'rgba(216,90,48,.12)':'rgba(229,57,53,.12)';
+          dot.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${col};animation:pulse-bell .9s infinite;display:inline-block;flex-shrink:0"></span><span style="color:${col}">${total}</span>`;
+          dot.style.background=bg;
+          dot.style.display='inline-flex';
+          btn.style.fontWeight='700';
+        } else {
+          dot.style.display='none';
+          btn.style.fontWeight='';
+        }
       }
 
-      // ── 3. Badge en el encabezado del grupo que contiene "avisos" ─────────
+      // ── 3. Indicador en header del grupo (línea izquierda coloreada, sin círculo) ──
       const groups=window._navGroups||[];
       const grpIdx=groups.findIndex(g=>g.i.some(i=>i.id==='avisos'));
       if(grpIdx>=0){
         const hdr=document.getElementById('ngh-'+grpIdx);
         if(hdr){
-          let hBadge=hdr.querySelector('.notif-badge');
-          if(!hBadge){
-            hBadge=document.createElement('span');
-            hBadge.className='notif-badge';
-            hBadge.style.cssText='display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;border-radius:50%;min-width:17px;height:17px;padding:0 3px;margin-left:6px;box-shadow:0 1px 4px rgba(0,0,0,.25)';
-            hdr.querySelector('span')?.after(hBadge);
-          }
-          hBadge.textContent=total||'';
-          hBadge.style.display=total?'inline-flex':'none';
-          hBadge.style.background=examCount>0?'#D85A30':'#e53935';
+          hdr.style.color=total?(examCount>0?'#D85A30':'#e53935'):'';
+          hdr.style.fontWeight=total?'800':'';
         }
       }
 
@@ -709,7 +710,7 @@ function buildNav(){
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
-        ${g.i.map(i=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
+        ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
       </div>
     </div>`).join('')+`
   <div class="sb-toggle">
@@ -1582,14 +1583,17 @@ async function pgAvisos(el){
     ${misExamenes.map((e,i)=>{
       const diasRestantes=Math.ceil((new Date(e.fecha)-new Date())/(1000*60*60*24));
       const urgente=diasRestantes<=3;
-      return`<div style="padding:12px 16px;border-bottom:${i<misExamenes.length-1?'1px solid #f5ddd8':''};background:${urgente?'#fff8f6':'#fff'};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      const sinArchivo=!e.tiene_archivo&&!e.archivo_nombre;
+      return`<div onclick="irACargarExamen('${e.id}')" style="padding:12px 16px;border-bottom:${i<misExamenes.length-1?'1px solid #f5ddd8':''};background:${urgente?'#fff8f6':'#fff'};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer;transition:background .15s" onmouseenter="this.style.background='#fff0eb'" onmouseleave="this.style.background='${urgente?'#fff8f6':'#fff'}'">
         <div>
           <div style="font-weight:700;font-size:14px">${e.materia_nombre||''} <span style="font-weight:400;color:var(--t2)">·</span> <span style="color:#D85A30">${e.tipo}</span></div>
           <div style="font-size:12px;color:var(--t2);margin-top:2px">${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''} ${e.hora?'· '+e.hora:''} ${e.aula?'· Aula '+e.aula:''}</div>
+          ${sinArchivo?`<div style="font-size:11px;color:#e65100;font-weight:700;margin-top:4px">⚠️ Sin archivo — clic para cargar</div>`:`<div style="font-size:11px;color:#2e7d32;font-weight:700;margin-top:4px">✅ Archivo cargado</div>`}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <span style="font-size:15px;font-weight:800;color:${urgente?'#c62828':'#D85A30'}">${fmtFecha(e.fecha)}</span>
           <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${urgente?'#ffebee':'#fff3e0'};color:${urgente?'#c62828':'#e65100'};font-weight:700">${urgente?'⚡ ':''} En ${diasRestantes} día${diasRestantes!==1?'s':''}</span>
+          <span style="font-size:10px;color:#888">→ Ir a examenes</span>
         </div>
       </div>`;
     }).join('')}
@@ -3226,6 +3230,19 @@ async function borrarArchivoExamen(exId){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 
+function irACargarExamen(exId){
+  go('examenes');
+  // Esperar que cargue la página y hacer scroll + highlight al examen
+  setTimeout(()=>{
+    const fila=document.querySelector(`[data-exid="${exId}"]`)||document.getElementById('ex-'+exId);
+    if(fila){
+      fila.scrollIntoView({behavior:'smooth',block:'center'});
+      fila.style.transition='background .3s';
+      fila.style.background='#fff3cd';
+      setTimeout(()=>{ fila.style.background=''; },2500);
+    }
+  },800);
+}
 async function subirArchivoExamen(exId, input){
   const file=input.files[0];if(!file)return;
   input.value='';

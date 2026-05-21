@@ -930,6 +930,9 @@ function init() {
   insConf.run('wa_tpl_48h',
     '⏰ *ITS Santísima Trinidad*\nHola Prof. {docente}, le recordamos que en *2 días* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nRecuerde preparar el acta de examen.',
     'Mensaje WhatsApp 48 horas antes del examen');
+  insConf.run('wa_tpl_36h',
+    '📋 *ITS Santísima Trinidad*\nHola Prof. {docente}, le recordamos que en *36 horas* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nRecuerde preparar el acta y los materiales del examen.',
+    'Mensaje WhatsApp 36 horas antes del examen');
   insConf.run('wa_tpl_24h',
     '🔔 *ITS Santísima Trinidad*\nHola Prof. {docente}, *mañana* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nNo olvide traer el acta de examen y los materiales necesarios. ¡Éxitos!',
     'Mensaje WhatsApp 24 horas antes del examen');
