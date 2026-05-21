@@ -3500,11 +3500,12 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
 });
 
 app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
-  const { tabla, accion, usuario_id, desde, hasta, limite } = req.query;
+  const { tabla, accion, usuario_id, rol, desde, hasta, limite } = req.query;
   let where = 'WHERE 1=1'; const params = [];
   if (tabla)      { where += ' AND a.tabla=?';       params.push(tabla); }
   if (accion)     { where += ' AND a.accion=?';      params.push(accion); }
   if (usuario_id) { where += ' AND a.usuario_id=?';  params.push(usuario_id); }
+  if (rol)        { where += ' AND u.rol=?';         params.push(rol); }
   if (desde)      { where += ' AND a.fecha>=?';      params.push(desde); }
   if (hasta)      { where += " AND a.fecha<=?";      params.push(hasta+' 23:59:59'); }
   const lim = Math.min(parseInt(limite)||1000, 9999);
@@ -3522,6 +3523,18 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
     FROM auditoria a JOIN usuarios u ON a.usuario_id=u.id
     WHERE a.fecha>=date('now','-7 days') GROUP BY a.usuario_id ORDER BY acciones DESC LIMIT 10`).all();
   res.json({ registros: rows, stats, usuarios_activos, total: rows.length });
+});
+
+app.get('/api/admin/hora-sistema', auth(ADM), (req, res) => {
+  const ahora = new Date();
+  res.json({
+    iso: ahora.toISOString(),
+    local: ahora.toLocaleString('es-PY', { timeZone: 'America/Asuncion' }),
+    utc: ahora.toUTCString(),
+    tz_env: process.env.TZ || '(no configurada)',
+    offset_min: ahora.getTimezoneOffset(),
+    server_now: ahora.toString(),
+  });
 });
 
 // GET /api/actividad-reciente — feed de actividad para el director

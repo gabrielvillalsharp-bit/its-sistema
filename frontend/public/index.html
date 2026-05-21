@@ -659,6 +659,7 @@ function navFor(r){
       {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
       {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
       {id:'solicitudes',l:'Gestión de Alumnos',c:'#D85A30',r:['director']},
+      {id:'registro-habilitados',l:'Habilitados',c:'#c0392b',r:['director']},
     ]},
     {g:'Finanzas',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
@@ -684,7 +685,6 @@ function navFor(r){
       {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Configuración',i:[
-      {id:'registro-habilitados',l:'Habilitados',c:'#c0392b',r:['director']},
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría',c:'#c0392b',r:['director']},
@@ -3717,7 +3717,6 @@ async function pgCalClases(el){
   </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases</h3>
     <div class="ph-right">
-      <button class="bn" onclick="descargarCalendarioAulas()" style="background:#166534;font-size:12px;padding:7px 14px">📥 Descargar PDF</button>
     </div>
     <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs</p>
   </div>
@@ -4782,7 +4781,7 @@ async function pgSolicitudes(el){
       </div>
       <!-- Acción -->
       <div style="flex-shrink:0">
-        <button class="bn" style="font-size:11px;padding:4px 10px;white-space:nowrap;background:linear-gradient(135deg,#7c3aed,#4c1d95);border:none" onclick="irAIncorporar('${a.id}','${(a.apellido||'')+', '+(a.nombre||'')}')">📋 Vincular</button>
+        <button class="bn" style="font-size:11px;padding:4px 10px;white-space:nowrap;background:linear-gradient(135deg,#7c3aed,#4c1d95);border:none" onclick="asignarAlumnoGA('${a.id}','${a.apellido||''}','${a.nombre||''}')">↕ Asignar</button>
       </div>
     </div>`;
   }).join('')}
@@ -4798,8 +4797,52 @@ function filtrarSinAsignar(){
     row.style.display=(!q||row.dataset.busq.replace(/\s+/g,'').includes(q))?'flex':'none';
   });
 }
-function irAIncorporar(alId, nombre){
-  toast(`Para vincular a ${nombre}, pedile al docente que envíe una solicitud de incorporación desde su materia.`,'info',6000);
+async function asignarAlumnoGA(alId, apellido, nombre){
+  const [carrs,cursos]=await Promise.all([
+    api('GET','/api/carreras').catch(()=>[]),
+    api('GET','/api/cursos').catch(()=>[]),
+  ]);
+  modal(`<h4>↕ Asignar alumno a carrera</h4>
+  <div style="font-size:12px;color:var(--t2);padding:8px 12px;background:#f5f3ff;border-radius:6px;margin-bottom:14px">
+    👤 <strong>${apellido||''}, ${nombre||''}</strong>
+  </div>
+  <div class="fg">
+    <div class="f"><label>Carrera</label>
+      <select id="gaCarr" onchange="filtGACursos()" style="width:100%">
+        <option value="">— Sin asignar —</option>
+        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+    </div>
+    <div class="f"><label>Año y sección</label>
+      <select id="gaCurso" style="width:100%">
+        <option value="">— Seleccioná una carrera primero —</option>
+      </select>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="ejecutarAsignarGA('${alId}')">✅ Confirmar asignación</button>
+  </div>`);
+  W._gaCarrs=carrs; W._gaCursos=cursos;
+}
+function filtGACursos(){
+  const carrId=document.getElementById('gaCarr')?.value||'';
+  const sel=document.getElementById('gaCurso');
+  if(!sel)return;
+  const cursos=W._gaCursos||[];
+  sel.innerHTML='<option value="">— Seleccioná año/sección —</option>'+
+    cursos.filter(cu=>String(cu.carrera_id)===carrId).map(cu=>`<option value="${cu.id}">${cu.anio}° año — ${cu.division==='U'?'Sección Única':'Sección '+cu.division}</option>`).join('');
+}
+async function ejecutarAsignarGA(alId){
+  const carrId=document.getElementById('gaCarr')?.value||null;
+  const cursoId=document.getElementById('gaCurso')?.value||null;
+  if(!carrId||!cursoId){toast('Seleccioná carrera y sección','warn');return;}
+  try{
+    await api('PUT','/api/alumnos/'+alId+'/asignar',{carrera_id:carrId,curso_id:cursoId});
+    cm();
+    toast('✓ Alumno asignado correctamente','ok',3000);
+    go('solicitudes');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 function filtrarInactivos(){
@@ -8703,6 +8746,7 @@ async function pgAuditoria(el){
   el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
     <div class="ph-right">
       <button class="bs" onclick="mostrarDiagnostico()" style="background:#7c3aed;color:#fff;border-color:#7c3aed">🔍 Diagnóstico</button>
+      <button class="bs" onclick="verHoraSistema()" title="Ver hora del servidor">🕐 Hora sistema</button>
       <button class="bs s" onclick="exportAuditoria()">⬇ Exportar CSV</button>
       <button class="bs d" onclick="limpiarAuditoria()">🗑 Purgar antiguos</button>
     </div></div>
@@ -8724,6 +8768,12 @@ async function pgAuditoria(el){
     📋 Mostrando todas las acciones del sistema. Usá los filtros para acotar los resultados.
   </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <select id="audRol" onchange="cargarAuditoria()">
+      <option value="">Todos los roles</option>
+      <option value="director">Director</option>
+      <option value="docente">Docente</option>
+      <option value="alumno">Alumno</option>
+    </select>
     <select id="audAccion" onchange="cargarAuditoria()">
       <option value="">Todas las acciones</option>
       <option value="LOGIN">🔐 Login</option>
@@ -9056,14 +9106,37 @@ async function repararAlumno(alumnoId,accion,btn){
   }
 }
 function limpFiltrosAudit(){
-  ['audAccion','audTabla','audDesde','audHasta'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['audRol','audAccion','audTabla','audDesde','audHasta'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const b=document.getElementById('audBus');if(b)b.value='';
   cargarAuditoria();
 }
+async function verHoraSistema(){
+  try{
+    const r=await api('GET','/api/admin/hora-sistema');
+    modal(`<h4>🕐 Hora del servidor</h4>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;margin-top:8px">
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
+        <div style="font-weight:700;color:#166534;font-size:15px;margin-bottom:4px">${r.local}</div>
+        <div style="font-size:11px;color:#4ade80">🇵🇾 Hora local Paraguay (America/Asuncion)</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">UTC:</span><br><strong>${r.utc}</strong></div>
+        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">TZ env:</span><br><strong>${r.tz_env}</strong></div>
+        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">ISO:</span><br><strong style="font-size:10px">${r.iso}</strong></div>
+        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">Offset:</span><br><strong>${r.offset_min} min</strong></div>
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">
+        ℹ Si la hora está desincronizada, verificá que <code>TZ=America/Asuncion</code> esté configurada en Railway → Variables de entorno.
+      </div>
+    </div>
+    <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 async function cargarAuditoria(){
-  const accion=v('audAccion'), tabla=v('audTabla');
+  const rol=v('audRol'), accion=v('audAccion'), tabla=v('audTabla');
   const desde=v('audDesde'), hasta=v('audHasta'), lim=v('audLim')||200;
   let url=`/api/admin/auditoria?limite=${lim}`;
+  if(rol)url+=`&rol=${rol}`;
   if(accion)url+=`&accion=${accion}`;
   if(tabla)url+=`&tabla=${tabla}`;
   if(desde)url+=`&desde=${desde}`;
