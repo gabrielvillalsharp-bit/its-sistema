@@ -515,7 +515,20 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(usuario_id, req.params.id);
     return res.json({ ok: true });
   }
-  db.prepare('UPDATE alumnos SET nombre=?,apellido=?,ci=?,telefono=?,direccion=?,estado=?,carrera_id=?,curso_id=? WHERE id=?').run(nombre,apellido,ci,telefono,direccion,estado,carrera_id,curso_id||null,req.params.id);
+  // Obtener valores actuales para no pisar campos con undefined
+  const actual = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);
+  if (!actual) return res.status(404).json({ error: 'Alumno no encontrado' });
+  db.prepare('UPDATE alumnos SET nombre=?,apellido=?,ci=?,telefono=?,direccion=?,estado=?,carrera_id=?,curso_id=? WHERE id=?').run(
+    nombre     !== undefined ? nombre     : actual.nombre,
+    apellido   !== undefined ? apellido   : actual.apellido,
+    ci         !== undefined ? ci         : actual.ci,
+    telefono   !== undefined ? telefono   : actual.telefono,
+    direccion  !== undefined ? direccion  : actual.direccion,
+    estado     !== undefined ? estado     : actual.estado,
+    carrera_id !== undefined ? carrera_id : actual.carrera_id,
+    curso_id   !== undefined ? (curso_id||null) : actual.curso_id,
+    req.params.id
+  );
   res.json({ ok: true });
 });
 // ── CREAR/ACTUALIZAR ACCESOS MASIVOS ─────────────────────────────────────────
@@ -3941,7 +3954,7 @@ async function sendWhatsApp(phone, message) {
     const resp = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
-      body: JSON.stringify({ number: numero, text: message }),
+      body: JSON.stringify({ number: numero, textMessage: { text: message } }),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
