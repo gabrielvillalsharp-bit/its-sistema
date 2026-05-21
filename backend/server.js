@@ -3950,55 +3950,81 @@ function buildWaMsg(tplKey, vars) {
     .replace(/\{aula\}/g,    vars.aula);
 }
 
-// ── CRON: Recordatorios por email 72h / 48h / 24h antes del examen ───────────
-// Corre todos los días a las 8:00 AM. Usa tabla notif_wa_enviadas para no duplicar.
+// ── HELPER: query de exámenes sin archivo ─────────────────────────────────────
+const qExamenes = `
+  SELECT e.id, e.tipo, e.fecha, e.hora, e.aula,
+    m.nombre as materia, ca.nombre as carrera,
+    cu.anio, cu.division,
+    u.nombre as doc_nombre, u.apellido as doc_apellido,
+    d.telefono as doc_telefono
+  FROM examenes e
+  LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+  LEFT JOIN materias m ON a.materia_id=m.id
+  LEFT JOIN cursos cu ON a.curso_id=cu.id
+  LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+  LEFT JOIN docentes d ON a.docente_id=d.id
+  LEFT JOIN usuarios u ON d.usuario_id=u.id
+  WHERE e.fecha=?
+    AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')`;
+
+async function procesarIntervalos(intervalos, usarHora = false) {
+  const hoy = new Date();
+  let total = 0;
+  for (const { horas, label } of intervalos) {
+    const target = new Date(hoy.getTime() + horas * 60 * 60 * 1000);
+    const fechaTarget = target.toISOString().split('T')[0];
+    const examenes = db.prepare(qExamenes).all(fechaTarget);
+    for (const ex of examenes) {
+      // Para intervalos cortos verificar ventana de ±30 min con la hora del examen
+      if (usarHora) {
+        const horaEx = ex.hora || '19:00';
+        const [hh, mm] = horaEx.split(':').map(Number);
+        const exDateTime = new Date(`${fechaTarget}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`);
+        const diffMin = (exDateTime.getTime() - hoy.getTime()) / 60000;
+        const limInf = horas * 60 - 30;
+        const limSup = horas * 60 + 30;
+        if (diffMin < limInf || diffMin > limSup) continue;
+      }
+      const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
+      if (yaEnviado) continue;
+      if (!ex.doc_telefono) continue;
+      const vars = examenVars(ex);
+      const msg  = buildWaMsg(`wa_tpl_${label}`, vars);
+      const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+      if (ok) {
+        db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
+        audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_telefono });
+        total++;
+      }
+    }
+  }
+  return total;
+}
+
+// ── CRON: Recordatorios 72h / 48h / 24h — corre a las 8:00 AM diario ─────────
 cron.schedule('0 8 * * *', async () => {
   try {
-    const hoy = new Date();
-    const intervalos = [
+    const total = await procesarIntervalos([
       { horas: 72, label: '72h' },
       { horas: 48, label: '48h' },
       { horas: 24, label: '24h' },
-    ];
-    let totalEmail = 0;
+    ]);
+    console.log(`✓ Cron WA 72h/48h/24h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 72/48/24h error:', e.message); }
+});
 
-    for (const { horas, label } of intervalos) {
-      const target = new Date(hoy.getTime() + horas * 60 * 60 * 1000);
-      const fechaTarget = target.toISOString().split('T')[0];
-
-      const examenes = db.prepare(`
-        SELECT e.id, e.tipo, e.fecha, e.hora, e.aula,
-          m.nombre as materia, ca.nombre as carrera,
-          cu.anio, cu.division,
-          u.nombre as doc_nombre, u.apellido as doc_apellido,
-          d.telefono as doc_telefono
-        FROM examenes e
-        LEFT JOIN asignaciones a ON e.asignacion_id=a.id
-        LEFT JOIN materias m ON a.materia_id=m.id
-        LEFT JOIN cursos cu ON a.curso_id=cu.id
-        LEFT JOIN carreras ca ON cu.carrera_id=ca.id
-        LEFT JOIN docentes d ON a.docente_id=d.id
-        LEFT JOIN usuarios u ON d.usuario_id=u.id
-        WHERE e.fecha=?
-          AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')`).all(fechaTarget);
-
-      for (const ex of examenes) {
-        const yaEnviado = db.prepare('SELECT 1 FROM notif_wa_enviadas WHERE examen_id=? AND intervalo=?').get(ex.id, label);
-        if (yaEnviado) continue;
-        if (!ex.doc_telefono) continue; // sin teléfono no se puede enviar
-
-        const vars = examenVars(ex);
-        const msg  = buildWaMsg(`wa_tpl_${label}`, vars);
-        const ok   = await sendWhatsApp(ex.doc_telefono, msg);
-        if (ok) {
-          db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
-          audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_telefono });
-          totalEmail++;
-        }
-      }
-    }
-    console.log(`✓ Cron WA recordatorios: ${totalEmail} mensajes enviados`);
-  } catch(e) { console.error('Cron recordatorios error:', e.message); }
+// ── CRON: Recordatorios 12h / 6h / 3h — corre cada hora ──────────────────────
+// Usa ventana ±30 min sobre la hora del examen para no perder ninguno.
+// La tabla notif_wa_enviadas previene duplicados aunque el cron corra varias veces.
+cron.schedule('0 * * * *', async () => {
+  try {
+    const total = await procesarIntervalos([
+      { horas: 12, label: '12h' },
+      { horas: 6,  label: '6h'  },
+      { horas: 3,  label: '3h'  },
+    ], true);
+    if (total > 0) console.log(`✓ Cron WA 12h/6h/3h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 12/6/3h error:', e.message); }
 });
 
 
