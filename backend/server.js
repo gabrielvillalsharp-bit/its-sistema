@@ -4107,7 +4107,7 @@ cron.schedule('0 7 * * *', async () => {
       if (ya) continue;
       const hora = ex.hora || 'a confirmar';
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
-      const msg = `📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}, le informamos que *mañana* tiene examen programado:\n\n📚 *${ex.materia_nombre}* (${ex.tipo_examen})\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora: ${hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación* por cuestiones de practicidad y organización académica.\n\nPor favor ingrese al sistema y cargue el archivo a la brevedad.\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const msg = `📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}, le informamos que *mañana* tiene examen programado:\n\n📚 *${ex.materia_nombre}* (${ex.tipo_examen})\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora: ${hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación* por cuestiones de practicidad y organización académica.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._`;
       const ok = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, '24h', ok?'enviado':'fallido');
@@ -4146,7 +4146,7 @@ cron.schedule('0 * * * *', async () => {
       if (yaEnviadoHora) continue;
       const hRest = Math.ceil(diffH);
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
-      const msg = `⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}:\n\nSu examen de *${ex.materia_nombre}* (${ex.tipo_examen}) está programado en *${hRest} hora${hRest !== 1 ? 's' : ''}* y aún no se registra el archivo en el sistema.\n\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora programada: ${ex.hora}\n\nPor favor cargue el archivo del examen ingresando al sistema a la brevedad.\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const msg = `⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}:\n\nSu examen de *${ex.materia_nombre}* (${ex.tipo_examen}) está programado en *${hRest} hora${hRest !== 1 ? 's' : ''}* y aún no se registra el archivo en el sistema.\n\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora programada: ${ex.hora}\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._`;
       const ok = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'horario', ok?'enviado':'fallido');
