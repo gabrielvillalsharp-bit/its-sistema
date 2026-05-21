@@ -1579,7 +1579,6 @@ async function pgAvisos(el){
     </div></div>
 
   ${esDirector?`<div id="feed-cargas-wrap" style="margin-bottom:16px"></div>`:''}
-  <script>if(window._feedCargasTimer)clearInterval(window._feedCargasTimer);</script>
 
   ${misExamenes.length?`<div style="margin-bottom:16px;border:2px solid #D85A30;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px #D85A3022">
     <div style="background:linear-gradient(90deg,#D85A30,#e07448);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px">
@@ -1669,7 +1668,10 @@ async function pgAvisos(el){
   ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
   ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">✓ Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
   `;
-  if(esDirector) iniciarFeedCargas();
+  if(esDirector){
+    if(window._feedCargasTimer){ clearInterval(window._feedCargasTimer); window._feedCargasTimer=null; }
+    iniciarFeedCargas();
+  }
 }
 function mAvisoDirector(){
   modal(`<h4>✉ Mensaje al Director</h4>
