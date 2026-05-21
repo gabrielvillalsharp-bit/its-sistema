@@ -1131,6 +1131,66 @@ async function pgWhatsApp(el){
   const noLeidos = recibR.no_leidos||0;
   const pendProg = (Array.isArray(progR)?progR:[]).filter(p=>p.estado==='pendiente').length;
 
+  // Pre-computar fragmentos complejos fuera del template literal principal
+  const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes'};
+  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes'].map((t,i)=>{
+    const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
+    return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
+  }).join('');
+
+  const docOptHTML = conTel.map(d=>'<option value="'+d.telefono+'" data-nombre="'+d.apellido+', '+d.nombre+'" data-id="'+(d.docente_id||'')+'">'+d.apellido+', '+d.nombre+' ('+d.telefono+')</option>').join('');
+  const docOptHTML2 = conTel.map(d=>'<option value="'+d.telefono+'" data-nombre="'+d.apellido+', '+d.nombre+'" data-id="'+(d.docente_id||'')+'">'+d.apellido+', '+d.nombre+'</option>').join('');
+
+  const progListHTML = (function(){
+    const progs = Array.isArray(progR)?progR:[];
+    if(!progs.length) return '<p style="color:#999;font-size:13px">No hay mensajes programados</p>';
+    const items = progs.map(p=>{
+      const bg = p.estado==='pendiente'?'#fffbeb':p.estado==='enviado'?'#f0fdf4':'#fef2f2';
+      const badgeBg = p.estado==='pendiente'?'#fef08a':p.estado==='enviado'?'#bbf7d0':'#fecaca';
+      const badgeC = p.estado==='pendiente'?'#854d0e':p.estado==='enviado'?'#166534':'#991b1b';
+      const dest = p.destinatario_tipo==='masivo'?'📢 Masivo':'👤 '+(p.destinatario_nombre||p.destinatario_telefono||'');
+      const fecha = (p.fecha_envio||'').replace('T',' ').slice(0,16);
+      const cancelBtn = p.estado==='pendiente'?'<button onclick="waCancelarProg(\''+p.id+'\')" style="background:#fee2e2;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;color:#dc2626">✕ Cancelar</button>':'';
+      return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:8px;background:'+bg+'"><div style="display:flex;justify-content:space-between;align-items:start"><div><div style="font-weight:700;font-size:13px;color:#333">'+(p.titulo||'Sin título')+'</div><div style="font-size:11px;color:#666;margin-top:2px">'+dest+' · '+fecha+'</div><div style="font-size:11px;color:#888;margin-top:3px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.mensaje+'</div></div><div style="display:flex;flex-direction:column;align-items:end;gap:4px"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+badgeBg+';color:'+badgeC+'">'+p.estado+'</span>'+cancelBtn+'</div></div></div>';
+    }).join('');
+    return '<div style="max-height:350px;overflow-y:auto">'+items+'</div>';
+  })();
+
+  const histRowsHTML = (function(){
+    const msgs = (histR.mensajes||[]).slice(0,100);
+    if(!msgs.length) return '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999">Sin registros</td></tr>';
+    const tipoBg = {individual:'#dbeafe',masivo:'#dcfce7',programado:'#fef9c3',aviso:'#ede9fe'};
+    return msgs.map(m=>{
+      const bg = tipoBg[m.tipo]||'#f1f5f9';
+      const ebg = m.estado==='enviado'?'#dcfce7':'#fee2e2';
+      const ec = m.estado==='enviado'?'#166534':'#991b1b';
+      const msg60 = (m.mensaje||'').slice(0,60)+((m.mensaje||'').length>60?'…':'');
+      const msgTitle = (m.mensaje||'').replace(/"/g,'&quot;');
+      return '<tr style="border-bottom:1px solid #f1f5f9" class="wa-his-row" data-tipo="'+(m.tipo||'')+'" data-estado="'+(m.estado||'')+'"><td style="padding:7px 8px;color:#555;white-space:nowrap">'+(m.fecha||'').slice(0,16)+'</td><td style="padding:7px 8px"><span style="background:'+bg+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.tipo||'')+'</span></td><td style="padding:7px 8px;color:#333">'+(m.destinatario_nombre||'—')+'</td><td style="padding:7px 8px;color:#555;font-family:monospace">'+(m.destinatario_telefono||'')+'</td><td style="padding:7px 8px;color:#555;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+msgTitle+'">'+msg60+'</td><td style="padding:7px 8px"><span style="background:'+ebg+';color:'+ec+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.estado||'')+'</span></td></tr>';
+    }).join('');
+  })();
+
+  const recibMsgsHTML = (function(){
+    const msgs = recibR.mensajes||[];
+    if(!msgs.length) return '<div style="text-align:center;padding:30px;color:#999;font-size:13px">📭 No hay mensajes recibidos</div>';
+    return '<div style="max-height:400px;overflow-y:auto">'+msgs.map(m=>{
+      const bord = m.leido?'#e5e7eb':'#25D366';
+      const mbg = m.leido?'#fff':'#f0fdf4';
+      return '<div style="border-left:3px solid '+bord+';padding:10px 14px;margin-bottom:8px;background:'+mbg+';border-radius:0 8px 8px 0"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:13px;color:#128C7E">'+(m.nombre_contacto||'Desconocido')+'</span><span style="font-size:11px;color:#888">'+(m.fecha||'').slice(0,16)+'</span></div><div style="font-size:11px;color:#555;margin-top:2px;font-family:monospace">+'+(m.numero||'')+'</div><div style="font-size:13px;color:#333;margin-top:6px">'+(m.mensaje||'')+'</div></div>';
+    }).join('')+'</div>';
+  })();
+
+  const docTableHTML = (docentesR||[]).map(d=>{
+    const hasTel = !!d.telefono;
+    const telBadge = hasTel?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✓ Tiene tel.</span>':'<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✗ Sin tel.</span>';
+    const nombre = (d.apellido||'')+', '+(d.nombre||'');
+    const btn = hasTel?'<button onclick="waTestDoc(\''+d.telefono+'\',\''+nombre.replace(/'/g,"\\'")+'\')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:11px;color:#2563eb">📤 Probar</button>':'';
+    return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:7px 8px;color:#333;font-weight:600">'+nombre+'</td><td style="padding:7px 8px;color:#555;font-family:monospace">'+(d.telefono||'—')+'</td><td style="padding:7px 8px">'+telBadge+'</td><td style="padding:7px 8px">'+btn+'</td></tr>';
+  }).join('');
+
+  const leerTodosBtn = noLeidos>0?'<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>':'';
+
   el.innerHTML=`
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <div style="background:linear-gradient(135deg,#128C7E,#25D366);border-radius:12px;padding:10px 18px;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px">
@@ -1166,10 +1226,7 @@ async function pgWhatsApp(el){
 
   <!-- Tabs -->
   <div style="display:flex;gap:4px;border-bottom:2px solid #e5e7eb;margin-bottom:18px;flex-wrap:wrap">
-    ${['enviar','masivo','programar','historial','recibidos','docentes'].map((t,i)=>{
-      const lbl={enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:`💬 Recibidos${noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${noLeidos}</span>`:''}`,docentes:'👥 Docentes'}[t];
-      return `<button id="wa-tab-${t}" onclick="waTab('${t}')" style="padding:8px 14px;border:none;background:${i===0?'#128C7E':'transparent'};color:${i===0?'#fff':'#555'};border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">${lbl}</button>`;
-    }).join('')}
+    ${tabsHTML}
   </div>
 
   <!-- Panel: Enviar individual -->
@@ -1185,7 +1242,7 @@ async function pgWhatsApp(el){
         <label style="font-size:12px;color:#555">Seleccionar docente</label>
         <select id="waDocSel" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
           <option value="">-- Elegir docente --</option>
-          ${conTel.map(d=>`<option value="${d.telefono}" data-nombre="${d.apellido}, ${d.nombre}" data-id="${d.docente_id}">${d.apellido}, ${d.nombre} (${d.telefono})</option>`).join('')}
+          ${docOptHTML}
         </select>
       </div>
       <div id="waDestCustom" style="display:none">
@@ -1231,7 +1288,7 @@ async function pgWhatsApp(el){
           <label style="font-size:12px;color:#555">Docente destino</label>
           <select id="waProgDoc" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
             <option value="">-- Elegir docente --</option>
-            ${conTel.map(d=>`<option value="${d.telefono}" data-nombre="${d.apellido}, ${d.nombre}" data-id="${d.docente_id}">${d.apellido}, ${d.nombre}</option>`).join('')}
+            ${docOptHTML2}
           </select>
         </div>
         <label style="font-size:12px;color:#555">Fecha y hora de envío</label>
@@ -1245,23 +1302,7 @@ async function pgWhatsApp(el){
       </div>
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
         <h3 style="margin:0 0 12px;font-size:14px;color:#333">📅 Mensajes programados</h3>
-        ${(Array.isArray(progR)?progR:[]).length===0?'<p style="color:#999;font-size:13px">No hay mensajes programados</p>':
-          `<div style="max-height:350px;overflow-y:auto">
-          ${(Array.isArray(progR)?progR:[]).map(p=>`
-            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:8px;background:${p.estado==='pendiente'?'#fffbeb':p.estado==='enviado'?'#f0fdf4':'#fef2f2'}">
-              <div style="display:flex;justify-content:space-between;align-items:start">
-                <div>
-                  <div style="font-weight:700;font-size:13px;color:#333">${p.titulo||'Sin título'}</div>
-                  <div style="font-size:11px;color:#666;margin-top:2px">${p.destinatario_tipo==='masivo'?'📢 Masivo':'👤 '+( p.destinatario_nombre||p.destinatario_telefono)} · ${p.fecha_envio?.replace('T',' ').slice(0,16)}</div>
-                  <div style="font-size:11px;color:#888;margin-top:3px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.mensaje}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;align-items:end;gap:4px">
-                  <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${p.estado==='pendiente'?'#fef08a':p.estado==='enviado'?'#bbf7d0':'#fecaca'};color:${p.estado==='pendiente'?'#854d0e':p.estado==='enviado'?'#166534':'#991b1b'}">${p.estado}</span>
-                  ${p.estado==='pendiente'?`<button onclick="waCancelarProg('${p.id}')" style="background:#fee2e2;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;color:#dc2626">✕ Cancelar</button>`:''}
-                </div>
-              </div>
-            </div>`).join('')}
-          </div>`}
+        ${progListHTML}
       </div>
     </div>
   </div>
@@ -1297,15 +1338,7 @@ async function pgWhatsApp(el){
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Estado</th>
           </tr></thead>
           <tbody id="waHisTbody">
-            ${(histR.mensajes||[]).slice(0,100).map(m=>`
-              <tr style="border-bottom:1px solid #f1f5f9" class="wa-his-row" data-tipo="${m.tipo}" data-estado="${m.estado}">
-                <td style="padding:7px 8px;color:#555;white-space:nowrap">${m.fecha?.slice(0,16)||''}</td>
-                <td style="padding:7px 8px"><span style="background:${{individual:'#dbeafe',masivo:'#dcfce7',programado:'#fef9c3',aviso:'#ede9fe'}[m.tipo]||'#f1f5f9'};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${m.tipo}</span></td>
-                <td style="padding:7px 8px;color:#333">${m.destinatario_nombre||'—'}</td>
-                <td style="padding:7px 8px;color:#555;font-family:monospace">${m.destinatario_telefono||''}</td>
-                <td style="padding:7px 8px;color:#555;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.mensaje||'').replace(/"/g,'&quot;')}">${m.mensaje?.slice(0,60)||''}${(m.mensaje?.length||0)>60?'…':''}</td>
-                <td style="padding:7px 8px"><span style="background:${m.estado==='enviado'?'#dcfce7':'#fee2e2'};color:${m.estado==='enviado'?'#166534':'#991b1b'};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${m.estado}</span></td>
-              </tr>`).join('')||'<tr><td colspan="6" style="padding:20px;text-align:center;color:#999">Sin registros</td></tr>'}
+            ${histRowsHTML}
           </tbody>
         </table>
       </div>
@@ -1317,21 +1350,10 @@ async function pgWhatsApp(el){
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <h3 style="margin:0;font-size:14px;color:#333">💬 Mensajes recibidos <span style="font-size:12px;color:#777">(${(recibR.mensajes||[]).length})</span></h3>
-        ${noLeidos>0?`<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>`:''}
+        ${leerTodosBtn}
       </div>
       <p style="font-size:12px;color:#888;margin:0 0 12px">Los mensajes se capturan automáticamente cuando alguien responde al número conectado (requiere configurar webhook en Evolution API)</p>
-      ${(recibR.mensajes||[]).length===0?'<div style="text-align:center;padding:30px;color:#999;font-size:13px">📭 No hay mensajes recibidos</div>':
-        `<div style="max-height:400px;overflow-y:auto">
-        ${(recibR.mensajes||[]).map(m=>`
-          <div style="border-left:3px solid ${m.leido?'#e5e7eb':'#25D366'};padding:10px 14px;margin-bottom:8px;background:${m.leido?'#fff':'#f0fdf4'};border-radius:0 8px 8px 0">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:13px;color:#128C7E">${m.nombre_contacto||'Desconocido'}</span>
-              <span style="font-size:11px;color:#888">${m.fecha?.slice(0,16)||''}</span>
-            </div>
-            <div style="font-size:11px;color:#555;margin-top:2px;font-family:monospace">+${m.numero}</div>
-            <div style="font-size:13px;color:#333;margin-top:6px">${m.mensaje||''}</div>
-          </div>`).join('')}
-        </div>`}
+      ${recibMsgsHTML}
     </div>
   </div>
 
@@ -1348,19 +1370,7 @@ async function pgWhatsApp(el){
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Acción</th>
           </tr></thead>
           <tbody>
-            ${(docentesR||[]).map(d=>`
-              <tr style="border-bottom:1px solid #f1f5f9">
-                <td style="padding:7px 8px;color:#333;font-weight:600">${d.apellido||''}, ${d.nombre||''}</td>
-                <td style="padding:7px 8px;color:#555;font-family:monospace">${d.telefono||'—'}</td>
-                <td style="padding:7px 8px">
-                  ${d.telefono
-                    ?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✓ Tiene tel.</span>'
-                    :'<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✗ Sin tel.</span>'}
-                </td>
-                <td style="padding:7px 8px">
-                  ${d.telefono?`<button onclick="waTestDoc('${d.telefono}','${(d.apellido||'')+', '+(d.nombre||'')}')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:11px;color:#2563eb">📤 Probar</button>`:''}
-                </td>
-              </tr>`).join('')}
+            ${docTableHTML}
           </tbody>
         </table>
       </div>
