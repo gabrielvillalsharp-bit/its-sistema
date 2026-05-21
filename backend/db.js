@@ -875,6 +875,43 @@ function init() {
   try { db.exec(`CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT NOT NULL, descripcion TEXT)`); } catch {}
   // Registro de notificaciones WA enviadas (evita duplicados)
   try { db.exec(`CREATE TABLE IF NOT EXISTS notif_wa_enviadas (examen_id TEXT NOT NULL, intervalo TEXT NOT NULL, fecha_envio TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY(examen_id, intervalo))`); } catch {}
+  // ── WHATSAPP GESTIÓN ──────────────────────────────────────────────────────────
+  // Historial de mensajes enviados (individual, masivo, programado)
+  try { db.exec(`CREATE TABLE IF NOT EXISTS wa_mensajes (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL DEFAULT 'individual' CHECK(tipo IN ('individual','masivo','programado','aviso')),
+    destinatario_tipo TEXT DEFAULT 'custom' CHECK(destinatario_tipo IN ('docente','alumno','custom')),
+    destinatario_id TEXT,
+    destinatario_nombre TEXT,
+    destinatario_telefono TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    estado TEXT DEFAULT 'enviado' CHECK(estado IN ('enviado','fallido')),
+    enviado_por TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
+  // Mensajes programados para envío futuro
+  try { db.exec(`CREATE TABLE IF NOT EXISTS wa_programados (
+    id TEXT PRIMARY KEY,
+    titulo TEXT,
+    destinatario_tipo TEXT NOT NULL DEFAULT 'masivo' CHECK(destinatario_tipo IN ('masivo','individual')),
+    destinatario_id TEXT,
+    destinatario_nombre TEXT,
+    destinatario_telefono TEXT,
+    mensaje TEXT NOT NULL,
+    fecha_envio TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','enviado','cancelado')),
+    creado_por TEXT,
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
+  // Mensajes recibidos (via webhook Evolution API)
+  try { db.exec(`CREATE TABLE IF NOT EXISTS wa_recibidos (
+    id TEXT PRIMARY KEY,
+    numero TEXT NOT NULL,
+    nombre_contacto TEXT,
+    mensaje TEXT NOT NULL,
+    leido INTEGER NOT NULL DEFAULT 0,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
   // Plantillas WA por defecto (INSERT OR IGNORE para no sobreescribir ediciones)
   const insConf = db.prepare('INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)');
   insConf.run('wa_tpl_72h',

@@ -641,6 +641,7 @@ function navFor(r){
       {id:'calendario',l:'Calendario Exámenes',c:'#D85A30',r:['director','docente','alumno']},
       {id:'calendario-clases',l:'Horario Semanal',c:'#1f8246',r:['director','docente']},
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
+      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
     {g:'Estructura',i:[
       {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
@@ -760,6 +761,7 @@ function go(p){
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     solicitudes:pgSolicitudes,
+    whatsapp:pgWhatsApp,
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
@@ -1107,6 +1109,373 @@ async function pgDash(el){
   </div>`;
 }
 
+// ── WHATSAPP GESTIÓN ─────────────────────────────────────────────────────────
+async function pgWhatsApp(el){
+  el.innerHTML='<div class="es">Cargando...</div>';
+  const [estadoR, histR, progR, recibR] = await Promise.all([
+    api('GET','/api/whatsapp/estado').catch(()=>({estado:'error'})),
+    api('GET','/api/whatsapp/historial?limit=100').catch(()=>({mensajes:[],resumen:[]})),
+    api('GET','/api/whatsapp/programados').catch(()=>[]),
+    api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0})),
+  ]);
+  const docentesR = await api('GET','/api/docentes').catch(()=>[]);
+  const conTel = (docentesR||[]).filter(d=>d.telefono);
+
+  const stColor = {open:'#16a34a',close:'#dc2626',connecting:'#d97706',desconocido:'#888'}[estadoR.estado]||'#888';
+  const stLabel = {open:'✅ Conectado',close:'🔴 Desconectado',connecting:'🟡 Conectando',no_configurado:'⚙️ Sin configurar',error:'⚠️ Error',desconocido:'❓ Desconocido'}[estadoR.estado]||estadoR.estado;
+
+  // Estadísticas rápidas
+  const resumen = histR.resumen||[];
+  const totalEnv = resumen.filter(r=>r.estado==='enviado').reduce((a,b)=>a+b.total,0);
+  const totalFall = resumen.filter(r=>r.estado==='fallido').reduce((a,b)=>a+b.total,0);
+  const noLeidos = recibR.no_leidos||0;
+  const pendProg = (Array.isArray(progR)?progR:[]).filter(p=>p.estado==='pendiente').length;
+
+  el.innerHTML=`
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+    <div style="background:linear-gradient(135deg,#128C7E,#25D366);border-radius:12px;padding:10px 18px;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:22px">💬</span> WhatsApp — Gestión
+    </div>
+    <div style="background:#fff;border:2px solid ${stColor};color:${stColor};border-radius:20px;padding:5px 14px;font-weight:700;font-size:13px">${stLabel}</div>
+    <button onclick="recargarWA()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px">🔄 Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:#16a34a">${totalEnv}</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Enviados</div>
+    </div>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:#dc2626">${totalFall}</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Fallidos</div>
+    </div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:#d97706">${pendProg}</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Programados</div>
+    </div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:#2563eb">${noLeidos}</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Sin leer</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:#333">${conTel.length}</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">Docentes c/ tel.</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:4px;border-bottom:2px solid #e5e7eb;margin-bottom:18px;flex-wrap:wrap">
+    ${['enviar','masivo','programar','historial','recibidos','docentes'].map((t,i)=>{
+      const lbl={enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:`💬 Recibidos${noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${noLeidos}</span>`:''}`,docentes:'👥 Docentes'}[t];
+      return `<button id="wa-tab-${t}" onclick="waTab('${t}')" style="padding:8px 14px;border:none;background:${i===0?'#128C7E':'transparent'};color:${i===0?'#fff':'#555'};border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">${lbl}</button>`;
+    }).join('')}
+  </div>
+
+  <!-- Panel: Enviar individual -->
+  <div id="wa-panel-enviar">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;max-width:560px">
+      <h3 style="margin:0 0 14px;font-size:14px;color:#333">📤 Enviar mensaje individual</h3>
+      <label style="font-size:12px;color:#555">Destinatario</label>
+      <select id="waDestTipo" onchange="waDestChange()" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+        <option value="docente">Docente del sistema</option>
+        <option value="custom">Número personalizado</option>
+      </select>
+      <div id="waDestDoc">
+        <label style="font-size:12px;color:#555">Seleccionar docente</label>
+        <select id="waDocSel" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+          <option value="">-- Elegir docente --</option>
+          ${conTel.map(d=>`<option value="${d.telefono}" data-nombre="${d.apellido}, ${d.nombre}" data-id="${d.docente_id}">${d.apellido}, ${d.nombre} (${d.telefono})</option>`).join('')}
+        </select>
+      </div>
+      <div id="waDestCustom" style="display:none">
+        <label style="font-size:12px;color:#555">Teléfono (formato 0981XXXXXX o 595981XXXXXX)</label>
+        <input id="waTelCustom" type="text" placeholder="0981123456" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+      </div>
+      <label style="font-size:12px;color:#555">Mensaje</label>
+      <textarea id="waMsgInd" rows="5" placeholder="Escribí el mensaje..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="waEnviarInd()" style="background:linear-gradient(135deg,#128C7E,#25D366);color:#fff;border:none;border-radius:8px;padding:9px 20px;cursor:pointer;font-weight:700;font-size:13px">📤 Enviar ahora</button>
+        <span id="waIndMsg" style="font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Masivo -->
+  <div id="wa-panel-masivo" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;max-width:560px">
+      <h3 style="margin:0 0 6px;font-size:14px;color:#333">📢 Envío masivo a docentes</h3>
+      <p style="font-size:12px;color:#777;margin:0 0 12px">Se enviará a todos los docentes con teléfono registrado (${conTel.length} contactos)</p>
+      <label style="font-size:12px;color:#555">Mensaje</label>
+      <textarea id="waMsgMas" rows="6" placeholder="Escribí el mensaje..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="waEnviarMasivo()" style="background:linear-gradient(135deg,#128C7E,#25D366);color:#fff;border:none;border-radius:8px;padding:9px 20px;cursor:pointer;font-weight:700;font-size:13px">📢 Enviar a todos</button>
+        <span id="waMasMsg" style="font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Programar -->
+  <div id="wa-panel-programar" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
+        <h3 style="margin:0 0 14px;font-size:14px;color:#333">⏰ Programar envío</h3>
+        <label style="font-size:12px;color:#555">Título (opcional)</label>
+        <input id="waProgTit" type="text" placeholder="Recordatorio reunión..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+        <label style="font-size:12px;color:#555">Tipo de envío</label>
+        <select id="waProgTipo" onchange="waProgTipoChange()" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+          <option value="masivo">Masivo (todos los docentes)</option>
+          <option value="individual">Individual (número específico)</option>
+        </select>
+        <div id="waProgIndDiv" style="display:none">
+          <label style="font-size:12px;color:#555">Docente destino</label>
+          <select id="waProgDoc" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+            <option value="">-- Elegir docente --</option>
+            ${conTel.map(d=>`<option value="${d.telefono}" data-nombre="${d.apellido}, ${d.nombre}" data-id="${d.docente_id}">${d.apellido}, ${d.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <label style="font-size:12px;color:#555">Fecha y hora de envío</label>
+        <input id="waProgFecha" type="datetime-local" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+        <label style="font-size:12px;color:#555">Mensaje</label>
+        <textarea id="waProgMsg" rows="5" placeholder="Mensaje a enviar..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button onclick="waGuardarProg()" style="background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff;border:none;border-radius:8px;padding:9px 20px;cursor:pointer;font-weight:700;font-size:13px">⏰ Programar</button>
+          <span id="waProgMsg2" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
+        <h3 style="margin:0 0 12px;font-size:14px;color:#333">📅 Mensajes programados</h3>
+        ${(Array.isArray(progR)?progR:[]).length===0?'<p style="color:#999;font-size:13px">No hay mensajes programados</p>':
+          `<div style="max-height:350px;overflow-y:auto">
+          ${(Array.isArray(progR)?progR:[]).map(p=>`
+            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:8px;background:${p.estado==='pendiente'?'#fffbeb':p.estado==='enviado'?'#f0fdf4':'#fef2f2'}">
+              <div style="display:flex;justify-content:space-between;align-items:start">
+                <div>
+                  <div style="font-weight:700;font-size:13px;color:#333">${p.titulo||'Sin título'}</div>
+                  <div style="font-size:11px;color:#666;margin-top:2px">${p.destinatario_tipo==='masivo'?'📢 Masivo':'👤 '+( p.destinatario_nombre||p.destinatario_telefono)} · ${p.fecha_envio?.replace('T',' ').slice(0,16)}</div>
+                  <div style="font-size:11px;color:#888;margin-top:3px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.mensaje}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:end;gap:4px">
+                  <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:${p.estado==='pendiente'?'#fef08a':p.estado==='enviado'?'#bbf7d0':'#fecaca'};color:${p.estado==='pendiente'?'#854d0e':p.estado==='enviado'?'#166534':'#991b1b'}">${p.estado}</span>
+                  ${p.estado==='pendiente'?`<button onclick="waCancelarProg('${p.id}')" style="background:#fee2e2;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:10px;color:#dc2626">✕ Cancelar</button>`:''}
+                </div>
+              </div>
+            </div>`).join('')}
+          </div>`}
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Historial -->
+  <div id="wa-panel-historial" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <h3 style="margin:0;font-size:14px;color:#333">📋 Historial de mensajes</h3>
+        <select id="waHisTipo" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
+          <option value="">Todos los tipos</option>
+          <option value="individual">Individual</option>
+          <option value="masivo">Masivo</option>
+          <option value="programado">Programado</option>
+          <option value="aviso">Aviso</option>
+        </select>
+        <select id="waHisEst" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
+          <option value="">Todos los estados</option>
+          <option value="enviado">Enviados</option>
+          <option value="fallido">Fallidos</option>
+        </select>
+        <input id="waHisDesde" type="date" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
+        <span style="font-size:12px;color:#888">${(histR.mensajes||[]).length} registros</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f8fafc">
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Fecha</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Tipo</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Destinatario</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Teléfono</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Mensaje</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Estado</th>
+          </tr></thead>
+          <tbody id="waHisTbody">
+            ${(histR.mensajes||[]).slice(0,100).map(m=>`
+              <tr style="border-bottom:1px solid #f1f5f9" class="wa-his-row" data-tipo="${m.tipo}" data-estado="${m.estado}">
+                <td style="padding:7px 8px;color:#555;white-space:nowrap">${m.fecha?.slice(0,16)||''}</td>
+                <td style="padding:7px 8px"><span style="background:${{individual:'#dbeafe',masivo:'#dcfce7',programado:'#fef9c3',aviso:'#ede9fe'}[m.tipo]||'#f1f5f9'};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${m.tipo}</span></td>
+                <td style="padding:7px 8px;color:#333">${m.destinatario_nombre||'—'}</td>
+                <td style="padding:7px 8px;color:#555;font-family:monospace">${m.destinatario_telefono||''}</td>
+                <td style="padding:7px 8px;color:#555;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.mensaje||'').replace(/"/g,'&quot;')}">${m.mensaje?.slice(0,60)||''}${(m.mensaje?.length||0)>60?'…':''}</td>
+                <td style="padding:7px 8px"><span style="background:${m.estado==='enviado'?'#dcfce7':'#fee2e2'};color:${m.estado==='enviado'?'#166534':'#991b1b'};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${m.estado}</span></td>
+              </tr>`).join('')||'<tr><td colspan="6" style="padding:20px;text-align:center;color:#999">Sin registros</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Recibidos -->
+  <div id="wa-panel-recibidos" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 style="margin:0;font-size:14px;color:#333">💬 Mensajes recibidos <span style="font-size:12px;color:#777">(${(recibR.mensajes||[]).length})</span></h3>
+        ${noLeidos>0?`<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>`:''}
+      </div>
+      <p style="font-size:12px;color:#888;margin:0 0 12px">Los mensajes se capturan automáticamente cuando alguien responde al número conectado (requiere configurar webhook en Evolution API)</p>
+      ${(recibR.mensajes||[]).length===0?'<div style="text-align:center;padding:30px;color:#999;font-size:13px">📭 No hay mensajes recibidos</div>':
+        `<div style="max-height:400px;overflow-y:auto">
+        ${(recibR.mensajes||[]).map(m=>`
+          <div style="border-left:3px solid ${m.leido?'#e5e7eb':'#25D366'};padding:10px 14px;margin-bottom:8px;background:${m.leido?'#fff':'#f0fdf4'};border-radius:0 8px 8px 0">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:700;font-size:13px;color:#128C7E">${m.nombre_contacto||'Desconocido'}</span>
+              <span style="font-size:11px;color:#888">${m.fecha?.slice(0,16)||''}</span>
+            </div>
+            <div style="font-size:11px;color:#555;margin-top:2px;font-family:monospace">+${m.numero}</div>
+            <div style="font-size:13px;color:#333;margin-top:6px">${m.mensaje||''}</div>
+          </div>`).join('')}
+        </div>`}
+    </div>
+  </div>
+
+  <!-- Panel: Docentes -->
+  <div id="wa-panel-docentes" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
+      <h3 style="margin:0 0 14px;font-size:14px;color:#333">👥 Estado de teléfonos — Docentes</h3>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f8fafc">
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Docente</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Teléfono</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Estado</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Acción</th>
+          </tr></thead>
+          <tbody>
+            ${(docentesR||[]).map(d=>`
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:7px 8px;color:#333;font-weight:600">${d.apellido||''}, ${d.nombre||''}</td>
+                <td style="padding:7px 8px;color:#555;font-family:monospace">${d.telefono||'—'}</td>
+                <td style="padding:7px 8px">
+                  ${d.telefono
+                    ?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✓ Tiene tel.</span>'
+                    :'<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✗ Sin tel.</span>'}
+                </td>
+                <td style="padding:7px 8px">
+                  ${d.telefono?`<button onclick="waTestDoc('${d.telefono}','${(d.apellido||'')+', '+(d.nombre||'')}')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:11px;color:#2563eb">📤 Probar</button>`:''}
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  // Store data for filters
+  window._waHist = histR.mensajes||[];
+}
+
+function waTab(t){
+  ['enviar','masivo','programar','historial','recibidos','docentes'].forEach(x=>{
+    const p=document.getElementById('wa-panel-'+x);
+    const b=document.getElementById('wa-tab-'+x);
+    if(p) p.style.display=x===t?'block':'none';
+    if(b){b.style.background=x===t?'#128C7E':'transparent';b.style.color=x===t?'#fff':'#555';}
+  });
+}
+function waDestChange(){
+  const t=document.getElementById('waDestTipo')?.value;
+  if(!t) return;
+  document.getElementById('waDestDoc').style.display=t==='docente'?'block':'none';
+  document.getElementById('waDestCustom').style.display=t==='custom'?'block':'none';
+}
+function waProgTipoChange(){
+  const t=document.getElementById('waProgTipo')?.value;
+  document.getElementById('waProgIndDiv').style.display=t==='individual'?'block':'none';
+}
+async function waEnviarInd(){
+  const tipo=document.getElementById('waDestTipo')?.value;
+  let tel='',nombre='',did='';
+  if(tipo==='docente'){
+    const sel=document.getElementById('waDocSel');
+    tel=sel?.value||'';
+    nombre=sel?.options[sel.selectedIndex]?.dataset?.nombre||'';
+    did=sel?.options[sel.selectedIndex]?.dataset?.id||'';
+  } else {
+    tel=document.getElementById('waTelCustom')?.value||'';
+  }
+  const msg=document.getElementById('waMsgInd')?.value?.trim()||'';
+  const info=document.getElementById('waIndMsg');
+  if(!tel||!msg){info.innerHTML='<span style="color:#dc2626">Completá teléfono y mensaje</span>';return;}
+  info.innerHTML='<span style="color:#888">Enviando...</span>';
+  try{
+    await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:msg,destinatario_tipo:tipo,destinatario_id:did||null,destinatario_nombre:nombre||null});
+    info.innerHTML='<span style="color:#16a34a">✓ Enviado correctamente</span>';
+    document.getElementById('waMsgInd').value='';
+  }catch(e){info.innerHTML=`<span style="color:#dc2626">${e.message}</span>`;}
+}
+async function waEnviarMasivo(){
+  const msg=document.getElementById('waMsgMas')?.value?.trim()||'';
+  const info=document.getElementById('waMasMsg');
+  if(!msg){info.innerHTML='<span style="color:#dc2626">Escribí un mensaje</span>';return;}
+  if(!confirm('¿Enviar este mensaje a todos los docentes con teléfono registrado?'))return;
+  info.innerHTML='<span style="color:#888">Enviando en segundo plano...</span>';
+  try{
+    await api('POST','/api/whatsapp/masivo',{mensaje:msg});
+    info.innerHTML='<span style="color:#16a34a">✓ Enviando a todos los docentes (proceso en segundo plano)</span>';
+    document.getElementById('waMsgMas').value='';
+  }catch(e){info.innerHTML=`<span style="color:#dc2626">${e.message}</span>`;}
+}
+async function waGuardarProg(){
+  const tipo=document.getElementById('waProgTipo')?.value||'masivo';
+  const titulo=document.getElementById('waProgTit')?.value?.trim()||'';
+  const fecha=document.getElementById('waProgFecha')?.value||'';
+  const msg=document.getElementById('waProgMsg')?.value?.trim()||'';
+  const info=document.getElementById('waProgMsg2');
+  let tel='',nombre='',did='';
+  if(tipo==='individual'){
+    const sel=document.getElementById('waProgDoc');
+    tel=sel?.value||'';
+    nombre=sel?.options[sel.selectedIndex]?.dataset?.nombre||'';
+    did=sel?.options[sel.selectedIndex]?.dataset?.id||'';
+  }
+  if(!msg||!fecha){info.innerHTML='<span style="color:#dc2626">Completá mensaje y fecha</span>';return;}
+  if(tipo==='individual'&&!tel){info.innerHTML='<span style="color:#dc2626">Seleccioná un docente</span>';return;}
+  try{
+    await api('POST','/api/whatsapp/programar',{titulo,destinatario_tipo:tipo,destinatario_id:did||null,destinatario_nombre:nombre||null,destinatario_telefono:tel||null,mensaje:msg,fecha_envio:fecha});
+    info.innerHTML='<span style="color:#16a34a">✓ Mensaje programado</span>';
+    document.getElementById('waProgTit').value='';
+    document.getElementById('waProgMsg').value='';
+    document.getElementById('waProgFecha').value='';
+    setTimeout(()=>go('whatsapp'),1200);
+  }catch(e){info.innerHTML=`<span style="color:#dc2626">${e.message}</span>`;}
+}
+async function waCancelarProg(id){
+  if(!confirm('¿Cancelar este mensaje programado?'))return;
+  try{await api('DELETE',`/api/whatsapp/programados/${id}`);go('whatsapp');}
+  catch(e){alert(e.message);}
+}
+async function waLeerTodos(){
+  try{await api('PUT','/api/whatsapp/recibidos/leer-todos');go('whatsapp');}
+  catch(e){alert(e.message);}
+}
+async function waTestDoc(tel,nombre){
+  if(!confirm(`¿Enviar un mensaje de prueba a ${nombre} (${tel})?`))return;
+  try{
+    await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:`🧪 *ITS — Prueba de conexión*\nHola Prof. ${nombre.split(',')[1]?.trim()||nombre}, este es un mensaje de prueba del sistema. ✅`,destinatario_nombre:nombre});
+    alert('✓ Mensaje de prueba enviado');
+  }catch(e){alert('Error: '+e.message);}
+}
+function waFiltHist(){
+  const tipo=document.getElementById('waHisTipo')?.value||'';
+  const est=document.getElementById('waHisEst')?.value||'';
+  const desde=document.getElementById('waHisDesde')?.value||'';
+  const rows=document.querySelectorAll('.wa-his-row');
+  rows.forEach(r=>{
+    const mt=!tipo||r.dataset.tipo===tipo;
+    const me=!est||r.dataset.estado===est;
+    const mf=!desde||r.cells[0]?.textContent>=desde;
+    r.style.display=mt&&me&&mf?'':'none';
+  });
+}
+function recargarWA(){go('whatsapp');}
+
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 async function pgAvisos(el){
   // Ocultar notificaciones mientras el usuario está en la sección de avisos
@@ -1311,10 +1680,6 @@ function mAviso(){
          <option value="">— Todos mis alumnos —</option>
          ${combos.map(c=>'<option value="'+c.carrera+'|||'+c.materia+'">'+c.carrera+' — '+c.materia+'</option>').join('')}
        </select></div>`:'';
-  const waCheck=esDirector?`<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;cursor:pointer;font-size:13px;margin-top:4px">
-    <input type="checkbox" id="avWa" style="width:16px;height:16px;accent-color:#166534"/>
-    <span>📱 <strong>Enviar por WhatsApp</strong> a todos los docentes</span>
-  </label>`:'';
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
@@ -1324,7 +1689,6 @@ function mAviso(){
   </div>
   <div class="f"><label>Público objetivo</label><select id="avdest">${optsDestino}</select></div>
   ${filtroCombo}
-  ${waCheck}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
 }
 async function svAviso(){
@@ -1339,12 +1703,11 @@ async function svAviso(){
   const destinatario=document.getElementById('avdest')?.value||'todos';
   const tipo=document.getElementById('avtp')?.value||'info';
   const fijado=document.getElementById('avf')?.value==='1';
-  const enviar_whatsapp=document.getElementById('avWa')?.checked||false;
   if(!destinatario){toast('Seleccioná un destinatario','warn');return;}
   try{
-    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario,enviar_whatsapp});
+    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario});
     cm();go('avisos');
-    toast(enviar_whatsapp?'✓ Aviso publicado y enviando WhatsApp a docentes...':'✓ Aviso publicado correctamente','ok',4000);
+    toast('✓ Aviso publicado correctamente','ok',3000);
   }catch(e){toast('Error al publicar: '+e.message,'err');}
 }
 

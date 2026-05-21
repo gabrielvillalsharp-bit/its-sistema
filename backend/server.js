@@ -1620,8 +1620,8 @@ app.get('/api/avisos', auth(), (req, res) => {
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
 });
-app.post('/api/avisos', auth(['director','docente']), async (req, res) => {
-  const { titulo, contenido, tipo, fijado, destinatario, enviar_whatsapp } = req.body;
+app.post('/api/avisos', auth(['director','docente']), (req, res) => {
+  const { titulo, contenido, tipo, fijado, destinatario } = req.body;
   const destMap = {
     'todos':'todos', 'docentes':'docentes', 'alumnos':'alumnos',
     'mis-alumnos':'alumnos', 'director':'todos', 'director-secretaria':'todos'
@@ -1631,28 +1631,6 @@ app.post('/api/avisos', auth(['director','docente']), async (req, res) => {
   db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id);
   audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB});
   res.json({ id });
-
-  // Envío WhatsApp a docentes (asíncrono, no bloquea la respuesta)
-  if (enviar_whatsapp) {
-    setImmediate(async () => {
-      try {
-        const docentes = db.prepare(`
-          SELECT u.nombre, u.apellido, d.telefono
-          FROM docentes d JOIN usuarios u ON d.usuario_id=u.id
-          WHERE u.activo=1 AND d.telefono IS NOT NULL AND d.telefono!=''
-        `).all();
-        const tipoIcon = { info:'ℹ️', urgente:'🚨', examen:'📝', administrativo:'📋' }[tipo||'info'] || '📢';
-        const msg = `${tipoIcon} *ITS Santísima Trinidad*\n\n*${titulo}*\n\n${contenido}`;
-        let enviados = 0;
-        for (const doc of docentes) {
-          const ok = await sendWhatsApp(doc.telefono, msg);
-          if (ok) enviados++;
-        }
-        audit(req.user.id,'AVISO_WA','avisos',id,{ enviados, total: docentes.length });
-        console.log(`[WA] Aviso enviado a ${enviados}/${docentes.length} docentes`);
-      } catch(e) { console.error('[WA] Error envío masivo aviso:', e.message); }
-    });
-  }
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
   const { titulo, contenido, tipo, fijado, activo, destinatario } = req.body;
@@ -4085,9 +4063,9 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
 });
 
-// ── WHATSAPP: plantillas (ver / editar) ───────────────────────────────────────
+// ── WHATSAPP: plantillas de recordatorios (ver / editar) ─────────────────────
 app.get('/api/whatsapp/plantillas', auth(ADM), (req, res) => {
-  const claves = ['wa_tpl_72h','wa_tpl_48h','wa_tpl_24h'];
+  const claves = ['wa_tpl_72h','wa_tpl_48h','wa_tpl_24h','wa_tpl_12h','wa_tpl_6h','wa_tpl_3h'];
   const rows = claves.map(c => db.prepare('SELECT clave,valor,descripcion FROM configuracion WHERE clave=?').get(c)).filter(Boolean);
   res.json(rows);
 });
@@ -4096,6 +4074,164 @@ app.put('/api/whatsapp/plantillas/:clave', auth(ADM), (req, res) => {
   if (!valor) return res.status(400).json({ error: 'Falta el texto de la plantilla' });
   db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(valor, req.params.clave);
   res.json({ ok: true });
+});
+
+// ── WHATSAPP GESTIÓN: estado de conexión ──────────────────────────────────────
+app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.json({ configurado: false, estado: 'no_configurado' });
+  try {
+    const r = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+    const d = await r.json().catch(()=>({}));
+    res.json({ configurado: true, estado: d?.instance?.state || d?.state || 'desconocido', raw: d });
+  } catch(e) { res.json({ configurado: true, estado: 'error', mensaje: e.message }); }
+});
+
+// ── WHATSAPP GESTIÓN: envío individual ───────────────────────────────────────
+app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
+  const { telefono, mensaje, destinatario_tipo, destinatario_id, destinatario_nombre } = req.body;
+  if (!telefono || !mensaje) return res.status(400).json({ error: 'Teléfono y mensaje requeridos' });
+  const ok = await sendWhatsApp(telefono, mensaje);
+  const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+  db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(id,'individual',destinatario_tipo||'custom',destinatario_id||null,destinatario_nombre||null,telefono,mensaje,ok?'enviado':'fallido',req.user.id);
+  audit(req.user.id,'WA_INDIVIDUAL','wa_mensajes',id,{ tel: telefono, ok });
+  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificá la conexión WhatsApp.' });
+  res.json({ ok: true, id });
+});
+
+// ── WHATSAPP GESTIÓN: envío masivo ────────────────────────────────────────────
+app.post('/api/whatsapp/masivo', auth(ADM), async (req, res) => {
+  const { mensaje, filtro } = req.body; // filtro: 'todos'|'con_telefono'
+  if (!mensaje) return res.status(400).json({ error: 'Mensaje requerido' });
+  res.json({ ok: true, estado: 'procesando' }); // responder inmediatamente
+  setImmediate(async () => {
+    const docentes = db.prepare(`SELECT d.id,d.telefono,u.nombre,u.apellido FROM docentes d
+      JOIN usuarios u ON d.usuario_id=u.id WHERE u.activo=1
+      AND d.telefono IS NOT NULL AND d.telefono!=''`).all();
+    let enviados=0, fallidos=0;
+    for (const doc of docentes) {
+      const ok = await sendWhatsApp(doc.telefono, mensaje);
+      const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+        VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(id,'masivo','docente',doc.id,`${doc.apellido}, ${doc.nombre}`,doc.telefono,mensaje,ok?'enviado':'fallido',req.user.id);
+      if (ok) enviados++; else fallidos++;
+    }
+    audit(req.user.id,'WA_MASIVO','wa_mensajes','masivo',{ enviados, fallidos, total: docentes.length });
+  });
+});
+
+// ── WHATSAPP GESTIÓN: historial ───────────────────────────────────────────────
+app.get('/api/whatsapp/historial', auth(ADM), (req, res) => {
+  const { tipo, estado, desde, hasta, limit: lim } = req.query;
+  let where = 'WHERE 1=1'; const p = [];
+  if (tipo)   { where += ' AND tipo=?';   p.push(tipo);   }
+  if (estado) { where += ' AND estado=?'; p.push(estado); }
+  if (desde)  { where += ' AND fecha>=?'; p.push(desde);  }
+  if (hasta)  { where += ' AND fecha<=?'; p.push(hasta+'T23:59:59'); }
+  const rows = db.prepare(`SELECT w.*,u.nombre as enviado_nombre,u.apellido as enviado_apellido
+    FROM wa_mensajes w LEFT JOIN usuarios u ON w.enviado_por=u.id
+    ${where} ORDER BY w.fecha DESC LIMIT ${parseInt(lim)||200}`).all(...p);
+  const resumen = db.prepare(`SELECT tipo,estado,COUNT(*) as total FROM wa_mensajes GROUP BY tipo,estado`).all();
+  res.json({ mensajes: rows, resumen });
+});
+
+// ── WHATSAPP GESTIÓN: programados (crear / listar / cancelar) ─────────────────
+app.get('/api/whatsapp/programados', auth(ADM), (req, res) => {
+  res.json(db.prepare(`SELECT wp.*,u.nombre as creado_nombre,u.apellido as creado_apellido
+    FROM wa_programados wp LEFT JOIN usuarios u ON wp.creado_por=u.id
+    ORDER BY wp.fecha_envio ASC`).all());
+});
+app.post('/api/whatsapp/programar', auth(ADM), (req, res) => {
+  const { titulo, destinatario_tipo, destinatario_id, destinatario_nombre, destinatario_telefono, mensaje, fecha_envio } = req.body;
+  if (!mensaje || !fecha_envio) return res.status(400).json({ error: 'Mensaje y fecha requeridos' });
+  if (destinatario_tipo === 'individual' && !destinatario_telefono) return res.status(400).json({ error: 'Teléfono requerido para envío individual' });
+  const id = 'wap_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+  db.prepare(`INSERT INTO wa_programados (id,titulo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,fecha_envio,estado,creado_por)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, titulo||null, destinatario_tipo||'masivo', destinatario_id||null, destinatario_nombre||null, destinatario_telefono||null, mensaje, fecha_envio, 'pendiente', req.user.id);
+  res.json({ id });
+});
+app.delete('/api/whatsapp/programados/:id', auth(ADM), (req, res) => {
+  db.prepare("UPDATE wa_programados SET estado='cancelado' WHERE id=? AND estado='pendiente'").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ── WHATSAPP: webhook para recibir mensajes ───────────────────────────────────
+app.post('/api/whatsapp/webhook', (req, res) => {
+  try {
+    const body = req.body;
+    // Evolution API v2 format
+    const event = body?.event || body?.type || '';
+    const data = body?.data || body;
+    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
+      const msg = data?.message || data?.messages?.[0];
+      if (msg && !msg?.key?.fromMe) {
+        const numero = (msg?.key?.remoteJid || '').replace('@s.whatsapp.net','').replace('@g.us','');
+        const texto = msg?.message?.conversation
+          || msg?.message?.extendedTextMessage?.text
+          || msg?.message?.imageMessage?.caption
+          || '';
+        const nombre = msg?.pushName || null;
+        if (numero && texto) {
+          const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+          db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha) VALUES (?,?,?,?,?)')
+            .run(wrid, numero, nombre, texto, new Date().toISOString().replace('T',' ').slice(0,19));
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch(e) { res.json({ ok: false }); }
+});
+
+// ── WHATSAPP: mensajes recibidos ──────────────────────────────────────────────
+app.get('/api/whatsapp/recibidos', auth(ADM), (req, res) => {
+  const rows = db.prepare('SELECT * FROM wa_recibidos ORDER BY fecha DESC LIMIT 100').all();
+  const noLeidos = db.prepare('SELECT COUNT(*) as n FROM wa_recibidos WHERE leido=0').get().n;
+  res.json({ mensajes: rows, no_leidos: noLeidos });
+});
+app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
+  db.prepare('UPDATE wa_recibidos SET leido=1').run();
+  res.json({ ok: true });
+});
+
+// ── CRON: mensajes programados (corre cada minuto) ────────────────────────────
+cron.schedule('* * * * *', async () => {
+  try {
+    const ahora = new Date().toISOString().replace('T',' ').slice(0,16);
+    const pendientes = db.prepare("SELECT * FROM wa_programados WHERE estado='pendiente' AND substr(fecha_envio,1,16)<=?").all(ahora);
+    for (const prog of pendientes) {
+      if (prog.destinatario_tipo === 'masivo') {
+        const docentes = db.prepare(`SELECT d.id,d.telefono,u.nombre,u.apellido FROM docentes d
+          JOIN usuarios u ON d.usuario_id=u.id WHERE u.activo=1
+          AND d.telefono IS NOT NULL AND d.telefono!=''`).all();
+        let env=0;
+        for (const doc of docentes) {
+          const ok = await sendWhatsApp(doc.telefono, prog.mensaje);
+          if (ok) {
+            env++;
+            db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+              VALUES (?,?,?,?,?,?,?,?,?)`)
+              .run('wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),'programado','docente',doc.id,`${doc.apellido}, ${doc.nombre}`,doc.telefono,prog.mensaje,'enviado',prog.creado_por);
+          }
+        }
+        db.prepare("UPDATE wa_programados SET estado='enviado' WHERE id=?").run(prog.id);
+        console.log(`[Programado WA] masivo ${prog.id}: ${env}/${docentes.length} enviados`);
+      } else {
+        const ok = await sendWhatsApp(prog.destinatario_telefono, prog.mensaje);
+        db.prepare("UPDATE wa_programados SET estado=? WHERE id=?").run(ok?'enviado':'cancelado', prog.id);
+        if (ok) {
+          db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+            VALUES (?,?,?,?,?,?,?,?,?)`)
+            .run('wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),'programado',prog.destinatario_tipo||'custom',prog.destinatario_id||null,prog.destinatario_nombre||null,prog.destinatario_telefono,prog.mensaje,'enviado',prog.creado_por);
+        }
+      }
+    }
+  } catch(e) { console.error('[Cron WA programados]', e.message); }
 });
 
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
