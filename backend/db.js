@@ -852,6 +852,17 @@ function init() {
     fecha TEXT NOT NULL DEFAULT (datetime('now')),
     observacion TEXT
   )`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_registro (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    apellido TEXT NOT NULL,
+    ci TEXT,
+    telefono TEXT,
+    carrera_id TEXT NOT NULL REFERENCES carreras(id),
+    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK(estado IN ('pendiente','aprobado','rechazado')),
+    motivo_rechazo TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS solicitudes_egreso (
     id TEXT PRIMARY KEY,
     alumno_id TEXT NOT NULL REFERENCES alumnos(id),

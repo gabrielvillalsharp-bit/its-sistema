@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Registro de Alumno — ITS</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#1a202c}
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+.header{background:linear-gradient(135deg,#1D4ED8,#2563EB);color:#fff;border-radius:14px;padding:20px;margin-bottom:16px;text-align:center}
+.header h1{font-size:20px;font-weight:800}
+.header p{font-size:13px;opacity:.85;margin-top:4px}
+.card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:12px}
+.card h2{font-size:15px;font-weight:700;margin-bottom:14px;color:#1a202c}
+input,select{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;transition:border .2s}
+input:focus,select:focus{border-color:#2563EB}
+label{font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;display:block}
+.field{margin-bottom:12px}
+.btn{width:100%;padding:12px;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn:hover{opacity:.9}
+.btn-primary{background:#2563EB;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151;margin-top:8px}
+.btn-success{background:#16a34a;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.alumno-item{padding:12px;border:1.5px solid #e2e8f0;border-radius:9px;cursor:pointer;transition:all .15s;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.alumno-item:hover{border-color:#2563EB;background:#eff6ff}
+.alumno-item.selected{border-color:#2563EB;background:#eff6ff}
+.alumno-nombre{font-weight:700;font-size:14px}
+.alumno-detalle{font-size:11px;color:#718096;margin-top:2px}
+.tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
+.tag-ok{background:#dcfce7;color:#166534}
+.tag-warn{background:#fef3c7;color:#92400e}
+.empty{text-align:center;color:#a0aec0;font-size:13px;padding:24px 0}
+.step-indicator{display:flex;gap:6px;margin-bottom:16px;justify-content:center}
+.step{width:32px;height:4px;border-radius:2px;background:#e2e8f0;transition:background .3s}
+.step.active{background:#2563EB}
+.step.done{background:#16a34a}
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.alert-err{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.alert-ok{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.success-screen{text-align:center;padding:32px 20px}
+.success-icon{font-size:64px;margin-bottom:16px}
+.success-title{font-size:20px;font-weight:800;color:#166534;margin-bottom:8px}
+.success-sub{font-size:13px;color:#4a5568;line-height:1.6}
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:24px;color:#718096;font-size:13px}
+.spinner{width:20px;height:20px;border:2px solid #e2e8f0;border-top-color:#2563EB;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.no-encontrado{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:14px}
+.no-encontrado p{font-size:13px;color:#718096;margin-bottom:10px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading"><div class="spinner"></div> Cargando...</div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const carreraId = params.get('c');
+let carrera = null;
+let alumnos = [];
+let alumnoSeleccionado = null;
+let step = 1; // 1=buscar, 2a=completar datos, 2b=solicitar incorporacion, 3=exito
+
+async function apiFetch(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error de servidor');
+  return data;
+}
+
+async function init() {
+  const app = document.getElementById('app');
+  if (!carreraId) {
+    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ URL inválida. Escaneá el QR correcto de tu carrera.</div></div>`;
+    return;
+  }
+  try {
+    [carrera, alumnos] = await Promise.all([
+      apiFetch('GET', '/pub/carrera/'+carreraId),
+      apiFetch('GET', '/pub/carrera/'+carreraId+'/alumnos')
+    ]);
+    renderStep1();
+  } catch(e) {
+    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
+  }
+}
+
+function renderHeader() {
+  return `<div class="header">
+    <h1>🎓 ITS Santísima Trinidad</h1>
+    <p>Registro de alumnos — ${carrera.nombre}</p>
+  </div>`;
+}
+
+function renderSteps(current) {
+  return `<div class="step-indicator">
+    <div class="step ${current>=1?'active':''}"></div>
+    <div class="step ${current>=2?'active':''}"></div>
+    <div class="step ${current>=3?'done active':''}"></div>
+  </div>`;
+}
+
+function renderStep1() {
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + renderSteps(1) + `
+  <div class="card">
+    <h2>📋 Paso 1 — Buscá tu nombre</h2>
+    <div class="field">
+      <label>Escribí tu apellido o nombre</label>
+      <input id="busqueda" placeholder="Ej: García, María..." oninput="filtrarAlumnos()" autocomplete="off" autofocus/>
+    </div>
+    <div id="lista-alumnos"><div class="empty">Escribí tu nombre para buscar</div></div>
+    <div class="no-encontrado">
+      <p>¿No encontrás tu nombre en la lista?</p>
+      <button class="btn btn-secondary" onclick="renderFormNuevo()">👤 No estoy en la lista — Solicitar incorporación</button>
+    </div>
+  </div>`;
+}
+
+function filtrarAlumnos() {
+  const q = document.getElementById('busqueda').value.toLowerCase().trim();
+  const lista = document.getElementById('lista-alumnos');
+  if (!q || q.length < 2) { lista.innerHTML = '<div class="empty">Escribí al menos 2 letras</div>'; return; }
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const qn = norm(q);
+  const filtrados = alumnos.filter(a => norm(a.apellido+' '+a.nombre).includes(qn) || norm(a.nombre+' '+a.apellido).includes(qn));
+  if (!filtrados.length) {
+    lista.innerHTML = '<div class="empty">No se encontró ningún alumno con ese nombre.<br/><small>Si creés que debés estar, usá el botón de abajo.</small></div>';
+    return;
+  }
+  lista.innerHTML = filtrados.slice(0,15).map(a => {
+    const tieneCi = a.ci && a.ci.trim() !== '';
+    const tieneTel = a.telefono && a.telefono.trim() !== '';
+    const completo = tieneCi && tieneTel;
+    return `<div class="alumno-item" onclick="seleccionarAlumno(${JSON.stringify(JSON.stringify(a))})">
+      <div>
+        <div class="alumno-nombre">${a.apellido}, ${a.nombre}</div>
+        <div class="alumno-detalle">
+          CI: ${tieneCi ? a.ci : '— sin datos'} &nbsp;·&nbsp; Tel: ${tieneTel ? a.telefono : '— sin datos'}
+        </div>
+      </div>
+      <span class="tag ${completo?'tag-ok':'tag-warn'}">${completo?'✓ Completo':'Incompleto'}</span>
+    </div>`;
+  }).join('') + (filtrados.length > 15 ? `<div class="empty">Mostrando 15 de ${filtrados.length} — Escribí más para filtrar</div>` : '');
+}
+
+function seleccionarAlumno(jsonStr) {
+  const a = JSON.parse(jsonStr);
+  alumnoSeleccionado = a;
+  renderFormCompletar(a);
+}
+
+function renderFormCompletar(a) {
+  const tieneCi = a.ci && a.ci.trim() !== '';
+  const tieneTel = a.telefono && a.telefono.trim() !== '';
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + renderSteps(2) + `
+  <div class="card">
+    <h2>✏️ Paso 2 — Completá tus datos</h2>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">
+      <strong>${a.apellido}, ${a.nombre}</strong><br/>
+      <span style="color:#3b82f6;font-size:11px">Confirmá que sos vos antes de continuar</span>
+    </div>
+    <div id="err-completar"></div>
+    ${tieneCi ? `<div class="field"><label>Cédula de identidad</label><input value="${a.ci}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrada</p></div>` :
+    `<div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>`}
+    ${tieneTel ? `<div class="field"><label>Número de teléfono</label><input value="${a.telefono}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrado</p></div>` :
+    `<div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>`}
+    ${tieneCi && tieneTel ? `<div class="alert alert-ok">✅ Tus datos ya están completos en el sistema.</div>` : ''}
+    <button class="btn btn-primary" onclick="guardarDatos()" ${tieneCi&&tieneTel?'style="display:none"':''}>💾 Guardar mis datos</button>
+    <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
+  </div>`;
+}
+
+async function guardarDatos() {
+  const ci = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
+  const tel = document.getElementById('inp-tel')?.value.trim() || '';
+  const err = document.getElementById('err-completar');
+  if (!ci && !document.getElementById('inp-ci')?.disabled && !alumnoSeleccionado.ci) {
+    err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return;
+  }
+  err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
+  try {
+    await apiFetch('POST', '/pub/alumno/completar', {
+      alumno_id: alumnoSeleccionado.id,
+      carrera_id: carreraId,
+      ci: ci || undefined,
+      telefono: tel || undefined
+    });
+    renderExito('completar');
+  } catch(e) {
+    err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
+  }
+}
+
+function renderFormNuevo() {
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + renderSteps(2) + `
+  <div class="card">
+    <h2>👤 Solicitar incorporación</h2>
+    <p style="font-size:12px;color:#718096;margin-bottom:14px">Completá tus datos y el director revisará tu solicitud.</p>
+    <div id="err-nuevo"></div>
+    <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label><input id="inp-nombre" placeholder="Tu nombre" autocomplete="given-name"/></div>
+    <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label><input id="inp-apellido" placeholder="Tu apellido" autocomplete="family-name"/></div>
+    <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci2" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>
+    <div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel2" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>
+    <button class="btn btn-primary" onclick="enviarSolicitud()">📤 Enviar solicitud</button>
+    <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
+  </div>`;
+}
+
+async function enviarSolicitud() {
+  const nombre = document.getElementById('inp-nombre').value.trim();
+  const apellido = document.getElementById('inp-apellido').value.trim();
+  const ci = document.getElementById('inp-ci2').value.replace(/[^0-9]/g,'');
+  const telefono = document.getElementById('inp-tel2').value.trim();
+  const err = document.getElementById('err-nuevo');
+  if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Completá nombre y apellido</div>'; return; }
+  if (!ci) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de cédula</div>'; return; }
+  if (!telefono) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de teléfono</div>'; return; }
+  err.innerHTML = '<div class="loading"><div class="spinner"></div> Enviando solicitud...</div>';
+  try {
+    await apiFetch('POST', '/pub/solicitud-registro', { nombre, apellido, ci, telefono, carrera_id: carreraId });
+    renderExito('nuevo');
+  } catch(e) {
+    err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
+  }
+}
+
+function renderExito(tipo) {
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + renderSteps(3) + `
+  <div class="card">
+    <div class="success-screen">
+      <div class="success-icon">${tipo==='nuevo'?'📬':'✅'}</div>
+      <div class="success-title">${tipo==='nuevo'?'¡Solicitud enviada!':'¡Datos guardados!'}</div>
+      <div class="success-sub">${tipo==='nuevo'
+        ? 'Tu solicitud fue enviada al director del ITS.<br/>Te avisarán cuando sea procesada.'
+        : 'Tus datos fueron registrados correctamente.<br/>¡Gracias por completar tu perfil!'
+      }</div>
+      <button class="btn btn-secondary" style="margin-top:24px;width:auto;padding:10px 24px" onclick="renderStep1()">← Volver al inicio</button>
+    </div>
+  </div>`;
+}
+
+init();
+</script>
+</body>
+</html>

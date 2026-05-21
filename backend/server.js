@@ -5084,5 +5084,110 @@ try {
 } catch {}
 
 
+// ── REGISTRO PÚBLICO VÍA QR ──────────────────────────────────────────────────
+const pubLimiter = rateLimit({ windowMs: 60*1000, max: 80 });
+app.use('/pub', pubLimiter);
+
+app.get('/pub/carrera/:id', (req, res) => {
+  const c = db.prepare('SELECT id, nombre, codigo FROM carreras WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Carrera no encontrada' });
+  res.json(c);
+});
+
+app.get('/pub/carrera/:id/alumnos', (req, res) => {
+  const alumnos = db.prepare(`
+    SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono
+    FROM alumnos a WHERE a.carrera_id=? AND a.estado='Activo'
+    ORDER BY a.apellido, a.nombre
+  `).all(req.params.id);
+  res.json(alumnos);
+});
+
+app.post('/pub/alumno/completar', (req, res) => {
+  const { alumno_id, ci, telefono, carrera_id } = req.body;
+  if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
+  const alumno = db.prepare('SELECT * FROM alumnos WHERE id=? AND carrera_id=?').get(alumno_id, carrera_id);
+  if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado en esta carrera' });
+  try {
+    if (ci) {
+      const ciNorm = String(ci).replace(/[^0-9]/g,'');
+      const dup = db.prepare('SELECT id FROM alumnos WHERE ci=? AND id!=?').get(ciNorm, alumno_id);
+      if (dup) return res.status(400).json({ error: 'Ese número de cédula ya está registrado' });
+      db.prepare('UPDATE alumnos SET ci=? WHERE id=?').run(ciNorm, alumno_id);
+      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
+    }
+    if (telefono) db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/pub/solicitud-registro', (req, res) => {
+  const { nombre, apellido, ci, telefono, carrera_id } = req.body;
+  if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
+  const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
+  if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
+  const id = 'sreg_'+Date.now();
+  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id) VALUES (?,?,?,?,?,?)')
+    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id);
+  res.json({ id, ok: true });
+});
+
+app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT sr.*, c.nombre as carrera_nombre
+      FROM solicitudes_registro sr
+      JOIN carreras c ON sr.carrera_id=c.id
+      ORDER BY sr.fecha DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
+  const { accion, motivo } = req.body;
+  const sol = db.prepare('SELECT * FROM solicitudes_registro WHERE id=?').get(req.params.id);
+  if (!sol) return res.status(404).json({ error: 'Solicitud no encontrada' });
+  if (accion === 'aprobar') {
+    try {
+      db.transaction(() => {
+        const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
+        const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+        const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
+        const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(sol.carrera_id).n;
+        const matricula = (carr?.codigo||'ALU')+'-'+new Date().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+        const existPorCi = ciRaw ? db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw) : null;
+        const existPorNombre = !existPorCi ? db.prepare("SELECT id FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
+        let finalUid;
+        if (existPorCi) {
+          finalUid = existPorCi.id;
+        } else if (existPorNombre) {
+          finalUid = existPorNombre.id;
+        } else {
+          let emailFinal = norm(sol.nombre)+'.'+norm(sol.apellido)+'@its.edu.py';
+          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+            emailFinal = norm(sol.nombre)+'.'+norm(sol.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+          finalUid = 'u_a_'+Date.now();
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+            .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
+        }
+        const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
+        const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
+        if (!yaAlumno) {
+          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?)')
+            .run(aid, finalUid, matricula, sol.carrera_id, new Date().toISOString().split('T')[0], 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+        }
+        db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
+      })();
+      audit(req.user.id,'APROBAR_REGISTRO','solicitudes_registro',req.params.id,{nombre:sol.nombre});
+    } catch(e) { return res.status(500).json({ error: e.message }); }
+  } else {
+    db.prepare("UPDATE solicitudes_registro SET estado='rechazado',motivo_rechazo=? WHERE id=?").run(motivo||'', req.params.id);
+    audit(req.user.id,'RECHAZAR_REGISTRO','solicitudes_registro',req.params.id,{motivo});
+  }
+  res.json({ ok: true });
+});
+
+app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
