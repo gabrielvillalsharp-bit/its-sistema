@@ -341,8 +341,18 @@ app.post('/api/docentes', auth(ADM), (req, res) => {
 });
 app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, especialidad, titulo, telefono } = req.body;
-  db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=? WHERE id=?').run(nombre,apellido,ci,email,req.params.uid);
-  db.prepare('UPDATE docentes SET especialidad=?,titulo=?,telefono=? WHERE usuario_id=?').run(especialidad,titulo,telefono,req.params.uid);
+  // Solo actualizar CI si viene un valor no vacío y diferente al actual
+  const ciActual = db.prepare('SELECT ci FROM usuarios WHERE id=?').get(req.params.uid)?.ci;
+  const ciNueva = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
+  if (ciNueva && ciNueva !== ciActual) {
+    // Verificar que no exista otro usuario con esa CI
+    const dup = db.prepare('SELECT id FROM usuarios WHERE ci=? AND id!=?').get(ciNueva, req.params.uid);
+    if (dup) return res.status(400).json({ error: 'Ya existe otro usuario con esa C.I.' });
+    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=? WHERE id=?').run(nombre,apellido||'',ciNueva,email,req.params.uid);
+  } else {
+    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre,apellido||'',email,req.params.uid);
+  }
+  db.prepare('UPDATE docentes SET especialidad=?,titulo=?,telefono=? WHERE usuario_id=?').run(especialidad||null,titulo||null,telefono||null,req.params.uid);
   res.json({ ok: true });
 });
 app.put('/api/docentes/:uid/password', auth(ADM), (req, res) => {
