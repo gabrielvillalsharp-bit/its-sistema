@@ -308,8 +308,13 @@ tr:hover td{background:#fafaf7}
 @keyframes navSlideIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
 @keyframes navFadeGroup{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes dotPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.4)}70%{box-shadow:0 0 0 5px rgba(229,57,53,0)}}
+@keyframes liveSlideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes liveGlow{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.3)}60%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
 .ni{animation:navSlideIn .22s ease both}
 .ng-hdr{animation:navFadeGroup .18s ease both}
+.feed-carga-item{animation:liveSlideIn .3s ease both;border-left:3px solid #22c55e}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:livePulse .9s infinite;display:inline-block;flex-shrink:0}
 /* ── SCROLLBAR ─────────────────────────────── */
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -1569,10 +1574,12 @@ async function pgAvisos(el){
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
       ${esDirector&&avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
-
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
+
+  ${esDirector?`<div id="feed-cargas-wrap" style="margin-bottom:16px"></div>`:''}
+  <script>if(window._feedCargasTimer)clearInterval(window._feedCargasTimer);</script>
 
   ${misExamenes.length?`<div style="margin-bottom:16px;border:2px solid #D85A30;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px #D85A3022">
     <div style="background:linear-gradient(90deg,#D85A30,#e07448);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px">
@@ -1662,6 +1669,7 @@ async function pgAvisos(el){
   ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
   ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">✓ Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
   `;
+  if(esDirector) iniciarFeedCargas();
 }
 function mAvisoDirector(){
   modal(`<h4>✉ Mensaje al Director</h4>
@@ -3230,6 +3238,54 @@ async function borrarArchivoExamen(exId){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 
+async function renderFeedCargas(){
+  const wrap=document.getElementById('feed-cargas-wrap');
+  if(!wrap)return;
+  try{
+    const act=await api('GET','/api/actividad-reciente');
+    const ahoraOpts={timeZone:'America/Asuncion'};
+    const ahora=new Date();
+    // Filtrar UPLOAD_EXAMEN de las últimas 24 horas
+    const cargas=act.filter(a=>{
+      if(a.accion!=='UPLOAD_EXAMEN')return false;
+      const d=new Date(String(a.fecha).replace(' ','T')+(a.fecha.includes('Z')||a.fecha.includes('+')?'':'Z'));
+      return (ahora-d)<24*60*60*1000;
+    });
+    if(!cargas.length){wrap.innerHTML='';return;}
+    const rows=cargas.map((a,i)=>{
+      let det={};try{det=JSON.parse(a.detalle||'{}');}catch{}
+      const quien=((a.user_apellido||'')+' '+(a.user_nombre||'')).trim()||'Docente';
+      const d=new Date(String(a.fecha).replace(' ','T')+(a.fecha.includes('Z')||a.fecha.includes('+')?'':'Z'));
+      const horaPY=d.toLocaleTimeString('es-PY',{...ahoraOpts,hour:'2-digit',minute:'2-digit'});
+      const diffMin=Math.round((ahora-d)/60000);
+      const cuando=diffMin<1?'ahora mismo':diffMin<60?`hace ${diffMin} min`:`hace ${Math.round(diffMin/60)}h`;
+      return`<div class="feed-carga-item" style="padding:9px 14px;border-bottom:1px solid #f0fdf4;display:flex;gap:10px;align-items:center;animation-delay:${i*60}ms;cursor:pointer;transition:background .15s;background:#f0fdf4" onclick="irAlExamenDesdeActividad('${a.registro_id||''}')" onmouseenter="this.style.background='#dcfce7'" onmouseleave="this.style.background='#f0fdf4'">
+        <span class="live-dot"></span>
+        <div style="flex:1;min-width:0">
+          <span style="font-weight:700;font-size:12px;color:#166534">${quien}</span>
+          <span style="font-size:12px;color:#555"> cargó el archivo </span>
+          <span style="font-size:12px;font-weight:600;color:#15803d">"${det.archivo||'examen'}"</span>
+        </div>
+        <span style="font-size:11px;color:#86efac;white-space:nowrap;flex-shrink:0">${cuando} · ${horaPY}</span>
+        <span style="font-size:11px;color:#16a34a">→</span>
+      </div>`;
+    }).join('');
+    wrap.innerHTML=`<div style="border:2px solid #86efac;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(34,197,94,.15);animation:liveGlow 2s infinite">
+      <div style="background:linear-gradient(90deg,#166534,#15803d);color:#fff;padding:9px 16px;display:flex;align-items:center;gap:10px">
+        <span class="live-dot" style="background:#fff;animation:livePulse .7s infinite"></span>
+        <span style="font-weight:800;font-size:13px">EN VIVO — Carga de exámenes</span>
+        <span style="margin-left:auto;background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:11px">${cargas.length} carga${cargas.length!==1?'s':''} hoy</span>
+        <button onclick="renderFeedCargas()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font-size:11px">↻ Actualizar</button>
+      </div>
+      ${rows}
+    </div>`;
+  }catch{wrap.innerHTML='';}
+}
+function iniciarFeedCargas(){
+  if(me.rol!=='director')return;
+  renderFeedCargas();
+  window._feedCargasTimer=setInterval(renderFeedCargas,60000);
+}
 function irACargarExamen(exId){
   go('examenes');
   // Esperar que cargue la página y hacer scroll + highlight al examen
@@ -4742,6 +4798,74 @@ async function pgNotas(el){
   </div>
   <div id="nc"></div>`;
 }
+function toggleDropAsist(btn){
+  const menu=btn.parentElement.querySelector('.drop-asist-menu');
+  if(!menu)return;
+  const open=menu.style.display==='block';
+  // cerrar todos los otros dropdowns
+  document.querySelectorAll('.drop-asist-menu').forEach(m=>m.style.display='none');
+  menu.style.display=open?'none':'block';
+  if(!open){ setTimeout(()=>{ document.addEventListener('click',function h(e){ if(!btn.parentElement.contains(e.target)){menu.style.display='none';document.removeEventListener('click',h);} },true); },10); }
+}
+function closeDropAsist(){
+  document.querySelectorAll('.drop-asist-menu').forEach(m=>m.style.display='none');
+}
+function mIncorporarAlumnoAsist(){
+  const asigId=W._asistId;
+  if(!asigId){toast('Seleccioná una materia primero','warn');return;}
+  const asigNom=document.getElementById('selAsistAsig')?.selectedOptions[0]?.text||'Materia seleccionada';
+  modal(`<h4>👤 Incorporar alumno a esta materia</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Materia: <strong>${asigNom}</strong></p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="salNom" placeholder="Nombre del alumno"/></div>
+      <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="salApe" placeholder="Apellido"/></div>
+    </div>
+    <div class="f"><label>C.I. <span style="font-size:10px;color:var(--t2)">(recomendado para búsqueda exacta)</span></label><input id="salCi" placeholder="Número de cédula" type="text"/></div>
+    <div class="f"><label style="font-size:12px;color:var(--t2)">Observación (opcional)</label><textarea id="salObs" rows="2" placeholder="Ej: El alumno asiste desde hace 2 semanas pero no figura en el listado..." style="resize:vertical"></textarea></div>
+  </div>
+  <div id="salVerifPanel" style="margin-top:8px"></div>
+  <div class="mf" id="salBtns">
+    <button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="verificarAlumnoSolicitudAsist('${asigId}')">🔍 Verificar en sistema</button>
+  </div>`);
+}
+async function verificarAlumnoSolicitudAsist(asigId){
+  const nombre=(v('salNom')||'').trim();
+  const apellido=(v('salApe')||'').trim();
+  const ci=(v('salCi')||'').trim();
+  if(!nombre||!apellido){toast('Completar nombre y apellido','warn');return;}
+  const panel=document.getElementById('salVerifPanel');
+  const btns=document.getElementById('salBtns');
+  if(panel) panel.innerHTML='<div style="font-size:12px;color:#6b7280;padding:6px 0">⏳ Buscando en el sistema...</div>';
+  try{
+    const r=await api('POST','/api/solicitudes-alumno/verificar',{nombre,apellido,ci,asignacion_id:asigId});
+    if(r.status==='pendiente'){
+      panel.innerHTML=`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px;font-size:12px"><div style="font-weight:700;color:#92400e;margin-bottom:4px">⚠ Solicitud ya en proceso</div><div style="color:#78350f">${r.mensaje}</div></div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Entendido</button>`;
+    } else if(r.status==='no_existe'){
+      panel.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:12px"><div style="font-weight:700;color:#166534;margin-bottom:4px">ℹ Alumno no registrado en el sistema</div><div style="color:#14532d"><strong>${apellido}, ${nombre}</strong>${ci?' (CI: '+ci+')':''} no figura en la base de datos. El Director lo creará al aprobar.</div></div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svSolicitudAlumnoAsist('${asigId}')">📨 Enviar pedido al Director</button>`;
+    } else {
+      const al=r.alumno||{};
+      const color=r.status==='existe_misma_carrera'?{bg:'#eff6ff',bd:'#93c5fd',txt:'#1d4ed8',h:'✅ Alumno encontrado'}:{bg:'#fef2f2',bd:'#fca5a5',txt:'#dc2626',h:'⚠ Alumno en otra carrera'};
+      panel.innerHTML=`<div style="background:${color.bg};border:1px solid ${color.bd};border-radius:8px;padding:12px;font-size:12px"><div style="font-weight:700;color:${color.txt};margin-bottom:6px">${color.h}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px"><div>Nombre: <strong>${al.apellido||''}, ${al.nombre||''}</strong></div><div>CI: <strong>${al.ci||'—'}</strong></div><div>Carrera: <strong>${al.carrera_nombre||'—'}</strong></div><div>Estado: <strong>${al.estado||'—'}</strong></div></div></div>`;
+      btns.innerHTML=`<button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svSolicitudAlumnoAsist('${asigId}')">📨 Enviar pedido al Director</button>`;
+    }
+  }catch(e){ if(panel) panel.innerHTML=`<div style="font-size:12px;color:#dc2626">❌ Error: ${e.message}</div>`; }
+}
+async function svSolicitudAlumnoAsist(asigId){
+  const nombre=(v('salNom')||'').trim();
+  const apellido=(v('salApe')||'').trim();
+  const ci=(v('salCi')||'').trim();
+  const obs=(v('salObs')||'').trim();
+  if(!nombre||!apellido){toast('Completar nombre y apellido','warn');return;}
+  try{
+    await api('POST','/api/solicitudes-alumno',{nombre,apellido,ci,asignacion_id:asigId,observacion:obs||null});
+    cm();
+    toast('✓ Pedido enviado al Director','ok',4000);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 function mSolicitarAlumno(){
   const asigId=v('selAsigNotas');
   const asigNom=document.getElementById('selAsigNotas')?.selectedOptions[0]?.text||'';
@@ -5804,10 +5928,20 @@ W.loadAsist=async(asigId)=>{
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="bx bg">✓ ${presentes} presentes</span>
       <span class="bx br">✗ ${ausentes} ausentes</span>
-      ${me.rol==='director'?`<button class="bs o" onclick="verAsistMes()">📊 Ver mes</button>`:''}
-      ${me.rol==='director'?`<button class="bs" onclick="verResumenAlumno('${asigId}')">👤 Por alumno</button>`:''}
-      ${me.rol==='director'?`<button class="bs i" onclick="imprimirAsistDia('${asigId}','${fecha}')" title="Imprimir acta de asistencia de este día">🖨 Acta del día</button>`:''}
-      ${me.rol==='director'?`<button class="bs d" onclick="anularAsistencia('${asigId}',v('fecAsist'))" title="Anular toda la asistencia de esta fecha">🗑 Anular registro</button>`:''}
+      ${me.rol==='director'?`
+        <div style="position:relative;display:inline-block">
+          <button class="bs o" onclick="toggleDropAsist(this)" style="display:flex;align-items:center;gap:4px">📊 Informes <span style="font-size:9px">▾</span></button>
+          <div class="drop-asist-menu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.13);z-index:200;min-width:190px;padding:6px">
+            <button onclick="verAsistMes();closeDropAsist()" style="width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;border-radius:7px;font-size:12px;font-weight:600;color:#333;display:flex;align-items:center;gap:8px" onmouseenter="this.style.background='#f0fdf4'" onmouseleave="this.style.background='none'">📊 Ver mes</button>
+            <button onclick="verResumenAlumno('${asigId}');closeDropAsist()" style="width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;border-radius:7px;font-size:12px;font-weight:600;color:#333;display:flex;align-items:center;gap:8px" onmouseenter="this.style.background='#f0fdf4'" onmouseleave="this.style.background='none'">👤 Por alumno</button>
+            <button onclick="imprimirAsistDia('${asigId}','${fecha}');closeDropAsist()" style="width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;border-radius:7px;font-size:12px;font-weight:600;color:#333;display:flex;align-items:center;gap:8px" onmouseenter="this.style.background='#f0fdf4'" onmouseleave="this.style.background='none'">🖨 Acta del día</button>
+            <div style="border-top:1px solid #f1f5f9;margin:4px 0"></div>
+            <button onclick="anularAsistencia('${asigId}',v('fecAsist'));closeDropAsist()" style="width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;border-radius:7px;font-size:12px;font-weight:600;color:#dc2626;display:flex;align-items:center;gap:8px" onmouseenter="this.style.background='#fef2f2'" onmouseleave="this.style.background='none'">🗑 Anular registro</button>
+          </div>
+        </div>
+        <button class="bs i" onclick="verSolicitudesAlumno()" title="Ver solicitudes de incorporación pendientes">👤 Solicitudes</button>
+      `:''}
+      ${me.rol==='docente'?`<button class="bs i" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8" onclick="mIncorporarAlumnoAsist()" title="Solicitar incorporación de un alumno a esta materia">👤+ Incorporar alumno</button>`:''}
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
@@ -5830,10 +5964,7 @@ W.loadAsist=async(asigId)=>{
         <button class="asopt ${est===s?s:''}" id="ao-${a.id}-${s}" onclick="setAsist('${a.id}','${s}')">${{P:'✓',A:'✗',J:'📋'}[s]}</button>
       </td>`).join('')}
       <td style="text-align:center;padding:4px">
-        ${(me.rol==='director'||me.rol==='docente')?`<div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap">
-          ${me.rol==='director'?`<button class="bs i" style="font-size:10px;padding:2px 6px" onclick="editarAsist('${regId||''}','${a.id}','${nombre}','${est}')">✏</button>`:''}
-          <button class="bs d" style="font-size:10px;padding:2px 6px;background:#fff3e0;border-color:#ffb74d;color:#e65100" title="Alumno no viene más" onclick="marcarNoViene('${a.id}','${nombre}','${asigId}')">🚫 No viene</button>
-        </div>`:''}
+        ${me.rol==='director'?`<button class="bs i" style="font-size:10px;padding:2px 6px" onclick="editarAsist('${regId||''}','${a.id}','${nombre}','${est}')">✏</button>`:''}
       </td>
     </tr>`;
   }).join('')||'<tr><td colspan="5" class="es">Sin alumnos en este curso</td></tr>'}
