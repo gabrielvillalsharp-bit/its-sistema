@@ -1202,25 +1202,30 @@ async function pgWhatsApp(el){
 
   <!-- KPIs -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px">
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center">
+    <div onclick="waVerFiltro('historial','enviado')" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(22,163,74,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#16a34a">${totalEnv}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">Enviados</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">✉️ Enviados</div>
+      <div style="font-size:10px;color:#86efac;margin-top:4px">Ver historial →</div>
     </div>
-    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center">
+    <div onclick="waVerFiltro('historial','fallido')" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(220,38,38,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#dc2626">${totalFall}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">Fallidos</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">❌ Fallidos</div>
+      <div style="font-size:10px;color:#fca5a5;margin-top:4px">Ver historial →</div>
     </div>
-    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;text-align:center">
+    <div onclick="waTab('programar')" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(217,119,6,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#d97706">${pendProg}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">Programados</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">⏰ Programados</div>
+      <div style="font-size:10px;color:#fcd34d;margin-top:4px">Ver programados →</div>
     </div>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;text-align:center">
+    <div onclick="waTab('recibidos')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(37,99,235,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#2563eb">${noLeidos}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">Sin leer</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">💬 Sin leer</div>
+      <div style="font-size:10px;color:#93c5fd;margin-top:4px">Ver recibidos →</div>
     </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">
+    <div onclick="waTab('docentes')" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#333">${conTel.length}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">Docentes c/ tel.</div>
+      <div style="font-size:11px;color:#555;margin-top:3px">👥 Docentes c/ tel.</div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:4px">Ver docentes →</div>
     </div>
   </div>
 
@@ -1471,6 +1476,13 @@ async function waTestDoc(tel,nombre){
     await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:`🧪 *ITS — Prueba de conexión*\nHola Prof. ${nombre.split(',')[1]?.trim()||nombre}, este es un mensaje de prueba del sistema. ✅`,destinatario_nombre:nombre});
     alert('✓ Mensaje de prueba enviado');
   }catch(e){alert('Error: '+e.message);}
+}
+function waVerFiltro(panel, filtroEst){
+  waTab(panel);
+  if(panel==='historial'){
+    const sel=document.getElementById('waHisEst');
+    if(sel){ sel.value=filtroEst||''; waFiltHist(); }
+  }
 }
 function waFiltHist(){
   const tipo=document.getElementById('waHisTipo')?.value||'';
