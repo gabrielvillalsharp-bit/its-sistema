@@ -4060,6 +4060,92 @@ cron.schedule('0 * * * *', async () => {
 });
 
 
+// ── CRON: Aviso 24h — carga de examen pendiente (7:00 AM diario) ─────────────
+// Busca exámenes de MAÑANA sin archivo cargado, excluye doc_mareco, envía aviso.
+const stmtExamSinArch = db.prepare(`
+  SELECT e.id, e.fecha, e.hora, e.tipo as tipo_examen,
+    m.nombre as materia_nombre,
+    cu.anio as curso_anio, cu.division as curso_division,
+    ca.nombre as carrera_nombre,
+    d.id as docente_id, d.telefono,
+    u.nombre as doc_nombre, u.apellido as doc_apellido
+  FROM examenes e
+  JOIN asignaciones a ON e.asignacion_id = a.id
+  JOIN materias m ON a.materia_id = m.id
+  JOIN cursos cu ON a.curso_id = cu.id
+  JOIN carreras ca ON cu.carrera_id = ca.id
+  JOIN docentes d ON a.docente_id = d.id
+  JOIN usuarios u ON d.usuario_id = u.id
+  WHERE e.fecha = ?
+    AND (e.archivo_nombre IS NULL OR trim(e.archivo_nombre) = '')
+    AND d.id != 'doc_mareco'
+    AND u.activo = 1
+    AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
+`);
+
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    const fechaManana = manana.toISOString().split('T')[0];
+    const examenes = stmtExamSinArch.all(fechaManana);
+    let enviados = 0;
+    for (const ex of examenes) {
+      // Evitar duplicado: solo un aviso '24h' por examen
+      const ya = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='24h'`).get(ex.id);
+      if (ya) continue;
+      const hora = ex.hora || 'a confirmar';
+      const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
+      const msg = `📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}, le informamos que *mañana* tiene examen programado:\n\n📚 *${ex.materia_nombre}* (${ex.tipo_examen})\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora: ${hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación* por cuestiones de practicidad y organización académica.\n\nPor favor ingrese al sistema y cargue el archivo a la brevedad.\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const ok = await sendWhatsApp(ex.telefono, msg);
+      const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, '24h', ok?'enviado':'fallido');
+      const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`).run(wid,'programado','docente',ex.docente_id,`${ex.doc_apellido}, ${ex.doc_nombre}`,ex.telefono,msg,ok?'enviado':'fallido','sistema_auto');
+      if (ok) enviados++;
+    }
+    if (enviados > 0) console.log(`[CRON 7AM] Avisos carga examen: ${enviados} enviados`);
+  } catch(e) { console.error('[CRON 7AM] Error:', e.message); }
+}, { timezone: 'America/Asuncion' });
+
+// ── CRON: Recordatorio horario — carga pendiente ≤7h antes del examen ─────────
+// Corre cada hora. Si el examen es hoy, en ≤7h, sin archivo → manda recordatorio.
+// Sigue enviando hora a hora hasta que el docente cargue el archivo.
+cron.schedule('0 * * * *', async () => {
+  try {
+    const ahora = new Date();
+    // Convertir a hora Paraguay (UTC-4)
+    const py = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
+    const hoy = py.toISOString().split('T')[0];
+    const examenes = stmtExamSinArch.all(hoy);
+    let enviados = 0;
+    for (const ex of examenes) {
+      if (!ex.hora) continue;
+      const [hh, mm] = ex.hora.split(':').map(Number);
+      // Hora del examen en Paraguay
+      const examDate = new Date(py);
+      examDate.setHours(hh, mm || 0, 0, 0);
+      const diffMs = examDate - py;
+      const diffH = diffMs / (1000 * 60 * 60);
+      if (diffH <= 0 || diffH > 7) continue; // Solo si es en ≤7h y no pasó
+      // Evitar enviar más de una vez por hora para el mismo examen
+      const hace70min = new Date(ahora.getTime() - 70 * 60 * 1000).toISOString().replace('T',' ').slice(0,19);
+      const yaEnviadoHora = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='horario' AND fecha>=?`).get(ex.id, hace70min);
+      if (yaEnviadoHora) continue;
+      const hRest = Math.ceil(diffH);
+      const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
+      const msg = `⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}:\n\nSu examen de *${ex.materia_nombre}* (${ex.tipo_examen}) está programado en *${hRest} hora${hRest !== 1 ? 's' : ''}* y aún no se registra el archivo en el sistema.\n\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora programada: ${ex.hora}\n\nPor favor cargue el archivo del examen ingresando al sistema a la brevedad.\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const ok = await sendWhatsApp(ex.telefono, msg);
+      const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'horario', ok?'enviado':'fallido');
+      const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`).run(wid,'programado','docente',ex.docente_id,`${ex.doc_apellido}, ${ex.doc_nombre}`,ex.telefono,msg,ok?'enviado':'fallido','sistema_auto');
+      if (ok) enviados++;
+    }
+    if (enviados > 0) console.log(`[CRON HORARIO] Recordatorios carga: ${enviados} enviados`);
+  } catch(e) { console.error('[CRON HORARIO] Error:', e.message); }
+}, { timezone: 'America/Asuncion' });
+
 // ── WHATSAPP: envío manual para un examen ─────────────────────────────────────
 app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   const ex = db.prepare(`

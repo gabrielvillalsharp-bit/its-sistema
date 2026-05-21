@@ -912,6 +912,16 @@ function init() {
     leido INTEGER NOT NULL DEFAULT 0,
     fecha TEXT NOT NULL DEFAULT (datetime('now'))
   )`); } catch {}
+  // Control de recordatorios automáticos de carga de examen
+  try { db.exec(`CREATE TABLE IF NOT EXISTS wa_recordatorios_examen (
+    id TEXT PRIMARY KEY,
+    examen_id TEXT NOT NULL,
+    docente_id TEXT NOT NULL,
+    tipo TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'enviado',
+    fecha TEXT NOT NULL DEFAULT (datetime('now'))
+  )`); } catch {}
+  try { db.prepare("CREATE INDEX IF NOT EXISTS idx_wa_rec_examen ON wa_recordatorios_examen(examen_id, tipo, fecha)").run(); } catch {}
   // Plantillas WA por defecto (INSERT OR IGNORE para no sobreescribir ediciones)
   const insConf = db.prepare('INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)');
   insConf.run('wa_tpl_72h',
