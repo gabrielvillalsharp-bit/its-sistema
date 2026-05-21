@@ -3900,7 +3900,7 @@ function examenVars(ex) {
   };
 }
 
-// ── WHATSAPP — deshabilitado temporalmente ────────────────────────────────────
+// ── WHATSAPP — Evolution API ──────────────────────────────────────────────────
 function normalizarTelefono(tel) {
   let t = String(tel || '').replace(/\D/g, '');
   if (!t || t.length < 7) return null;
@@ -3909,8 +3909,32 @@ function normalizarTelefono(tel) {
   return t;
 }
 async function sendWhatsApp(phone, message) {
-  console.log('[WA] WhatsApp deshabilitado temporalmente');
-  return false;
+  const EVO_URL      = process.env.EVOLUTION_URL;
+  const EVO_KEY      = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) {
+    console.warn('[WA] Variables EVOLUTION_URL / EVOLUTION_KEY / EVOLUTION_INSTANCE no configuradas');
+    return false;
+  }
+  const numero = normalizarTelefono(phone);
+  if (!numero) { console.warn('[WA] Teléfono inválido:', phone); return false; }
+  try {
+    const resp = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
+      body: JSON.stringify({ number: numero, text: message }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      console.error('[WA] Error Evolution API:', resp.status, JSON.stringify(data));
+      return false;
+    }
+    console.log(`[WA] Enviado a ${numero} → key:${data?.key?.id||'ok'}`);
+    return true;
+  } catch(e) {
+    console.error('[WA] Error fetch:', e.message);
+    return false;
+  }
 }
 function buildWaMsg(tplKey, vars) {
   const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
