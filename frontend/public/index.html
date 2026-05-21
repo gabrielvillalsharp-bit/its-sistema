@@ -1311,6 +1311,10 @@ function mAviso(){
          <option value="">— Todos mis alumnos —</option>
          ${combos.map(c=>'<option value="'+c.carrera+'|||'+c.materia+'">'+c.carrera+' — '+c.materia+'</option>').join('')}
        </select></div>`:'';
+  const waCheck=esDirector?`<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;cursor:pointer;font-size:13px;margin-top:4px">
+    <input type="checkbox" id="avWa" style="width:16px;height:16px;accent-color:#166534"/>
+    <span>📱 <strong>Enviar por WhatsApp</strong> a todos los docentes</span>
+  </label>`:'';
   modal(`<h4>Nuevo aviso / comunicado</h4><div class="fg">
   <div class="f"><label>Título</label><input id="avt" placeholder="Título del aviso"/></div>
   <div class="f"><label>Contenido</label><textarea id="avc" rows="4" placeholder="Escribí el mensaje..." style="width:100%;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px;resize:vertical"></textarea></div>
@@ -1320,6 +1324,7 @@ function mAviso(){
   </div>
   <div class="f"><label>Público objetivo</label><select id="avdest">${optsDestino}</select></div>
   ${filtroCombo}
+  ${waCheck}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
 }
 async function svAviso(){
@@ -1334,11 +1339,12 @@ async function svAviso(){
   const destinatario=document.getElementById('avdest')?.value||'todos';
   const tipo=document.getElementById('avtp')?.value||'info';
   const fijado=document.getElementById('avf')?.value==='1';
+  const enviar_whatsapp=document.getElementById('avWa')?.checked||false;
   if(!destinatario){toast('Seleccioná un destinatario','warn');return;}
   try{
-    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario});
+    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario,enviar_whatsapp});
     cm();go('avisos');
-    toast('✓ Aviso publicado correctamente','ok',3000);
+    toast(enviar_whatsapp?'✓ Aviso publicado y enviando WhatsApp a docentes...':'✓ Aviso publicado correctamente','ok',4000);
   }catch(e){toast('Error al publicar: '+e.message,'err');}
 }
 
@@ -10440,15 +10446,33 @@ async function delU(id){if(!confirm('¿Eliminar?'))return;try{await api('DELETE'
 // ── MI PERFIL ─────────────────────────────────────────────────────────────────
 async function pgPerfil(el){
   const u=await api('GET','/api/mi-perfil');
+  const esDocente=u.rol==='docente';
   el.innerHTML=`<div class="ph"><h3>Mi perfil</h3></div>
-  <div class="card card-p" style="max-width:460px">
+  <div class="card card-p" style="max-width:480px">
+    <!-- Datos básicos -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
       <div><div style="font-size:11px;color:var(--t3)">Nombre</div><div style="font-size:15px;font-weight:600">${u.nombre} ${u.apellido||''}</div></div>
       <div><div style="font-size:11px;color:var(--t3)">Email</div><div style="font-size:13px">${u.email}</div></div>
       <div><div style="font-size:11px;color:var(--t3)">Rol</div><span class="bx bb">${u.rol}</span></div>
+      ${u.ci?`<div><div style="font-size:11px;color:var(--t3)">C.I.</div><div style="font-size:13px">${u.ci}</div></div>`:''}
+      ${u.titulo?`<div><div style="font-size:11px;color:var(--t3)">Título</div><div style="font-size:13px">${u.titulo}</div></div>`:''}
     </div>
+
+    ${esDocente?`
+    <!-- Teléfono WhatsApp -->
+    <div style="border-top:1px solid var(--bdr);padding-top:16px;margin-bottom:20px">
+      <p style="font-size:14px;font-weight:600;margin-bottom:4px">📱 Teléfono WhatsApp</p>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">El sistema usa este número para enviarte recordatorios de exámenes. Formato: <strong>0981000000</strong></p>
+      <div style="display:flex;gap:8px;align-items:center;max-width:320px">
+        <input id="miTel" value="${u.telefono||''}" placeholder="0981-000-000" style="flex:1;padding:8px;border:1px solid var(--bdr);border-radius:7px;font-size:13px"/>
+        <button class="bn" onclick="svMiTelefono()" style="white-space:nowrap">💾 Guardar</button>
+      </div>
+      <div id="telMsg" style="margin-top:6px;font-size:12px"></div>
+    </div>`:''}
+
+    <!-- Cambiar contraseña -->
     <div style="border-top:1px solid var(--bdr);padding-top:16px">
-      <p style="font-size:14px;font-weight:600;margin-bottom:12px">Cambiar contraseña</p>
+      <p style="font-size:14px;font-weight:600;margin-bottom:12px">🔐 Cambiar contraseña</p>
       <div class="fg" style="max-width:320px">
         <div class="f"><label>Contraseña actual</label><input id="pa2" type="password" placeholder="Tu contraseña actual"/></div>
         <div class="f"><label>Nueva contraseña</label><input id="pn2" type="password" placeholder="Mín. 4 caracteres"/></div>
@@ -10458,6 +10482,14 @@ async function pgPerfil(el){
       </div>
     </div>
   </div>`;
+}
+async function svMiTelefono(){
+  const tel=(document.getElementById('miTel')?.value||'').trim();
+  const msg=document.getElementById('telMsg');
+  try{
+    await api('PUT','/api/mi-perfil/telefono',{telefono:tel});
+    msg.innerHTML='<span style="color:var(--green)">✓ Teléfono guardado</span>';
+  }catch(e){msg.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
 async function svMiPass(){
   const actual=v('pa2'),nueva=v('pn2'),conf=v('pc2');

@@ -181,7 +181,17 @@ app.delete('/api/usuarios/directores/:id', auth(['director']), (req, res) => {
 
 // ── MI PERFIL ─────────────────────────────────────────────────────────────────
 app.get('/api/mi-perfil', auth(), (req, res) => {
-  res.json(db.prepare('SELECT id,nombre,apellido,email,ci,rol FROM usuarios WHERE id=?').get(req.user.id));
+  const u = db.prepare('SELECT id,nombre,apellido,email,ci,rol FROM usuarios WHERE id=?').get(req.user.id);
+  if (u?.rol === 'docente') {
+    const d = db.prepare('SELECT id,telefono,titulo,especialidad FROM docentes WHERE usuario_id=?').get(req.user.id);
+    return res.json({ ...u, telefono: d?.telefono||null, docente_id: d?.id||null, titulo: d?.titulo||null });
+  }
+  res.json(u);
+});
+app.put('/api/mi-perfil/telefono', auth(['docente']), (req, res) => {
+  const { telefono } = req.body;
+  db.prepare('UPDATE docentes SET telefono=? WHERE usuario_id=?').run(telefono||null, req.user.id);
+  res.json({ ok: true });
 });
 app.put('/api/mi-perfil/password', auth(), (req, res) => {
   const { actual, nueva } = req.body;
@@ -1610,9 +1620,8 @@ app.get('/api/avisos', auth(), (req, res) => {
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
 });
-app.post('/api/avisos', auth(['director','docente']), (req, res) => {
-  const { titulo, contenido, tipo, fijado, destinatario } = req.body;
-  // Mapear valores del frontend al CHECK constraint de SQLite
+app.post('/api/avisos', auth(['director','docente']), async (req, res) => {
+  const { titulo, contenido, tipo, fijado, destinatario, enviar_whatsapp } = req.body;
   const destMap = {
     'todos':'todos', 'docentes':'docentes', 'alumnos':'alumnos',
     'mis-alumnos':'alumnos', 'director':'todos', 'director-secretaria':'todos'
@@ -1622,6 +1631,28 @@ app.post('/api/avisos', auth(['director','docente']), (req, res) => {
   db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id);
   audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB});
   res.json({ id });
+
+  // Envío WhatsApp a docentes (asíncrono, no bloquea la respuesta)
+  if (enviar_whatsapp) {
+    setImmediate(async () => {
+      try {
+        const docentes = db.prepare(`
+          SELECT u.nombre, u.apellido, d.telefono
+          FROM docentes d JOIN usuarios u ON d.usuario_id=u.id
+          WHERE u.activo=1 AND d.telefono IS NOT NULL AND d.telefono!=''
+        `).all();
+        const tipoIcon = { info:'ℹ️', urgente:'🚨', examen:'📝', administrativo:'📋' }[tipo||'info'] || '📢';
+        const msg = `${tipoIcon} *ITS Santísima Trinidad*\n\n*${titulo}*\n\n${contenido}`;
+        let enviados = 0;
+        for (const doc of docentes) {
+          const ok = await sendWhatsApp(doc.telefono, msg);
+          if (ok) enviados++;
+        }
+        audit(req.user.id,'AVISO_WA','avisos',id,{ enviados, total: docentes.length });
+        console.log(`[WA] Aviso enviado a ${enviados}/${docentes.length} docentes`);
+      } catch(e) { console.error('[WA] Error envío masivo aviso:', e.message); }
+    });
+  }
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
   const { titulo, contenido, tipo, fijado, activo, destinatario } = req.body;
