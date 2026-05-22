@@ -1790,30 +1790,17 @@ async function pgCarreras(el){
 }
 function mQrCarrera(id, nombre){
   const url = location.origin+'/registro?c='+id;
+  const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=1D4ED8&data='+encodeURIComponent(url);
   modal(`<h4>📱 QR de Registro — ${nombre}</h4>
   <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Compartí este QR o link con los alumnos para que completen sus datos.</p>
-  <div id="qr-wrap" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+  <div style="display:flex;justify-content:center;margin-bottom:14px">
+    <img src="${qrSrc}" width="220" height="220" style="border-radius:10px;border:2px solid #e2e8f0" onerror="this.parentElement.innerHTML='<p style=color:#888;font-size:12px>QR no disponible sin conexión</p>'"/>
+  </div>
   <div style="background:#f8fafc;border:1px solid var(--bdr);border-radius:8px;padding:8px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
-    <span style="font-size:12px;word-break:break-all;flex:1;color:#374151">${url}</span>
+    <span style="font-size:11px;word-break:break-all;flex:1;color:#374151">${url}</span>
     <button class="bs" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('✓ Copiado','ok'))" style="white-space:nowrap;font-size:11px">📋 Copiar</button>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="window.open('${url}','_blank')">🔗 Abrir página</button></div>`);
-  // Generar QR con librería CDN
-  if(!window.QRCode){
-    const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-    s.onload=()=>generarQr(url);
-    document.head.appendChild(s);
-  } else { generarQr(url); }
-}
-function generarQr(url){
-  const wrap=document.getElementById('qr-wrap');
-  if(!wrap)return;
-  const canvas=document.createElement('canvas');
-  wrap.appendChild(canvas);
-  QRCode.toCanvas(canvas,url,{width:200,margin:2,color:{dark:'#1D4ED8',light:'#ffffff'}},err=>{
-    if(err){ wrap.innerHTML=`<p style="font-size:12px;color:var(--red)">No se pudo generar el QR. <a href="${url}" target="_blank">Abrir link directamente</a></p>`; }
-  });
 }
 function mCarrera(c){
   const e=!!c;
