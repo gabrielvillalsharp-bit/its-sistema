@@ -3071,16 +3071,15 @@ function renderExsByDay(exs,wrap){
     </div>
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:4px;${esPasado?'opacity:.78':''}">
       <div class="tw"><table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f1f5f9">
-        <th style="width:58px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">HORA</th>
-        <th style="width:120px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">TIPO</th>
-        <th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">MATERIA</th>
-        <th style="width:140px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">CARRERA</th>
-        <th style="width:68px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">SECC.</th>
-        <th style="width:130px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">DOCENTE</th>
-        <th style="width:48px;padding:5px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">AULA</th>
-        <th style="width:55px;padding:5px 8px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ALUM.</th>
-        <th style="width:90px;padding:5px 8px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">NOTAS</th>
-        <th style="width:200px;padding:5px 8px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1">ACCIONES</th>
+        <th style="width:60px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">HORA</th>
+        <th style="width:120px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">TIPO</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">MATERIA</th>
+        <th style="width:150px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">CARRERA</th>
+        <th style="width:140px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">DOCENTE</th>
+        <th style="width:95px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">AVANCE</th>
+        <th style="width:80px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">NOTAS</th>
+        <th style="width:70px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ACTA</th>
+        <th style="padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1">ARCHIVO</th>
       </tr></thead><tbody>
       ${items.map(exRowNoDate).join('')}
       </tbody></table></div>
@@ -3101,29 +3100,27 @@ function exRowNoDate(e){
   const btnVer=e.archivo_nombre?(me.rol==='director'
     ?`<button style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer;white-space:nowrap" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="Descargar ${e.archivo_nombre}">⬇ Bajar</button>`
     :`<button style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
-  const td='padding:5px 8px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle';
-  const tdl='padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:middle';
-  const bs='font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid;cursor:pointer;white-space:nowrap';
-  const btnNotas=e.asignacion_id?`<button style="${bs};background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">📋 Notas</button>`:'';
-  const btnActa=e.id&&me.rol==='director'?`<button style="${bs};background:#fff7ed;color:#c2410c;border-color:#fed7aa" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:'';
-  const btnDel=me.rol==='director'?`<button style="${bs};background:#fef2f2;color:#dc2626;border-color:#fecaca" onclick="delExamen('${e.id}')">🗑</button>`:'';
+  const td='padding:8px 10px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle';
+  const tdl='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:middle';
+  const bs='font-size:10px;padding:3px 9px;border-radius:4px;border:1px solid;cursor:pointer;white-space:nowrap;font-weight:600';
+  const btnNotas=e.asignacion_id?`<button style="${bs};background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">📋 Abrir</button>`:'<span style="color:#d1d5db;font-size:11px">—</span>';
+  const btnActa=e.id&&me.rol==='director'?`<button style="${bs};background:#fff7ed;color:#c2410c;border-color:#fed7aa" onclick="imprimirActaExamen('${e.id}')">🖨 Imprimir</button>`:'<span style="color:#d1d5db;font-size:11px">—</span>';
+  const btnDel=me.rol==='director'?`<button style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer" onclick="delExamen('${e.id}')" title="Eliminar examen">🗑</button>`:'';
   return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
     <td style="${td};white-space:nowrap;font-weight:700;color:#1e293b;font-size:12px">${e.hora||'—'}</td>
     <td style="${td}"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${e.tipo||'—'}</span></td>
     <td style="${td}"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span></td>
     <td style="${td};font-size:11px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#94a3b8">'+e.curso_anio+'°</span>':''}</td>
-    <td style="${td};font-size:11px;white-space:nowrap;text-align:center">${e.curso_division&&e.curso_division!=='U'?'<span class="bx bb" style="font-size:9px">'+e.curso_division+'</span>':'<span style="color:var(--t2);font-size:11px">U</span>'}</td>
     <td style="${td};font-size:11px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
-    <td style="${td};font-size:11px;font-weight:600;color:#4b5563;text-align:center">${e.aula||'<span style="color:#d1d5db">—</span>'}</td>
-    <td style="${td};text-align:center;font-size:12px;font-weight:700;color:#374151">${e.total_alumnos||0}</td>
     <td style="${td};text-align:center">
-      <div class="prog-bar" style="width:44px;display:inline-block;vertical-align:middle"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:9px;color:#6b7280;margin-top:1px">${e.notas_cargadas||0}/${e.total_alumnos||0}</div>
+      <div class="prog-bar" style="width:48px;display:inline-block;vertical-align:middle"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:9px;color:#6b7280;margin-top:2px">${e.notas_cargadas||0}/${e.total_alumnos||0}</div>
     </td>
-    <td style="${tdl};min-width:200px">
-      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
-        <div style="display:flex;gap:3px;flex-wrap:wrap">${btnNotas}${btnActa}${btnDel}</div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center">${btnAdjuntar}${btnVer}</div>
+    <td style="${td};text-align:center">${btnNotas}</td>
+    <td style="${td};text-align:center">${btnActa}</td>
+    <td style="${tdl};text-align:center">
+      <div style="display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap">
+        ${btnAdjuntar}${btnVer}${btnDel}
       </div>
     </td>
   </tr>`;
