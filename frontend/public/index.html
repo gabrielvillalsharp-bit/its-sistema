@@ -5555,50 +5555,50 @@ W.loadNotas=async(asigId,_tipo)=>{
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
     ${me.rol==='director'?'· 🔒 Mora bloquea finales — habilitar desde <strong>Pagos → 🔓 Habilitar examen</strong>.':''}
   </div>
-  <div style="overflow-x:auto;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.10),0 1px 4px rgba(0,0,0,.06);background:#fff">
-  <table style="min-width:960px;font-size:12px;border-collapse:separate;border-spacing:0;width:100%;border-radius:16px;overflow:hidden" autocomplete="off">
+  <div style="overflow-x:auto;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.10),0 1px 4px rgba(0,0,0,.06);background:linear-gradient(170deg,#f0f7ff 0%,#fff 22%,#fff 78%,#fdf6ff 100%)">
+  <table style="min-width:960px;font-size:12px;font-family:'Times New Roman',Times,serif;border-collapse:separate;border-spacing:0;width:100%;border-radius:16px;overflow:hidden" autocomplete="off">
   <thead>
     <!-- Fila 1: etiquetas de sección con barra de color superior -->
     <tr>
-      <th rowspan="2" style="padding:12px 16px;text-align:left;background:#0f172a;color:#f8fafc;min-width:175px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;vertical-align:middle;border-bottom:3px solid #38bdf8">
+      <th rowspan="2" style="padding:12px 16px;text-align:left;background:linear-gradient(160deg,#1e293b 0%,#0f172a 100%);color:#f8fafc;min-width:175px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;vertical-align:middle;border-bottom:3px solid #38bdf8">
         <div style="display:flex;align-items:center;gap:6px"><span style="width:3px;height:22px;background:#38bdf8;border-radius:2px;display:inline-block"></span>Alumno</div>
       </th>
-      <th colspan="4" style="padding:8px 6px 6px;text-align:center;background:#f0fdf4;color:#15803d;border-top:3px solid #22c55e;border-bottom:1px solid #bbf7d0;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
+      <th colspan="4" style="padding:8px 6px 6px;text-align:center;background:linear-gradient(135deg,#d1fae5 0%,#f0fdf4 70%);color:#15803d;border-top:3px solid #22c55e;border-bottom:1px solid #bbf7d0;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
         <span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;padding:3px 10px;border-radius:20px;border:1px solid #86efac">📝 Trab. Prácticos &nbsp;·&nbsp; 20 pts</span>
       </th>
-      <th rowspan="2" style="padding:8px 6px;text-align:center;background:#166534;color:#fff;font-size:10px;font-weight:800;letter-spacing:.05em;vertical-align:middle;border-top:3px solid #22c55e;min-width:52px">
+      <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#16a34a 0%,#166534 100%);color:#fff;font-size:10px;font-weight:800;letter-spacing:.05em;vertical-align:middle;border-top:3px solid #22c55e;min-width:52px">
         <div>TOT.</div><div style="font-size:9px;opacity:.8">TPs</div>
       </th>
-      <th colspan="2" style="padding:8px 6px 6px;text-align:center;background:#eff6ff;color:#1d4ed8;border-top:3px solid #3b82f6;border-bottom:1px solid #bfdbfe;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
+      <th colspan="2" style="padding:8px 6px 6px;text-align:center;background:linear-gradient(135deg,#dbeafe 0%,#eff6ff 70%);color:#1d4ed8;border-top:3px solid #3b82f6;border-bottom:1px solid #bfdbfe;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
         <span style="display:inline-flex;align-items:center;gap:5px;background:#dbeafe;padding:3px 10px;border-radius:20px;border:1px solid #93c5fd">📋 Parcial &nbsp;·&nbsp; 20 pts</span>
       </th>
-      <th colspan="3" style="padding:8px 6px 6px;text-align:center;background:#fff7ed;color:#c2410c;border-top:3px solid #f97316;border-bottom:1px solid #fed7aa;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
+      <th colspan="3" style="padding:8px 6px 6px;text-align:center;background:linear-gradient(135deg,#ffedd5 0%,#fff7ed 70%);color:#c2410c;border-top:3px solid #f97316;border-bottom:1px solid #fed7aa;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">
         <span style="display:inline-flex;align-items:center;gap:5px;background:#ffedd5;padding:3px 10px;border-radius:20px;border:1px solid #fdba74">🎯 Final &nbsp;·&nbsp; 50 pts</span>
       </th>
-      <th rowspan="2" style="padding:8px 6px;text-align:center;background:#4c1d95;color:#ede9fe;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #a855f7;min-width:54px">
+      <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#5b21b6 0%,#4c1d95 100%);color:#ede9fe;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #a855f7;min-width:54px">
         <div>EXTRA</div><div style="font-size:9px;opacity:.8">100 pts</div>
       </th>
-      <th rowspan="2" style="padding:8px 6px;text-align:center;background:#1e3a8a;color:#bfdbfe;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #3b82f6;min-width:48px">
+      <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#1e40af 0%,#1e3a8a 100%);color:#bfdbfe;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #3b82f6;min-width:48px">
         <div>DIR.</div><div style="font-size:9px;opacity:.8">10 pts</div>
       </th>
-      <th rowspan="2" style="padding:8px 10px;text-align:center;background:#0f172a;color:#e2e8f0;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #38bdf8;min-width:58px">
+      <th rowspan="2" style="padding:8px 10px;text-align:center;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);color:#e2e8f0;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #38bdf8;min-width:58px">
         <div>TOTAL</div><div style="font-size:9px;color:#7dd3fc">puntos</div>
       </th>
-      <th rowspan="2" style="padding:8px 6px;text-align:center;background:#1e293b;color:#cbd5e1;font-size:9px;font-weight:700;vertical-align:middle;border-top:3px solid #64748b">CALIF.</th>
-      <th rowspan="2" style="padding:8px 6px;text-align:center;background:#1e293b;color:#cbd5e1;font-size:9px;font-weight:700;vertical-align:middle;border-top:3px solid #64748b${me.rol==='director'?'':''}">ESTADO</th>
-      ${me.rol==='director'?'<th rowspan="2" style="padding:8px 6px;text-align:center;background:#450a0a;color:#fca5a5;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #ef4444">🔒 MORA</th>':''}
+      <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#334155 0%,#1e293b 100%);color:#cbd5e1;font-size:9px;font-weight:700;vertical-align:middle;border-top:3px solid #64748b">CALIF.</th>
+      <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#334155 0%,#1e293b 100%);color:#cbd5e1;font-size:9px;font-weight:700;vertical-align:middle;border-top:3px solid #64748b${me.rol==='director'?'':''}">ESTADO</th>
+      ${me.rol==='director'?'<th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#7f1d1d 0%,#450a0a 100%);color:#fca5a5;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-top:3px solid #ef4444">🔒 MORA</th>':''}
     </tr>
     <!-- Fila 2: subencabezados -->
     <tr>
-      <th style="padding:5px 4px;text-align:center;background:#f0fdf4;color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 1</th>
-      <th style="padding:5px 4px;text-align:center;background:#f0fdf4;color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 2</th>
-      <th style="padding:5px 4px;text-align:center;background:#f0fdf4;color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 3</th>
-      <th style="padding:5px 4px;text-align:center;background:#f0fdf4;color:#166534;border-bottom:2px solid #22c55e;border-right:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 4</th>
-      <th style="padding:5px 4px;text-align:center;background:#eff6ff;color:#1d4ed8;border-bottom:2px solid #3b82f6;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
-      <th style="padding:5px 4px;text-align:center;background:#fefce8;color:#854d0e;border-bottom:2px solid #3b82f6;border-right:2px solid #3b82f6;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
-      <th style="padding:5px 4px;text-align:center;background:#fff7ed;color:#9a3412;border-bottom:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
-      <th style="padding:5px 4px;text-align:center;background:#fefce8;color:#854d0e;border-bottom:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
-      <th style="padding:5px 4px;text-align:center;background:#fff1f2;color:#9f1239;border-bottom:2px solid #f97316;border-right:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Complem.</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ecfdf5,#f0fdf4);color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 1</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ecfdf5,#f0fdf4);color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 2</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ecfdf5,#f0fdf4);color:#166534;border-bottom:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 3</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ecfdf5,#f0fdf4);color:#166534;border-bottom:2px solid #22c55e;border-right:2px solid #22c55e;font-size:10px;font-weight:700;min-width:46px">TP 4</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#e0edff,#eff6ff);color:#1d4ed8;border-bottom:2px solid #3b82f6;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#fef9c3,#fefce8);color:#854d0e;border-bottom:2px solid #3b82f6;border-right:2px solid #3b82f6;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ffe8d5,#fff7ed);color:#9a3412;border-bottom:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#fef9c3,#fefce8);color:#854d0e;border-bottom:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
+      <th style="padding:5px 4px;text-align:center;background:linear-gradient(180deg,#ffe0e4,#fff1f2);color:#9f1239;border-bottom:2px solid #f97316;border-right:2px solid #f97316;font-size:10px;font-weight:700;min-width:54px">Complem.</th>
     </tr>
   </thead>
   <tbody>
