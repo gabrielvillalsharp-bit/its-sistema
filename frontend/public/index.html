@@ -7082,6 +7082,36 @@ async function selAlumnoPago(alId){
       </div>`;
     }).join('');
 
+    // Exámenes con arancel — se muestran debajo de las cuotas
+    const examenesArancel=[
+      {concepto:'Examen Parcial Recuperatorio', lbl:'Parc.\nRecuperatorio', icon:'📝'},
+      {concepto:'Examen Final Ordinario',        lbl:'Final\nOrdinario',    icon:'📋'},
+      {concepto:'Examen Final Recuperatorio',    lbl:'Final\nRecuperatorio',icon:'📋'},
+      {concepto:'Examen Final Complementario',   lbl:'Final\nComplement.',  icon:'📋'},
+      {concepto:'Examen Final Extraordinario',   lbl:'Extraord.\n⚡',       icon:'⚡'},
+    ];
+    const examenesGrid=examenesArancel.map(({concepto,lbl,icon})=>{
+      const pagosEx=(pagos||[]).filter(p=>(p.concepto||'').toLowerCase()===concepto.toLowerCase());
+      if(!pagosEx.length){
+        return `<div onclick="registrarPagoCuota('${alId}','${concepto}')"
+          onmouseover="this.style.borderColor='#7c3aed';this.style.background='#f5f3ff';this.style.boxShadow='0 2px 8px rgba(124,58,237,.18)'"
+          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.boxShadow='none'"
+          style="border:2px solid #e2e8f0;border-radius:10px;background:#fff;padding:10px 8px;text-align:center;min-width:80px;cursor:pointer;transition:all .15s"
+          title="Clic para registrar ${lbl.replace('\n',' ')}">
+          <div style="font-size:20px;margin-bottom:4px">${icon}</div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.3;white-space:pre-line">${lbl}</div>
+          <div style="font-size:9px;color:#7c3aed;margin-top:3px;opacity:0" class="cuota-hint">+ Registrar</div>
+        </div>`;
+      }
+      // Puede haber más de un pago (varios recuperatorios)
+      return pagosEx.map(p=>`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 8px;text-align:center;min-width:80px;cursor:default" title="Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
+        <div style="font-size:20px;margin-bottom:4px">✅</div>
+        <div style="font-size:10px;font-weight:700;color:#166534;line-height:1.3;white-space:pre-line">${lbl}</div>
+        <div style="font-size:9px;color:#166534;margin-top:3px">Gs. ${Number(p.monto||0).toLocaleString()}</div>
+        <div style="font-size:9px;color:#64748b">${fmtFecha(p.fecha_pago)}</div>
+      </div>`).join('');
+    }).join('');
+
     // Exámenes habilitados
     const habLabels={parcial:'Parcial Ordinario',parcial_recuperatorio:'Parcial Recuperatorio',final:'Final Ordinario',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario ⚡'};
     const tipoArMap={parcial_recuperatorio:'parcial',final_ord:'final',final_recuperatorio:'final',complementario:'final',extraordinario:'extraordinario'};
@@ -7092,16 +7122,11 @@ async function selAlumnoPago(alId){
           const ar=aranceles.find(a=>a.tipo===(tipoArMap[h.tipo_examen]||h.tipo_examen));
           const monto=ar?`Gs. ${Number(ar.monto).toLocaleString()}`:'—';
           const yaPago=(pagos||[]).some(p=>p.concepto?.toLowerCase().includes(label.toLowerCase().replace(' ⚡','')));
-          const esPorPago=(h.motivo||'').toLowerCase().includes('pago');
-          const borderColor=yaPago?'#86efac':esPorPago?'#86efac':'#fcd34d';
-          const bgColor=yaPago?'#f0fdf4':esPorPago?'#f0fdf4':'#fffbf0';
-          const textColor=yaPago?'#166534':esPorPago?'#166534':'#b45309';
-          return `<div style="border:2px solid ${borderColor};border-radius:10px;background:${bgColor};padding:12px 16px;min-width:180px">
-            <div style="font-weight:800;font-size:12px;color:${textColor};margin-bottom:4px">${label}</div>
+          return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:12px 16px;min-width:180px">
+            <div style="font-weight:800;font-size:12px;color:#b45309;margin-bottom:4px">${label}</div>
             <div style="font-size:11px;color:#64748b;margin-bottom:3px">Arancel: <strong>${monto}</strong></div>
-            <div style="font-size:11px;color:#64748b;margin-bottom:8px">${esPorPago?'💰 Habilitado por pago':(h.motivo||'🔓 Hab. sin pago — deuda pendiente')}</div>
-            ${(yaPago||esPorPago)?'<span style="font-size:11px;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700">✓ Pago registrado</span>'
-              :`<button onclick="mPagoDirecto('${alId}')" style="font-size:11px;padding:5px 10px;border:1px solid #d97706;border-radius:6px;background:#fff;color:#b45309;cursor:pointer;width:100%;font-weight:600">💰 Registrar pago →</button>`}
+            <div style="font-size:11px;color:#e65100;margin-bottom:8px">🔓 Hab. sin pago — deuda pendiente</div>
+            <div style="font-size:10px;color:#64748b">${h.motivo&&!h.motivo.includes('pago')?h.motivo:'Habilitado por Dirección'}</div>
           </div>`;}).join('')}</div>`;
 
     // Historial de pagos (tabla completa)
@@ -7196,11 +7221,14 @@ async function selAlumnoPago(alId){
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">${cuotasGrid}</div>
+          <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${examenesGrid}</div>
         </div>
 
-        <!-- Exámenes habilitados -->
+        <!-- Exámenes habilitados sin pago -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🎓 Exámenes habilitados</div>
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🔓 Habilitaciones sin pago (por Dirección)</div>
           ${examHtml}
         </div>
 
@@ -7261,14 +7289,10 @@ async function habilitarDesdeHistorial(alId){
     const ar=aranceles.find(a=>a.tipo===tipo);
     return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:'';
   }
-  modal(`<h4>🔓 Habilitar examen por Dirección</h4>
-  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
-    <div style="font-size:12px;padding:8px 10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;color:#e65100">
-      ⚠ <strong>Habilitación SIN pago:</strong> el alumno quedará habilitado pero con la deuda pendiente. Usá esta opción para excepciones o acuerdos de pago.
-    </div>
-    <div style="font-size:12px;padding:8px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;color:#2e7d32">
-      💰 <strong>Habilitación CON pago:</strong> registrá el pago <em>"Examen Parcial Recuperatorio"</em> desde <strong>+ Registrar pago</strong> y la habilitación se aplica automáticamente.
-    </div>
+  modal(`<h4>🔓 Habilitar examen sin pago</h4>
+  <div style="font-size:12px;padding:8px 10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;color:#e65100;margin-bottom:12px">
+    ⚠ Esta habilitación es <strong>sin pago</strong> — el alumno quedará habilitado pero con la deuda pendiente. Usá esta opción para excepciones o acuerdos de pago.<br>
+    <span style="font-size:11px;color:#b45309;margin-top:3px;display:block">Para habilitar mediante pago, registrá el pago desde <strong>+ Registrar pago</strong>.</span>
   </div>
   <div class="fg">
     <div class="f"><label>Examen a habilitar <span style="color:var(--red)">*</span></label>
@@ -7371,7 +7395,7 @@ async function mPagoDirecto(alId){
   setTimeout(()=>autoMontoArancel(),100);
 }
 
-// Registrar pago desde el cuadrado de cuota (pre-selecciona el concepto)
+// Registrar pago desde el cuadrado de cuota o examen (pre-selecciona el concepto)
 async function registrarPagoCuota(alId, concepto){
   await mPagoDirecto(alId);
   setTimeout(()=>{
@@ -7382,10 +7406,16 @@ async function registrarPagoCuota(alId, concepto){
       const opt=[...sel.options].find(o=>o.value==='Matrícula '+yr)||[...sel.options].find(o=>o.value.startsWith('Matrícula'));
       if(opt) sel.value=opt.value;
     } else {
-      // 'Cuota N' — coincide exactamente con los option values
-      if([...sel.options].some(o=>o.value===concepto)) sel.value=concepto;
+      // Buscar opción exacta primero, luego búsqueda parcial (para exámenes con arancel)
+      const exactOpt=[...sel.options].find(o=>o.value===concepto);
+      if(exactOpt){ sel.value=exactOpt.value; }
+      else {
+        const partialOpt=[...sel.options].find(o=>o.value.toLowerCase().includes(concepto.toLowerCase())||concepto.toLowerCase().includes(o.value.toLowerCase().replace(' 🔓','')));
+        if(partialOpt) sel.value=partialOpt.value;
+      }
     }
     autoMontoArancel();
+    pgcoChangeHandler();
   },250);
 }
 
