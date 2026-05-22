@@ -1140,11 +1140,12 @@ async function pgDash(el){
 // ── WHATSAPP GESTIÓN ─────────────────────────────────────────────────────────
 async function pgWhatsApp(el){
   el.innerHTML='<div class="es">Cargando...</div>';
-  const [estadoR, histR, progR, recibR] = await Promise.all([
+  const [estadoR, histR, progR, recibR, reglasR] = await Promise.all([
     api('GET','/api/whatsapp/estado').catch(()=>({estado:'error'})),
-    api('GET','/api/whatsapp/historial?limit=100').catch(()=>({mensajes:[],resumen:[]})),
+    api('GET','/api/whatsapp/historial?limit=200').catch(()=>({mensajes:[],resumen:[]})),
     api('GET','/api/whatsapp/programados').catch(()=>[]),
     api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0})),
+    api('GET','/api/whatsapp/reglas').catch(()=>[]),
   ]);
   const docentesR = await api('GET','/api/docentes').catch(()=>[]);
   const conTel = (docentesR||[]).filter(d=>d.telefono);
@@ -1161,8 +1162,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes'};
-  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes'].map((t,i)=>{
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas'};
+  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -1417,14 +1418,54 @@ async function pgWhatsApp(el){
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- Panel: Reglas -->
+  <div id="wa-panel-reglas" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <h3 style="margin:0;font-size:14px;color:#333">⚙️ Reglas de notificación automática</h3>
+        <span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:10px">Los cambios se aplican en el siguiente ciclo del cron</span>
+      </div>
+      <p style="margin:0 0 16px;font-size:12px;color:#6b7280">Activá o desactivá cada regla y editá el texto del mensaje. Usá las variables disponibles entre llaves.</p>
+      <div id="wa-reglas-lista">
+        ${(reglasR||[]).map((r,i)=>{
+          const tipoBg=r.tipo==='recordatorio'?'#dbeafe':'#fef9c3';
+          const tipoC=r.tipo==='recordatorio'?'#1d4ed8':'#854d0e';
+          const activaBg=r.activa?'#128C7E':'#9ca3af';
+          return `<div id="wa-regla-card-${r.key}" style="border:1px solid ${r.activa?'#e5e7eb':'#f3f4f6'};border-radius:10px;padding:14px 16px;margin-bottom:10px;background:${r.activa?'#fff':'#fafafa'};transition:all .2s">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <span style="font-weight:700;font-size:13px;color:${r.activa?'#111':'#9ca3af'}">${r.label}</span>
+              <span style="font-size:10px;background:${tipoBg};color:${tipoC};padding:1px 8px;border-radius:10px;font-weight:600">${r.tipo}</span>
+              <span style="font-size:11px;color:#6b7280">🕐 ${r.cron}</span>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:${r.activa?'#166534':'#6b7280'};font-weight:600">${r.activa?'ACTIVA':'INACTIVA'}</span>
+                <button onclick="waToggleRegla('${r.key}',${!r.activa})" style="width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;background:${activaBg};position:relative;transition:background .2s" title="${r.activa?'Desactivar':'Activar'}">
+                  <span style="position:absolute;top:3px;left:${r.activa?'22':'3'}px;width:18px;height:18px;background:#fff;border-radius:50%;transition:left .2s"></span>
+                </button>
+              </div>
+            </div>
+            <div style="margin-bottom:8px">
+              <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">✏️ Texto del mensaje</label>
+              <textarea id="wa-tpl-${r.key}" rows="4" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;font-family:monospace;resize:vertical;box-sizing:border-box;color:#1a1a1a;background:${r.activa?'#fff':'#f9fafb'}">${r.template}</textarea>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <span style="font-size:10px;color:#9ca3af">Variables: <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px">${r.vars}</code></span>
+              <button onclick="waGuardarRegla('${r.key}')" style="font-size:12px;padding:5px 14px;border-radius:8px;border:1px solid #128C7E;background:#128C7E;color:#fff;cursor:pointer;font-weight:600">💾 Guardar plantilla</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
   </div>`;
 
   // Store data for filters
   window._waHist = histR.mensajes||[];
+  window._waReglas = reglasR||[];
 }
 
 function waTab(t){
-  ['enviar','masivo','programar','historial','recibidos','docentes'].forEach(x=>{
+  ['enviar','masivo','programar','historial','recibidos','docentes','reglas'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
@@ -1534,6 +1575,42 @@ function waFiltHist(){
   });
 }
 function recargarWA(){go('whatsapp');}
+async function waToggleRegla(key, activa){
+  try{
+    await api('POST',`/api/whatsapp/reglas/${key}`,{activa});
+    // Actualizar UI sin recargar toda la página
+    const card=document.getElementById(`wa-regla-card-${key}`);
+    if(card){
+      card.style.border=activa?'1px solid #e5e7eb':'1px solid #f3f4f6';
+      card.style.background=activa?'#fff':'#fafafa';
+      const lbl=card.querySelector('span[style*="font-weight:600"]');
+      if(lbl){lbl.textContent=activa?'ACTIVA':'INACTIVA';lbl.style.color=activa?'#166534':'#6b7280';}
+      const btn=card.querySelector('button[title]');
+      if(btn){
+        btn.style.background=activa?'#128C7E':'#9ca3af';
+        btn.title=activa?'Desactivar':'Activar';
+        btn.setAttribute('onclick',`waToggleRegla('${key}',${!activa})`);
+        const knob=btn.querySelector('span');
+        if(knob) knob.style.left=activa?'22px':'3px';
+      }
+      const nameSpan=card.querySelector('span[style*="font-weight:700"]');
+      if(nameSpan) nameSpan.style.color=activa?'#111':'#9ca3af';
+      const ta=card.querySelector('textarea');
+      if(ta) ta.style.background=activa?'#fff':'#f9fafb';
+    }
+    toast(activa?'✓ Regla activada':'Regla desactivada','ok');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function waGuardarRegla(key){
+  const ta=document.getElementById(`wa-tpl-${key}`);
+  if(!ta)return;
+  const template=ta.value.trim();
+  if(!template){toast('El texto no puede estar vacío','err');return;}
+  try{
+    await api('POST',`/api/whatsapp/reglas/${key}`,{template});
+    toast('✓ Plantilla guardada','ok');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 function waMostrarMensaje(idx){
   const m=(W._waMsgs||[])[idx];
   if(!m)return;

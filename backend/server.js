@@ -4046,6 +4046,8 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   const hoy = new Date();
   let total = 0;
   for (const { horas, label } of intervalos) {
+    const reglaRow = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get(`wa_regla_${label}_activa`);
+    if (reglaRow?.valor === '0') { console.log(`[WA] Regla ${label} desactivada — omitida`); continue; }
     const target = new Date(hoy.getTime() + horas * 60 * 60 * 1000);
     const fechaTarget = target.toISOString().split('T')[0];
     const examenes = db.prepare(qExamenes).all(fechaTarget);
@@ -4135,6 +4137,8 @@ const stmtExamSinArch = db.prepare(`
 
 cron.schedule('0 7 * * *', async () => {
   if (!enHoraPermitida()) return;
+  const reglaAviso = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_aviso24_activa'").get();
+  if (reglaAviso?.valor === '0') return;
   try {
     const manana = new Date();
     manana.setDate(manana.getDate() + 1);
@@ -4164,6 +4168,8 @@ cron.schedule('0 7 * * *', async () => {
 // Sigue enviando hora a hora hasta que el docente cargue el archivo.
 cron.schedule('0 * * * *', async () => {
   if (!enHoraPermitida()) return;
+  const reglaUrg = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_urgente_activa'").get();
+  if (reglaUrg?.valor === '0') return;
   try {
     const ahora = new Date();
     // Convertir a hora Paraguay (UTC-4)
@@ -4224,7 +4230,49 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
 });
 
-// ── WHATSAPP: plantillas de recordatorios (ver / editar) ─────────────────────
+// ── WHATSAPP: reglas automáticas (listar / editar / activar-desactivar) ────────
+const WA_REGLAS_DEF = [
+  { key:'72h',     label:'72 horas antes del examen',   cron:'8:00 AM — diario',  tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'48h',     label:'48 horas antes del examen',   cron:'8:00 AM — diario',  tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'36h',     label:'36 horas antes del examen',   cron:'8:00 AM — diario',  tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'24h',     label:'24 horas antes del examen',   cron:'8:00 AM — diario',  tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'12h',     label:'12 horas antes del examen',   cron:'Cada hora (±30 min)',tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'6h',      label:'6 horas antes del examen',    cron:'Cada hora (±30 min)',tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'3h',      label:'3 horas antes del examen',    cron:'Cada hora (±30 min)',tipo:'recordatorio', vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora} {aula}' },
+  { key:'aviso24', label:'Aviso: archivo pendiente 24h',cron:'7:00 AM — diario',  tipo:'carga',        vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'urgente', label:'Urgente: sin archivo ≤7h',    cron:'Cada hora',         tipo:'carga',        vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
+];
+const WA_TPL_DEFAULTS = {
+  '72h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '48h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '36h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '24h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '12h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '6h':     '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '3h':     '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
+  'urgente':'⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
+};
+app.get('/api/whatsapp/reglas', auth(ADM), (req, res) => {
+  const reglas = WA_REGLAS_DEF.map(r => {
+    const actRow = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get(`wa_regla_${r.key}_activa`);
+    const tplRow = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get(`wa_tpl_${r.key}`);
+    return { ...r, activa: actRow ? actRow.valor !== '0' : true, template: tplRow?.valor || WA_TPL_DEFAULTS[r.key] || '' };
+  });
+  res.json(reglas);
+});
+app.post('/api/whatsapp/reglas/:key', auth(ADM), (req, res) => {
+  const { key } = req.params;
+  const { activa, template } = req.body;
+  if (!WA_REGLAS_DEF.find(r => r.key === key)) return res.status(400).json({ error: 'Regla inválida' });
+  if (activa !== undefined)
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)").run(`wa_regla_${key}_activa`, activa ? '1' : '0', `Regla WA ${key}`);
+  if (template !== undefined)
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)").run(`wa_tpl_${key}`, template, `Plantilla WA ${key}`);
+  audit(req.user.id, 'EDIT_WA_REGLA', 'configuracion', key, { activa, tpl_len: template?.length });
+  res.json({ ok: true });
+});
+// ── WHATSAPP: plantillas legacy ────────────────────────────────────────────────
 app.get('/api/whatsapp/plantillas', auth(ADM), (req, res) => {
   const claves = ['wa_tpl_72h','wa_tpl_48h','wa_tpl_24h','wa_tpl_12h','wa_tpl_6h','wa_tpl_3h'];
   const rows = claves.map(c => db.prepare('SELECT clave,valor,descripcion FROM configuracion WHERE clave=?').get(c)).filter(Boolean);
