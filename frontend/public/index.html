@@ -5069,7 +5069,7 @@ async function pgSolicitudes(el){
       <span class="gc-arrow" style="color:#fff;font-size:12px">${regsPend.length?'▲':'▼'}</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${regsPend.length?'block':'none'}">`
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${regsPend.length?'block':'none'}">
     ${regs.map(r=>`
     <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9;${r.estado!=='pendiente'?'opacity:0.55':''}">
       <div style="flex:1;min-width:0">
@@ -5105,7 +5105,7 @@ async function pgSolicitudes(el){
       <span class="gc-arrow" style="color:#fff;font-size:12px">${(informesPend.length||ausencias.length)?'▲':'▼'}</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${(informesPend.length||ausencias.length)?'block':'none'}">`
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${(informesPend.length||ausencias.length)?'block':'none'}">
 
     ${informes.length||ausencias.length?`
     <!-- Filtros -->
@@ -5195,7 +5195,7 @@ async function pgSolicitudes(el){
       <span class="gc-arrow" style="color:#fff;font-size:12px">${pend.length?'▲':'▼'}</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${pend.length?'block':'none'}">`
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${pend.length?'block':'none'}">
 
     <!-- Contadores -->
     <div style="display:flex;border-bottom:1px solid #e2e8f0">
@@ -5284,7 +5284,7 @@ async function pgSolicitudes(el){
       <span class="gc-arrow" style="color:#fff;font-size:12px">▼</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">`
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">
 
   ${inactivos.length?`
   <!-- Buscador rápido -->
@@ -5357,7 +5357,7 @@ async function pgSolicitudes(el){
       <span class="gc-arrow" style="color:#fff;font-size:12px">▼</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">`
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">
 
   ${sinAsignar.length?`
   <!-- Buscador -->
