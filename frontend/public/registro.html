@@ -214,8 +214,7 @@ function seleccionarAlumno(idx) {
 
 // PASO 2A: Completar datos de alumno existente
 function renderFormCompletar(a) {
-  const tieneCi = a.ci && a.ci.trim() !== '';
-  const tieneTel = a.telefono && a.telefono.trim() !== '';
+  const sinSeccion = !a.curso_id && cursoSeleccionado;
   const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
   const totalSteps = cursos.length > 1 ? 3 : 2;
   const app = document.getElementById('app');
@@ -223,7 +222,8 @@ function renderFormCompletar(a) {
   <div class="card">
     <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
     <h2>✏️ Completá tus datos</h2>
-    <p style="font-size:12px;color:#718096;margin-bottom:14px">Podés corregir tu nombre si hay un error, y completar tu CI y teléfono.</p>
+    <p style="font-size:12px;color:#718096;margin-bottom:14px">Podés corregir cualquier dato. Todos los campos son editables.</p>
+    ${sinSeccion ? `<div class="alert" style="background:#fef9c3;border:1px solid #fde047;color:#713f12;margin-bottom:12px">📌 Se te asignará a <strong>${subLabel}</strong> al guardar.</div>` : ''}
     <div id="err-completar"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label>
@@ -231,12 +231,14 @@ function renderFormCompletar(a) {
       <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label>
         <input id="inp-apellido" value="${(a.apellido||'').replace(/"/g,'&quot;')}" placeholder="Tu apellido"/></div>
     </div>
-    ${tieneCi
-      ? `<div class="field"><label>Cédula de identidad</label><input value="${a.ci}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrada</p></div>`
-      : `<div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>`}
-    ${tieneTel
-      ? `<div class="field"><label>Número de teléfono</label><input value="${a.telefono}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrado</p></div>`
-      : `<div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>`}
+    <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label>
+      <input id="inp-ci" type="tel" value="${(a.ci||'').replace(/"/g,'&quot;')}" placeholder="Solo números, sin puntos" inputmode="numeric"/>
+      ${a.ci ? '<p style="font-size:11px;color:#6b7280;margin-top:3px">Podés corregirla si hay un error</p>' : ''}
+    </div>
+    <div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label>
+      <input id="inp-tel" type="tel" value="${(a.telefono||'').replace(/"/g,'&quot;')}" placeholder="Ej: 0981 123456" inputmode="tel"/>
+      ${a.telefono ? '<p style="font-size:11px;color:#6b7280;margin-top:3px">Podés corregirlo si hay un error</p>' : ''}
+    </div>
     <button class="btn btn-primary" onclick="guardarDatos()">💾 Guardar mis datos</button>
     <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
   </div>`;
@@ -249,8 +251,7 @@ async function guardarDatos() {
   const tel = document.getElementById('inp-tel')?.value.trim() || '';
   const err = document.getElementById('err-completar');
   if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Nombre y apellido son obligatorios</div>'; return; }
-  const necesitaCi = !alumnoSeleccionado.ci || alumnoSeleccionado.ci.trim() === '';
-  if (necesitaCi && !ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
+  if (!ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
   try {
     await apiFetch('POST', '/pub/alumno/completar', {
@@ -258,8 +259,9 @@ async function guardarDatos() {
       carrera_id: carreraId,
       nombre,
       apellido,
-      ci: ci || undefined,
-      telefono: tel || undefined
+      ci,
+      telefono: tel || undefined,
+      curso_id: cursoSeleccionado?.id || undefined
     });
     renderExito('completar');
   } catch(e) {

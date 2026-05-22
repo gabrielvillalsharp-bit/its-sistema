@@ -5105,24 +5105,28 @@ app.get('/pub/carrera/:id/cursos', (req, res) => {
 
 app.get('/pub/carrera/:id/alumnos', (req, res) => {
   const { curso_id } = req.query;
+  // Si se filtra por curso, incluir también alumnos sin sección asignada (curso_id IS NULL)
+  // de la misma carrera, para que aparezcan al buscar en cualquier sección
   const alumnos = curso_id
-    ? db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND a.curso_id=? AND a.estado='Activo' ORDER BY a.apellido, a.nombre`).all(req.params.id, curso_id)
+    ? db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND (a.curso_id=? OR a.curso_id IS NULL) AND a.estado='Activo' ORDER BY a.curso_id NULLS LAST, a.apellido, a.nombre`).all(req.params.id, curso_id)
     : db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND a.estado='Activo' ORDER BY a.apellido, a.nombre`).all(req.params.id);
   res.json(alumnos);
 });
 
 app.post('/pub/alumno/completar', (req, res) => {
-  const { alumno_id, ci, telefono, carrera_id, nombre, apellido } = req.body;
+  const { alumno_id, ci, telefono, carrera_id, nombre, apellido, curso_id } = req.body;
   if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
   const alumno = db.prepare('SELECT * FROM alumnos WHERE id=? AND carrera_id=?').get(alumno_id, carrera_id);
   if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado en esta carrera' });
   try {
     if (ci) {
       const ciNorm = String(ci).replace(/[^0-9]/g,'');
-      const dup = db.prepare('SELECT id FROM alumnos WHERE ci=? AND id!=?').get(ciNorm, alumno_id);
-      if (dup) return res.status(400).json({ error: 'Ese número de cédula ya está registrado' });
-      db.prepare('UPDATE alumnos SET ci=? WHERE id=?').run(ciNorm, alumno_id);
-      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
+      if (ciNorm) {
+        const dup = db.prepare('SELECT id FROM alumnos WHERE ci=? AND id!=?').get(ciNorm, alumno_id);
+        if (dup) return res.status(400).json({ error: 'Ese número de cédula ya está registrado para otro alumno' });
+        db.prepare('UPDATE alumnos SET ci=? WHERE id=?').run(ciNorm, alumno_id);
+        if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
+      }
     }
     if (telefono) db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
     if (nombre && nombre.trim()) {
@@ -5132,6 +5136,11 @@ app.post('/pub/alumno/completar', (req, res) => {
     if (apellido && apellido.trim()) {
       db.prepare('UPDATE alumnos SET apellido=? WHERE id=?').run(apellido.trim(), alumno_id);
       if (alumno.usuario_id) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido.trim(), alumno.usuario_id);
+    }
+    // Asignar sección si el alumno no tenía una (curso_id IS NULL)
+    if (curso_id && !alumno.curso_id) {
+      const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
+      if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
     }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
