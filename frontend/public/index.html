@@ -5016,6 +5016,13 @@ async function resolverSolicitudAlumno(id,accion){
 }
 
 // ── SOLICITUDES DE INCORPORACIÓN ──────────────────────────────────────────────
+function toggleGestCard(header){
+  const body=header.nextElementSibling;
+  const arrow=header.querySelector('.gc-arrow');
+  const open=body.style.display!=='none'&&body.style.display!=='';
+  body.style.display=open?'none':'block';
+  if(arrow)arrow.textContent=open?'▼':'▲';
+}
 async function resolverRegistroQr(id, accion){
   if(accion==='rechazar'){
     const motivo=prompt('Motivo del rechazo (opcional):');
@@ -5052,14 +5059,17 @@ async function pgSolicitudes(el){
 
   <!-- SOLICITUDES DE REGISTRO QR -->
   ${regs.length?`
-  <div style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
+  <div onclick="toggleGestCard(this)" style="cursor:pointer;background:linear-gradient(135deg,#1D4ED8,#2563EB);border-radius:${regsPend.length?'12px 12px 0 0':'12px'};padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0;user-select:none">
     <div>
       <div style="color:#fff;font-size:14px;font-weight:800">📱 Solicitudes de Registro QR</div>
-      <div style="color:#bfdbfe;font-size:11px;margin-top:2px">Alumnos que se registraron escaneando el QR de su carrera</div>
+      <div style="color:#bfdbfe;font-size:11px;margin-top:2px">Alumnos que completaron datos o solicitaron incorporación vía QR</div>
     </div>
-    ${regsPend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${regsPend.length} pendiente${regsPend.length!==1?'s':''}</span>`:''}
+    <div style="display:flex;gap:8px;align-items:center">
+      ${regsPend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${regsPend.length} pendiente${regsPend.length!==1?'s':''}</span>`:`<span style="background:rgba(255,255,255,.2);color:#fff;font-size:10px;padding:3px 8px;border-radius:20px">${regs.length} registros</span>`}
+      <span class="gc-arrow" style="color:#fff;font-size:12px">${regsPend.length?'▲':'▼'}</span>
+    </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${regsPend.length?'block':'none'}">`
     ${regs.map(r=>`
     <div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9;${r.estado!=='pendiente'?'opacity:0.55':''}">
       <div style="flex:1;min-width:0">
@@ -5083,20 +5093,19 @@ async function pgSolicitudes(el){
     </div>`).join('')}
   </div>`:''}
 
-  <!-- ════════════════════════════════════════════════════════════
-       BLOQUE 1 — SEGUIMIENTO DE ASISTENCIA
-  ════════════════════════════════════════════════════════════ -->
-  <div style="background:linear-gradient(135deg,#14532d,#1D9E75);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+  <!-- BLOQUE 1 — SEGUIMIENTO DE ASISTENCIA -->
+  <div onclick="toggleGestCard(this)" style="cursor:pointer;background:linear-gradient(135deg,#14532d,#1D9E75);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;user-select:none">
     <div>
       <div style="color:#fff;font-size:14px;font-weight:800">📊 Seguimiento de asistencia</div>
       <div style="color:#bbf7d0;font-size:11px;margin-top:2px">Informes de docentes · Detección automática de ausencias</div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      ${informesPend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${informesPend.length} pendiente${informesPend.length!==1?'s':''}</span>`:''}
-      ${ausencias.length?`<span style="background:#fecaca;color:#7f1d1d;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⚠ ${ausencias.length} con 5+ ausencias</span>`:''}
+      ${informesPend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${informesPend.length}</span>`:''}
+      ${ausencias.length?`<span style="background:#fecaca;color:#7f1d1d;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⚠ ${ausencias.length}</span>`:''}
+      <span class="gc-arrow" style="color:#fff;font-size:12px">${(informesPend.length||ausencias.length)?'▲':'▼'}</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${(informesPend.length||ausencias.length)?'block':'none'}">`
 
     ${informes.length||ausencias.length?`
     <!-- Filtros -->
@@ -5175,19 +5184,18 @@ async function pgSolicitudes(el){
     `:`<div style="padding:20px;text-align:center;color:var(--t3);font-size:13px">✓ Sin informes ni ausencias detectadas</div>`}
   </div>
 
-  <!-- ════════════════════════════════════════════════════════════
-       BLOQUE 2 — INCORPORACIONES DE ALUMNOS
-  ════════════════════════════════════════════════════════════ -->
-  <div style="background:linear-gradient(135deg,#92400e,#D85A30);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+  <!-- BLOQUE 2 — INCORPORACIONES DE ALUMNOS -->
+  <div onclick="toggleGestCard(this)" style="cursor:pointer;background:linear-gradient(135deg,#92400e,#D85A30);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;user-select:none">
     <div>
       <div style="color:#fff;font-size:14px;font-weight:800">📋 Incorporaciones de alumnos</div>
       <div style="color:#fed7aa;font-size:11px;margin-top:2px">Solicitudes de vinculación enviadas por docentes</div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      ${pend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${pend.length} pendiente${pend.length!==1?'s':''}</span>`:`<span style="background:#d1fae5;color:#065f46;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">✓ Al día</span>`}
+      ${pend.length?`<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">⏳ ${pend.length}</span>`:`<span style="background:#d1fae5;color:#065f46;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">✓ Al día</span>`}
+      <span class="gc-arrow" style="color:#fff;font-size:12px">${pend.length?'▲':'▼'}</span>
     </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:${pend.length?'block':'none'}">`
 
     <!-- Contadores -->
     <div style="display:flex;border-bottom:1px solid #e2e8f0">
@@ -5265,17 +5273,18 @@ async function pgSolicitudes(el){
 
   </div>
 
-  <!-- ════════════════════════════════════════════════════════════
-       BLOQUE 3 — ALUMNOS INACTIVOS / RETIRADOS
-  ════════════════════════════════════════════════════════════ -->
-  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+  <!-- BLOQUE 3 — ALUMNOS INACTIVOS / RETIRADOS -->
+  <div onclick="toggleGestCard(this)" style="cursor:pointer;background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;user-select:none">
     <div>
       <div style="color:#fff;font-size:14px;font-weight:800">🗂 Alumnos inactivos / retirados</div>
       <div style="color:#bfdbfe;font-size:11px;margin-top:2px">Historial de alumnos que ya no están activos en el sistema</div>
     </div>
-    <span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700">${inactivos.length} alumno${inactivos.length!==1?'s':''}</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="background:rgba(255,255,255,.2);color:#fff;font-size:10px;padding:3px 8px;border-radius:20px">${inactivos.length} alumno${inactivos.length!==1?'s':''}</span>
+      <span class="gc-arrow" style="color:#fff;font-size:12px">▼</span>
+    </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">`
 
   ${inactivos.length?`
   <!-- Buscador rápido -->
@@ -5337,17 +5346,18 @@ async function pgSolicitudes(el){
 
   </div>
 
-  <!-- ════════════════════════════════════════════════════════════
-       BLOQUE 4 — ALUMNOS SIN ASIGNAR
-  ════════════════════════════════════════════════════════════ -->
-  <div style="background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+  <!-- BLOQUE 4 — ALUMNOS SIN ASIGNAR -->
+  <div onclick="toggleGestCard(this)" style="cursor:pointer;background:linear-gradient(135deg,#4c1d95,#7c3aed);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;user-select:none">
     <div>
       <div style="color:#fff;font-size:14px;font-weight:800">⚠ Alumnos sin asignar</div>
       <div style="color:#ddd6fe;font-size:11px;margin-top:2px">Alumnos activos sin materias en el período lectivo actual</div>
     </div>
-    <span style="background:${sinAsignar.length?'#fef3c7;color:#92400e':'rgba(255,255,255,0.2);color:#fff'};font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700">${sinAsignar.length} alumno${sinAsignar.length!==1?'s':''}</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="background:${sinAsignar.length?'#fef3c7;color:#92400e':'rgba(255,255,255,.2);color:#fff'};font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700">${sinAsignar.length} alumno${sinAsignar.length!==1?'s':''}</span>
+      <span class="gc-arrow" style="color:#fff;font-size:12px">▼</span>
+    </div>
   </div>
-  <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;margin-bottom:20px;overflow:hidden">
+  <div style="border:1px solid #e2e8f0;border-radius:0 0 12px 12px;background:#fff;margin-bottom:16px;overflow:hidden;display:none">`
 
   ${sinAsignar.length?`
   <!-- Buscador -->

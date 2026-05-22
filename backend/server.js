@@ -5112,7 +5112,7 @@ app.get('/pub/carrera/:id/alumnos', (req, res) => {
 });
 
 app.post('/pub/alumno/completar', (req, res) => {
-  const { alumno_id, ci, telefono, carrera_id } = req.body;
+  const { alumno_id, ci, telefono, carrera_id, nombre, apellido } = req.body;
   if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
   const alumno = db.prepare('SELECT * FROM alumnos WHERE id=? AND carrera_id=?').get(alumno_id, carrera_id);
   if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado en esta carrera' });
@@ -5125,6 +5125,14 @@ app.post('/pub/alumno/completar', (req, res) => {
       if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
     }
     if (telefono) db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
+    if (nombre && nombre.trim()) {
+      db.prepare('UPDATE alumnos SET nombre=? WHERE id=?').run(nombre.trim(), alumno_id);
+      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET nombre=? WHERE id=?').run(nombre.trim(), alumno.usuario_id);
+    }
+    if (apellido && apellido.trim()) {
+      db.prepare('UPDATE alumnos SET apellido=? WHERE id=?').run(apellido.trim(), alumno_id);
+      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido.trim(), alumno.usuario_id);
+    }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

@@ -223,27 +223,32 @@ function renderFormCompletar(a) {
   <div class="card">
     <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
     <h2>✏️ Completá tus datos</h2>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px">
-      <div style="font-weight:700;font-size:14px">${a.apellido}, ${a.nombre}</div>
-      <div style="color:#3b82f6;font-size:11px;margin-top:2px">Confirmá que sos vos antes de continuar</div>
-    </div>
+    <p style="font-size:12px;color:#718096;margin-bottom:14px">Podés corregir tu nombre si hay un error, y completar tu CI y teléfono.</p>
     <div id="err-completar"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label>
+        <input id="inp-nombre" value="${(a.nombre||'').replace(/"/g,'&quot;')}" placeholder="Tu nombre"/></div>
+      <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label>
+        <input id="inp-apellido" value="${(a.apellido||'').replace(/"/g,'&quot;')}" placeholder="Tu apellido"/></div>
+    </div>
     ${tieneCi
       ? `<div class="field"><label>Cédula de identidad</label><input value="${a.ci}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrada</p></div>`
       : `<div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>`}
     ${tieneTel
       ? `<div class="field"><label>Número de teléfono</label><input value="${a.telefono}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrado</p></div>`
       : `<div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>`}
-    ${tieneCi && tieneTel ? `<div class="alert alert-ok">✅ Tus datos ya están completos en el sistema. ¡Gracias!</div>` : ''}
-    <button class="btn btn-primary" onclick="guardarDatos()" ${tieneCi&&tieneTel?'style="display:none"':''}>💾 Guardar mis datos</button>
+    <button class="btn btn-primary" onclick="guardarDatos()">💾 Guardar mis datos</button>
     <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
   </div>`;
 }
 
 async function guardarDatos() {
+  const nombre = document.getElementById('inp-nombre')?.value.trim() || '';
+  const apellido = document.getElementById('inp-apellido')?.value.trim() || '';
   const ci = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
   const tel = document.getElementById('inp-tel')?.value.trim() || '';
   const err = document.getElementById('err-completar');
+  if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Nombre y apellido son obligatorios</div>'; return; }
   const necesitaCi = !alumnoSeleccionado.ci || alumnoSeleccionado.ci.trim() === '';
   if (necesitaCi && !ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
@@ -251,6 +256,8 @@ async function guardarDatos() {
     await apiFetch('POST', '/pub/alumno/completar', {
       alumno_id: alumnoSeleccionado.id,
       carrera_id: carreraId,
+      nombre,
+      apellido,
       ci: ci || undefined,
       telefono: tel || undefined
     });
