@@ -3071,7 +3071,7 @@ async function pgExamenes(el){
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
-    <select id="filtExGrupo" onchange="filtExAll()" style="min-width:160px">
+    ${esDir?`<select id="filtExGrupo" onchange="filtExAll()" style="min-width:160px">
       <option value="">Todos los tipos</option>
       <optgroup label="─ Parciales ─">
         <option value="Parcial">Parcial Ordinario</option>
@@ -3083,17 +3083,17 @@ async function pgExamenes(el){
         <option value="Complementario">Final Complementario</option>
         <option value="Extraordinario">Final Extraordinario</option>
       </optgroup>
-    </select>
+    </select>`:''}
     <select id="filtExCarr" onchange="filtExCursos();filtExAll()" style="min-width:150px">
       <option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>
     <select id="filtExAnio" onchange="filtExAll()" style="min-width:110px">
       <option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    <select id="filtExCurso" onchange="filtExAll()" style="min-width:150px">
+    ${esDir?`<select id="filtExCurso" onchange="filtExAll()" style="min-width:150px">
       <option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
-    ${esDir?`<select id="filtExDocente" onchange="filtExAll()" style="min-width:180px">
+    <select id="filtExDocente" onchange="filtExAll()" style="min-width:180px">
       <option value="">Todos los docentes</option>
       ${[...new Map(exs.filter(e=>e.docente_id).map(e=>[e.docente_id,e])).values()].sort((a,b)=>(a.docente_apellido||'').localeCompare(b.docente_apellido||'')).map(e=>`<option value="${e.docente_id}">${e.docente_apellido||''} ${e.docente_nombre||''}</option>`).join('')}
     </select>`:''}
