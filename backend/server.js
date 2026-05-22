@@ -1766,7 +1766,28 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
     const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
     audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago});
-    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente });
+
+    // Auto-habilitar recuperatorio al registrar pago de Parcial Recuperatorio
+    let habilitadosRecup = 0;
+    if ((concepto||'').toLowerCase().includes('parcial recuperatorio')) {
+      const fechaHoy = nowDate();
+      const asignaciones = db.prepare('SELECT id FROM asignaciones WHERE alumno_id=?').all(alumno_id);
+      for (const asig of asignaciones) {
+        const hab = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asig.id);
+        if (hab) {
+          db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado_por=?,fecha=? WHERE alumno_id=? AND asignacion_id=?')
+            .run(req.user.id, fechaHoy, alumno_id, asig.id);
+        } else {
+          const habId = 'hab_'+Date.now()+'_'+asig.id;
+          db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,habilitado,habilitado_por,fecha,habilitado_recuperatorio) VALUES (?,?,?,1,?,?,1)')
+            .run(habId, alumno_id, asig.id, req.user.id, fechaHoy);
+        }
+        habilitadosRecup++;
+      }
+      audit(req.user.id,'HABILITAR_RECUPERATORIO_PAGO','habilitaciones_examen',alumno_id,{concepto,asignaciones_habilitadas:habilitadosRecup});
+    }
+
+    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_recuperatorio: habilitadosRecup > 0 });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.put('/api/pagos/:id', auth(ADM), (req, res) => {

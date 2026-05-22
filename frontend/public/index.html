@@ -7325,12 +7325,12 @@ async function mPagoDirecto(alId){
   <input type="hidden" id="pgal" value="${alId}"/>
   <div class="fg">
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
-      <select id="pgco" onchange="autoMontoArancel()">
+      <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
         ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option></optgroup>'}
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
-          <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio</option>
+          <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio 🔓</option>
         </optgroup>
         <optgroup label="Exámenes Finales">
           <option value="Examen Final Ordinario">Final Ordinario</option>
@@ -7340,6 +7340,9 @@ async function mPagoDirecto(alId){
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
+    </div>
+    <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
+      🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para que el docente cargue la nota de <em>Parcial Recuperatorio</em> en el sistema.
     </div>
     <div class="fr">
       <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0"/></div>
@@ -7519,14 +7522,14 @@ function mPago(){
     </div>
     <div id="pgHabInfo"></div>
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
-      <select id="pgco" onchange="autoMontoArancel()">
+      <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
         <optgroup label="Matrícula">
           <option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option>
         </optgroup>
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
-          <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio</option>
+          <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio 🔓</option>
         </optgroup>
         <optgroup label="Exámenes Finales">
           <option value="Examen Final Ordinario">Final Ordinario</option>
@@ -7535,7 +7538,10 @@ function mPago(){
           <option value="Examen Final Extraordinario">Final Extraordinario ⚡ (100 pts)</option>
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
-      </select></div>
+      </select>
+      <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
+        🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para que el docente cargue la nota de <em>Parcial Recuperatorio</em>.
+      </div></div>
     <div class="fr">
       <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0"/></div>
       <div class="f"><label>Fecha</label><input id="pgfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
@@ -7559,6 +7565,12 @@ function autoMontoArancel(){
   const tipo=Object.entries(tipoMap).find(([k])=>concepto.includes(k))?.[1];
   const ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
   if(ar){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=ar.monto;}
+}
+function pgcoChangeHandler(){
+  const concepto=v('pgco')||'';
+  const aviso=document.getElementById('pgco-recup-aviso');
+  if(!aviso)return;
+  aviso.style.display=(concepto.toLowerCase().includes('parcial recuperatorio'))?'block':'none';
 }
 async function verificarHabPago(){
   const alId=v('pgal');
@@ -7664,7 +7676,9 @@ async function svPago(){
         } else {
           go('pagos');
         }
-        if(r.monto_pendiente>0){
+        if(r.habilitado_recuperatorio){
+          toast('✓ Pago registrado — 🔓 Alumno habilitado para Parcial Recuperatorio','ok',5000);
+        } else if(r.monto_pendiente>0){
           toast(`✓ Pago registrado — Saldo pendiente: Gs. ${Number(r.monto_pendiente).toLocaleString()}`,'info',5000);
         } else {
           toast('✓ Pago registrado','ok');
