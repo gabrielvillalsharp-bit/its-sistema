@@ -9384,7 +9384,7 @@ async function pgAuditoria(el){
   el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
     <div class="ph-right">
       <button class="bs" onclick="mostrarDiagnostico()" style="background:#7c3aed;color:#fff;border-color:#7c3aed">🔍 Diagnóstico</button>
-      <button class="bs" onclick="verHoraSistema()" title="Ver hora del servidor">🕐 Hora sistema</button>
+      <button class="bs" onclick="verHoraSistema()" title="Ajustar hora del sistema" style="background:#d97706;color:#fff;border-color:#d97706">🕐 Ajustar hora</button>
       <button class="bs s" onclick="exportAuditoria()">⬇ Exportar CSV</button>
       <button class="bs d" onclick="limpiarAuditoria()">🗑 Purgar antiguos</button>
     </div></div>
@@ -9751,23 +9751,67 @@ function limpFiltrosAudit(){
 async function verHoraSistema(){
   try{
     const r=await api('GET','/api/admin/hora-sistema');
-    modal(`<h4>🕐 Hora del servidor</h4>
-    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;margin-top:8px">
-      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
-        <div style="font-weight:700;color:#166534;font-size:15px;margin-bottom:4px">${r.local}</div>
-        <div style="font-size:11px;color:#4ade80">🇵🇾 Hora local Paraguay (America/Asuncion)</div>
+    const tieneOffset=r.time_offset_ms&&r.time_offset_ms!==0;
+    const offsetMin=tieneOffset?Math.round(r.time_offset_ms/60000):0;
+    // Calcular hora actual del sistema para pre-llenar el formulario
+    const sys=new Date(r.hora_sistema_iso||r.iso);
+    // Formatear a local Paraguay
+    const sysLocal=sys.toLocaleString('es-PY',{timeZone:'America/Asuncion',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+    // Para el input date/time: extraer en formato Paraguay
+    const pyParts=new Intl.DateTimeFormat('es-PY',{timeZone:'America/Asuncion',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(sys);
+    const pp=Object.fromEntries(pyParts.map(p=>[p.type,p.value]));
+    const defFecha=`${pp.year}-${pp.month}-${pp.day}`;
+    const defHora=`${pp.hour}:${pp.minute}`;
+    modal(`<h4>🕐 Hora del sistema</h4>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;margin-top:8px">
+      <div style="background:${tieneOffset?'#fef3c7':'#f0fdf4'};border:1px solid ${tieneOffset?'#fde68a':'#86efac'};border-radius:8px;padding:12px">
+        <div style="font-weight:700;color:${tieneOffset?'#92400e':'#166534'};font-size:16px;margin-bottom:4px">🕐 ${r.hora_sistema||r.local}</div>
+        <div style="font-size:11px;color:${tieneOffset?'#b45309':'#4ade80'}">
+          ${tieneOffset?`⚙️ Ajuste manual activo (${offsetMin>0?'+':''}${offsetMin} min respecto al servidor)`:'🇵🇾 Hora del servidor (sin ajuste manual)'}
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid var(--bdr);border-radius:8px;padding:12px">
+        <div style="font-weight:700;font-size:12px;color:#374151;margin-bottom:8px">⚙️ Ajustar hora manualmente</div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:10px">
+          Establecé la fecha y hora correcta. El sistema calculará la diferencia y la aplicará a todos los registros.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:#6b7280">Fecha</label>
+            <input type="date" id="horaManFecha" value="${defFecha}" style="padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:13px"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:11px;color:#6b7280">Hora</label>
+            <input type="time" id="horaManHora" value="${defHora}" style="padding:6px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:13px"/>
+          </div>
+          <button onclick="aplicarHoraManual()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Aplicar</button>
+          ${tieneOffset?`<button onclick="resetHoraSistema()" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">↺ Restaurar servidor</button>`:''}
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
-        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">UTC:</span><br><strong>${r.utc}</strong></div>
+        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">Hora servidor real:</span><br><strong>${r.local}</strong></div>
         <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">TZ env:</span><br><strong>${r.tz_env}</strong></div>
-        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">ISO:</span><br><strong style="font-size:10px">${r.iso}</strong></div>
-        <div style="background:#f8fafc;border-radius:6px;padding:8px"><span style="color:var(--t2)">Offset:</span><br><strong>${r.offset_min} min</strong></div>
-      </div>
-      <div style="font-size:11px;color:var(--t3);margin-top:4px">
-        ℹ Si la hora está desincronizada, verificá que <code>TZ=America/Asuncion</code> esté configurada en Railway → Variables de entorno.
       </div>
     </div>
     <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function aplicarHoraManual(){
+  const fecha=document.getElementById('horaManFecha')?.value;
+  const hora=document.getElementById('horaManHora')?.value;
+  if(!fecha||!hora){toast('Completá fecha y hora','err');return;}
+  try{
+    const r=await api('POST','/api/admin/hora-manual',{fecha,hora});
+    toast(`✅ Hora del sistema actualizada: ${r.hora_sistema}`,'ok');
+    cm();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function resetHoraSistema(){
+  if(!confirm('¿Restaurar la hora real del servidor y eliminar el ajuste manual?'))return;
+  try{
+    await api('POST','/api/admin/hora-reset',{});
+    toast('↺ Hora restaurada al servidor real','ok');
+    cm();
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function cargarAuditoria(){

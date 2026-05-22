@@ -81,13 +81,22 @@ const { cloudBackupDrive } = require('./cloud-backup');
 setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
 
 
+// ── HORA DEL SISTEMA (con offset manual) ─────────────────────────────────────
+let _timeOffsetMs = 0;
+try {
+  const row = db.prepare("SELECT valor FROM configuracion WHERE clave='time_offset_ms'").get();
+  if (row) _timeOffsetMs = parseInt(row.valor, 10) || 0;
+} catch {}
+function nowSys() { return new Date(Date.now() + _timeOffsetMs); }
+function nowStr() { return nowSys().toISOString().replace('T',' ').slice(0,19); }
+function nowDate() { return nowSys().toISOString().split('T')[0]; }
+
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
-    const fechaHora = new Date().toISOString().replace('T',' ').slice(0,19);
     db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha) VALUES (?,?,?,?,?,?,?)').run(
       'aud_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-      usuario_id, accion, tabla, String(registro_id||''), detalle ? JSON.stringify(detalle) : null, fechaHora
+      usuario_id, accion, tabla, String(registro_id||''), detalle ? JSON.stringify(detalle) : null, nowStr()
     );
   } catch(e) { console.error('Audit error:', e.message); }
 }
@@ -445,7 +454,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
   const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const carr = carrera_id ? db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carrera_id) : null;
-  const yr = new Date().getFullYear();
+  const yr = nowSys().getFullYear();
   const prefix = `${carr?.codigo||'ALU'}-${yr}-`;
   // Para alumnos sin carrera usar IS NULL para encontrar sus matrículas existentes
   const existingMats = carrera_id
@@ -470,7 +479,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
           userId = uid;
         }
       }
-      db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,userId,matricula,carrera_id||null,curso_id||null,fecha_ingreso||new Date().toISOString().split('T')[0],estado||'Activo',ciRaw||null,nombre,apellido,telefono||null);
+      db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,userId,matricula,carrera_id||null,curso_id||null,fecha_ingreso||nowDate(),estado||'Activo',ciRaw||null,nombre,apellido,telefono||null);
       // Crear registros de notas para cada asignación del curso CON periodo_id
       if (curso_id) {
         const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
@@ -729,9 +738,9 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
         if (!ciRaw || ciRaw.length < 5) {
           try {
             const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
-            const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            const matricula = `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', null, nombre, apellido);
+            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', null, nombre, apellido);
             if (curso_id) {
               const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
               const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(curso_id, periodo?.id||null);
@@ -771,7 +780,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
             results.actualizados++;
           } else {
             const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
-            const matricula = `${carr.codigo}-${new Date().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            const matricula = `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
             // Usuario: nombre.apellido@its.edu.py · Contraseña: CI completo
             let uid = null;
@@ -782,7 +791,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
                 db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(ciRaw, 10), 'alumno');
               } catch { uid = null; }
             } else { uid = usuExiste.id; }
-            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ciRaw, nombre, apellido);
+            db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', ciRaw, nombre, apellido);
             // Crear registros de notas para cada asignación del curso CON periodo_id
             if (curso_id) {
               const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
@@ -1830,7 +1839,7 @@ app.delete('/api/becas/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM 
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', auth(), (req, res) => {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = nowDate();
   const data = db.transaction(() => {
     const periodo = db.prepare('SELECT id,nombre FROM periodos WHERE activo=1').get();
     return {
@@ -1896,7 +1905,7 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), req.params.tabla);
     const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
-    res.setHeader('Content-Disposition', `attachment; filename="ITS_${req.params.tabla}_${new Date().toISOString().split('T')[0]}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="ITS_${req.params.tabla}_${nowDate()}.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1920,7 +1929,7 @@ app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
     anio: a.anio,
     division: a.division,
     tipo: 'Parcial',
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: nowDate(),
     hora: '19:00',
     aula: '',
     observacion: ''
@@ -2249,7 +2258,7 @@ app.post('/api/periodos/:id/promover', auth(ADM), (req, res) => {
 app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
   const { asignacion_id } = req.body;
   const hab = db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(req.params.id, asignacion_id);
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   if (hab) {
     db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado_por=?,fecha=? WHERE alumno_id=? AND asignacion_id=?').run(req.user.id, fechaHoy, req.params.id, asignacion_id);
   } else {
@@ -2261,7 +2270,7 @@ app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
 
 app.put('/api/alumnos/:id/habilitar-pago', auth(ADM), (req, res) => {
   const { habilitado, asignacion_id, tipo_examen, motivo } = req.body;
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   const TIPOS = ['parcial','parcial_recuperatorio','final','final_ord','final_recuperatorio','complementario','extraordinario'];
   const tipoDb = TIPOS.includes(tipo_examen) ? tipo_examen : 'final';
   const hab = asignacion_id
@@ -2470,7 +2479,7 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
     const stmtSinAsignar = db.prepare('UPDATE alumnos SET carrera_id=NULL, curso_id=NULL WHERE id=?');
 
     const results = { ok: 0, errores: [], alumnos_creados: 0, columnas: pagoIdxs.map(p => p.h) };
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = nowDate();
     let seq = 0; // contador para IDs únicos
 
     const auditDetalle = { alumnos_nuevos: [], pagos_registrados: [], movidos_sin_asignar: [], errores_ci: [] };
@@ -2570,7 +2579,7 @@ app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) 
         const nombre = String(row['Nombre'] || row['nombre'] || row['Apellido y Nombre'] || '').trim();
         const concepto = String(row['Concepto'] || row['concepto'] || 'Cuota').trim();
         const monto = parseFloat(row['Monto'] || row['monto'] || 0);
-        const fecha = String(row['Fecha'] || row['fecha'] || new Date().toISOString().split('T')[0]).trim();
+        const fecha = String(row['Fecha'] || row['fecha'] || nowDate()).trim();
         if (!ci || ci.length < 5) return;
 
         const al = db.prepare('SELECT id,nombre,apellido,carrera_id FROM alumnos WHERE ci=?').get(ci);
@@ -2772,7 +2781,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
 
           if (!al && carrera_id) {
             const cnt = stmtCnt.get(carrera_id).n;
-            const matricula = carr ? `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
+            const matricula = carr ? `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
             const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
             let uid = null;
             if (ciValida) {
@@ -2787,11 +2796,11 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
                 uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
                 try { stmtInsUsu.run(uid, nombre, apellido, ci, emailAuto, bcrypt.hashSync(ci,10), 'alumno'); } catch { uid = null; }
               } else { uid = usuEx.id; }
-              stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+              stmtInsAl.run(aid, uid, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', ci, nombre, apellido);
               results.credenciales.push({ nombre: nombreCompleto||`${nombre} ${apellido}`, usuario: emailAuto, password: ci });
             } else {
               // Sin CI: estado Activo (CI nula es el indicador de que falta la cédula)
-              stmtInsAl.run(aid, null, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', null, nombre, apellido);
+              stmtInsAl.run(aid, null, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', null, nombre, apellido);
             }
             if (curso_id) stmtAsigs.all(curso_id, periodo?.id||null).forEach(a => { try { stmtInsNota.run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, a.id, 'Pendiente'); } catch {} });
             al = { id: aid };
@@ -2816,7 +2825,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
             const concepto = conceptos[j];
             if (!concepto) return;
             if (stmtChkPago.get(al.id, concepto, periodo?.id||null)) return;
-            stmtInsPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, m, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
+            stmtInsPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, m, nowDate(), 'Pagado', 'Transferencia');
             results.ok++;
           });
         } catch(e) { results.errores.push(`CI ${ci}: ${e.message}`); }
@@ -2924,7 +2933,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
             if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
 
             const cnt = stmtCntAlumnos.get(carrera_id).n;
-            const matricula = carr ? `${carr.codigo}-${new Date().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
+            const matricula = carr ? `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
             const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
 
             let uid = null;
@@ -2935,7 +2944,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
               catch { uid = null; }
             } else { uid = usuExiste.id; }
 
-            stmtInsertAl.run(aid, uid, matricula, carrera_id, curso_id||null, new Date().toISOString().split('T')[0], 'Activo', ci, nombre, apellido);
+            stmtInsertAl.run(aid, uid, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', ci, nombre, apellido);
 
             if (curso_id) {
               stmtAsigs.all(curso_id, periodo?.id||null).forEach(asig => {
@@ -2994,7 +3003,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
             const existing = stmtCheckPago.get(al.id, concepto, periodo?.id||null);
             if (existing) { results.conflictos.push({ ci, concepto, monto, pago_id: existing.id }); return; }
 
-            stmtInsertPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, monto, new Date().toISOString().split('T')[0], 'Pagado', 'Transferencia');
+            stmtInsertPago.run('pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), al.id, periodo?.id||null, concepto, monto, nowDate(), 'Pagado', 'Transferencia');
             results.ok++;
           });
         } catch(e) { results.errores.push(`CI ${ci}: ${e.message}`); }
@@ -3460,7 +3469,7 @@ app.post('/api/admin/disco/limpiar', auth(ADM), (req, res) => {
 });
 
 app.get('/api/admin/backup', auth(ADM), (req, res) => {
-  const fecha = new Date().toISOString().split('T')[0];
+  const fecha = nowDate();
   const dbPath = DB_PATH || path.join(__dirname, '..', 'data', 'its.db');
   res.setHeader('Content-Disposition', `attachment; filename="ITS_backup_${fecha}.db"`);
   res.setHeader('Content-Type', 'application/octet-stream');
@@ -3559,6 +3568,7 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
 
 app.get('/api/admin/hora-sistema', auth(ADM), (req, res) => {
   const ahora = new Date();
+  const ajustada = nowSys();
   res.json({
     iso: ahora.toISOString(),
     local: ahora.toLocaleString('es-PY', { timeZone: 'America/Asuncion' }),
@@ -3566,7 +3576,33 @@ app.get('/api/admin/hora-sistema', auth(ADM), (req, res) => {
     tz_env: process.env.TZ || '(no configurada)',
     offset_min: ahora.getTimezoneOffset(),
     server_now: ahora.toString(),
+    time_offset_ms: _timeOffsetMs,
+    hora_sistema: ajustada.toLocaleString('es-PY', { timeZone: 'America/Asuncion' }),
+    hora_sistema_iso: ajustada.toISOString(),
   });
+});
+
+app.post('/api/admin/hora-manual', auth(ADM), (req, res) => {
+  const { fecha, hora } = req.body; // "2026-05-21" y "21:52"
+  if (!fecha || !hora) return res.status(400).json({ error: 'Requiere fecha y hora' });
+  // Construir la fecha deseada en la zona horaria del servidor (America/Asuncion)
+  // Como el servidor ya tiene TZ=America/Asuncion, new Date(fecha+'T'+hora+':00') es hora local
+  const deseada = new Date(`${fecha}T${hora}:00`);
+  if (isNaN(deseada.getTime())) return res.status(400).json({ error: 'Fecha u hora inválida' });
+  const offset = deseada.getTime() - Date.now();
+  _timeOffsetMs = offset;
+  try {
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave, valor, descripcion) VALUES ('time_offset_ms', ?, 'Offset manual de hora del sistema en milisegundos')").run(String(offset));
+  } catch(e) { console.error('Error guardando offset:', e.message); }
+  audit(req.user.id, 'SET_HORA_MANUAL', 'sistema', 'hora', { fecha, hora, offset_ms: offset });
+  res.json({ ok: true, hora_sistema: nowSys().toLocaleString('es-PY', { timeZone: 'America/Asuncion' }), offset_ms: offset });
+});
+
+app.post('/api/admin/hora-reset', auth(ADM), (req, res) => {
+  _timeOffsetMs = 0;
+  try { db.prepare("DELETE FROM configuracion WHERE clave='time_offset_ms'").run(); } catch {}
+  audit(req.user.id, 'RESET_HORA', 'sistema', 'hora', { msg: 'Offset reiniciado a 0' });
+  res.json({ ok: true, msg: 'Hora del servidor restaurada (sin offset)' });
 });
 
 // GET /api/actividad-reciente — feed de actividad para el director
@@ -4301,7 +4337,7 @@ app.post('/api/whatsapp/webhook', (req, res) => {
         if (numero && texto) {
           const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
           db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha) VALUES (?,?,?,?,?)')
-            .run(wrid, numero, nombre, texto, new Date().toISOString().replace('T',' ').slice(0,19));
+            .run(wrid, numero, nombre, texto, nowStr());
         }
       }
     }
@@ -4404,7 +4440,7 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   // Registrar emisión
   const cid = 'const_'+Date.now();
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,?,?)').run(cid, req.params.id, 'estudios', fechaHoy, req.user.id);
   audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id});
   res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: fechaHoy });
@@ -4546,7 +4582,7 @@ app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
   const { alumno_id, monto, comprobante } = req.body;
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   const pid = 'pg_const_'+Date.now();
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago) VALUES (?,?,?,?,?,?,?,?,?)').run(pid,alumno_id,periodo?.id||1,'Constancia de estudios',monto||0,fechaHoy,'Pagado',comprobante||null,'Efectivo');
   audit(req.user.id,'PAGO','pagos',pid,{concepto:'Constancia de estudios',alumno_id});
   res.json({ ok: true, pago_id: pid });
@@ -4655,10 +4691,10 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
       const carreraId = curso?.carrera_id || null;
       const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carreraId);
       const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carreraId||'').n;
-      const matricula = (carr?.codigo||'ALU')+'-'+new Date().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+      const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-      const fechaHoy = new Date().toISOString().split('T')[0];
+      const fechaHoy = nowDate();
       db.transaction(() => {
         const normNombre = norm(sol.nombre||'');
         const normApellido = norm(sol.apellido||'');
@@ -4903,7 +4939,7 @@ app.put('/api/alumnos/:id/resolver-egreso', auth(ADM), (req, res) => {
   const { accion, observacion } = req.body;
   const solicitud = db.prepare("SELECT * FROM solicitudes_egreso WHERE alumno_id=? AND estado='pendiente' ORDER BY fecha_solicitud DESC LIMIT 1").get(req.params.id);
   if (!solicitud) return res.status(404).json({ error: 'Sin solicitud pendiente' });
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   db.prepare("UPDATE solicitudes_egreso SET estado=?,aprobado_por=?,fecha_resolucion=?,observacion=? WHERE id=?").run(accion==='aprobar'?'aprobado':'rechazado',req.user.id,fechaHoy,observacion||null,solicitud.id);
   if (accion === 'aprobar') {
     db.prepare("UPDATE alumnos SET estado='Egresado' WHERE id=?").run(req.params.id);
@@ -4919,7 +4955,7 @@ app.get('/api/alumnos/:id/acta-egreso', auth(ADM), (req, res) => {
   if (!solicitud) return res.status(400).json({ error: 'El alumno no tiene solicitud de egreso aprobada por el Director' });
   const notas = db.prepare(`SELECT m.nombre as materia, n.puntaje_total, n.nota_final, n.estado FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id JOIN materias m ON a.materia_id=m.id WHERE n.alumno_id=? AND n.estado='Aprobado' ORDER BY m.nombre`).all(req.params.id);
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
-  res.json({ alumno: al, solicitud, notas, institucion: inst, fecha: solicitud.fecha_resolucion||new Date().toISOString().split('T')[0] });
+  res.json({ alumno: al, solicitud, notas, institucion: inst, fecha: solicitud.fecha_resolucion||nowDate() });
 });
 
 // ── EXAMENES: adjuntar archivo PDF/Word ───────────────────────────────────────
@@ -5036,7 +5072,7 @@ app.post('/api/repositorio', auth(['director','docente']), upload.single('archiv
   if (!['programa','contenido'].includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
   if (req.file.size > 20*1024*1024) return res.status(400).json({ error: 'El archivo no puede superar 20 MB' });
   const id = 'rep_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-  const fechaHoy = new Date().toISOString().split('T')[0];
+  const fechaHoy = nowDate();
   db.prepare('INSERT INTO repositorio (id,tipo,materia_id,carrera_id,curso_id,nombre_archivo,datos,mime_tipo,subido_por,fecha,descripcion) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
     .run(id, tipo, materia_id||null, carrera_id||null, curso_id||null, req.file.originalname, req.file.buffer, req.file.mimetype, req.user.id, fechaHoy, descripcion||null);
   audit(req.user.id,'UPLOAD_REPOSITORIO','repositorio',id,{tipo,archivo:req.file.originalname});
@@ -5182,7 +5218,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
         const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
         const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
         const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(sol.carrera_id).n;
-        const matricula = (carr?.codigo||'ALU')+'-'+new Date().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+        const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
         const existPorCi = ciRaw ? db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw) : null;
         const existPorNombre = !existPorCi ? db.prepare("SELECT id FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
         let finalUid;
@@ -5202,7 +5238,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
         const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
         if (!yaAlumno) {
           db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?)')
-            .run(aid, finalUid, matricula, sol.carrera_id, new Date().toISOString().split('T')[0], 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+            .run(aid, finalUid, matricula, sol.carrera_id, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
         }
         db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
       })();
