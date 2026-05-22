@@ -2986,19 +2986,13 @@ async function pgExamenes(el){
     <select id="filtExCurso" onchange="filtExAll()" style="min-width:150px">
       <option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
     </select>
-    <select id="filtExTurno" onchange="filtExAll()" style="min-width:130px">
-      <option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option>
-    </select>
     ${esDir?`<select id="filtExDocente" onchange="filtExAll()" style="min-width:180px">
       <option value="">Todos los docentes</option>
       ${[...new Map(exs.filter(e=>e.docente_id).map(e=>[e.docente_id,e])).values()].sort((a,b)=>(a.docente_apellido||'').localeCompare(b.docente_apellido||'')).map(e=>`<option value="${e.docente_id}">${e.docente_apellido||''} ${e.docente_nombre||''}</option>`).join('')}
     </select>`:''}
   </div>
-  <div class="card"><div class="tw"><table><thead><tr>
-    <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Materia</th><th>Carrera</th><th>Sección</th><th>Docente</th><th>Aula</th><th>Alumnos</th><th>Notas</th><th></th>
-  </tr></thead><tbody id="extb">
-  ${exs.map(exRow).join('')||'<tr><td colspan="11" class="es">Sin exámenes programados</td></tr>'}
-  </tbody></table></div></div>`;
+  <div id="extb"></div>`;
+  renderExsByDay(exs, document.getElementById('extb'));
 }
 function exRow(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
@@ -3048,6 +3042,84 @@ function exRow(e){
         ${me.rol==='director'?`<button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>`:''}
       </div>
     </td>
+  </tr>`;
+}
+function fmtFechaLarga(f){
+  if(!f)return'Sin fecha';
+  const d=new Date(f+'T12:00:00');
+  return d.toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+function renderExsByDay(exs,wrap){
+  if(!wrap)return;
+  if(!exs||!exs.length){wrap.innerHTML='<div style="text-align:center;padding:48px;color:var(--t2);font-size:14px">Sin exámenes programados</div>';return;}
+  const byDay={};
+  exs.forEach(e=>{const f=e.fecha||'9999-12-31';if(!byDay[f])byDay[f]=[];byDay[f].push(e);});
+  const hoy=new Date().toISOString().split('T')[0];
+  let html='';
+  Object.keys(byDay).sort().forEach(fecha=>{
+    const items=byDay[fecha];
+    const esHoy=fecha===hoy;
+    const esPasado=fecha<hoy&&fecha!=='9999-12-31';
+    const label=fecha==='9999-12-31'?'Sin fecha asignada':fmtFechaLarga(fecha);
+    const headerColor=esHoy?'#1d4ed8':esPasado?'#6b7280':'#374151';
+    const borderColor=esHoy?'#3b82f6':esPasado?'#d1d5db':'#e5e7eb';
+    html+=`<div style="margin:18px 0 6px;display:flex;align-items:center;gap:10px;padding-bottom:6px;border-bottom:2px solid ${borderColor}">
+      <span style="font-size:15px;font-weight:700;color:${headerColor};text-transform:capitalize">${esHoy?'📅 HOY — ':'📅 '}${label}</span>
+      <span style="font-size:11px;color:#fff;background:${esHoy?'#2563eb':esPasado?'#9ca3af':'#6366f1'};border-radius:20px;padding:2px 9px;font-weight:600">${items.length} examen${items.length!==1?'es':''}</span>
+      ${esHoy?'<span style="font-size:10px;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-weight:700;letter-spacing:.5px">HOY</span>':''}
+      ${esPasado?'<span style="font-size:10px;color:#9ca3af">pasado</span>':''}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:4px;${esPasado?'opacity:.78':''}">
+      <div class="tw"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc">
+        <th style="width:70px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">HORA</th>
+        <th style="width:130px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">TIPO</th>
+        <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">MATERIA</th>
+        <th style="width:160px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">CARRERA</th>
+        <th style="width:80px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">SECCIÓN</th>
+        <th style="width:150px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">DOCENTE</th>
+        <th style="width:60px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">AULA</th>
+        <th style="width:70px;padding:8px 10px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">ALUMNOS</th>
+        <th style="width:110px;padding:8px 10px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">NOTAS</th>
+        <th style="width:160px;padding:8px 10px;border-bottom:1px solid #e5e7eb"></th>
+      </tr></thead><tbody>
+      ${items.map(exRowNoDate).join('')}
+      </tbody></table></div>
+    </div>`;
+  });
+  wrap.innerHTML=html;
+}
+function exRowNoDate(e){
+  const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
+  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
+  const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
+  let btnAdjuntar='';
+  if(esDocumentoPropietario){
+    const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,15)+(e.archivo_nombre.length>15?'…':'')):'';
+    btnAdjuntar=`<label class="bs" style="font-size:11px;cursor:pointer;padding:3px 7px" title="Adjuntar examen Word o PDF">📎 ${e.archivo_nombre?`<span style="color:#2e7d32">✓ ${nombreCorto}</span>`:'Adjuntar'}<input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/></label>${e.archivo_nombre?`<button class="bs d" style="font-size:11px;padding:2px 5px" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo">🗑</button>`:''}`;
+  }
+  const btnVer=e.archivo_nombre?(me.rol==='director'
+    ?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="Descargar ${e.archivo_nombre}">⬇ Bajar</button>`
+    :`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
+  const td='padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle';
+  return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
+    <td style="${td};white-space:nowrap;font-weight:700;color:#1e293b;font-size:13px">${e.hora||'—'}</td>
+    <td style="${td}"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px;white-space:nowrap">${e.tipo||'—'}</span></td>
+    <td style="${td}"><span style="font-weight:600;color:#111827">${e.materia_nombre||'—'}</span></td>
+    <td style="${td};font-size:12px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#6b7280">'+e.curso_anio+'°</span>':''}</td>
+    <td style="${td};font-size:12px;white-space:nowrap">${e.curso_division&&e.curso_division!=='U'?'<span class="bx bb" style="font-size:10px">Secc. '+e.curso_division+'</span>':'<span style="color:var(--t2)">Única</span>'}</td>
+    <td style="${td};font-size:12px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
+    <td style="${td};font-size:12px;font-weight:600;color:#4b5563">${e.aula||'<span style=\'color:#d1d5db\'>—</span>'}</td>
+    <td style="${td};text-align:center;font-size:13px;font-weight:600;color:#374151">${e.total_alumnos||0}</td>
+    <td style="${td};text-align:center">
+      <div class="prog-bar" style="width:52px;display:inline-block;vertical-align:middle;margin-bottom:2px"><div class="prog-fill" style="width:${pct}%"></div></div>
+      <div style="font-size:10px;color:#6b7280">${e.notas_cargadas||0}/${e.total_alumnos||0}</div>
+    </td>
+    <td style="${td}"><div class="abs" style="gap:4px">
+      ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
+      ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
+      ${btnAdjuntar}${btnVer}
+      ${me.rol==='director'?`<button class="bs d" style="font-size:11px" onclick="delExamen('${e.id}')">✕</button>`:''}
+    </div></td>
   </tr>`;
 }
 function reagendarExamen(e){
@@ -3249,16 +3321,15 @@ function filtExCursos(){
   sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 function filtExAll(){
-  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),turno=v('filtExTurno'),docenteId=v('filtExDocente');
-  const tb=document.getElementById('extb');if(!tb)return;
+  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),docenteId=v('filtExDocente');
+  const wrap=document.getElementById('extb');if(!wrap)return;
   let l=W._exs||[];
   if(tipo)l=l.filter(e=>(e.tipo||'').toLowerCase()===tipo.toLowerCase());
   if(carrId)l=l.filter(e=>!e.carrera_id||e.carrera_id===carrId);
   if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
   if(cursoId)l=l.filter(e=>e.curso_id===cursoId);
-  if(turno){const cs=new Set((W._exData?.cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(e=>cs.has(e.curso_id));}
   if(docenteId)l=l.filter(e=>e.docente_id===docenteId);
-  tb.innerHTML=l.map(exRow).join('')||'<tr><td colspan="10" class="es">Sin resultados</td></tr>';
+  renderExsByDay(l,wrap);
 }
 function filtEx(t,val){filtExAll();}
 
