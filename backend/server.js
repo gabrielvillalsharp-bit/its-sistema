@@ -350,18 +350,27 @@ app.post('/api/docentes', auth(ADM), (req, res) => {
   res.json({ id: uid, docente_id: did });
 });
 app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
-  const { nombre, apellido, ci, email, especialidad, titulo, telefono } = req.body;
-  // Solo actualizar CI si viene un valor no vacío y diferente al actual
-  const ciNueva = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
-  if (ciNueva) {
-    // Verificar que no exista otro usuario con esa CI
-    const dup = db.prepare('SELECT id FROM usuarios WHERE ci=? AND id!=?').get(ciNueva, req.params.uid);
-    if (dup) return res.status(400).json({ error: 'Ya existe otro usuario con esa C.I.' });
+  try {
+    const { nombre, apellido, ci, email, especialidad, titulo, telefono } = req.body;
+    const uid = req.params.uid;
+    // Actualizar nombre/apellido/email — NUNCA tocar ci en esta query para evitar UNIQUE conflict
+    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre, apellido||'', email, uid);
+    // Actualizar CI solo si viene un valor explícito distinto al actual
+    const ciNueva = ci && String(ci).trim() && String(ci).trim() !== '0.000.000' ? String(ci).trim() : null;
+    if (ciNueva) {
+      const ciActual = db.prepare('SELECT ci FROM usuarios WHERE id=?').get(uid)?.ci;
+      if (ciNueva !== ciActual) {
+        const dup = db.prepare('SELECT id FROM usuarios WHERE ci=? AND id!=?').get(ciNueva, uid);
+        if (dup) return res.status(400).json({ error: 'Ya existe otro usuario con esa C.I.' });
+        db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNueva, uid);
+      }
+    }
+    db.prepare('UPDATE docentes SET especialidad=?,titulo=?,telefono=? WHERE usuario_id=?').run(especialidad||null, titulo||null, telefono||null, uid);
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[PUT /api/docentes/:uid] error:', e.message, '| body:', JSON.stringify(req.body), '| uid:', req.params.uid);
+    res.status(500).json({ error: 'Error al actualizar docente: ' + e.message });
   }
-  // Siempre incluir ci en el UPDATE (NULL si no se proporcionó) para limpiar valores vacíos anteriores
-  db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=? WHERE id=?').run(nombre,apellido||'',ciNueva,email,req.params.uid);
-  db.prepare('UPDATE docentes SET especialidad=?,titulo=?,telefono=? WHERE usuario_id=?').run(especialidad||null,titulo||null,telefono||null,req.params.uid);
-  res.json({ ok: true });
 });
 app.put('/api/docentes/:uid/password', auth(ADM), (req, res) => {
   db.prepare('UPDATE usuarios SET password_hash=? WHERE id=?').run(bcrypt.hashSync(req.body.password,10),req.params.uid);

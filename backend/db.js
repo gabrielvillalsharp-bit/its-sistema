@@ -771,6 +771,10 @@ function init() {
   try { db.prepare("ALTER TABLE pagos ADD COLUMN medio_pago TEXT DEFAULT 'Efectivo'").run(); } catch {}
   // Usuarios
   try { db.prepare("ALTER TABLE usuarios ADD COLUMN ci_raw TEXT").run(); } catch {}
+  // Limpiar ci='' (string vacío) → NULL para evitar UNIQUE constraint duplicado entre docentes sin CI
+  try {
+    db.prepare("UPDATE usuarios SET ci=NULL WHERE ci='' OR ci='0.000.000'").run();
+  } catch {}
   // Horarios (para bases antiguas que no tienen la tabla)
   try {
     db.exec(`CREATE TABLE IF NOT EXISTS horarios (
