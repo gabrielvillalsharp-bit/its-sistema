@@ -3076,10 +3076,12 @@ function renderExsByDay(exs,wrap){
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">MATERIA</th>
         <th style="width:150px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">CARRERA</th>
         <th style="width:140px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">DOCENTE</th>
-        <th style="width:95px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">AVANCE</th>
         <th style="width:80px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">NOTAS</th>
-        <th style="width:70px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ACTA</th>
-        <th style="padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1">ARCHIVO</th>
+        <th style="width:100px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ACTA</th>
+        <th style="width:110px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ADJUNTAR</th>
+        <th style="width:100px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ARCHIVO</th>
+        <th style="width:80px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">DEL. ARCH.</th>
+        <th style="width:48px;padding:8px 10px;text-align:center;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1">🗑</th>
       </tr></thead><tbody>
       ${items.map(exRowNoDate).join('')}
       </tbody></table></div>
@@ -3091,38 +3093,41 @@ function exRowNoDate(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
   const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
   const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
-  let btnAdjuntar='';
-  if(esDocumentoPropietario){
-    const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,15)+(e.archivo_nombre.length>15?'…':'')):'';
-    const bsFile='font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #bbf7d0;cursor:pointer;background:#f0fdf4;color:#166534;white-space:nowrap';
-    btnAdjuntar=`<label style="${bsFile}" title="Adjuntar examen Word o PDF">📎 ${e.archivo_nombre?`<span style="color:#15803d;font-weight:600">✓ ${nombreCorto}</span>`:'Adjuntar'}<input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/></label>${e.archivo_nombre?`<button style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo">✕</button>`:''}`;
-  }
-  const btnVer=e.archivo_nombre?(me.rol==='director'
-    ?`<button style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer;white-space:nowrap" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="Descargar ${e.archivo_nombre}">⬇ Bajar</button>`
-    :`<button style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #bbf7d0;background:#dcfce7;color:#15803d;cursor:pointer" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
-  const td='padding:8px 10px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle';
-  const tdl='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:middle';
+  const td='padding:8px 10px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle;text-align:center';
+  const tdl='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:middle;text-align:center';
   const bs='font-size:10px;padding:3px 9px;border-radius:4px;border:1px solid;cursor:pointer;white-space:nowrap;font-weight:600';
-  const btnNotas=e.asignacion_id?`<button style="${bs};background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">📋 Abrir</button>`:'<span style="color:#d1d5db;font-size:11px">—</span>';
-  const btnActa=e.id&&me.rol==='director'?`<button style="${bs};background:#fff7ed;color:#c2410c;border-color:#fed7aa" onclick="imprimirActaExamen('${e.id}')">🖨 Imprimir</button>`:'<span style="color:#d1d5db;font-size:11px">—</span>';
-  const btnDel=me.rol==='director'?`<button style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer" onclick="delExamen('${e.id}')" title="Eliminar examen">🗑</button>`:'';
+  const dash='<span style="color:#d1d5db;font-size:11px">—</span>';
+  // NOTAS
+  const btnNotas=e.asignacion_id?`<button style="${bs};background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">📋 Abrir</button>`:dash;
+  // ACTA
+  const btnActa=e.id&&me.rol==='director'?`<button style="${bs};background:#fff7ed;color:#c2410c;border-color:#fed7aa" onclick="imprimirActaExamen('${e.id}')">🖨 Imprimir</button>`:dash;
+  // ADJUNTAR (solo propietario del documento)
+  let cellAdjuntar=dash;
+  if(esDocumentoPropietario){
+    const nombreCorto=e.archivo_nombre?(e.archivo_nombre.slice(0,14)+(e.archivo_nombre.length>14?'…':'')):'';
+    cellAdjuntar=`<label style="${bs};background:#f0fdf4;color:#166534;border-color:#bbf7d0" title="Adjuntar examen Word o PDF">📎 ${e.archivo_nombre?`<span style="color:#15803d">✓ ${nombreCorto}</span>`:'Adjuntar'}<input type="file" accept=".doc,.docx,.pdf" style="display:none" onchange="subirArchivoExamen('${e.id}',this)"/></label>`;
+  }
+  // ARCHIVO descargable
+  const cellArchivo=e.archivo_nombre?(me.rol==='director'
+    ?`<button style="${bs};background:#dcfce7;color:#15803d;border-color:#86efac" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="${e.archivo_nombre}">⬇ Bajar</button>`
+    :`<button style="${bs};background:#dcfce7;color:#15803d;border-color:#86efac" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):dash;
+  // ELIMINAR ARCHIVO
+  const cellDelArch=e.archivo_nombre&&esDocumentoPropietario
+    ?`<button style="${bs};background:#fef2f2;color:#dc2626;border-color:#fecaca" onclick="borrarArchivoExamen('${e.id}')" title="Eliminar archivo adjunto">✕ Borrar</button>`:dash;
+  // ELIMINAR EXAMEN
+  const cellDelEx=me.rol==='director'?`<button style="font-size:11px;padding:3px 7px;border-radius:4px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer" onclick="delExamen('${e.id}')" title="Eliminar examen">🗑</button>`:'';
   return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
-    <td style="${td};white-space:nowrap;font-weight:700;color:#1e293b;font-size:12px">${e.hora||'—'}</td>
-    <td style="${td}"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${e.tipo||'—'}</span></td>
-    <td style="${td}"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span></td>
-    <td style="${td};font-size:11px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#94a3b8">'+e.curso_anio+'°</span>':''}</td>
-    <td style="${td};font-size:11px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
-    <td style="${td};text-align:center">
-      <div class="prog-bar" style="width:48px;display:inline-block;vertical-align:middle"><div class="prog-fill" style="width:${pct}%"></div></div>
-      <div style="font-size:9px;color:#6b7280;margin-top:2px">${e.notas_cargadas||0}/${e.total_alumnos||0}</div>
-    </td>
-    <td style="${td};text-align:center">${btnNotas}</td>
-    <td style="${td};text-align:center">${btnActa}</td>
-    <td style="${tdl};text-align:center">
-      <div style="display:flex;gap:4px;align-items:center;justify-content:center;flex-wrap:wrap">
-        ${btnAdjuntar}${btnVer}${btnDel}
-      </div>
-    </td>
+    <td style="${td};text-align:left;font-weight:700;color:#1e293b;font-size:12px;white-space:nowrap">${e.hora||'—'}</td>
+    <td style="${td};text-align:left"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${e.tipo||'—'}</span></td>
+    <td style="${td};text-align:left"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span></td>
+    <td style="${td};text-align:left;font-size:11px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#94a3b8">'+e.curso_anio+'°</span>':''}</td>
+    <td style="${td};text-align:left;font-size:11px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
+    <td style="${td}">${btnNotas}</td>
+    <td style="${td}">${btnActa}</td>
+    <td style="${td}">${cellAdjuntar}</td>
+    <td style="${td}">${cellArchivo}</td>
+    <td style="${td}">${cellDelArch}</td>
+    <td style="${tdl}">${cellDelEx}</td>
   </tr>`;
 }
 function reagendarExamen(e){
