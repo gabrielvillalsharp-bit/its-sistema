@@ -344,23 +344,22 @@ app.get('/api/docentes', auth(), (req, res) => {
 app.post('/api/docentes', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
   const uid = 'u_'+Date.now(), did = 'd_'+Date.now();
-  db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ci,email,bcrypt.hashSync(password||'123456',10),'docente');
+  const ciDoc = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
+  db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,email,bcrypt.hashSync(password||'123456',10),'docente');
   db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono) VALUES (?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono);
   res.json({ id: uid, docente_id: did });
 });
 app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, especialidad, titulo, telefono } = req.body;
   // Solo actualizar CI si viene un valor no vacío y diferente al actual
-  const ciActual = db.prepare('SELECT ci FROM usuarios WHERE id=?').get(req.params.uid)?.ci;
   const ciNueva = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
-  if (ciNueva && ciNueva !== ciActual) {
+  if (ciNueva) {
     // Verificar que no exista otro usuario con esa CI
     const dup = db.prepare('SELECT id FROM usuarios WHERE ci=? AND id!=?').get(ciNueva, req.params.uid);
     if (dup) return res.status(400).json({ error: 'Ya existe otro usuario con esa C.I.' });
-    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=? WHERE id=?').run(nombre,apellido||'',ciNueva,email,req.params.uid);
-  } else {
-    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre,apellido||'',email,req.params.uid);
   }
+  // Siempre incluir ci en el UPDATE (NULL si no se proporcionó) para limpiar valores vacíos anteriores
+  db.prepare('UPDATE usuarios SET nombre=?,apellido=?,ci=?,email=? WHERE id=?').run(nombre,apellido||'',ciNueva,email,req.params.uid);
   db.prepare('UPDATE docentes SET especialidad=?,titulo=?,telefono=? WHERE usuario_id=?').run(especialidad||null,titulo||null,telefono||null,req.params.uid);
   res.json({ ok: true });
 });
@@ -4747,7 +4746,7 @@ app.post('/api/solicitudes-alumno/verificar', auth(['director','docente']), (req
 
     // 2. Buscar alumno en DB por CI o nombre+apellido
     const qAlumno = `SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
-      COALESCE(a.ci,u.ci) as ci, a.matricula, ca.nombre as carrera_nombre, cu.anio, cu.seccion,
+      COALESCE(a.ci,u.ci) as ci, a.matricula, ca.nombre as carrera_nombre, cu.anio, cu.division,
       a.carrera_id, a.curso_id, a.estado
       FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
       LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id`;
