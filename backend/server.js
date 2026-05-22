@@ -4012,17 +4012,20 @@ function enHoraPermitida() {
 }
 
 function buildWaMsg(tplKey, vars) {
-  const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor ||
-    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}';
+  const key = tplKey.replace('wa_tpl_', '');
+  const tpl = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(tplKey)?.valor
+    || WA_TPL_DEFAULTS[key]
+    || '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}';
   return tpl
-    .replace(/\{docente\}/g, vars.docente)
-    .replace(/\{materia\}/g, vars.materia)
-    .replace(/\{tipo\}/g,    vars.tipo)
-    .replace(/\{carrera\}/g, vars.carrera)
-    .replace(/\{curso\}/g,   vars.curso)
-    .replace(/\{fecha\}/g,   vars.fecha)
-    .replace(/\{hora\}/g,    vars.hora)
-    .replace(/\{aula\}/g,    vars.aula);
+    .replace(/\{docente\}/g,    vars.docente    || '')
+    .replace(/\{materia\}/g,    vars.materia    || '')
+    .replace(/\{tipo\}/g,       vars.tipo       || '')
+    .replace(/\{carrera\}/g,    vars.carrera    || '')
+    .replace(/\{curso\}/g,      vars.curso      || '')
+    .replace(/\{fecha\}/g,      vars.fecha      || '')
+    .replace(/\{hora\}/g,       vars.hora       || '')
+    .replace(/\{aula\}/g,       vars.aula       || '')
+    .replace(/\{horas_rest\}/g, vars.horas_rest || '');
 }
 
 // ── HELPER: query de exámenes sin archivo ─────────────────────────────────────
@@ -4149,9 +4152,19 @@ cron.schedule('0 7 * * *', async () => {
       // Evitar duplicado: solo un aviso '24h' por examen
       const ya = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='24h'`).get(ex.id);
       if (ya) continue;
-      const hora = ex.hora || 'a confirmar';
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
-      const msg = `📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}, le informamos que *mañana* tiene examen programado:\n\n📚 *${ex.materia_nombre}* (${ex.tipo_examen})\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora: ${hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación* por cuestiones de practicidad y organización académica.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const vars24 = {
+        docente:    `${ex.doc_apellido||''} ${ex.doc_nombre||''}`.trim(),
+        materia:    ex.materia_nombre || '',
+        tipo:       ex.tipo_examen    || '',
+        carrera:    ex.carrera_nombre || '',
+        curso,
+        fecha:      '',
+        hora:       ex.hora || 'a confirmar',
+        aula:       '',
+        horas_rest: '',
+      };
+      const msg = buildWaMsg('wa_tpl_aviso24', vars24);
       const ok = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, '24h', ok?'enviado':'fallido');
@@ -4192,7 +4205,18 @@ cron.schedule('0 * * * *', async () => {
       if (yaEnviadoHora) continue;
       const hRest = Math.ceil(diffH);
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
-      const msg = `⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. ${ex.doc_apellido}, ${ex.doc_nombre}:\n\nSu examen de *${ex.materia_nombre}* (${ex.tipo_examen}) está programado en *${hRest} hora${hRest !== 1 ? 's' : ''}* y aún no se registra el archivo en el sistema.\n\n🎓 ${ex.carrera_nombre} — ${curso}\n🕐 Hora programada: ${ex.hora}\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._`;
+      const vars = {
+        docente:    `${ex.doc_apellido||''} ${ex.doc_nombre||''}`.trim(),
+        materia:    ex.materia_nombre || '',
+        tipo:       ex.tipo_examen    || '',
+        carrera:    ex.carrera_nombre || '',
+        curso,
+        fecha:      ex.fecha ? new Date(ex.fecha+'T12:00:00').toLocaleDateString('es-PY',{weekday:'long',day:'numeric',month:'long'}) : '',
+        hora:       ex.hora  || '',
+        aula:       '',
+        horas_rest: `${hRest} hora${hRest !== 1 ? 's' : ''}`,
+      };
+      const msg = buildWaMsg('wa_tpl_urgente', vars);
       const ok = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'horario', ok?'enviado':'fallido');
@@ -4243,13 +4267,13 @@ const WA_REGLAS_DEF = [
   { key:'urgente', label:'Urgente: sin archivo ≤7h',    cron:'Cada hora',         tipo:'carga',        vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
 ];
 const WA_TPL_DEFAULTS = {
-  '72h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '48h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '36h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '24h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '12h':    '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '6h':     '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
-  '3h':     '📋 *ITS Santísima Trinidad*\nRecordatorio: {tipo} de *{materia}*\n{carrera} {curso}\n📅 {fecha} 🕐 {hora}',
+  '72h':    '📋 *ITS Santísima Trinidad — Aviso de carga*\n\nEstimado/a Prof. {docente}:\n\nTiene *{tipo}* de *{materia}* programado en *3 días*.\n🎓 {carrera} {curso}  ·  📅 {fecha}  ·  🕐 {hora}\n\n⚠️ El archivo del examen *aún no fue cargado* en el sistema.\nPor favor, súbalo lo antes posible desde el portal institucional.\n\n_Mensaje automático — ITS Santísima Trinidad._',
+  '48h':    '📋 *ITS Santísima Trinidad — Aviso de carga*\n\nEstimado/a Prof. {docente}:\n\nTiene *{tipo}* de *{materia}* programado en *2 días*.\n🎓 {carrera} {curso}  ·  📅 {fecha}  ·  🕐 {hora}\n\n⚠️ El archivo del examen *aún no fue cargado* en el sistema.\nPor favor, súbalo a la brevedad desde el portal institucional.\n\n_Mensaje automático — ITS Santísima Trinidad._',
+  '36h':    '📋 *ITS Santísima Trinidad — Aviso de carga*\n\nEstimado/a Prof. {docente}:\n\nTiene *{tipo}* de *{materia}* programado en *36 horas*.\n🎓 {carrera} {curso}  ·  📅 {fecha}  ·  🕐 {hora}\n\n⚠️ El archivo del examen *aún no fue cargado* en el sistema.\nPor favor, súbalo cuanto antes desde el portal institucional.\n\n_Mensaje automático — ITS Santísima Trinidad._',
+  '24h':    '⏰ *ITS Santísima Trinidad — Recordatorio urgente*\n\nEstimado/a Prof. {docente}:\n\nSu *{tipo}* de *{materia}* es *mañana*.\n🎓 {carrera} {curso}  ·  📅 {fecha}  ·  🕐 {hora}\n\n🚨 El archivo del examen *todavía no fue cargado*.\nLa institución requiere la carga con al menos 24 horas de anticipación.\n\nPor favor, *ingrese al portal y cargue el archivo hoy mismo*.\n\n¡Muchas gracias!\n_Mensaje automático — ITS Santísima Trinidad._',
+  '12h':    '⏰ *ITS Santísima Trinidad — Recordatorio urgente*\n\nEstimado/a Prof. {docente}:\n\nSu *{tipo}* de *{materia}* es *esta noche* ({hora}).\n🎓 {carrera} {curso}\n\n🚨 El archivo del examen *aún no fue cargado*.\nPor favor, *cárguelo de inmediato* desde el portal institucional.\n\n¡Muchas gracias!\n_Mensaje automático — ITS Santísima Trinidad._',
+  '6h':     '🚨 *ITS Santísima Trinidad — URGENTE*\n\nEstimado/a Prof. {docente}:\n\nSu *{tipo}* de *{materia}* comienza en *6 horas* ({hora}).\n🎓 {carrera} {curso}\n\n❌ El archivo del examen *NO fue cargado* en el sistema.\nPor favor, *ingrese al portal y cárguelo ahora*.\n\n¡Muchas gracias!\n_Mensaje automático — ITS Santísima Trinidad._',
+  '3h':     '🚨 *ITS Santísima Trinidad — URGENTE*\n\nEstimado/a Prof. {docente}:\n\nSu *{tipo}* de *{materia}* comienza en *3 horas* ({hora}).\n🎓 {carrera} {curso}\n\n❌ El archivo del examen *NO fue cargado* en el sistema.\nPor favor, *ingrese al portal y cárguelo de inmediato*.\n\n_Mensaje automático — ITS Santísima Trinidad._',
   'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
   'urgente':'⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
 };
