@@ -5679,8 +5679,8 @@ W.loadNotas=async(asigId,_tipo)=>{
           autocomplete="off" oninput="updN('${a.id}','${asigId}','director_pts',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.director_pts!=null?'800':'400'};color:${me.rol!=='director'?'#93c5fd':'#1d4ed8'}" title="${me.rol!=='director'?'Solo director':'Puntos de dirección'}"/>
       </td>
-      <td style="${cellBase}padding:6px 10px;text-align:center;background:linear-gradient(180deg,#166534,#14532d);border-right:2px solid #bbf7d0" id="tot-${a.id}">
-        <span style="font-size:15px;font-weight:900;color:${a.puntaje_total>=60?'#bbf7d0':a.puntaje_total>=40?'#fde047':'#fca5a5'}">${a.puntaje_total??'—'}</span>
+      <td style="${cellBase}padding:6px 10px;text-align:center;background:linear-gradient(180deg,#ffffff,#f0fdf4);border-right:2px solid #bbf7d0" id="tot-${a.id}">
+        <span style="font-size:15px;font-weight:900;color:${a.puntaje_total>=60?'#15803d':a.puntaje_total>=40?'#ca8a04':'#dc2626'}">${a.puntaje_total??'—'}</span>
       </td>
       <td style="${cellBase}padding:5px 6px;text-align:center;background:${rowBase}" id="nf-${a.id}">
         <span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'—'}</span>
