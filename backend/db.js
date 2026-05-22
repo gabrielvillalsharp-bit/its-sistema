@@ -876,6 +876,7 @@ function init() {
     observacion TEXT
   )`); } catch {}
   try { db.prepare("ALTER TABLE docentes ADD COLUMN celular TEXT").run(); } catch {}
+  try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN curso_id TEXT").run(); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS constancias (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'estudios', pago_id TEXT, fecha TEXT NOT NULL DEFAULT (date('now')), emitido_por TEXT, observacion TEXT)`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS deudas_cuotas (id TEXT PRIMARY KEY, alumno_id TEXT NOT NULL, periodo_id INTEGER NOT NULL, concepto TEXT NOT NULL, monto_total REAL NOT NULL, monto_pagado REAL NOT NULL DEFAULT 0, fecha_vencimiento TEXT, estado TEXT NOT NULL DEFAULT 'pendiente')`); } catch {}
   // Tablas de honorarios

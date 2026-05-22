@@ -5094,12 +5094,20 @@ app.get('/pub/carrera/:id', (req, res) => {
   res.json(c);
 });
 
-app.get('/pub/carrera/:id/alumnos', (req, res) => {
-  const alumnos = db.prepare(`
-    SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono
-    FROM alumnos a WHERE a.carrera_id=? AND a.estado='Activo'
-    ORDER BY a.apellido, a.nombre
+app.get('/pub/carrera/:id/cursos', (req, res) => {
+  const cursos = db.prepare(`
+    SELECT id, anio, division, turno
+    FROM cursos WHERE carrera_id=? AND activo=1
+    ORDER BY anio, division
   `).all(req.params.id);
+  res.json(cursos);
+});
+
+app.get('/pub/carrera/:id/alumnos', (req, res) => {
+  const { curso_id } = req.query;
+  const alumnos = curso_id
+    ? db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND a.curso_id=? AND a.estado='Activo' ORDER BY a.apellido, a.nombre`).all(req.params.id, curso_id)
+    : db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND a.estado='Activo' ORDER BY a.apellido, a.nombre`).all(req.params.id);
   res.json(alumnos);
 });
 
@@ -5122,22 +5130,24 @@ app.post('/pub/alumno/completar', (req, res) => {
 });
 
 app.post('/pub/solicitud-registro', (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id, curso_id } = req.body;
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
   const id = 'sreg_'+Date.now();
-  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id) VALUES (?,?,?,?,?,?)')
-    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id);
+  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id) VALUES (?,?,?,?,?,?,?)')
+    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id, curso_id||null);
   res.json({ id, ok: true });
 });
 
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT sr.*, c.nombre as carrera_nombre
+      SELECT sr.*, c.nombre as carrera_nombre,
+        cu.anio as curso_anio, cu.division as curso_division
       FROM solicitudes_registro sr
       JOIN carreras c ON sr.carrera_id=c.id
+      LEFT JOIN cursos cu ON sr.curso_id=cu.id
       ORDER BY sr.fecha DESC
     `).all();
     res.json(rows);

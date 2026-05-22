@@ -11,6 +11,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:1
 .header{background:linear-gradient(135deg,#1D4ED8,#2563EB);color:#fff;border-radius:14px;padding:20px;margin-bottom:16px;text-align:center}
 .header h1{font-size:20px;font-weight:800}
 .header p{font-size:13px;opacity:.85;margin-top:4px}
+.header-sub{font-size:11px;opacity:.7;margin-top:3px;background:rgba(255,255,255,.15);display:inline-block;padding:2px 10px;border-radius:10px;margin-top:6px}
 .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:12px}
 .card h2{font-size:15px;font-weight:700;margin-bottom:14px;color:#1a202c}
 input,select{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;transition:border .2s}
@@ -18,22 +19,25 @@ input:focus,select:focus{border-color:#2563EB}
 label{font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;display:block}
 .field{margin-bottom:12px}
 .btn{width:100%;padding:12px;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s}
-.btn:hover{opacity:.9}
+.btn:hover{opacity:.88}
 .btn-primary{background:#2563EB;color:#fff}
 .btn-secondary{background:#f1f5f9;color:#374151;margin-top:8px}
-.btn-success{background:#16a34a;color:#fff}
-.btn-danger{background:#dc2626;color:#fff}
+.curso-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+.curso-card{border:2px solid #e2e8f0;border-radius:12px;padding:16px 12px;cursor:pointer;text-align:center;transition:all .18s;background:#fff}
+.curso-card:hover{border-color:#2563EB;background:#eff6ff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.15)}
+.curso-card .anio{font-size:26px;font-weight:900;color:#1D4ED8;line-height:1}
+.curso-card .label{font-size:12px;color:#6b7280;margin-top:4px}
+.curso-card .seccion{font-size:11px;font-weight:700;background:#eff6ff;color:#1D4ED8;border-radius:6px;padding:2px 8px;display:inline-block;margin-top:6px}
 .alumno-item{padding:12px;border:1.5px solid #e2e8f0;border-radius:9px;cursor:pointer;transition:all .15s;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
 .alumno-item:hover{border-color:#2563EB;background:#eff6ff}
-.alumno-item.selected{border-color:#2563EB;background:#eff6ff}
 .alumno-nombre{font-weight:700;font-size:14px}
 .alumno-detalle{font-size:11px;color:#718096;margin-top:2px}
 .tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
 .tag-ok{background:#dcfce7;color:#166534}
 .tag-warn{background:#fef3c7;color:#92400e}
 .empty{text-align:center;color:#a0aec0;font-size:13px;padding:24px 0}
-.step-indicator{display:flex;gap:6px;margin-bottom:16px;justify-content:center}
-.step{width:32px;height:4px;border-radius:2px;background:#e2e8f0;transition:background .3s}
+.step-indicator{display:flex;gap:5px;margin-bottom:16px;justify-content:center}
+.step{width:24px;height:4px;border-radius:2px;background:#e2e8f0;transition:background .3s}
 .step.active{background:#2563EB}
 .step.done{background:#16a34a}
 .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
@@ -48,6 +52,8 @@ label{font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;display:blo
 @keyframes spin{to{transform:rotate(360deg)}}
 .no-encontrado{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:14px}
 .no-encontrado p{font-size:13px;color:#718096;margin-bottom:10px;text-align:center}
+.back-btn{background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;padding:4px 0;margin-bottom:12px;display:flex;align-items:center;gap:4px}
+.back-btn:hover{color:#374151}
 </style>
 </head>
 <body>
@@ -58,14 +64,15 @@ label{font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;display:blo
 const params = new URLSearchParams(location.search);
 const carreraId = params.get('c');
 let carrera = null;
+let cursos = [];
 let alumnos = [];
+let cursoSeleccionado = null;
 let alumnoSeleccionado = null;
-let step = 1; // 1=buscar, 2a=completar datos, 2b=solicitar incorporacion, 3=exito
 
 async function apiFetch(method, url, body) {
   const res = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers:{'Content-Type':'application/json'},
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json();
@@ -80,41 +87,90 @@ async function init() {
     return;
   }
   try {
-    [carrera, alumnos] = await Promise.all([
+    [carrera, cursos, alumnos] = await Promise.all([
       apiFetch('GET', '/pub/carrera/'+carreraId),
+      apiFetch('GET', '/pub/carrera/'+carreraId+'/cursos'),
       apiFetch('GET', '/pub/carrera/'+carreraId+'/alumnos')
     ]);
-    renderStep1();
+    renderStep0();
   } catch(e) {
     app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
   }
 }
 
-function renderHeader() {
+function renderHeader(sub) {
   return `<div class="header">
     <h1>🎓 ITS Santísima Trinidad</h1>
-    <p>Registro de alumnos — ${carrera.nombre}</p>
+    <p>${carrera.nombre}</p>
+    ${sub ? `<div class="header-sub">${sub}</div>` : ''}
   </div>`;
 }
 
-function renderSteps(current) {
-  return `<div class="step-indicator">
-    <div class="step ${current>=1?'active':''}"></div>
-    <div class="step ${current>=2?'active':''}"></div>
-    <div class="step ${current>=3?'done active':''}"></div>
-  </div>`;
+function renderSteps(current, total) {
+  return `<div class="step-indicator">${Array.from({length:total},(_,i)=>`<div class="step ${i<current?'done':i===current?'active':''}"></div>`).join('')}</div>`;
 }
 
-function renderStep1() {
+function labelCurso(c) {
+  const div = c.division === 'U' ? '' : ` Sección ${c.division}`;
+  return `${c.anio}° año${div}`;
+}
+
+// PASO 0: Seleccionar año/sección
+function renderStep0() {
   const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + renderSteps(1) + `
+  if (cursos.length === 0) {
+    // Sin cursos configurados: ir directo a búsqueda con todos los alumnos
+    cursoSeleccionado = null;
+    renderStep1();
+    return;
+  }
+  if (cursos.length === 1) {
+    // Solo hay un curso: seleccionar automáticamente
+    cursoSeleccionado = cursos[0];
+    renderStep1();
+    return;
+  }
+  app.innerHTML = renderHeader() + renderSteps(0, 3) + `
   <div class="card">
-    <h2>📋 Paso 1 — Buscá tu nombre</h2>
+    <h2>📚 Paso 1 — Seleccioná tu año y sección</h2>
+    <div class="curso-grid">
+      ${cursos.map(c => {
+        const alumnosCurso = alumnos.filter(a => a.curso_id === c.id).length;
+        const div = c.division && c.division !== 'U' ? c.division : null;
+        return `<div class="curso-card" onclick="seleccionarCurso('${c.id}')">
+          <div class="anio">${c.anio}°</div>
+          <div class="label">año</div>
+          ${div ? `<div class="seccion">Sección ${div}</div>` : '<div class="seccion">Único</div>'}
+          <div style="font-size:10px;color:#9ca3af;margin-top:6px">${alumnosCurso} alumnos</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function seleccionarCurso(cursoId) {
+  cursoSeleccionado = cursos.find(c => c.id === cursoId) || null;
+  renderStep1();
+}
+
+// PASO 1: Buscar nombre
+function renderStep1() {
+  const alumnosFiltrados = cursoSeleccionado
+    ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id)
+    : alumnos;
+  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
+  const app = document.getElementById('app');
+  const stepNum = cursos.length > 1 ? 1 : 0;
+  const totalSteps = cursos.length > 1 ? 3 : 2;
+  app.innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
+  <div class="card">
+    ${cursos.length > 1 ? `<button class="back-btn" onclick="renderStep0()">← Cambiar año/sección</button>` : ''}
+    <h2>🔍 ${cursos.length>1?'Paso 2':'Paso 1'} — Buscá tu nombre</h2>
     <div class="field">
       <label>Escribí tu apellido o nombre</label>
       <input id="busqueda" placeholder="Ej: García, María..." oninput="filtrarAlumnos()" autocomplete="off" autofocus/>
     </div>
-    <div id="lista-alumnos"><div class="empty">Escribí tu nombre para buscar</div></div>
+    <div id="lista-alumnos"><div class="empty">Escribí al menos 2 letras para buscar</div></div>
     <div class="no-encontrado">
       <p>¿No encontrás tu nombre en la lista?</p>
       <button class="btn btn-secondary" onclick="renderFormNuevo()">👤 No estoy en la lista — Solicitar incorporación</button>
@@ -128,21 +184,21 @@ function filtrarAlumnos() {
   if (!q || q.length < 2) { lista.innerHTML = '<div class="empty">Escribí al menos 2 letras</div>'; return; }
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   const qn = norm(q);
-  const filtrados = alumnos.filter(a => norm(a.apellido+' '+a.nombre).includes(qn) || norm(a.nombre+' '+a.apellido).includes(qn));
+  const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
+  const filtrados = pool.filter(a => norm(a.apellido+' '+a.nombre).includes(qn) || norm(a.nombre+' '+a.apellido).includes(qn));
   if (!filtrados.length) {
-    lista.innerHTML = '<div class="empty">No se encontró ningún alumno con ese nombre.<br/><small>Si creés que debés estar, usá el botón de abajo.</small></div>';
+    lista.innerHTML = '<div class="empty">No se encontró ningún alumno con ese nombre.<br/><small style="color:#a0aec0">Si creés que debés estar, usá el botón de abajo.</small></div>';
     return;
   }
   lista.innerHTML = filtrados.slice(0,15).map(a => {
     const tieneCi = a.ci && a.ci.trim() !== '';
     const tieneTel = a.telefono && a.telefono.trim() !== '';
     const completo = tieneCi && tieneTel;
-    return `<div class="alumno-item" onclick="seleccionarAlumno(${JSON.stringify(JSON.stringify(a))})">
+    const jstr = JSON.stringify(JSON.stringify(a));
+    return `<div class="alumno-item" onclick="seleccionarAlumno(${jstr})">
       <div>
         <div class="alumno-nombre">${a.apellido}, ${a.nombre}</div>
-        <div class="alumno-detalle">
-          CI: ${tieneCi ? a.ci : '— sin datos'} &nbsp;·&nbsp; Tel: ${tieneTel ? a.telefono : '— sin datos'}
-        </div>
+        <div class="alumno-detalle">CI: ${tieneCi?a.ci:'—'} &nbsp;·&nbsp; Tel: ${tieneTel?a.telefono:'—'}</div>
       </div>
       <span class="tag ${completo?'tag-ok':'tag-warn'}">${completo?'✓ Completo':'Incompleto'}</span>
     </div>`;
@@ -150,28 +206,33 @@ function filtrarAlumnos() {
 }
 
 function seleccionarAlumno(jsonStr) {
-  const a = JSON.parse(jsonStr);
-  alumnoSeleccionado = a;
-  renderFormCompletar(a);
+  alumnoSeleccionado = JSON.parse(jsonStr);
+  renderFormCompletar(alumnoSeleccionado);
 }
 
+// PASO 2A: Completar datos de alumno existente
 function renderFormCompletar(a) {
   const tieneCi = a.ci && a.ci.trim() !== '';
   const tieneTel = a.telefono && a.telefono.trim() !== '';
+  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
+  const totalSteps = cursos.length > 1 ? 3 : 2;
   const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + renderSteps(2) + `
+  app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
   <div class="card">
-    <h2>✏️ Paso 2 — Completá tus datos</h2>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">
-      <strong>${a.apellido}, ${a.nombre}</strong><br/>
-      <span style="color:#3b82f6;font-size:11px">Confirmá que sos vos antes de continuar</span>
+    <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
+    <h2>✏️ Completá tus datos</h2>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:14px">${a.apellido}, ${a.nombre}</div>
+      <div style="color:#3b82f6;font-size:11px;margin-top:2px">Confirmá que sos vos antes de continuar</div>
     </div>
     <div id="err-completar"></div>
-    ${tieneCi ? `<div class="field"><label>Cédula de identidad</label><input value="${a.ci}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrada</p></div>` :
-    `<div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>`}
-    ${tieneTel ? `<div class="field"><label>Número de teléfono</label><input value="${a.telefono}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrado</p></div>` :
-    `<div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>`}
-    ${tieneCi && tieneTel ? `<div class="alert alert-ok">✅ Tus datos ya están completos en el sistema.</div>` : ''}
+    ${tieneCi
+      ? `<div class="field"><label>Cédula de identidad</label><input value="${a.ci}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrada</p></div>`
+      : `<div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>`}
+    ${tieneTel
+      ? `<div class="field"><label>Número de teléfono</label><input value="${a.telefono}" disabled style="background:#f1f5f9;color:#718096"/><p style="font-size:11px;color:#16a34a;margin-top:4px">✓ Ya registrado</p></div>`
+      : `<div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>`}
+    ${tieneCi && tieneTel ? `<div class="alert alert-ok">✅ Tus datos ya están completos en el sistema. ¡Gracias!</div>` : ''}
     <button class="btn btn-primary" onclick="guardarDatos()" ${tieneCi&&tieneTel?'style="display:none"':''}>💾 Guardar mis datos</button>
     <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
   </div>`;
@@ -181,9 +242,8 @@ async function guardarDatos() {
   const ci = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
   const tel = document.getElementById('inp-tel')?.value.trim() || '';
   const err = document.getElementById('err-completar');
-  if (!ci && !document.getElementById('inp-ci')?.disabled && !alumnoSeleccionado.ci) {
-    err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return;
-  }
+  const necesitaCi = !alumnoSeleccionado.ci || alumnoSeleccionado.ci.trim() === '';
+  if (necesitaCi && !ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
   try {
     await apiFetch('POST', '/pub/alumno/completar', {
@@ -198,18 +258,22 @@ async function guardarDatos() {
   }
 }
 
+// PASO 2B: Solicitar incorporación (alumno no encontrado)
 function renderFormNuevo() {
+  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
+  const totalSteps = cursos.length > 1 ? 3 : 2;
   const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + renderSteps(2) + `
+  app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
   <div class="card">
+    <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
     <h2>👤 Solicitar incorporación</h2>
-    <p style="font-size:12px;color:#718096;margin-bottom:14px">Completá tus datos y el director revisará tu solicitud.</p>
+    <p style="font-size:12px;color:#718096;margin-bottom:14px">Completá tus datos. El director revisará tu solicitud y te incorporará al sistema.</p>
     <div id="err-nuevo"></div>
     <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label><input id="inp-nombre" placeholder="Tu nombre" autocomplete="given-name"/></div>
     <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label><input id="inp-apellido" placeholder="Tu apellido" autocomplete="family-name"/></div>
     <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci2" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>
     <div class="field"><label>Número de teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel2" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>
-    <button class="btn btn-primary" onclick="enviarSolicitud()">📤 Enviar solicitud</button>
+    <button class="btn btn-primary" onclick="enviarSolicitud()">📤 Enviar solicitud al director</button>
     <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
   </div>`;
 }
@@ -225,25 +289,30 @@ async function enviarSolicitud() {
   if (!telefono) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de teléfono</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Enviando solicitud...</div>';
   try {
-    await apiFetch('POST', '/pub/solicitud-registro', { nombre, apellido, ci, telefono, carrera_id: carreraId });
+    await apiFetch('POST', '/pub/solicitud-registro', {
+      nombre, apellido, ci, telefono,
+      carrera_id: carreraId,
+      curso_id: cursoSeleccionado?.id || null
+    });
     renderExito('nuevo');
   } catch(e) {
     err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
   }
 }
 
+// PASO FINAL: Éxito
 function renderExito(tipo) {
   const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + renderSteps(3) + `
+  app.innerHTML = renderHeader() + `
   <div class="card">
     <div class="success-screen">
       <div class="success-icon">${tipo==='nuevo'?'📬':'✅'}</div>
       <div class="success-title">${tipo==='nuevo'?'¡Solicitud enviada!':'¡Datos guardados!'}</div>
       <div class="success-sub">${tipo==='nuevo'
         ? 'Tu solicitud fue enviada al director del ITS.<br/>Te avisarán cuando sea procesada.'
-        : 'Tus datos fueron registrados correctamente.<br/>¡Gracias por completar tu perfil!'
+        : 'Tus datos fueron registrados correctamente en el sistema.<br/>¡Muchas gracias!'
       }</div>
-      <button class="btn btn-secondary" style="margin-top:24px;width:auto;padding:10px 24px" onclick="renderStep1()">← Volver al inicio</button>
+      <button class="btn btn-secondary" style="margin-top:24px;width:auto;padding:10px 28px" onclick="init()">← Volver al inicio</button>
     </div>
   </div>`;
 }
