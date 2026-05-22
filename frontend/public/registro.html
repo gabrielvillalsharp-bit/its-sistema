@@ -134,10 +134,10 @@ function renderStep0() {
   <div class="card">
     <h2>📚 Paso 1 — Seleccioná tu año y sección</h2>
     <div class="curso-grid">
-      ${cursos.map(c => {
+      ${cursos.map((c, idx) => {
         const alumnosCurso = alumnos.filter(a => a.curso_id === c.id).length;
         const div = c.division && c.division !== 'U' ? c.division : null;
-        return `<div class="curso-card" onclick="seleccionarCurso('${c.id}')">
+        return `<div class="curso-card" onclick="seleccionarCurso(${idx})">
           <div class="anio">${c.anio}°</div>
           <div class="label">año</div>
           ${div ? `<div class="seccion">Sección ${div}</div>` : '<div class="seccion">Único</div>'}
@@ -148,8 +148,8 @@ function renderStep0() {
   </div>`;
 }
 
-function seleccionarCurso(cursoId) {
-  cursoSeleccionado = cursos.find(c => c.id === cursoId) || null;
+function seleccionarCurso(idx) {
+  cursoSeleccionado = cursos[idx] || null;
   renderStep1();
 }
 
@@ -178,6 +178,8 @@ function renderStep1() {
   </div>`;
 }
 
+let _resultados = [];
+
 function filtrarAlumnos() {
   const q = document.getElementById('busqueda').value.toLowerCase().trim();
   const lista = document.getElementById('lista-alumnos');
@@ -185,19 +187,19 @@ function filtrarAlumnos() {
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   const qn = norm(q);
   const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
-  const filtrados = pool.filter(a => norm(a.apellido+' '+a.nombre).includes(qn) || norm(a.nombre+' '+a.apellido).includes(qn));
+  const filtrados = pool.filter(a => norm((a.apellido||'')+' '+(a.nombre||'')).includes(qn) || norm((a.nombre||'')+' '+(a.apellido||'')).includes(qn));
   if (!filtrados.length) {
     lista.innerHTML = '<div class="empty">No se encontró ningún alumno con ese nombre.<br/><small style="color:#a0aec0">Si creés que debés estar, usá el botón de abajo.</small></div>';
     return;
   }
-  lista.innerHTML = filtrados.slice(0,15).map(a => {
+  _resultados = filtrados.slice(0, 15);
+  lista.innerHTML = _resultados.map((a, idx) => {
     const tieneCi = a.ci && a.ci.trim() !== '';
     const tieneTel = a.telefono && a.telefono.trim() !== '';
     const completo = tieneCi && tieneTel;
-    const jstr = JSON.stringify(JSON.stringify(a));
-    return `<div class="alumno-item" onclick="seleccionarAlumno(${jstr})">
+    return `<div class="alumno-item" onclick="seleccionarAlumno(${idx})">
       <div>
-        <div class="alumno-nombre">${a.apellido}, ${a.nombre}</div>
+        <div class="alumno-nombre">${a.apellido||''}, ${a.nombre||''}</div>
         <div class="alumno-detalle">CI: ${tieneCi?a.ci:'—'} &nbsp;·&nbsp; Tel: ${tieneTel?a.telefono:'—'}</div>
       </div>
       <span class="tag ${completo?'tag-ok':'tag-warn'}">${completo?'✓ Completo':'Incompleto'}</span>
@@ -205,8 +207,8 @@ function filtrarAlumnos() {
   }).join('') + (filtrados.length > 15 ? `<div class="empty">Mostrando 15 de ${filtrados.length} — Escribí más para filtrar</div>` : '');
 }
 
-function seleccionarAlumno(jsonStr) {
-  alumnoSeleccionado = JSON.parse(jsonStr);
+function seleccionarAlumno(idx) {
+  alumnoSeleccionado = _resultados[idx];
   renderFormCompletar(alumnoSeleccionado);
 }
 
