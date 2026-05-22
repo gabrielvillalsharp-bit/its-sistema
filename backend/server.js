@@ -5265,6 +5265,13 @@ app.post('/pub/alumno/completar', (req, res) => {
   if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
   const alumno = db.prepare('SELECT * FROM alumnos WHERE id=? AND carrera_id=?').get(alumno_id, carrera_id);
   if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado en esta carrera' });
+  const logQR = (campo, anterior, nuevo) => {
+    const a = String(anterior||'').trim(), n = String(nuevo||'').trim();
+    if (a !== n && n !== '') {
+      db.prepare('INSERT INTO qr_cambios (id,alumno_id,campo,valor_anterior,valor_nuevo) VALUES (?,?,?,?,?)')
+        .run('qrc_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), alumno_id, campo, a, n);
+    }
+  };
   try {
     if (ci) {
       const ciNorm = String(ci).replace(/[^0-9]/g,'');
@@ -5273,18 +5280,23 @@ app.post('/pub/alumno/completar', (req, res) => {
         if (dup) return res.status(400).json({ error: 'Ese número de cédula ya está registrado para otro alumno' });
         db.prepare('UPDATE alumnos SET ci=? WHERE id=?').run(ciNorm, alumno_id);
         if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
+        logQR('ci', alumno.ci, ciNorm);
       }
     }
-    if (telefono) db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
+    if (telefono) {
+      db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
+      logQR('telefono', alumno.telefono, telefono);
+    }
     if (nombre && nombre.trim()) {
       db.prepare('UPDATE alumnos SET nombre=? WHERE id=?').run(nombre.trim(), alumno_id);
       if (alumno.usuario_id) db.prepare('UPDATE usuarios SET nombre=? WHERE id=?').run(nombre.trim(), alumno.usuario_id);
+      logQR('nombre', alumno.nombre, nombre.trim());
     }
     if (apellido && apellido.trim()) {
       db.prepare('UPDATE alumnos SET apellido=? WHERE id=?').run(apellido.trim(), alumno_id);
       if (alumno.usuario_id) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido.trim(), alumno.usuario_id);
+      logQR('apellido', alumno.apellido, apellido.trim());
     }
-    // Asignar sección si el alumno no tenía una (curso_id IS NULL)
     if (curso_id && !alumno.curso_id) {
       const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
       if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
@@ -5298,10 +5310,43 @@ app.post('/pub/solicitud-registro', (req, res) => {
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
+  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  // Verificar duplicado por CI en alumnos
+  if (ci) {
+    const ciNorm = String(ci).replace(/[^0-9]/g,'');
+    if (ciNorm) {
+      const existCI = db.prepare(`SELECT a.apellido,a.nombre,c.nombre as carrera,cu.anio FROM alumnos a JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.ci=?`).get(ciNorm);
+      if (existCI) {
+        const detalle = `${existCI.apellido}, ${existCI.nombre} — ${existCI.carrera}${existCI.anio?' · '+existCI.anio+'° año':''}`;
+        return res.status(409).json({ error:`Ya existe un alumno registrado con esa cédula: ${detalle}`, duplicate:true });
+      }
+    }
+  }
+  // Verificar duplicado por nombre+apellido en la misma carrera
+  const existNombre = db.prepare(`SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? AND carrera_id=? LIMIT 1`).get(normStr(nombre), normStr(apellido), carrera_id);
+  if (existNombre) return res.status(409).json({ error:`Ya existe un alumno con ese nombre en esta carrera. Si ya estás registrado/a, buscá tu nombre en la lista principal.`, duplicate:true });
+  // Verificar solicitud pendiente duplicada
+  const existSol = db.prepare(`SELECT id FROM solicitudes_registro WHERE carrera_id=? AND estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=? AND lower(apellido)=?)) LIMIT 1`).get(carrera_id, ci||'__', normStr(nombre), normStr(apellido));
+  if (existSol) return res.status(409).json({ error:`Ya enviaste una solicitud para esta carrera. El director la revisará pronto.`, duplicate:true });
   const id = 'sreg_'+Date.now();
   db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id) VALUES (?,?,?,?,?,?,?)')
     .run(id, nombre, apellido, ci||'', telefono||'', carrera_id, curso_id||null);
   res.json({ id, ok: true });
+});
+
+app.get('/api/qr-cambios', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT qc.*, a.nombre as al_nombre, a.apellido as al_apellido, a.ci as al_ci,
+        c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+      FROM qr_cambios qc
+      JOIN alumnos a ON qc.alumno_id=a.id
+      JOIN carreras c ON a.carrera_id=c.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id
+      ORDER BY qc.fecha DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {

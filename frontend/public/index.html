@@ -5254,7 +5254,7 @@ async function resolverRegistroQr(id, accion){
 }
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
-  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs]=await Promise.all([
+  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios]=await Promise.all([
     api('GET','/api/solicitudes-alumno').catch(()=>[]),
     api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
     api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
@@ -5262,6 +5262,7 @@ async function pgSolicitudes(el){
     api('GET','/api/gestion-alumnos/sin-asignar').catch(()=>[]),
     api('GET','/api/solicitudes-registro').catch(()=>[]),
     api('GET','/api/admin/habilitados').catch(()=>[]),
+    api('GET','/api/qr-cambios').catch(()=>[]),
   ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
@@ -5291,6 +5292,7 @@ async function pgSolicitudes(el){
     ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'linear-gradient(135deg,#1e3a5f,#2563eb)',false)}
     ${_gc('sinasignar','⚠️','Sin asignar',sinAsignar.length+' alumno'+(sinAsignar.length!==1?'s':''),'linear-gradient(135deg,#4c1d95,#7c3aed)',sinAsignar.length>0)}
     ${_gc('habilitados','✅','Habilitados',habsHoy+' registro'+(habsHoy!==1?'s':''),'linear-gradient(135deg,#7f1d1d,#c0392b)',false)}
+    ${_gc('qr-cambios','📊','Informe QR',qrCambios.length+' cambio'+(qrCambios.length!==1?'s':''),'linear-gradient(135deg,#0f766e,#14b8a6)',false)}
   </div>
   <div id="gest-sec-qr" style="display:none;margin-bottom:16px">
     <div style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-radius:12px 12px 0 0;padding:11px 16px"><span style="color:#fff;font-size:13px;font-weight:800">📱 Registro QR</span></div>
@@ -5350,6 +5352,49 @@ async function pgSolicitudes(el){
       ${sinAsignar.length?`<div style="padding:10px 14px;background:#f5f3ff;border-bottom:1px solid #ede9fe"><input id="busqSinAsignar" oninput="filtrarSinAsignar()" placeholder="🔍 Buscar por nombre, apellido o CI..." style="width:100%;padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;box-sizing:border-box"/></div>
       <div id="listaSinAsignar">${sinAsignar.map(a=>{const divLabel=a.division&&a.division!=='U'?' '+a.division:'';return `<div class="sinasig-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}" style="display:flex;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f5f9"><div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4c1d95);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0">${(a.apellido||a.nombre||'?')[0].toUpperCase()}</div><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800;color:#1e293b">${a.apellido||''}, ${a.nombre||''} ${a.ci?'<span style="font-size:10px;color:var(--t3);font-weight:400">CI: '+a.ci+'</span>':''}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px">${a.carrera?'<span style="font-size:11px;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:5px;font-weight:600">'+a.carrera+(a.anio?' · '+a.anio+'°'+divLabel:'')+'</span>':'<span style="font-size:11px;color:#dc2626;font-weight:600">⚠ Sin carrera</span>'}${a.matricula?'<span style="font-size:10px;color:var(--t3)">Matríc: '+a.matricula+'</span>':''}</div></div><button class="bn" style="font-size:11px;padding:4px 10px;white-space:nowrap;background:linear-gradient(135deg,#7c3aed,#4c1d95);border:none" onclick="asignarAlumnoGA('${a.id}','${a.apellido||''}','${a.nombre||''}')">↕ Asignar</button></div>`;}).join('')}</div>`
       :`<div style="padding:24px;text-align:center;color:var(--green)"><strong>✓ Todos los alumnos activos están asignados</strong></div>`}
+    </div>
+  </div>
+  <div id="gest-sec-qr-cambios" style="display:none;margin-bottom:16px">
+    <div style="background:linear-gradient(135deg,#0f766e,#14b8a6);border-radius:12px 12px 0 0;padding:11px 16px"><span style="color:#fff;font-size:13px;font-weight:800">📊 Informe de cambios vía QR</span><span style="color:#99f6e4;font-size:11px;margin-left:8px">Datos modificados o completados por alumnos</span></div>
+    <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
+      ${(()=>{
+        if(!qrCambios.length) return '<div style="padding:24px;text-align:center;color:var(--t3)">Sin modificaciones registradas aún</div>';
+        // agrupar por carrera > año > alumno
+        const campoLabel={ci:'Cédula',telefono:'Teléfono',nombre:'Nombre',apellido:'Apellido'};
+        const porCarrera={};
+        qrCambios.forEach(c=>{
+          const carr=c.carrera_nombre||'Sin carrera';
+          const anio=c.curso_anio?c.curso_anio+'° año'+(c.curso_division&&c.curso_division!=='U'?' Secc.'+c.curso_division:''):'Sin año';
+          const alKey=c.alumno_id;
+          if(!porCarrera[carr]) porCarrera[carr]={};
+          if(!porCarrera[carr][anio]) porCarrera[carr][anio]={};
+          if(!porCarrera[carr][anio][alKey]) porCarrera[carr][anio][alKey]={nombre:c.al_apellido+', '+c.al_nombre,ci:c.al_ci,cambios:[]};
+          porCarrera[carr][anio][alKey].cambios.push(c);
+        });
+        let html='';
+        Object.entries(porCarrera).forEach(([carr,anios])=>{
+          html+=`<div style="background:#f0fdfa;padding:8px 16px;border-bottom:1px solid #99f6e4;font-weight:800;font-size:12px;color:#0f766e">🏫 ${carr}</div>`;
+          Object.entries(anios).forEach(([anio,alumnos])=>{
+            html+=`<div style="background:#f8fffe;padding:6px 20px;border-bottom:1px solid #ccfbf1;font-size:11px;font-weight:700;color:#0d9488">📚 ${anio}</div>`;
+            Object.entries(alumnos).forEach(([aid,al])=>{
+              const uid='qrc-'+aid.replace(/[^a-z0-9]/gi,'');
+              html+=`<div style="border-bottom:1px solid #f1f5f9">
+                <div onclick="const d=document.getElementById('${uid}');d.style.display=d.style.display==='none'?'block':'none'" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 24px;transition:background .12s" onmouseenter="this.style.background='#f0fdfa'" onmouseleave="this.style.background=''">
+                  <div><span style="font-weight:700;font-size:13px">${al.nombre}</span>${al.ci?` <span style="font-size:10px;color:var(--t3)">CI: ${al.ci}</span>`:''}</div>
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;background:#ccfbf1;color:#0f766e;padding:2px 8px;border-radius:8px;font-weight:700">${al.cambios.length} campo${al.cambios.length!==1?'s':''}</span><span style="font-size:12px;color:#0d9488">▾</span></div>
+                </div>
+                <div id="${uid}" style="display:none;padding:0 24px 10px">
+                  <table style="width:100%;font-size:11px;border-collapse:collapse">
+                    <thead><tr style="background:#f0fdfa"><th style="padding:5px 8px;text-align:left;border:1px solid #ccfbf1;color:#0f766e">Campo</th><th style="padding:5px 8px;text-align:left;border:1px solid #ccfbf1;color:#0f766e">Anterior</th><th style="padding:5px 8px;text-align:left;border:1px solid #ccfbf1;color:#0f766e">Nuevo</th><th style="padding:5px 8px;text-align:left;border:1px solid #ccfbf1;color:#0f766e">Fecha</th></tr></thead>
+                    <tbody>${al.cambios.map(c=>`<tr><td style="padding:5px 8px;border:1px solid #e2e8f0;font-weight:700">${campoLabel[c.campo]||c.campo}</td><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#94a3b8;text-decoration:line-through">${c.valor_anterior||'—'}</td><td style="padding:5px 8px;border:1px solid #e2e8f0;color:#0f766e;font-weight:700">${c.valor_nuevo||'—'}</td><td style="padding:5px 8px;border:1px solid #e2e8f0;color:var(--t3)">${(c.fecha||'').replace('T',' ').slice(0,16)}</td></tr>`).join('')}</tbody>
+                  </table>
+                </div>
+              </div>`;
+            });
+          });
+        });
+        return html;
+      })()}
     </div>
   </div>
   <div id="gest-sec-habilitados" style="display:none;margin-bottom:16px">

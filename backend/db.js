@@ -330,6 +330,14 @@ function crearTablas() {
       detalle TEXT,
       fecha TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS qr_cambios (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      campo TEXT NOT NULL,
+      valor_anterior TEXT,
+      valor_nuevo TEXT,
+      fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
     CREATE TABLE IF NOT EXISTS constancias (
       id TEXT PRIMARY KEY,
       alumno_id TEXT NOT NULL REFERENCES alumnos(id),
