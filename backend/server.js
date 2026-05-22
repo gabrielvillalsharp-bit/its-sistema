@@ -4031,7 +4031,7 @@ const qExamenes = `
     m.nombre as materia, ca.nombre as carrera,
     cu.anio, cu.division,
     u.nombre as doc_nombre, u.apellido as doc_apellido,
-    d.telefono as doc_telefono
+    d.id as docente_id, d.telefono as doc_telefono
   FROM examenes e
   LEFT JOIN asignaciones a ON e.asignacion_id=a.id
   LEFT JOIN materias m ON a.materia_id=m.id
@@ -4066,6 +4066,10 @@ async function procesarIntervalos(intervalos, usarHora = false) {
       const vars = examenVars(ex);
       const msg  = buildWaMsg(`wa_tpl_${label}`, vars);
       const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+      const dest = `${ex.doc_apellido||''} ${ex.doc_nombre||''}`.trim();
+      const wid  = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(wid, 'programado', 'docente', ex.docente_id||'', dest, ex.doc_telefono, msg, ok?'enviado':'fallido', 'sistema_auto');
       if (ok) {
         db.prepare('INSERT OR IGNORE INTO notif_wa_enviadas (examen_id,intervalo) VALUES (?,?)').run(ex.id, label);
         audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_telefono });

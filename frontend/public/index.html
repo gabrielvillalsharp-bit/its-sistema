@@ -1185,17 +1185,25 @@ async function pgWhatsApp(el){
     return '<div style="max-height:350px;overflow-y:auto">'+items+'</div>';
   })();
 
+  W._waMsgs = histR.mensajes||[];
   const histRowsHTML = (function(){
-    const msgs = (histR.mensajes||[]).slice(0,100);
-    if(!msgs.length) return '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999">Sin registros</td></tr>';
+    const msgs = (histR.mensajes||[]).slice(0,200);
+    if(!msgs.length) return '<tr><td colspan="7" style="padding:20px;text-align:center;color:#999">Sin registros</td></tr>';
     const tipoBg = {individual:'#dbeafe',masivo:'#dcfce7',programado:'#fef9c3',aviso:'#ede9fe'};
-    return msgs.map(m=>{
-      const bg = tipoBg[m.tipo]||'#f1f5f9';
+    return msgs.map((m,i)=>{
+      const bg  = tipoBg[m.tipo]||'#f1f5f9';
       const ebg = m.estado==='enviado'?'#dcfce7':'#fee2e2';
-      const ec = m.estado==='enviado'?'#166534':'#991b1b';
-      const msg60 = (m.mensaje||'').slice(0,60)+((m.mensaje||'').length>60?'…':'');
-      const msgTitle = (m.mensaje||'').replace(/"/g,'&quot;');
-      return '<tr style="border-bottom:1px solid #f1f5f9" class="wa-his-row" data-tipo="'+(m.tipo||'')+'" data-estado="'+(m.estado||'')+'"><td style="padding:7px 8px;color:#555;white-space:nowrap">'+(m.fecha||'').slice(0,16)+'</td><td style="padding:7px 8px"><span style="background:'+bg+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.tipo||'')+'</span></td><td style="padding:7px 8px;color:#333">'+(m.destinatario_nombre||'—')+'</td><td style="padding:7px 8px;color:#555;font-family:monospace">'+(m.destinatario_telefono||'')+'</td><td style="padding:7px 8px;color:#555;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+msgTitle+'">'+msg60+'</td><td style="padding:7px 8px"><span style="background:'+ebg+';color:'+ec+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.estado||'')+'</span></td></tr>';
+      const ec  = m.estado==='enviado'?'#166534':'#991b1b';
+      const msg55 = (m.mensaje||'').slice(0,55)+((m.mensaje||'').length>55?'…':'');
+      return '<tr style="border-bottom:1px solid #f1f5f9" class="wa-his-row" data-tipo="'+(m.tipo||'')+'" data-estado="'+(m.estado||'')+'">'
+        +'<td style="padding:7px 8px;color:#555;white-space:nowrap;font-size:11px">'+(m.fecha||'').slice(0,16)+'</td>'
+        +'<td style="padding:7px 8px"><span style="background:'+bg+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.tipo||'')+'</span></td>'
+        +'<td style="padding:7px 8px;color:#333;font-size:12px">'+(m.destinatario_nombre||'—')+'</td>'
+        +'<td style="padding:7px 8px;color:#555;font-family:monospace;font-size:11px">'+(m.destinatario_telefono||'')+'</td>'
+        +'<td style="padding:7px 8px;color:#555;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">'+msg55+'</td>'
+        +'<td style="padding:7px 8px"><button onclick="waMostrarMensaje('+i+')" style="font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;cursor:pointer">👁 Ver</button></td>'
+        +'<td style="padding:7px 8px"><span style="background:'+ebg+';color:'+ec+';padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">'+(m.estado||'')+'</span></td>'
+        +'</tr>';
     }).join('');
   })();
 
@@ -1363,12 +1371,13 @@ async function pgWhatsApp(el){
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:#f8fafc">
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Fecha</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Tipo</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Destinatario</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Teléfono</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Mensaje</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Estado</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Fecha</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Tipo</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Destinatario</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Teléfono</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Vista previa</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Contenido</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Estado</th>
           </tr></thead>
           <tbody id="waHisTbody">
             ${histRowsHTML}
@@ -1525,6 +1534,27 @@ function waFiltHist(){
   });
 }
 function recargarWA(){go('whatsapp');}
+function waMostrarMensaje(idx){
+  const m=(W._waMsgs||[])[idx];
+  if(!m)return;
+  const tipoBg={individual:'#dbeafe',masivo:'#dcfce7',programado:'#fef9c3',aviso:'#ede9fe'};
+  const ebg=m.estado==='enviado'?'#dcfce7':'#fee2e2';
+  const ec=m.estado==='enviado'?'#166534':'#991b1b';
+  const txt=(m.mensaje||'').replace(/\n/g,'<br>').replace(/\*(.*?)\*/g,'<strong>$1</strong>');
+  modal(`<div style="max-width:480px">
+    <h4 style="margin:0 0 14px;display:flex;align-items:center;gap:8px">💬 Contenido del mensaje
+      <span style="font-size:11px;background:${tipoBg[m.tipo]||'#f1f5f9'};padding:2px 8px;border-radius:10px;font-weight:600">${m.tipo||''}</span>
+      <span style="font-size:11px;background:${ebg};color:${ec};padding:2px 8px;border-radius:10px;font-weight:600">${m.estado||''}</span>
+    </h4>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;color:#555;margin-bottom:14px">
+      <span style="font-weight:600;color:#374151">Destinatario</span><span>${m.destinatario_nombre||'—'}</span>
+      <span style="font-weight:600;color:#374151">Teléfono</span><span style="font-family:monospace">${m.destinatario_telefono||'—'}</span>
+      <span style="font-weight:600;color:#374151">Fecha</span><span>${(m.fecha||'').slice(0,16)}</span>
+      <span style="font-weight:600;color:#374151">Enviado por</span><span>${m.enviado_por||'sistema'}</span>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.7;color:#1a1a1a;white-space:pre-wrap;max-height:320px;overflow-y:auto">${txt}</div>
+  </div>`);
+}
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
 async function pgAvisos(el){
