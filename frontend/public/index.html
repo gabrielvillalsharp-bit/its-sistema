@@ -3070,17 +3070,17 @@ function renderExsByDay(exs,wrap){
       ${esPasado?'<span style="font-size:10px;color:#9ca3af">pasado</span>':''}
     </div>
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:4px;${esPasado?'opacity:.78':''}">
-      <div class="tw"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc">
-        <th style="width:70px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">HORA</th>
-        <th style="width:130px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">TIPO</th>
-        <th style="padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">MATERIA</th>
-        <th style="width:160px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">CARRERA</th>
-        <th style="width:80px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">SECCIÓN</th>
-        <th style="width:150px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">DOCENTE</th>
-        <th style="width:60px;padding:8px 10px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">AULA</th>
-        <th style="width:70px;padding:8px 10px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">ALUMNOS</th>
-        <th style="width:110px;padding:8px 10px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb">NOTAS</th>
-        <th style="width:160px;padding:8px 10px;border-bottom:1px solid #e5e7eb"></th>
+      <div class="tw"><table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f1f5f9">
+        <th style="width:70px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">HORA</th>
+        <th style="width:130px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">TIPO</th>
+        <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">MATERIA</th>
+        <th style="width:160px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">CARRERA</th>
+        <th style="width:80px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">SECCIÓN</th>
+        <th style="width:150px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">DOCENTE</th>
+        <th style="width:60px;padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">AULA</th>
+        <th style="width:70px;padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ALUMNOS</th>
+        <th style="width:110px;padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">NOTAS</th>
+        <th style="width:160px;padding:8px 12px;border-bottom:2px solid #cbd5e1"></th>
       </tr></thead><tbody>
       ${items.map(exRowNoDate).join('')}
       </tbody></table></div>
@@ -3100,7 +3100,8 @@ function exRowNoDate(e){
   const btnVer=e.archivo_nombre?(me.rol==='director'
     ?`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="descargarArchivoExamen('${e.id}','${e.archivo_nombre}')" title="Descargar ${e.archivo_nombre}">⬇ Bajar</button>`
     :`<button class="bs" style="font-size:11px;background:#e8f5e9;color:#2e7d32" onclick="verArchivoExamen('${e.id}')" title="${e.archivo_nombre}">👁 Ver</button>`):'';
-  const td='padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle';
+  const td='padding:9px 12px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle';
+  const tdl='padding:9px 12px;border-bottom:1px solid #e2e8f0;vertical-align:middle';
   return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
     <td style="${td};white-space:nowrap;font-weight:700;color:#1e293b;font-size:13px">${e.hora||'—'}</td>
     <td style="${td}"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px;white-space:nowrap">${e.tipo||'—'}</span></td>
@@ -3114,7 +3115,7 @@ function exRowNoDate(e){
       <div class="prog-bar" style="width:52px;display:inline-block;vertical-align:middle;margin-bottom:2px"><div class="prog-fill" style="width:${pct}%"></div></div>
       <div style="font-size:10px;color:#6b7280">${e.notas_cargadas||0}/${e.total_alumnos||0}</div>
     </td>
-    <td style="${td}"><div class="abs" style="gap:4px">
+    <td style="${tdl}"><div class="abs" style="gap:4px">
       ${e.asignacion_id?`<button class="bs i" style="font-size:11px" onclick="abrirNotasExamen('${e.asignacion_id}','${e.tipo}')">Notas</button>`:''}
       ${e.id&&me.rol==='director'?`<button class="bs o" style="font-size:11px" onclick="imprimirActaExamen('${e.id}')">🖨 Acta</button>`:''}
       ${btnAdjuntar}${btnVer}
