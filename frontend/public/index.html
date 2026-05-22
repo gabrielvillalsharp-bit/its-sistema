@@ -4999,7 +4999,6 @@ async function pgNotas(el){
   W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Registro de notas</h3>
-    ${me.rol==='docente'?`<button class="bs o" onclick="mSolicitarAlumno()" title="Proponer un alumno para incorporar a esta materia">👤 Solicitar vinculación de alumnos</button>`:''}
   </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
