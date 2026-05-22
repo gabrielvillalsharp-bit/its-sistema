@@ -5544,7 +5544,7 @@ W.loadNotas=async(asigId,_tipo)=>{
   </div>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px;padding:8px 10px;background:#fffbf0;border:1px solid #ffe4a0;border-radius:6px">
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial ordinario · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
-    ${me.rol==='director'?'· 🔒 Alumnos con mora tienen exámenes finales bloqueados. Habilitarlos desde <strong>Pagos → Habilitar examen</strong>.':''}
+    ${me.rol==='director'?'· 🔒 Alumnos con mora tienen exámenes finales bloqueados. Habilitar desde <strong>Pagos → 🔓 Habilitar examen</strong> (sin pago / excepción) o registrando el pago correspondiente (habilitación automática).':''}
   </div>
   <div style="overflow-x:auto"><table style="min-width:900px;font-size:12px;border-collapse:collapse;width:100%" autocomplete="off">
   <thead>
@@ -7092,12 +7092,16 @@ async function selAlumnoPago(alId){
           const ar=aranceles.find(a=>a.tipo===(tipoArMap[h.tipo_examen]||h.tipo_examen));
           const monto=ar?`Gs. ${Number(ar.monto).toLocaleString()}`:'—';
           const yaPago=(pagos||[]).some(p=>p.concepto?.toLowerCase().includes(label.toLowerCase().replace(' ⚡','')));
-          return `<div style="border:2px solid ${yaPago?'#86efac':'#fcd34d'};border-radius:10px;background:${yaPago?'#f0fdf4':'#fffbf0'};padding:12px 16px;min-width:180px">
-            <div style="font-weight:800;font-size:12px;color:${yaPago?'#166534':'#b45309'};margin-bottom:4px">${label}</div>
+          const esPorPago=(h.motivo||'').toLowerCase().includes('pago');
+          const borderColor=yaPago?'#86efac':esPorPago?'#86efac':'#fcd34d';
+          const bgColor=yaPago?'#f0fdf4':esPorPago?'#f0fdf4':'#fffbf0';
+          const textColor=yaPago?'#166534':esPorPago?'#166534':'#b45309';
+          return `<div style="border:2px solid ${borderColor};border-radius:10px;background:${bgColor};padding:12px 16px;min-width:180px">
+            <div style="font-weight:800;font-size:12px;color:${textColor};margin-bottom:4px">${label}</div>
             <div style="font-size:11px;color:#64748b;margin-bottom:3px">Arancel: <strong>${monto}</strong></div>
-            <div style="font-size:11px;color:#64748b;margin-bottom:8px">${h.motivo||'Hab. por Dirección'}</div>
-            ${yaPago?'<span style="font-size:11px;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700">✓ Pago registrado</span>'
-              :`<button onclick="mPagoDirecto('${alId}')" style="font-size:11px;padding:5px 10px;border:1px solid #d97706;border-radius:6px;background:#fff;color:#b45309;cursor:pointer;width:100%;font-weight:600">Registrar pago →</button>`}
+            <div style="font-size:11px;color:#64748b;margin-bottom:8px">${esPorPago?'💰 Habilitado por pago':(h.motivo||'🔓 Hab. sin pago — deuda pendiente')}</div>
+            ${(yaPago||esPorPago)?'<span style="font-size:11px;color:#166534;background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700">✓ Pago registrado</span>'
+              :`<button onclick="mPagoDirecto('${alId}')" style="font-size:11px;padding:5px 10px;border:1px solid #d97706;border-radius:6px;background:#fff;color:#b45309;cursor:pointer;width:100%;font-weight:600">💰 Registrar pago →</button>`}
           </div>`;}).join('')}</div>`;
 
     // Historial de pagos (tabla completa)
@@ -7258,10 +7262,14 @@ async function habilitarDesdeHistorial(alId){
     return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:'';
   }
   modal(`<h4>🔓 Habilitar examen por Dirección</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">
-    Solo el <strong>Parcial Ordinario es gratuito</strong>. Los demás exámenes requieren pago.<br>
-    Seleccioná el examen a habilitar por excepción de Dirección.
-  </p>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+    <div style="font-size:12px;padding:8px 10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;color:#e65100">
+      ⚠ <strong>Habilitación SIN pago:</strong> el alumno quedará habilitado pero con la deuda pendiente. Usá esta opción para excepciones o acuerdos de pago.
+    </div>
+    <div style="font-size:12px;padding:8px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;color:#2e7d32">
+      💰 <strong>Habilitación CON pago:</strong> registrá el pago <em>"Examen Parcial Recuperatorio"</em> desde <strong>+ Registrar pago</strong> y la habilitación se aplica automáticamente.
+    </div>
+  </div>
   <div class="fg">
     <div class="f"><label>Examen a habilitar <span style="color:var(--red)">*</span></label>
       <select id="habDesdeHistTipo">

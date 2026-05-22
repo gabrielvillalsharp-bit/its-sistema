@@ -1773,14 +1773,20 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
       const fechaHoy = nowDate();
       const asignaciones = db.prepare('SELECT id FROM asignaciones WHERE alumno_id=?').all(alumno_id);
       for (const asig of asignaciones) {
-        const hab = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asig.id);
+        const hab = db.prepare('SELECT id, tipo_examen FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asig.id);
         if (hab) {
-          db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado_por=?,fecha=? WHERE alumno_id=? AND asignacion_id=?')
-            .run(req.user.id, fechaHoy, alumno_id, asig.id);
+          // Setear habilitado_recuperatorio=1 y también tipo_examen si estaba vacío
+          db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado=1,habilitado_por=?,fecha=?,motivo=? WHERE alumno_id=? AND asignacion_id=?')
+            .run(req.user.id, fechaHoy, 'Habilitado por pago', alumno_id, asig.id);
+          // Si no tenía tipo_examen, setear parcial_recuperatorio
+          if (!hab.tipo_examen) {
+            db.prepare('UPDATE habilitaciones_examen SET tipo_examen=? WHERE alumno_id=? AND asignacion_id=?')
+              .run('parcial_recuperatorio', alumno_id, asig.id);
+          }
         } else {
           const habId = 'hab_'+Date.now()+'_'+asig.id;
-          db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,habilitado,habilitado_por,fecha,habilitado_recuperatorio) VALUES (?,?,?,1,?,?,1)')
-            .run(habId, alumno_id, asig.id, req.user.id, fechaHoy);
+          db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,1)')
+            .run(habId, alumno_id, asig.id, 'parcial_recuperatorio', req.user.id, fechaHoy, 'Habilitado por pago');
         }
         habilitadosRecup++;
       }
