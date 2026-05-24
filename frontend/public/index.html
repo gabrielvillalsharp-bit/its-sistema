@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-MOBILE-C -->
+<!-- build:20260524-MOBILE-D -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -311,6 +311,8 @@ tr:hover td{background:#fafaf7}
 .mbn-ico{font-size:20px;line-height:1}
 .mbn-lbl{font-size:10px;font-weight:700;white-space:nowrap}
 body.mob-alumno .ct{padding-bottom:68px}
+/* ── CAL MOBILE AGENDA: hidden on desktop ── */
+.cal-mobile-agenda{display:none}
 /* ── DEFAULT: desktop oculta tarjetas móviles ── */
 .mis-notas-cards{display:none}
 .mi-asist-cards{display:none}
@@ -339,6 +341,41 @@ body.mob-alumno .ct{padding-bottom:68px}
   .historial-table tbody td:nth-child(2){grid-column:1/-1;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0!important}
   .historial-table tbody td:nth-child(3){font-weight:800;color:#2e7d32;font-size:14px!important}
   .historial-table tbody td:nth-child(4){color:#64748b;display:flex;align-items:center}
+  /* ── EXÁMENES TABLE → TARJETAS ── */
+  .ex-table{display:block!important}
+  .ex-table thead{display:none!important}
+  .ex-table tbody{display:flex!important;flex-direction:column;gap:10px;padding:8px}
+  .ex-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .ex-table tbody td{border:none!important;box-sizing:border-box;padding:4px 12px!important;font-size:12px}
+  .ex-table tbody td:nth-child(1){order:2;width:auto;padding:8px 8px 4px 14px!important;font-weight:700}
+  .ex-table tbody td:nth-child(2){order:2;width:auto;padding:8px 14px 4px 4px!important}
+  .ex-table tbody td:nth-child(3){order:1;width:100%;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0!important}
+  .ex-table tbody td:nth-child(4){order:3;width:100%;padding:2px 14px!important;font-size:11px!important;color:#64748b}
+  .ex-table tbody td:nth-child(5){order:4;width:100%;padding:2px 14px 8px!important;font-size:11px!important;color:#64748b;border-bottom:1px solid #f1f5f9!important}
+  .ex-table tbody td:nth-child(6),.ex-table tbody td:nth-child(7),.ex-table tbody td:nth-child(8),.ex-table tbody td:nth-child(9),.ex-table tbody td:nth-child(11){order:5;padding:6px 6px!important}
+  .ex-table tbody td:nth-child(10){display:none!important}
+  /* ── REPOSITORIO CONTENIDOS TABLE → TARJETAS ── */
+  .repo-table{display:block!important}
+  .repo-table thead{display:none!important}
+  .repo-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .repo-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .repo-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .repo-table tbody td:nth-child(1){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .repo-table tbody td:nth-child(2){order:2;width:auto;padding:4px 14px!important;font-size:12px!important;color:#1d4ed8;font-weight:600}
+  .repo-table tbody td:nth-child(3){order:2;width:auto;padding:4px 6px!important;font-size:11px!important;color:#64748b}
+  .repo-table tbody td:nth-child(4){order:3;width:100%;padding:2px 14px 6px!important;font-size:11px!important;color:#64748b;border-bottom:1px solid #f1f5f9!important}
+  .repo-table tbody td:nth-child(5){order:4;width:auto;padding:2px 14px!important;font-size:10px!important;color:#94a3b8}
+  .repo-table tbody td:nth-child(6){order:4;width:auto;padding:2px 8px!important;font-size:10px!important;color:#94a3b8}
+  .repo-table tbody td:nth-child(7){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── CALENDARIO MOBILE ── */
+  .cal-mobile-agenda{display:block}
+  .cal-grid-wrap{display:none}
+  /* ── NOTAS DOCENTE: inputs táctiles ── */
+  .notas-mobile-table .nota-inp{width:38px!important;font-size:12px!important;min-height:40px;padding:6px 1px!important}
+  /* ── AVISOS MOBILE ── */
+  .aviso-card{padding:12px 14px;border-radius:10px}
+  /* ── PERFIL MOBILE ── */
+  #mc .f,.modal .f{min-width:0}
   /* ── NOTAS MOBILE ── */
   /* Contenedor: permitir scroll horizontal */
   .notas-scroll-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
@@ -3364,7 +3401,7 @@ function renderExsByDay(exs,wrap){
       ${esPasado?'<span style="font-size:10px;color:#9ca3af">pasado</span>':''}
     </div>
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:4px;${esPasado?'opacity:.78':''}">
-      <div class="tw"><table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f1f5f9">
+      <div class="tw"><table class="ex-table" style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f1f5f9">
         <th style="width:60px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">HORA</th>
         <th style="width:120px;padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">TIPO</th>
         <th style="padding:8px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">MATERIA</th>
@@ -4032,7 +4069,7 @@ async function cargarRepositorio(tipo){
   const el=document.getElementById(elId);
   if(!el)return;
   if(!lista.length){el.innerHTML='<div class="es">Sin archivos disponibles</div>';return;}
-  el.innerHTML=`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
+  el.innerHTML=`<div class="card"><div class="tw"><table class="repo-table" style="font-size:12px;width:100%;border-collapse:collapse">
     <thead><tr style="background:#f0f4f8">
       <th style="padding:7px 10px;border:1px solid var(--bdr)">Archivo</th>
       <th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th>
@@ -4957,6 +4994,45 @@ async function renderCalendario(el){
     </div>`;
   }
 
+  // Build mobile agenda list
+  const agendaItems=exsAgrupados.sort((a,b)=>a.fecha?.localeCompare(b.fecha||'')||0);
+  const agrupadosPorFecha={};
+  agendaItems.forEach(e=>{const f=e.fecha||'sin-fecha';if(!agrupadosPorFecha[f])agrupadosPorFecha[f]=[];agrupadosPorFecha[f].push(e);});
+  const tipoC=t=>t==='Extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
+  const agendaHtml=Object.keys(agrupadosPorFecha).sort().map(fecha=>{
+    const evs=agrupadosPorFecha[fecha];
+    const esPas=fecha<new Date().toISOString().split('T')[0];
+    const esH=fecha===new Date().toISOString().split('T')[0];
+    const ferNom=ferMap[fecha]?.nombre;
+    return`<div style="margin-bottom:12px;opacity:${esPas?.75:1}">
+      <div style="font-size:12px;font-weight:700;color:${esH?'#166534':'#374151'};margin-bottom:6px;padding:6px 12px;background:${esH?'#f0fdf4':'#f8fafc'};border-radius:8px;border-left:3px solid ${esH?'#166534':'#cbd5e1'}">
+        📅 ${fmtFechaLarga(fecha)}${ferNom?` <span style="color:#e65100;font-size:10px">🏖 ${ferNom}</span>`:''}${esH?' <span style="background:#166534;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px">HOY</span>':''}
+      </div>
+      ${evs.map(e=>{
+        const tc=tipoC(e.tipo);
+        const cursos=e._cursos?.join(' · ')||e.carrera_nombre||'';
+        const prof=e.docente_apellido?`${e.docente_apellido} ${e.docente_nombre||''}`.trim():'';
+        return`<div style="background:${tc.bg};border:1px solid ${tc.bdr}33;border-left:4px solid ${tc.bdr};border-radius:10px;padding:10px 14px;margin-bottom:6px"${!esAlumno?` onclick="verExamen('${e.id}')" style="background:${tc.bg};border:1px solid ${tc.bdr}33;border-left:4px solid ${tc.bdr};border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer"`:''}>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+                <span style="background:${tc.bdr};color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:800">${e.tipo||''}</span>
+                <strong style="color:${tc.txt};font-size:14px">${e.materia_nombre||'—'}</strong>
+              </div>
+              <div style="font-size:11px;color:#64748b">${cursos}</div>
+              ${prof?`<div style="font-size:11px;color:#64748b;margin-top:2px">👤 ${prof}</div>`:''}
+            </div>
+            ${e.hora?`<span style="font-size:13px;font-weight:700;color:${tc.txt};white-space:nowrap">${e.hora}</span>`:''}
+          </div>
+          ${esDir?`<div style="margin-top:8px;border-top:1px solid ${tc.bdr}33;padding-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <button style="font-size:11px;padding:4px 10px;background:#fff;border:1px solid ${tc.bdr}55;border-radius:6px;color:${tc.txt};cursor:pointer;font-weight:600" onclick="event.stopPropagation();verExamen('${e.id}')">✏ Editar</button>
+            <button style="font-size:11px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;color:#c2410c;cursor:pointer;font-weight:600" onclick="event.stopPropagation();imprimirActaExamen('${e.id}')">🖨 Acta</button>
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
   el.innerHTML=`<div class="ph"><h3>Calendario de Exámenes</h3>
     <div class="ph-right">
       ${esDir?`<button class="bs o" onclick="mFeriado()" title="Gestionar feriados">📅 Feriados</button>`:''}
@@ -4977,7 +5053,9 @@ async function renderCalendario(el){
     </div>
   </div>
 
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;padding-bottom:4px">
+  <div class="cal-mobile-agenda">${agendaItems.length?agendaHtml:'<div class="es">Sin exámenes este mes</div>'}</div>
+
+  <div class="cal-grid-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;padding-bottom:4px">
     <div style="min-width:840px">
       <div style="display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:4px;margin-bottom:4px">
         ${dias.map(d=>`<div style="text-align:center;font-size:10px;font-weight:700;color:var(--t2);padding:4px 0;letter-spacing:.04em">${d}</div>`).join('')}
