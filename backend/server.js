@@ -4122,33 +4122,29 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
-// ── CRON: Recordatorios 72h / 48h / 24h — corre a las 8:00 AM lunes a viernes ──
-// Nota: 36h eliminado. Sábado y domingo bloqueados por enHoraPermitida().
+// ── CRON: Recordatorio 24h — corre a las 8:00 AM lunes a viernes ────────────
 cron.schedule('0 8 * * 1-5', async () => {
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
-      { horas: 72, label: '72h' },
-      { horas: 48, label: '48h' },
       { horas: 24, label: '24h' },
     ]);
-    console.log(`✓ Cron WA 72h/48h/24h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 72/48/24h error:', e.message); }
+    console.log(`✓ Cron WA 24h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 24h error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
-// ── CRON: Recordatorios 12h / 6h / 3h — corre cada hora ──────────────────────
+// ── CRON: Recordatorios 12h / 6h — corre cada hora ───────────────────────────
 // Usa ventana ±30 min sobre la hora del examen para no perder ninguno.
 // La tabla notif_wa_enviadas previene duplicados aunque el cron corra varias veces.
-cron.schedule('0 * * * *', async () => {
+cron.schedule('0 * * * 1-5', async () => {
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
       { horas: 12, label: '12h' },
       { horas: 6,  label: '6h'  },
-      { horas: 3,  label: '3h'  },
     ], true);
-    if (total > 0) console.log(`✓ Cron WA 12h/6h/3h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 12/6/3h error:', e.message); }
+    if (total > 0) console.log(`✓ Cron WA 12h/6h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 12/6h error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
 
@@ -4293,24 +4289,24 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
 
 // ── WHATSAPP: reglas automáticas (listar / editar / activar-desactivar) ────────
 const WA_REGLAS_DEF = [
-  { key:'72h',     label:'72 horas antes del examen',   cron:'8:00 AM — diario',   tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
-  { key:'48h',     label:'48 horas antes del examen',   cron:'8:00 AM — diario',   tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
-  { key:'36h',     label:'36 horas antes del examen',   cron:'8:00 AM — diario',   tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
-  { key:'24h',     label:'24 horas antes del examen',   cron:'8:00 AM — diario',   tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
+  { key:'72h',     label:'72 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
+  { key:'48h',     label:'48 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
+  { key:'36h',     label:'36 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
+  { key:'24h',     label:'24 horas antes del examen',   cron:'8:00 AM — lun a vie', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
   { key:'12h',     label:'12 horas antes del examen',   cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'6h',      label:'6 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
-  { key:'3h',      label:'3 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'3h',      label:'3 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'aviso24', label:'Aviso: archivo pendiente 24h',cron:'7:00 AM — diario',   tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'urgente', label:'Urgente: sin archivo ≤7h',    cron:'Cada hora',           tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
 ];
 const WA_TPL_DEFAULTS = {
-  '72h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue cuando pueda desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '72h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
   '48h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
-  '36h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue cuando pueda desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
-  '24h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que *mañana* tiene *{tipo}* de *{materia}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
-  '12h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que *esta noche* tiene *{tipo}* de *{materia}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue lo antes posible desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
-  '6h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que en *pocas horas* tiene *{tipo}* de *{materia}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
-  '3h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que en *3 horas* tiene *{tipo}* de *{materia}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional. Tenga en cuenta que la demora en la entrega del archivo genera dificultades en la gestión académica, ya que el área debe procesar los documentos con anticipación.\n\n¡Muchas gracias por su comprensión!\n_Administración — ITS Santísima Trinidad._',
+  '36h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '24h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '12h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue lo antes posible desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '6h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '3h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias por su comprensión!\n_Administración — ITS Santísima Trinidad._',
   'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
   'urgente':'⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
 };
