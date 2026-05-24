@@ -303,6 +303,39 @@ tr:hover td{background:#fafaf7}
 .prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1f8246);transition:width .3s}
 /* ── MOBILE ────────────────────────────────── */
 @media(max-width:768px){
+  /* ── NOTAS MOBILE ── */
+  /* Contenedor: permitir scroll horizontal */
+  .notas-scroll-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  /* Tabla de notas: columna alumno fija a la izquierda */
+  .notas-mobile-table{min-width:700px}
+  .notas-mobile-table td:first-child,
+  .notas-mobile-table th:first-child{position:sticky;left:0;z-index:3;background:#fff}
+  .notas-mobile-table thead th:first-child{background:#f1f5f9;z-index:4}
+  /* Selectores de materia/asignacion */
+  #nc .fb{flex-direction:column!important;gap:6px!important}
+  #nc .fb select,#nc .fb button{width:100%!important}
+  /* ── ALUMNO MOBILE ── */
+  .dash-kpi .kpi-card{padding:12px!important}
+  .kpi-val{font-size:24px!important}
+  /* Grid 2 cols alumno home */
+  #mc [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  /* ── PAGOS MOBILE ── */
+  /* Filtros: apilar vertical */
+  #vistaListaPagos [style*="display:flex;gap:10px"]{flex-direction:column!important}
+  #vistaListaPagos input,#vistaListaPagos select{min-width:100%!important;flex:none!important}
+  /* Tabla → tarjetas */
+  .pagos-table{display:block!important}
+  .pagos-table thead{display:none!important}
+  .pagos-table tbody{display:flex;flex-direction:column;gap:8px;padding:8px}
+  .pagos-table tbody tr{display:grid;grid-template-columns:1fr auto;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  .pagos-table tbody td:nth-child(1){display:none}
+  .pagos-table tbody td:nth-child(2){grid-column:1/-1;padding:12px 14px 8px;border-bottom:1px solid #f1f5f9}
+  .pagos-table tbody td:nth-child(3){grid-column:1;padding:6px 14px;font-size:12px;display:flex;align-items:center}
+  .pagos-table tbody td:nth-child(4){display:none}
+  .pagos-table tbody td:nth-child(5){grid-column:2;padding:6px 14px;display:flex;align-items:center;justify-content:center}
+  .pagos-table tbody td:nth-child(6){grid-column:1;padding:6px 14px 10px;display:flex;align-items:center}
+  .pagos-table tbody td:nth-child(7){grid-column:2;padding:6px 14px 10px;display:flex;align-items:center;justify-content:flex-end}
+  .pagos-table tbody td:nth-child(8){grid-column:1/-1;padding:8px 14px;border-top:1px solid #f1f5f9;display:flex;justify-content:center}
   /* Login */
   #lp{padding:16px;align-items:flex-start;padding-top:40px}
   .lc{width:100%;border-radius:18px;padding:1.6rem}
@@ -5677,8 +5710,8 @@ W.loadNotas=async(asigId,_tipo)=>{
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
     ${me.rol==='director'?'· 🔒 Mora bloquea finales — habilitar desde <strong>Pagos → 🔓 Habilitar examen</strong>.':''}
   </div>
-  <div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto">
-  <table style="min-width:960px;font-size:12px;border-collapse:collapse;border:1px solid #e2e8f0;width:100%" autocomplete="off">
+  <div class="card" style="padding:0;overflow:hidden"><div class="notas-scroll-wrap" style="overflow-x:auto">
+  <table class="notas-mobile-table" style="min-width:960px;font-size:12px;border-collapse:collapse;border:1px solid #e2e8f0;width:100%" autocomplete="off">
   <thead>
     <!-- Fila 1: etiquetas de sección con barra de color superior -->
     <tr>
@@ -6143,7 +6176,7 @@ W.loadAsist=async(asigId)=>{
       <button class="bn" onclick="grdAsist()">💾 Guardar asistencia</button>
     </div>
   </div>
-  <div class="card asist-wrap" style="padding:0;overflow:hidden"><div class="tw"><table class="asist-table" style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead>
+  <div class="card asist-wrap" style="padding:0;overflow:hidden"><div class="tw notas-scroll-wrap"><table class="asist-table" style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead>
     <tr style="background:#f1f5f9">
       <th style="padding:8px 12px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">ALUMNO</th>
       <th style="padding:8px 10px;text-align:center;width:100px;font-size:10px;color:#15803d;font-weight:700;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">✓ Presente</th>
@@ -6846,8 +6879,8 @@ async function pgPagos(el){
     </div>
 
     <!-- TABLA -->
-    <div id="pagosTablaWrap" style="display:none;background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <div id="pagosTablaWrap" style="display:none;background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)" class="pagos-tabla-outer">
+      <table class="pagos-table" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:linear-gradient(90deg,#f0fdf4,#f8fafc);border-bottom:2px solid var(--bdr)">
             <th style="padding:11px 10px;text-align:center;font-weight:700;color:#94a3b8;font-size:11px;width:36px">#</th>
