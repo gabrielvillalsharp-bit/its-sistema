@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-MOBILE-B -->
+<!-- build:20260524-MOBILE-C -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -301,6 +301,16 @@ tr:hover td{background:#fafaf7}
 /* ── PROGRESO ──────────────────────────────── */
 .prog-bar{height:6px;border-radius:3px;background:#e5e4df;overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1f8246);transition:width .3s}
+/* ── TOPBAR BRAND ─────────────────────────────── */
+.tb-brand{flex:1;min-width:0;overflow:hidden}
+/* ── BOTTOM NAV (alumno mobile) ──────────────── */
+#mob-bot-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:58px;background:#fff;border-top:1.5px solid #e2e8f0;z-index:90;grid-template-columns:repeat(5,1fr);box-shadow:0 -4px 16px rgba(0,0,0,.08);padding:0 4px;align-items:stretch}
+.mbn-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;cursor:pointer;padding:6px 4px;border-radius:10px;transition:background .15s;color:#64748b;flex:1}
+.mbn-btn:active{background:#f1f5f9}
+.mbn-btn.active{color:#166534}
+.mbn-ico{font-size:20px;line-height:1}
+.mbn-lbl{font-size:10px;font-weight:700;white-space:nowrap}
+body.mob-alumno .ct{padding-bottom:68px}
 /* ── DEFAULT: desktop oculta tarjetas móviles ── */
 .mis-notas-cards{display:none}
 .mi-asist-cards{display:none}
@@ -368,11 +378,28 @@ tr:hover td{background:#fafaf7}
   .lb{width:90px;height:90px}
   .lb img{width:82px;height:82px}
   /* Top bar */
-  .tb{padding:0 12px;height:48px}
-  .tb h2{font-size:12px}
+  .tb{padding:0 10px;height:48px;gap:8px}
+  .tb-brand{flex:1;min-width:0;overflow:hidden}
+  .tb h2{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tb p{display:none}
+  .tl{width:28px;height:28px;flex-shrink:0}
+  .tl svg,.tl img{width:16px!important;height:16px!important}
+  #un{display:none}
   .rp{display:none}
-  .tr2{gap:6px}
-  .xb{font-size:11px;padding:4px 10px}
+  .tr2{gap:4px;flex-shrink:0}
+  .tb-exit-full{display:none!important}
+  .tb-exit-mini{display:flex!important}
+  .xb{font-size:13px;padding:6px 10px}
+  /* Bottom nav alumno */
+  body.mob-alumno #mob-bot-nav{display:grid}
+  /* Filter bars: wrap properly */
+  .fb select,.fb input[type=text],.fb input[type=date],.fb input[type=number],.fb input[type=search]{min-width:0!important;flex:1 1 140px;max-width:100%}
+  .fb{flex-wrap:wrap!important}
+  /* Tables: always scrollable */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Cards on mobile: borderless, tighter padding */
+  .card{border:none;box-shadow:0 1px 6px rgba(0,0,0,.07);border-radius:12px}
+  .card-p{padding:14px}
   /* Sidebar: oculto por defecto, toggle con botón */
   .sb{position:fixed;top:48px;left:0;height:calc(100vh - 48px);z-index:100;transform:translateX(-100%);transition:transform .25s ease;width:220px!important;box-shadow:4px 0 20px rgba(0,0,0,.18)}
   .sb.mob-open{transform:translateX(0)}
@@ -495,7 +522,7 @@ tr:hover td{background:#fafaf7}
     <span></span><span></span><span></span>
   </button>
   <div class="tl" id="sysLogoCont"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
-  <div>
+  <div class="tb-brand">
     <h2>Instituto Técnico Superior — Santísima Trinidad</h2>
     <p style="font-size:9px;margin-top:1px;font-style:italic;color:rgba(255,255,255,.65)">Desarrollado por Abg. Gabriel Sharp</p>
   </div>
@@ -505,7 +532,8 @@ tr:hover td{background:#fafaf7}
     <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
       🔔 <span id="notif-bell-count">0</span>
     </button>
-    <button class="xb" onclick="logout()">Salir</button>
+    <button class="xb tb-exit-full" onclick="logout()">Salir</button>
+    <button class="xb tb-exit-mini" onclick="logout()" title="Salir" style="display:none">⏏</button>
   </div>
 </div>
 <div class="sb-mob-overlay" id="mob-overlay" onclick="toggleMobMenu()"></div>
@@ -515,6 +543,25 @@ tr:hover td{background:#fafaf7}
 </div>
 </div>
 <div id="mr"></div>
+
+<!-- Mobile bottom nav (alumno) -->
+<nav id="mob-bot-nav">
+  <button class="mbn-btn" id="mbn-dashboard" onclick="go('dashboard')">
+    <span class="mbn-ico">🏠</span><span class="mbn-lbl">Inicio</span>
+  </button>
+  <button class="mbn-btn" id="mbn-mis-notas" onclick="go('mis-notas')">
+    <span class="mbn-ico">📖</span><span class="mbn-lbl">Notas</span>
+  </button>
+  <button class="mbn-btn" id="mbn-mi-asistencia" onclick="go('mi-asistencia')">
+    <span class="mbn-ico">✅</span><span class="mbn-lbl">Asistencia</span>
+  </button>
+  <button class="mbn-btn" id="mbn-mi-estado-cuenta" onclick="go('mi-estado-cuenta')">
+    <span class="mbn-ico">💳</span><span class="mbn-lbl">Cuenta</span>
+  </button>
+  <button class="mbn-btn" id="mbn-mas" onclick="toggleMobMenu()">
+    <span class="mbn-ico">☰</span><span class="mbn-lbl">Más</span>
+  </button>
+</nav>
 
 <script>
 const API='';let tok=localStorage.getItem('its_tk3');let me=null;const W=window;
@@ -631,6 +678,7 @@ function closeMobMenu(){
 function startApp(){
   hide('lp');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
+  if(me.rol==='alumno') document.body.classList.add('mob-alumno');
   // Aplicar logo en topbar (por si ya se cargó antes del login)
   if(window._itsLogo){
     const sc=document.getElementById('sysLogoCont');
@@ -917,6 +965,9 @@ function go(p){
   closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
+  // Sync bottom nav
+  document.querySelectorAll('.mbn-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('mbn-'+p)?.classList.add('active');
   const el=document.getElementById('mc');
   el.innerHTML='<div class="es">Cargando...</div>';
   const pages={dashboard:pgDash,'dashboard-analitico':pgDashAnalitico,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,
