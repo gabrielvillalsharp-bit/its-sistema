@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-MOBILE-D -->
+<!-- build:20260524-MOBILE-E -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -392,6 +392,94 @@ body.mob-alumno .ct{padding-bottom:68px}
   .kpi-val{font-size:24px!important}
   /* Grid 2 cols alumno home */
   #mc [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  /* ── ALUMNOS TABLE → TARJETAS ── */
+  .als-table{display:block!important}
+  .als-table thead{display:none!important}
+  .als-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .als-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .als-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .als-table tbody td:nth-child(1){order:2;width:auto;padding:4px 8px 4px 14px!important;font-size:11px!important;color:#64748b}
+  .als-table tbody td:nth-child(2){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .als-table tbody td:nth-child(3){order:2;width:auto;padding:4px 14px 4px 4px!important;font-size:11px!important;color:#64748b}
+  .als-table tbody td:nth-child(4){order:3;width:auto;padding:4px 14px!important;font-weight:600}
+  .als-table tbody td:nth-child(5){order:3;width:auto;padding:4px 4px!important}
+  .als-table tbody td:nth-child(6){order:4;width:auto;padding:6px 14px 8px!important}
+  .als-table tbody td:nth-child(7){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── DOCENTES TABLE → TARJETAS ── */
+  .docs-table{display:block!important}
+  .docs-table thead{display:none!important}
+  .docs-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .docs-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .docs-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .docs-table tbody td:nth-child(1){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .docs-table tbody td:nth-child(2){order:2;width:auto;padding:4px 8px 4px 14px!important;font-size:11px!important;color:#64748b}
+  .docs-table tbody td:nth-child(3){order:2;width:auto;padding:4px 14px 4px 4px!important}
+  .docs-table tbody td:nth-child(4){order:3;width:100%;padding:2px 14px!important;font-size:11px!important;color:#1d4ed8}
+  .docs-table tbody td:nth-child(5){order:3;width:auto;padding:4px 14px!important}
+  .docs-table tbody td:nth-child(6){order:4;width:auto;padding:6px 14px 8px!important}
+  .docs-table tbody td:nth-child(7){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── ASIGNACIONES TABLE → TARJETAS ── */
+  .asig-table{display:block!important}
+  .asig-table thead{display:none!important}
+  .asig-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .asig-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .asig-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .asig-table tbody td:nth-child(1){order:2;width:100%;padding:4px 14px!important;font-size:12px!important;color:#64748b}
+  .asig-table tbody td:nth-child(2){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .asig-table tbody td:nth-child(3){order:3;width:auto;padding:4px 8px 4px 14px!important;font-weight:600}
+  .asig-table tbody td:nth-child(4){order:3;width:auto;padding:4px 14px 4px 4px!important;color:#64748b}
+  .asig-table tbody td:nth-child(5){order:4;width:auto;padding:4px 14px!important;font-size:11px!important;color:#64748b}
+  .asig-table tbody td:nth-child(6){order:4;width:auto;padding:4px 14px!important}
+  .asig-table tbody td:nth-child(7){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── HONORARIOS GENERAL TABLE → TARJETAS ── */
+  .hon-general-table{display:block!important}
+  .hon-general-table thead{display:none!important}
+  .hon-general-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .hon-general-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .hon-general-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .hon-general-table tbody td:nth-child(1){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .hon-general-table tbody td:nth-child(2){order:2;width:auto;padding:6px 14px!important;color:#64748b}
+  .hon-general-table tbody td:nth-child(3){order:2;width:auto;padding:6px 14px!important;font-weight:700;color:#2e7d32}
+  .hon-general-table tbody td:nth-child(4){order:3;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── HONORARIOS DETALLE TABLE → TARJETAS ── */
+  .hon-tabla-table{display:block!important}
+  .hon-tabla-table thead{display:none!important}
+  .hon-tabla-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .hon-tabla-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:inherit;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .hon-tabla-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .hon-tabla-table tbody td:nth-child(1){order:2;width:auto;padding:4px 8px 4px 14px!important;font-size:12px!important;font-weight:600}
+  .hon-tabla-table tbody td:nth-child(2){order:2;width:auto;padding:4px 14px 4px 4px!important;color:#64748b}
+  .hon-tabla-table tbody td:nth-child(3){order:1;width:calc(100% - 80px);background:rgba(248,250,252,.9);padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .hon-tabla-table tbody td:nth-child(4){order:3;width:auto;padding:2px 14px!important;font-size:11px!important;color:#64748b}
+  .hon-tabla-table tbody td:nth-child(5){order:1;width:80px;background:rgba(248,250,252,.9);padding:10px 8px 6px!important;text-align:center;border-bottom:1px solid #e2e8f0!important}
+  .hon-tabla-table tbody td:nth-child(6){order:3;width:auto;padding:2px 14px!important}
+  .hon-tabla-table tbody td:nth-child(7){order:4;width:100%;padding:2px 14px 6px!important;font-size:11px!important;color:#64748b}
+  .hon-tabla-table tbody td:nth-child(8){order:5;width:100%;padding:6px 14px 8px!important;font-size:14px!important;font-weight:700;text-align:right;border-top:1px solid #f1f5f9!important}
+  /* ── REEMPLAZOS TABLE → TARJETAS ── */
+  .reempl-table{display:block!important}
+  .reempl-table thead{display:none!important}
+  .reempl-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .reempl-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:inherit;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .reempl-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .reempl-table tbody td:nth-child(1){order:2;width:auto;padding:4px 8px 4px 14px!important;font-size:11px!important;color:#64748b;font-weight:600}
+  .reempl-table tbody td:nth-child(2){order:3;width:auto;padding:4px 14px 4px 14px!important;font-size:12px!important;color:#64748b}
+  .reempl-table tbody td:nth-child(3){order:2;width:auto;padding:4px 14px 4px 4px!important;font-size:13px!important;font-weight:700}
+  .reempl-table tbody td:nth-child(4){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .reempl-table tbody td:nth-child(5){order:2;width:auto;padding:4px 14px 4px 4px!important;font-size:11px!important;color:#64748b}
+  .reempl-table tbody td:nth-child(6){order:4;width:auto;padding:6px 14px 8px!important}
+  .reempl-table tbody td:nth-child(7){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
+  /* ── USUARIOS TABLE → TARJETAS ── */
+  .usr-table{display:block!important}
+  .usr-table thead{display:none!important}
+  .usr-table tbody{display:flex!important;flex-direction:column;gap:8px;padding:8px}
+  .usr-table tbody tr{display:flex!important;flex-wrap:wrap!important;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);align-content:flex-start}
+  .usr-table tbody td{border:none!important;box-sizing:border-box;font-size:12px;padding:4px 12px!important}
+  .usr-table tbody td:nth-child(1){order:1;width:100%;background:#f8fafc;padding:10px 14px 6px!important;font-size:13px!important;font-weight:700;border-bottom:1px solid #e2e8f0!important}
+  .usr-table tbody td:nth-child(2){order:2;width:100%;padding:4px 14px!important;font-size:11px!important;color:#1d4ed8}
+  .usr-table tbody td:nth-child(3){order:3;width:auto;padding:4px 8px 4px 14px!important}
+  .usr-table tbody td:nth-child(4){order:3;width:auto;padding:4px 14px 4px 4px!important}
+  .usr-table tbody td:nth-child(5){order:4;width:100%;padding:4px 14px!important;font-size:11px!important;color:#64748b}
+  .usr-table tbody td:nth-child(6){order:5;width:100%;padding:6px 14px 8px!important;border-top:1px solid #f1f5f9!important}
   /* ── PAGOS MOBILE ── */
   /* Filtros: apilar vertical */
   #vistaListaPagos [style*="display:flex;gap:10px"]{flex-direction:column!important}
@@ -2490,7 +2578,7 @@ async function pgDocentes(el){
   el.innerHTML=`<div class="ph"><h3>Docentes (${d.length})</h3>
     <div class="ph-right"><button class="bn" onclick="mDoc()">+ Nuevo docente</button></div></div>
   <div style="margin-bottom:12px"><input id="filtDocs" placeholder="🔍 Buscar por nombre, CI o especialidad..." oninput="renderDocentes()" style="max-width:380px"/></div>
-  <div id="tablaDocentes"><div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  <div id="tablaDocentes"><div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
     <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
     <td style="font-size:12px">${d2.email||'-'}</td>
@@ -2511,7 +2599,7 @@ function renderDocentes(){
   }):W._docsAll||[];
   const el=document.getElementById('tablaDocentes');
   if(!el)return;
-  el.innerHTML=`<div class="card"><div class="tw"><table><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  el.innerHTML=`<div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
     <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
     <td style="font-size:12px">${d2.email||'-'}</td>
@@ -2733,7 +2821,7 @@ async function pgAlumnos(el){
     <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
     <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
+  <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
   <tbody id="altb">${als.map(aRow).join('')}</tbody></table></div></div>`;
 }
 function filtAlCursos(){
@@ -3149,7 +3237,7 @@ function renderAsigs(){
   if(fc)asigs=asigs.filter(a=>a.carrera_nombre===fc);
   const el=document.getElementById('tablaAsig');
   if(!el)return;
-  el.innerHTML=`<table><thead><tr><th>Docente</th><th>Materia</th><th>Sección</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
+  el.innerHTML=`<table class="asig-table"><thead><tr><th>Docente</th><th>Materia</th><th>Sección</th><th>Período</th><th>Alumnos</th><th>Notas cargadas</th><th></th></tr></thead><tbody>
   ${asigs.map(a=>{
     const pct=a.total_alumnos?Math.round(a.notas_cargadas/a.total_alumnos*100):0;
     return `<tr>
@@ -9159,7 +9247,7 @@ function renderHonorariosGeneral(el, hons, mes, anio){
     <div><span style="font-size:11px;color:var(--t2)">Clases registradas</span><br><span style="font-size:22px;font-weight:700">${hons.length}</span></div>
     <div><span style="font-size:11px;color:var(--t2)">Docentes activos</span><br><span style="font-size:22px;font-weight:700">${Object.keys(porDoc).length}</span></div>
   </div>
-  <div class="card"><div class="tw"><table><thead><tr>
+  <div class="card"><div class="tw"><table class="hon-general-table"><thead><tr>
     <th>Docente</th><th style="text-align:center">Clases dictadas</th><th style="text-align:right">Total Gs.</th><th></th>
   </tr></thead><tbody>
   ${Object.entries(porDoc).map(([dId,d])=>`<tr>
@@ -9505,7 +9593,7 @@ function renderHonTabla(){
     </tr>`;
   })).filter(Boolean);
   if(!filas.length){cont.innerHTML='<div class="es">Sin registros con esos filtros</div>';return;}
-  cont.innerHTML=`<div class="card"><div class="tw"><table style="font-size:11px;width:100%;border-collapse:collapse">
+  cont.innerHTML=`<div class="card"><div class="tw"><table class="hon-tabla-table" style="font-size:11px;width:100%;border-collapse:collapse">
     <thead><tr style="background:#166534;color:#fff">
       <th style="padding:7px 10px;border:1px solid #166534">Fecha</th>
       <th style="padding:7px 10px;border:1px solid #166534">Día</th>
@@ -9541,7 +9629,7 @@ async function pgReemplazos(el){
   ${pendientes.length&&esDirector?`<div style="background:#fff3e0;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
     ⚠ <strong>${pendientes.length} reemplazo${pendientes.length!==1?'s':''} pendiente${pendientes.length!==1?'s':''} de aprobación</strong>
   </div>`:''}
-  <div class="card"><div class="tw"><table><thead><tr>
+  <div class="card"><div class="tw"><table class="reempl-table"><thead><tr>
     <th>Fecha</th><th>Titular</th><th>Reemplazante</th><th>Materia</th><th>Turno</th><th>Estado</th><th></th>
   </tr></thead><tbody>
   ${reps.map(r=>`<tr style="${r.estado==='pendiente'?'background:#fffbf0':''}">
@@ -11417,7 +11505,7 @@ function filtUs(){
 function renderTbUsuarios(lista){
   if(!lista.length)return'<div class="es">Sin usuarios con esos filtros</div>';
   const rolColor={director:'br',docente:'bb',alumno:'bg'};
-  return`<div class="card"><div class="tw"><table><thead><tr>
+  return`<div class="card"><div class="tw"><table class="usr-table"><thead><tr>
     <th>Nombre</th><th>Email / CI</th><th>Rol</th><th>Estado</th><th>Carrera / Curso</th><th></th>
   </tr></thead><tbody>
   ${lista.map(u=>{
