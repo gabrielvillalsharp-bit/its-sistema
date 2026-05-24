@@ -4039,10 +4039,12 @@ async function sendWhatsApp(phone, message) {
     return false;
   }
 }
-// ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay UTC-4) ─────────
+// ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
 function enHoraPermitida() {
   const py = new Date(new Date().getTime() - 4 * 60 * 60 * 1000);
   const h = py.getUTCHours();
+  const dia = py.getUTCDay(); // 0=domingo, 6=sábado
+  if (dia === 0 || dia === 6) return false; // prohibido sábado y domingo
   return h >= 7 && h < 22;
 }
 
@@ -4120,18 +4122,18 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
-// ── CRON: Recordatorios 72h / 48h / 36h / 24h — corre a las 8:00 AM diario ────
-cron.schedule('0 8 * * *', async () => {
+// ── CRON: Recordatorios 72h / 48h / 24h — corre a las 8:00 AM lunes a viernes ──
+// Nota: 36h eliminado. Sábado y domingo bloqueados por enHoraPermitida().
+cron.schedule('0 8 * * 1-5', async () => {
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
       { horas: 72, label: '72h' },
       { horas: 48, label: '48h' },
-      { horas: 36, label: '36h' },
       { horas: 24, label: '24h' },
     ]);
-    console.log(`✓ Cron WA 72h/48h/36h/24h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 72/48/36/24h error:', e.message); }
+    console.log(`✓ Cron WA 72h/48h/24h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 72/48/24h error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
 // ── CRON: Recordatorios 12h / 6h / 3h — corre cada hora ──────────────────────
