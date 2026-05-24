@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-MOBILE-E -->
+<!-- build:20260524-MOBILE-F -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1085,8 +1085,10 @@ function toggleNavGrp(idx){
 }
 
 let cur='';
-function go(p){
+function go(p, _fromHistory){
   cur=p;
+  // Push history entry so the browser back button navigates between sections
+  if(!_fromHistory) history.pushState({its_page:p}, '', '#'+p);
   closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
@@ -1111,6 +1113,16 @@ function go(p){
   // Retorna la promesa para que llamadores puedan hacer await go(p)
   return Promise.resolve(pages[p]?.(el));
 }
+// ── BACK BUTTON: intercept browser navigation to stay inside the SPA ──────────
+window.addEventListener('popstate', e=>{
+  if(e.state?.its_page){
+    // Valid internal page: navigate there without pushing another state
+    go(e.state.its_page, true);
+  } else if(cur){
+    // No internal state (user went back past the first section): stay on current page
+    history.pushState({its_page:cur}, '', '#'+cur);
+  }
+});
 
 // ── HELPERS ────────────────────────────────────────────────────────────────────
 function modal(h,lg){
