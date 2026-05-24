@@ -301,6 +301,49 @@ tr:hover td{background:#fafaf7}
 /* ── PROGRESO ──────────────────────────────── */
 .prog-bar{height:6px;border-radius:3px;background:#e5e4df;overflow:hidden;margin-top:4px}
 .prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue),#1f8246);transition:width .3s}
+/* ── MOBILE ────────────────────────────────── */
+@media(max-width:700px){
+  /* Login */
+  #lp{padding:16px;align-items:flex-start;padding-top:40px}
+  .lc{width:100%;border-radius:18px;padding:1.6rem}
+  .lb{width:90px;height:90px}
+  .lb img{width:82px;height:82px}
+  /* Top bar */
+  .tb{padding:0 12px;height:48px}
+  .tb h2{font-size:12px}
+  .rp{display:none}
+  .tr2{gap:6px}
+  .xb{font-size:11px;padding:4px 10px}
+  /* Sidebar: oculto por defecto, toggle con botón */
+  .sb{position:fixed;top:48px;left:0;height:calc(100vh - 48px);z-index:100;transform:translateX(-100%);transition:transform .25s ease;width:220px!important;box-shadow:4px 0 20px rgba(0,0,0,.18)}
+  .sb.mob-open{transform:translateX(0)}
+  .sb-mob-overlay{display:none;position:fixed;inset:0;top:48px;background:rgba(0,0,0,.35);z-index:99;backdrop-filter:blur(2px)}
+  .sb-mob-overlay.mob-open{display:block}
+  /* Hamburger */
+  #mob-menu-btn{display:flex!important}
+  /* Content */
+  .ct{padding:12px}
+  .ly{flex-direction:column}
+  /* Dashboard hero */
+  .dash-hero-inner{flex-direction:column!important;gap:10px!important}
+  .dash-hero-right{display:none}
+  .dash-greeting{font-size:20px!important}
+  .dash-sub{font-size:12px!important}
+  .dash-qa{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .dash-qa-btn{font-size:15px!important;padding:14px 18px!important;border-radius:12px!important;text-align:left;width:100%}
+  /* KPI grid */
+  .dash-kpi{grid-template-columns:1fr 1fr!important}
+  /* Grids 2col → 1col */
+  [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  /* Page header */
+  .ph{flex-direction:column;align-items:flex-start;gap:8px}
+  .ph h3{font-size:16px}
+  /* Modal fullscreen */
+  .mb{padding:0;align-items:flex-end}
+  .modal{border-radius:18px 18px 0 0;max-width:100%;max-height:92vh;overflow-y:auto}
+}
+#mob-menu-btn{display:none;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;flex-direction:column;gap:4px;margin-right:2px}
+#mob-menu-btn span{display:block;width:20px;height:2px;background:#fff;border-radius:2px;transition:all .2s}
 /* ── PRINT ─────────────────────────────────── */
 @media print{
   .sb,.tb,.mf,.bn,.bs,.fb,.abs{display:none!important}
@@ -389,6 +432,9 @@ tr:hover td{background:#fafaf7}
 
 <div id="ap" class="hidden">
 <div class="tb">
+  <button id="mob-menu-btn" onclick="toggleMobMenu()" aria-label="Menú">
+    <span></span><span></span><span></span>
+  </button>
   <div class="tl" id="sysLogoCont"><svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg></div>
   <div>
     <h2>Instituto Técnico Superior — Santísima Trinidad</h2>
@@ -403,6 +449,7 @@ tr:hover td{background:#fafaf7}
     <button class="xb" onclick="logout()">Salir</button>
   </div>
 </div>
+<div class="sb-mob-overlay" id="mob-overlay" onclick="toggleMobMenu()"></div>
 <div class="ly">
   <nav class="sb" id="nav"></nav>
   <div class="ct" id="mc"></div>
@@ -485,6 +532,17 @@ async function doLogin(){
   }
 }
 function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
+function toggleMobMenu(){
+  const sb=document.querySelector('.sb');
+  const ov=document.getElementById('mob-overlay');
+  if(!sb||!ov)return;
+  const open=sb.classList.toggle('mob-open');
+  ov.classList.toggle('mob-open',open);
+}
+function closeMobMenu(){
+  document.querySelector('.sb')?.classList.remove('mob-open');
+  document.getElementById('mob-overlay')?.classList.remove('mob-open');
+}
 
 // Carga el logo institucional (login + topbar del sistema)
 (function cargarLogoLogin(){
@@ -797,6 +855,7 @@ function toggleNavGrp(idx){
 let cur='';
 function go(p){
   cur=p;
+  closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
   const el=document.getElementById('mc');
