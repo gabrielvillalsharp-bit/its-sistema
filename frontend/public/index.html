@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-MOBILE-F -->
+<!-- build:20260524-NOTAS-G -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -5965,54 +5965,8 @@ W.loadNotas=async(asigId,_tipo)=>{
     ⚠ <strong>Reglas:</strong> Recuperatorio <em>reemplaza</em> al parcial · Final: Complementario > Recuperatorio > Ordinario · Extraordinario: <strong>resetea todo</strong> (100 pts)
     ${me.rol==='director'?'· 🔒 Mora bloquea finales — habilitar desde <strong>Pagos → 🔓 Habilitar examen</strong>.':''}
   </div>
-  <div class="card" style="padding:0;overflow:hidden"><div class="notas-scroll-wrap" style="overflow-x:auto">
-  <table class="notas-mobile-table" style="min-width:960px;font-size:12px;border-collapse:collapse;border:1px solid #e2e8f0;width:100%" autocomplete="off">
-  <thead>
-    <!-- Fila 1: etiquetas de sección con barra de color superior -->
-    <tr>
-  <th rowspan="2" style="padding:10px 14px;text-align:left;background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);color:#374151;min-width:175px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0">
-    <div style="display:flex;align-items:center;gap:6px"><span style="width:3px;height:18px;background:#94a3b8;border-radius:2px;display:inline-block"></span>Alumno</div>
-  </th>
-  <th colspan="4" style="padding:8px 8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#dcfce7 100%);color:#15803d;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
-    📝 Trab. Prácticos · 20 pts
-  </th>
-  <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#dcfce7 100%);color:#15803d;font-size:10px;font-weight:700;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;min-width:52px">
-    <div>TOT.</div><div style="font-size:9px;opacity:.7;font-weight:700">TPs</div>
-  </th>
-  <th colspan="2" style="padding:8px 8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#dbeafe 100%);color:#1d4ed8;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
-    📋 Parcial · 20 pts
-  </th>
-  <th colspan="3" style="padding:8px 8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#fed7aa 100%);color:#c2410c;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
-    🎯 Final · 50 pts
-  </th>
-  <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#e9d5ff 100%);color:#7e22ce;font-size:9px;font-weight:700;letter-spacing:.04em;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;min-width:54px">
-    <div>EXTRA</div><div style="font-size:9px;opacity:.7">100 pts</div>
-  </th>
-  <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#e0f2fe 100%);color:#0369a1;font-size:9px;font-weight:700;letter-spacing:.04em;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;min-width:48px">
-    <div>DIR.</div><div style="font-size:9px;opacity:.7">10 pts</div>
-  </th>
-  <th rowspan="2" style="padding:8px 10px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#dcfce7 100%);color:#15803d;font-size:10px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;min-width:58px">
-    <div>TOTAL</div><div style="font-size:9px;color:#16a34a;font-weight:600">puntos</div>
-  </th>
-  <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);color:#64748b;font-size:9px;font-weight:700;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;letter-spacing:.04em">CALIF.</th>
-  <th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%);color:#64748b;font-size:9px;font-weight:700;vertical-align:middle;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;letter-spacing:.04em">ESTADO</th>
-  ${me.rol==='director'?'<th rowspan="2" style="padding:8px 6px;text-align:center;background:linear-gradient(180deg,#ffffff 0%,#fee2e2 100%);color:#dc2626;font-size:9px;font-weight:800;letter-spacing:.04em;vertical-align:middle;border-bottom:2px solid #cbd5e1">🔒 MORA</th>':''}
-</tr>
-    <!-- Fila 2: subencabezados -->
-    <tr>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:46px">TP 1</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:46px">TP 2</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:46px">TP 3</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #cbd5e1;font-size:10px;font-weight:700;min-width:46px">TP 4</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #cbd5e1;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:54px">Ordinario</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #e2e8f0;font-size:10px;font-weight:700;min-width:54px">Recuper.</th>
-  <th style="padding:6px 4px;text-align:center;background:#f8fafc;color:#64748b;border-bottom:2px solid #cbd5e1;border-right:1px solid #cbd5e1;font-size:10px;font-weight:700;min-width:54px">Complem.</th>
-</tr>
-  </thead>
-  <tbody>
-  ${alumnos.map((a,idx)=>{
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+  ${alumnos.map((a)=>{
     const ausente=a.ausente===1||a.ausente===true;
     const hab=habMap[a.id];
     const bloqueado=hab&&!hab.habilitado;
@@ -6026,83 +5980,72 @@ W.loadNotas=async(asigId,_tipo)=>{
     const habRecup=tiposHab.includes('parcial_recuperatorio')||hab?.habilitado_recuperatorio||false;
     const disabledParcialRec=ausente||(me.rol==='docente'&&!habRecup)||(bloqueado&&!habRecup);
     const cuotasFalt=hab?.cuotas_faltantes||[];
-    const isEven=idx%2===0;
-    const rowBase=ausente?'#fff1f2':bloqueado?'#fffbf0':isEven?'#ffffff':'#f8fafc';
-    const rowHover=ausente?'#ffe4e6':bloqueado?'#fef9c3':'#f8fafc';
-    // estilos de celda comunes
-    const cellBase=`border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle;`;
-    const inp=(campo,max,val,bg,dis,clr='#0f172a')=>`<td class="${dis?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${dis?'#f8fafc':bg}">
-      <input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="${dis?'🔒':'·'}" ${dis?'disabled':''}
-        autocomplete="off" oninput="updN('${a.id}','${asigId}','${campo}',this.value)"
-        style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${val!=null?'700':'400'};color:${dis?'#94a3b8':val!=null?clr:'#64748b'};border-radius:4px"/></td>`;
-    const celdaMora=me.rol==='director'?`<td style="${cellBase}padding:5px 6px;text-align:center;background:${bloqueado?'#fff1f2':'#ffffff'};min-width:88px" id="mora-${a.id}">
-      ${bloqueado
-        ?`<span style="display:inline-flex;align-items:center;gap:3px;background:#fee2e2;color:#dc2626;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;border:1px solid #fca5a5">🔒 MORA</span>
-          ${cuotasFalt.length?`<div style="font-size:8px;color:#b91c1c;margin-top:2px">${cuotasFalt.map(c=>c.replace('Cuota ','')).join(', ')}</div>`:''}`
-        :`<span style="color:#16a34a;font-size:17px">✓</span>`}
-    </td>`:'';
-    return `<tr class="nota-row" id="nr-${a.id}" data-al-id="${a.id}" style="background:${rowBase}" onmouseover="this.style.background='${rowHover}'" onmouseout="this.style.background='${rowBase}'">
-      <td style="${cellBase}padding:8px 14px;background:${rowBase};white-space:nowrap;border-right:1px solid #cbd5e1">
-        <div style="font-weight:700;color:#0f172a;font-size:12.5px">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span></div>
-        ${a.alumno_ci?`<div style="font-size:9px;color:#94a3b8;margin-top:1px;font-family:monospace">${a.alumno_ci}</div>`:''}
-      </td>
-      ${inp('tp1',5,a.tp1,'#ffffff',disabledBase,'#15803d')}
-      ${inp('tp2',5,a.tp2,'#ffffff',disabledBase,'#15803d')}
-      ${inp('tp3',5,a.tp3,'#ffffff',disabledBase,'#15803d')}
-      <td class="${disabledBase?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledBase?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1">
-        <input class="nota-inp" type="number" min="0" max="5" step="0.5" value="${a.tp4??''}" placeholder="${disabledBase?'🔒':'·'}" ${disabledBase?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','tp4',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.tp4!=null?'700':'400'};color:${disabledBase?'#94a3b8':a.tp4!=null?'#15803d':'#64748b'}"/></td>
-      <td style="${cellBase}padding:4px 8px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1;font-weight:800;font-size:14px;color:#374151" id="tptot-${a.id}">${a.tp_total??'—'}</td>
-      ${inp('parcial',20,a.parcial,'#ffffff',disabledBase,'#1d4ed8')}
-      <td class="${disabledParcialRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledParcialRec?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="20" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'·'}" ${disabledParcialRec?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.parcial_recuperatorio!=null?'700':'400'};color:${disabledParcialRec?'#94a3b8':'#92400e'}" title="${disabledParcialRec?'Requiere habilitación':''}"/>
-        ${a.parcial_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
-      </td>
-      ${inp('final_ord',50,a.final_ord,'#ffffff',disabledFinalOrd,'#9a3412')}
-      <td class="${disabledFinalRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledFinalRec?'#f8fafc':'#ffffff'};position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="${disabledFinalRec?'🔒':'·'}" ${disabledFinalRec?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','final_recuperatorio',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.final_recuperatorio!=null?'700':'400'};color:${disabledFinalRec?'#94a3b8':'#92400e'}"/>
-        ${a.final_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
-      </td>
-      <td class="${disabledComplem?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledComplem?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="${disabledComplem?'🔒':'·'}" ${disabledComplem?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','complementario',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.complementario!=null?'700':'400'};color:${disabledComplem?'#94a3b8':'#9f1239'}"/>
-        ${a.complementario!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fce7f3;color:#be185d;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
-      </td>
-      <td class="${disabledExtraord?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledExtraord?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="${disabledExtraord?'🔒':'·'}" ${disabledExtraord?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','extraordinario',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.extraordinario!=null?'800':'400'};color:${disabledExtraord?'#94a3b8':'#7e22ce'}"/>
-        ${a.extraordinario!=null?`<span style="position:absolute;bottom:1px;right:2px;font-size:7px;background:#e9d5ff;color:#6d28d9;padding:0 3px;border-radius:3px;font-weight:700">RST</span>`:''}
-      </td>
-      <td class="${me.rol!=='director'?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:#ffffff;border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="10" step="0.5" value="${a.director_pts??''}" placeholder="${me.rol!=='director'?'🔒':'·'}" ${me.rol!=='director'?'disabled':''}
-          autocomplete="off" oninput="updN('${a.id}','${asigId}','director_pts',this.value)"
-          style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.director_pts!=null?'800':'400'};color:${me.rol!=='director'?'#93c5fd':'#1d4ed8'}" title="${me.rol!=='director'?'Solo director':'Puntos de dirección'}"/>
-      </td>
-      <td style="${cellBase}padding:6px 10px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1" id="tot-${a.id}">
-        <span style="font-size:15px;font-weight:900;color:${a.puntaje_total>=60?'#15803d':a.puntaje_total>=40?'#b45309':'#dc2626'}">${a.puntaje_total??'—'}</span>
-      </td>
-      <td style="${cellBase}padding:5px 6px;text-align:center;background:${rowBase}" id="nf-${a.id}">
-        <span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'—'}</span>
-      </td>
-      <td style="${cellBase}padding:5px 6px;text-align:center;background:${rowBase}" id="est-${a.id}">
-        <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;
-          background:${a.nota_estado==='Aprobado'?'#dcfce7':a.nota_estado==='Reprobado'?'#fee2e2':a.nota_estado==='Ausente'?'#fef9c3':'#f1f5f9'};
-          color:${a.nota_estado==='Aprobado'?'#166534':a.nota_estado==='Reprobado'?'#dc2626':a.nota_estado==='Ausente'?'#854d0e':'#475569'};
-          border:1px solid ${a.nota_estado==='Aprobado'?'#86efac':a.nota_estado==='Reprobado'?'#fca5a5':a.nota_estado==='Ausente'?'#fde047':'#e2e8f0'}">
-          ${a.nota_estado||'Pend.'}
-        </span>
-      </td>
-      ${celdaMora}
-    </tr>`;
+    const cardBorder=ausente?'#fecaca':bloqueado?'#fde68a':'#e2e8f0';
+    const cardBg=ausente?'#fff8f8':bloqueado?'#fffbf0':'#fff';
+    const hdrBg=ausente?'#fff1f2':bloqueado?'#fefce8':'#f8fafc';
+    const inpCard=(campo,label,max,val,dis,clr)=>`<div>
+      <div style="font-size:9px;color:#64748b;margin-bottom:3px;text-align:center;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
+      <input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="${dis?'🔒':'—'}" ${dis?'disabled':''}
+        data-campo="${campo}" autocomplete="off"
+        oninput="updN('${a.id}','${asigId}','${campo}',this.value)"
+        style="width:100%;min-height:42px;text-align:center;border:1.5px solid ${dis?'#e2e8f0':'#d1d5db'};border-radius:8px;padding:4px 2px;font-size:14px;font-weight:${val!=null?'800':'400'};color:${dis?'#94a3b8':val!=null?clr:'#64748b'};background:${dis?'#f8fafc':'#fff'};box-sizing:border-box"/></div>`;
+    return `<div data-al-id="${a.id}" id="nr-${a.id}" style="border:1.5px solid ${cardBorder};border-radius:14px;overflow:hidden;background:${cardBg};box-shadow:0 1px 6px rgba(0,0,0,.06)">
+      <div style="background:${hdrBg};padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:700;font-size:13px;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span></div>
+          ${a.alumno_ci?`<div style="font-size:10px;color:#94a3b8;font-family:monospace;margin-top:1px">${a.alumno_ci}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+          <span id="est-${a.id}"><span class="bx ${a.nota_estado==='Aprobado'?'bg':a.nota_estado==='Reprobado'?'br':a.nota_estado==='Ausente'?'ba':'bgr'}" style="font-size:10px">${a.nota_estado||'Pend.'}</span></span>
+          ${me.rol==='director'?`<span id="mora-${a.id}">${bloqueado?`<span style="background:#fee2e2;color:#dc2626;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;border:1px solid #fca5a5">🔒 MORA${cuotasFalt.length?' ('+cuotasFalt.length+')':''}</span>`:'<span style="color:#16a34a;font-size:13px">✓</span>'}</span>`:''}
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9">
+        <div style="font-size:10px;font-weight:700;color:#15803d;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em">📝 Trab. Prácticos · 20 pts</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr) 48px;gap:5px;align-items:end">
+          ${inpCard('tp1','TP 1',5,a.tp1,disabledBase,'#15803d')}
+          ${inpCard('tp2','TP 2',5,a.tp2,disabledBase,'#15803d')}
+          ${inpCard('tp3','TP 3',5,a.tp3,disabledBase,'#15803d')}
+          ${inpCard('tp4','TP 4',5,a.tp4,disabledBase,'#15803d')}
+          <div>
+            <div style="font-size:9px;color:#64748b;margin-bottom:3px;text-align:center;font-weight:600">Tot.</div>
+            <div id="tptot-${a.id}" style="min-height:42px;background:#dcfce7;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#15803d">${a.tp_total??'—'}</div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9">
+        <div style="font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em">📋 Parcial · 20 pts</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${inpCard('parcial','Ordinario',20,a.parcial,disabledBase,'#1d4ed8')}
+          ${inpCard('parcial_recuperatorio','Recuperatorio ▲',20,a.parcial_recuperatorio,disabledParcialRec,'#92400e')}
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9">
+        <div style="font-size:10px;font-weight:700;color:#c2410c;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em">🎯 Final · 50 pts</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${inpCard('final_ord','Ord.',50,a.final_ord,disabledFinalOrd,'#9a3412')}
+          ${inpCard('final_recuperatorio','Recuper. ▲',50,a.final_recuperatorio,disabledFinalRec,'#9a3412')}
+          ${inpCard('complementario','Compl. ▲',50,a.complementario,disabledComplem,'#9f1239')}
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;background:#faf5ff;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${inpCard('extraordinario','✨ Extraord. · 100 pts',100,a.extraordinario,disabledExtraord,'#7e22ce')}
+        ${inpCard('director_pts','👔 Director · 10 pts',10,a.director_pts,me.rol!=='director','#0369a1')}
+      </div>
+      <div style="padding:10px 16px;background:${a.nota_estado==='Aprobado'?'#f0fff4':a.nota_estado==='Reprobado'?'#fff5f5':'#f8fafc'};display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-size:11px;color:#64748b">Total:</span>
+          <span id="tot-${a.id}"><span class="prom-tag ${notaCls(a.nota_final)}" style="font-size:18px!important;min-width:44px!important">${a.puntaje_total??'—'}</span></span>
+          <span style="font-size:10px;color:#94a3b8">/ 100</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:#64748b">Nota:</span>
+          <span id="nf-${a.id}"><span class="nota-tag ${notaCls(a.nota_final)}">${a.nota_final??'—'}</span></span>
+        </div>
+      </div>
+    </div>`;
   }).join('')}
-  </tbody></table></div></div>`;
+  </div>`;
 };
 async function habilitarRecuperatorio(alId, asigId){
   confirm2('✅ Habilitar Parcial Recuperatorio',
@@ -6179,9 +6122,9 @@ W.updN=async(aId,asigId,campo,val)=>{
     const nf=document.getElementById('nf-'+aId);
     const est=document.getElementById('est-'+aId);
     if(tptot)tptot.textContent=r.tp_total??'-';
-    if(tot)tot.innerHTML=`<span class="prom-tag ${notaCls(r.nota)}">${r.puntaje??'-'}</span>`;
+    if(tot)tot.innerHTML=`<span class="prom-tag ${notaCls(r.nota)}" style="font-size:18px!important;min-width:44px!important">${r.puntaje??'-'}</span>`;
     if(nf)nf.innerHTML=`<span class="nota-tag ${notaCls(r.nota)}">${r.nota??'-'}</span>`;
-    if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}">${r.estado}</span>`;
+    if(est)est.innerHTML=`<span class="bx ${r.estado==='Aprobado'?'bg':r.estado==='Reprobado'?'br':r.estado==='Ausente'?'ba':'bgr'}" style="font-size:10px">${r.estado}</span>`;
     // Feedback visual ✓ en la celda total
     if(tot){const s=document.createElement('span');s.className='saved-ok';s.textContent=' ✓';tot.appendChild(s);setTimeout(()=>s.remove(),2000);}
   }catch(e){toast('Error al guardar nota: '+e.message,'err',5000);}
