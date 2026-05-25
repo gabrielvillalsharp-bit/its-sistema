@@ -5843,7 +5843,7 @@ async function pgSolicitudes(el){
         const stC={aprobado:'background:#dcfce7;color:#166534',pendiente:'background:#fef3c7;color:#92400e',rechazado:'background:#fee2e2;color:#991b1b'};
         const stL={aprobado:'✅ Aprobado',pendiente:'⏳ Pendiente',rechazado:'❌ Rechazado'};
         const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)'};
-        const rows=items.map(it=>`<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9">
+        const rows=items.map((it,idx)=>`<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:2px solid #e2e8f0;${idx%2===1?'background:#f8fafc':''};border-left:4px solid ${it.tipo==='qr'?'#2563EB':'#D85A30'}">
           <div style="width:38px;height:38px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
@@ -5870,7 +5870,7 @@ async function pgSolicitudes(el){
       })()}
       <!-- Sección 2: Alertas de asistencia -->
       ${(informes.length||ausencias.length)?`<div style="padding:8px 14px;background:#fffbeb;border-top:2px solid #fde68a;border-bottom:1px solid #fde68a"><strong style="font-size:12px;color:#92400e">📊 Alertas de asistencia · ${informes.length+ausencias.length} alerta${(informes.length+ausencias.length)!==1?'s':''}</strong></div>
-      ${informes.map(i=>`<div class="hist-row" data-busq="${((i.alumno_apellido||'')+(i.alumno_nombre||'')+(i.alumno_ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="${i.estado||'pendiente'}" style="display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #f1f5f9;${i.estado!=='pendiente'?'opacity:0.55':''}">
+      ${informes.map((i,idx)=>`<div class="hist-row" data-busq="${((i.alumno_apellido||'')+(i.alumno_nombre||'')+(i.alumno_ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="${i.estado||'pendiente'}" style="display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-bottom:2px solid #fde68a;border-left:4px solid #f59e0b;${idx%2===1?'background:#fffdf0':''}${i.estado!=='pendiente'?';opacity:0.55':''}">
         <span style="font-size:20px;flex-shrink:0">🔔</span>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px">${i.alumno_apellido||''}, ${i.alumno_nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${i.alumno_ci||'—'}</span></div>
@@ -5881,7 +5881,7 @@ async function pgSolicitudes(el){
         </div>
         <span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;flex-shrink:0;${i.estado==='pendiente'?'background:#fef3c7;color:#92400e':i.estado==='visto'?'background:#dbeafe;color:#1e40af':'background:#d1fae5;color:#065f46'}">${i.estado==='pendiente'?'⏳ PENDIENTE':i.estado==='visto'?'👁 VISTO':'✓ RESUELTO'}</span>
       </div>`).join('')}
-      ${ausencias.map(a=>`<div class="hist-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="pendiente" style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9">
+      ${ausencias.map((a,idx)=>`<div class="hist-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="pendiente" style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:2px solid #fca5a5;border-left:4px solid #dc2626;${idx%2===1?'background:#fff5f5':''}">
         <span style="font-size:20px;flex-shrink:0">⚠️</span>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${a.ci||'—'}</span></div>
@@ -5900,7 +5900,7 @@ async function pgSolicitudes(el){
         const fec=(a.fecha_hora||a.created_at||'').replace('T',' ').slice(0,16);
         let det='';try{const d=typeof a.detalle==='string'?JSON.parse(a.detalle):a.detalle||{};det=d.nombre?(d.apellido||'')+', '+(d.nombre||''):d.descripcion||JSON.stringify(d).slice(0,80);}catch{det=String(a.detalle||'').slice(0,80);}
         const busqStr=((a.accion||'')+' '+(a.usuario_nombre||'')+' '+det).toLowerCase();
-        return `<div class="hist-row" data-busq="${busqStr}" data-tipo="sistema" data-estado="" style="display:flex;gap:10px;align-items:flex-start;padding:9px 16px;border-bottom:1px solid #e0e7ff">
+        return `<div class="hist-row" data-busq="${busqStr}" data-tipo="sistema" data-estado="" style="display:flex;gap:10px;align-items:flex-start;padding:9px 16px;border-bottom:2px solid #c7d2fe;border-left:4px solid #6366f1">
           <span style="font-size:18px;flex-shrink:0;margin-top:1px">${ico}</span>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:12px;color:#1e3a8a">${a.accion||'Acción'}</div>
