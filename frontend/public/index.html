@@ -5745,7 +5745,6 @@ async function pgSolicitudes(el){
   ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
-  const totalHistPend=pend.length+regsPend.length;
   const informesPend=informes.filter(i=>i.estado==='pendiente');
   // Carreras para filtros (combinar informes + ausencias)
   const carreraMap=new Map();
@@ -5753,6 +5752,7 @@ async function pgSolicitudes(el){
   const carreras=[...carreraMap.entries()].map(([id,nombre])=>({id,nombre}));
 
   const regsPend=regs.filter(r=>r.estado==='pendiente');
+  const totalHistPend=pend.length+regsPend.length;
   const asistPend=(informesPend.length+ausencias.length);
   const habsHoy=(habs||[]).length;
   function _gc(id,icon,title,badge,grad,hasPend){
