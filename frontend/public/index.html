@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260524-NOTAS-I -->
+<!-- build:20260525-HIST-GA -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -2862,6 +2862,7 @@ async function pgAlumnos(el){
       <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
       <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
       <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
+      <button class="bs o" onclick="exportarListaPDF()" title="Exportar lista actual como PDF">📄 Exportar PDF</button>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -2897,6 +2898,80 @@ function fAlAll(){
   tb.innerHTML=l.map(aRow).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';
 }
 function fAl(t,val){if(t==='c'){const el=document.getElementById('filtAlCarr');if(el)el.value=val;}if(t==='cu'){const el=document.getElementById('filtAlCurso');if(el)el.value=val;}fAlAll();}
+async function exportarListaPDF(){
+  const bus=(v('filtAlBus')||'').toLowerCase().trim();
+  const carrId=v('filtAlCarr');
+  const anio=v('filtAlAnio');
+  const cursoId=v('filtAlCurso');
+  const turno=v('filtAlTurno');
+  let l=W._als||[];
+  if(bus)l=l.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').toLowerCase().includes(bus));
+  if(carrId) l=l.filter(a=>a.carrera_id===carrId);
+  if(anio)   l=l.filter(a=>String(a.curso_anio||a.anio)===anio);
+  if(cursoId)l=l.filter(a=>a.curso_id===cursoId);
+  if(turno){const ct=new Set((W._cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(a=>ct.has(a.curso_id));}
+  l=[...l].sort((a,b)=>{const sa=(a.display_apellido||a.apellido||'').toLowerCase();const sb=(b.display_apellido||b.apellido||'').toLowerCase();return sa<sb?-1:sa>sb?1:0;});
+  if(!l.length){alert('No hay alumnos con los filtros actuales.');return;}
+  let inst={nombre:'',logo_base64:''};
+  try{inst=await api('GET','/api/institucion');}catch(e){}
+  const carrNombre=carrId?(W._carrs||[]).find(c=>c.id===carrId)?.nombre||'—':'Todas las carreras';
+  const anioLabel=anio?anio+'° año':'Todos los años';
+  let secLabel='Todas las secciones';
+  if(cursoId){const cu=(W._cursos||[]).find(c=>c.id===cursoId);if(cu)secLabel=`${cu.carrera_nombre} ${cu.anio}°${cu.division&&cu.division!=='U'?cu.division:''}${cu.turno?' T'+cu.turno:''}`;}
+  const filas=l.map((a,i)=>`<tr>
+    <td style="text-align:center">${i+1}</td>
+    <td>${a.matricula||'-'}</td>
+    <td style="font-weight:600">${a.display_apellido||a.apellido||''}, ${a.display_nombre||a.nombre||''}</td>
+    <td>${a.display_ci||a.ci||'-'}</td>
+    <td>${a.carrera_nombre||'-'}</td>
+    <td>${a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?a.curso_division:''}`:'-'}</td>
+    <td style="text-align:center">${a.estado||'-'}</td>
+  </tr>`).join('');
+  const logoHtml=inst.logo_base64?`<img src="${inst.logo_base64}" style="height:60px;margin-bottom:4px" />`:'';
+  const ventana=window.open('','_blank','width=960,height=720');
+  ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <title>Lista de Alumnos</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}
+    .header{text-align:center;margin-bottom:18px}
+    .header h2{font-size:16px;margin:4px 0}
+    .header p{font-size:12px;color:#555}
+    .filtros{background:#f4f4f4;border:1px solid #ddd;border-radius:6px;padding:8px 14px;margin-bottom:14px;font-size:11.5px;display:flex;gap:18px;flex-wrap:wrap}
+    .filtros span{color:#333}
+    .filtros strong{color:#111}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead tr{background:#1a3a5c;color:#fff}
+    thead th{padding:7px 8px;text-align:left;font-weight:600}
+    tbody tr:nth-child(even){background:#f7f9fb}
+    tbody tr:hover{background:#e8f0fe}
+    tbody td{padding:6px 8px;border-bottom:1px solid #e5e7eb}
+    .footer{margin-top:18px;font-size:11px;color:#777;text-align:right}
+    @media print{.no-print{display:none}body{padding:14px}}
+  </style></head><body>
+  <div class="header">
+    ${logoHtml}
+    <h2>${inst.nombre||'Instituto Técnico Superior'}</h2>
+    <p style="margin-top:6px;font-size:13px;font-weight:600">Lista de Alumnos</p>
+  </div>
+  <div class="filtros">
+    <span><strong>Carrera:</strong> ${carrNombre}</span>
+    <span><strong>Año:</strong> ${anioLabel}</span>
+    <span><strong>Sección:</strong> ${secLabel}</span>
+    <span><strong>Total:</strong> ${l.length} alumno${l.length!==1?'s':''}</span>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Matrícula</th><th>Apellidos y Nombres</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Estado</th></tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div class="footer">Generado el ${new Date().toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+  <div class="no-print" style="margin-top:20px;text-align:center">
+    <button onclick="window.print()" style="padding:8px 24px;background:#1a3a5c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  </body></html>`);
+  ventana.document.close();
+  setTimeout(()=>ventana.print(),600);
+}
 // Función aRow DEBE ser global — usada en als.map(aRow)
 function aRow(a){return `<tr>
   <td><span class="bx bp2">${a.matricula||'-'}</span></td>
@@ -5657,7 +5732,7 @@ async function resolverRegistroQr(id, accion){
 }
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
-  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios]=await Promise.all([
+  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios,auditAlumnos]=await Promise.all([
     api('GET','/api/solicitudes-alumno').catch(()=>[]),
     api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
     api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
@@ -5666,9 +5741,11 @@ async function pgSolicitudes(el){
     api('GET','/api/solicitudes-registro').catch(()=>[]),
     api('GET','/api/admin/habilitados').catch(()=>[]),
     api('GET','/api/qr-cambios').catch(()=>[]),
+    api('GET','/api/admin/auditoria?tabla=alumnos&limite=500').catch(()=>[]),
   ]);
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
+  const totalHistPend=pend.length+regsPend.length;
   const informesPend=informes.filter(i=>i.estado==='pendiente');
   // Carreras para filtros (combinar informes + ausencias)
   const carreraMap=new Map();
@@ -5690,8 +5767,7 @@ async function pgSolicitudes(el){
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
     ${_gc('qr','📱','Registro QR',regsPend.length?(regsPend.length+' pendiente'+(regsPend.length!==1?'s':'')):(regs.length+' total'),'linear-gradient(135deg,#1D4ED8,#2563EB)',regsPend.length>0)}
-    ${_gc('asistencia','📊','Asistencia',asistPend>0?((informesPend.length?informesPend.length+' informes ':'')+' '+(ausencias.length?ausencias.length+' ausencias':'')).trim():'Sin alertas','linear-gradient(135deg,#14532d,#1D9E75)',asistPend>0)}
-    ${_gc('incorporaciones','📋','Incorporaciones',pend.length?(pend.length+' pendiente'+(pend.length!==1?'s':'')):'Al día','linear-gradient(135deg,#92400e,#D85A30)',pend.length>0)}
+    ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','linear-gradient(135deg,#0a3d62,#1a7fc4)',totalHistPend>0)}
     ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'linear-gradient(135deg,#1e3a5f,#2563eb)',false)}
     ${_gc('sinasignar','⚠️','Sin asignar',sinAsignar.length+' alumno'+(sinAsignar.length!==1?'s':''),'linear-gradient(135deg,#4c1d95,#7c3aed)',sinAsignar.length>0)}
     ${_gc('habilitados','✅','Habilitados',habsHoy+' registro'+(habsHoy!==1?'s':''),'linear-gradient(135deg,#7f1d1d,#c0392b)',false)}
@@ -5713,32 +5789,129 @@ async function pgSolicitudes(el){
       </div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--t3)">Sin solicitudes QR</div>'}
     </div>
   </div>
-  <div id="gest-sec-asistencia" style="display:none;margin-bottom:16px">
-    <div style="background:linear-gradient(135deg,#14532d,#1D9E75);border-radius:12px 12px 0 0;padding:11px 16px"><span style="color:#fff;font-size:13px;font-weight:800">📊 Seguimiento de asistencia</span></div>
-    <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
-      ${informes.length||ausencias.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#f8fafb;border-bottom:1px solid #e2e8f0">
-        <select id="filtGestCarr" onchange="filtrarGestionAlumnos()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px"><option value="">Todas las carreras</option>${carreras.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('')}</select>
-        <select id="filtGestAnio" onchange="filtrarGestionAlumnos()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px"><option value="">Todos los años</option><option value="1">1° año</option><option value="2">2° año</option><option value="3">3° año</option></select>
-        <select id="filtGestDiv" onchange="filtrarGestionAlumnos()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px"><option value="">Todas las secciones</option><option value="A">Secc. A</option><option value="B">Secc. B</option><option value="U">Única</option></select>
-      </div>
-      ${informes.length?'<div style="border-bottom:2px solid #fde68a"><div style="padding:9px 14px;background:#fffbeb;display:flex;align-items:center;gap:8px"><span>🔔</span><strong style="font-size:12px;color:#92400e">Informes de docentes</strong><span style="font-size:11px;color:#b45309;margin-left:auto">'+informes.length+' informe'+(informes.length!==1?'s':'')+'</span></div>'
-        +informes.map(i=>'<div class="gest-row" data-carrera="'+i.carrera_id+'" data-anio="'+i.anio+'" data-div="'+i.division+'" style="display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #f1f5f9;'+(i.estado!=='pendiente'?'opacity:0.5':'')+'"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">'+(i.alumno_apellido||'')+', '+(i.alumno_nombre||'')+' <span style="font-size:10px;color:var(--t3)">CI: '+(i.alumno_ci||'—')+'</span></div><div style="font-size:11px;color:var(--t2);margin-top:2px">📚 '+i.materia+' · '+i.carrera+' '+i.anio+'°'+(i.division==='U'?'':i.division)+'</div><div style="font-size:11px;color:var(--t3);margin-top:1px">👤 '+(i.docente_apellido||'')+', '+(i.docente_nombre||'')+' — '+i.fecha+'</div>'+(i.observacion?'<div style="font-size:11px;color:#374151;margin-top:3px;background:#f9fafb;padding:4px 8px;border-radius:5px">💬 "'+i.observacion+'"</div>':'')+'</div><div style="display:flex;flex-direction:column;gap:4px;min-width:120px;text-align:right">'+(i.estado==='pendiente'?'<span style="font-size:9px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-weight:700">⏳ PENDIENTE</span><button class="bn" style="font-size:10px;padding:3px 8px;background:#dc2626;border:none" onclick="resolverInformeGA(\''+i.id+'\',\'retirado\',\''+i.alumno_id+'\')">🚫 Retirado</button><button class="bs" style="font-size:10px;padding:3px 8px" onclick="resolverInformeGA(\''+i.id+'\',\'visto\',null)">✓ Visto</button>':i.estado==='visto'?'<span style="font-size:9px;background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-weight:700">👁 VISTO</span>':'<span style="font-size:9px;background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:4px;font-weight:700">✓ RESUELTO</span>')+'</div></div>').join('')+'</div>':''}
-      ${ausencias.length?'<div><div style="padding:9px 14px;background:#fef2f2;display:flex;align-items:center;gap:8px"><span>⚠</span><strong style="font-size:12px;color:#7f1d1d">Detección automática — 5+ clases sin asistir</strong><span style="font-size:11px;color:#991b1b;margin-left:auto">'+ausencias.length+' alumno'+(ausencias.length!==1?'s':'')+'</span></div>'
-        +ausencias.map(a=>'<div class="gest-row" data-carrera="'+a.carrera_id+'" data-anio="'+a.anio+'" data-div="'+(a.division||'')+'" style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px">'+(a.apellido||'')+', '+(a.nombre||'')+' <span style="font-size:10px;color:var(--t3)">CI: '+(a.ci||'—')+'</span></div><div style="font-size:11px;color:var(--t2);margin-top:2px">📚 '+a.materia+' · '+a.carrera+' '+a.anio+'°'+(a.division&&a.division!=='U'?a.division:'')+'</div>'+(a.ultima_asistencia?'<div style="font-size:11px;color:var(--t3)">Última: '+a.ultima_asistencia+'</div>':'')+'</div><div style="text-align:center;min-width:90px"><div style="font-size:24px;font-weight:900;color:#dc2626;line-height:1">'+a.ausencias_consecutivas+'</div><div style="font-size:10px;color:#991b1b;font-weight:600">clases sin asistir</div><button class="bs d" style="font-size:10px;padding:2px 8px;margin-top:4px" onclick="marcarNoViene(\''+a.alumno_id+'\',\''+(a.apellido||'')+', '+(a.nombre||'')+'\',\''+a.asignacion_id+'\')">🚫 Retirar</button></div></div>').join('')+'</div>':''}
-      `:'<div style="padding:20px;text-align:center;color:var(--t3)">✓ Sin informes ni ausencias detectadas</div>'}
+  <div id="gest-sec-historial" style="display:none;margin-bottom:16px">
+    <div style="background:linear-gradient(135deg,#0a3d62,#1a7fc4);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones, Seguimiento & Asignaciones</span>
+      <span style="color:#bfdbfe;font-size:11px">${regs.length+sols.length} registros de incorporación · ${informes.length+ausencias.length} alertas asistencia · ${auditAlumnos.length} acciones sistema</span>
     </div>
-  </div>
-  <div id="gest-sec-incorporaciones" style="display:none;margin-bottom:16px">
-    <div style="background:linear-gradient(135deg,#92400e,#D85A30);border-radius:12px 12px 0 0;padding:11px 16px"><span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones de alumnos</span></div>
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
-      <div style="display:flex;border-bottom:1px solid #e2e8f0">
-        <div style="flex:1;padding:12px 16px;text-align:center;border-right:1px solid #e2e8f0"><div style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase">Pendientes</div><div style="font-size:28px;font-weight:900;color:${pend.length>0?'var(--amb)':'var(--green)'}">${pend.length}</div></div>
-        <div style="flex:1;padding:12px 16px;text-align:center"><div style="font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase">Total historial</div><div style="font-size:28px;font-weight:700">${sols.length}</div></div>
+      <!-- Contador resumen -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));text-align:center;border-bottom:1px solid #e2e8f0">
+        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--amb)">${pend.length+regsPend.length}</div><div style="font-size:10px;color:var(--t2)">Pendientes</div></div>
+        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--green)">${regs.filter(r=>r.estado==='aprobado').length+sols.filter(s=>s.estado==='aprobado').length}</div><div style="font-size:10px;color:var(--t2)">Aprobados</div></div>
+        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--red)">${regs.filter(r=>r.estado==='rechazado').length+sols.filter(s=>s.estado==='rechazado').length}</div><div style="font-size:10px;color:var(--t2)">Rechazados</div></div>
+        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:#b45309">${informesPend.length}</div><div style="font-size:10px;color:var(--t2)">Informes</div></div>
+        <div style="padding:10px 6px"><div style="font-size:20px;font-weight:900;color:#dc2626">${ausencias.length}</div><div style="font-size:10px;color:var(--t2)">Ausencias</div></div>
       </div>
-      ${pend.length?'<div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse"><thead><tr style="background:#fff8e1"><th style="padding:7px 10px;border:1px solid var(--bdr)">Alumno</th><th style="padding:7px 10px;border:1px solid var(--bdr)">CI</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Docente</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th><th style="padding:7px 10px;border:1px solid var(--bdr)"></th></tr></thead><tbody>'
-        +pend.map(s=>{let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}const esConflicto=obs?.tipo==='conflicto';return '<tr style="'+(esConflicto?'background:#fef2f2':'')+'"><td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600">'+(s.apellido||'')+' '+(s.nombre||'')+(esConflicto?'<span style="margin-left:4px;background:#dc2626;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px">⚠</span>':'')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.ci||'—')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.materia||'—')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.docente_nombre||'')+' '+(s.docente_apellido||'')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">'+(s.fecha?.split('T')[0]||'')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(esConflicto&&obs?.comentario?'<div style="font-size:10px;color:#991b1b;background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:4px 6px;margin-bottom:4px">💬 '+obs.comentario+'</div>':'')+'<div style="display:flex;gap:4px"><button class="bn" style="font-size:11px;padding:3px 10px" onclick="resolverSolicitudAlumno(\''+s.id+'\',\'aprobar\')">✓ Aprobar</button><button class="bs d" style="font-size:11px;padding:3px 8px" onclick="resolverSolicitudAlumno(\''+s.id+'\',\'rechazar\')">✕ Rechazar</button></div></td></tr>';}).join('')
-        +'</tbody></table></div>':'<div style="padding:20px;text-align:center;color:var(--green)"><strong>✓ Sin solicitudes pendientes</strong></div>'}
-      ${otras.length?'<div style="padding:9px 14px;background:#f5f5f5;border-top:1px solid #e2e8f0"><strong style="font-size:12px;color:var(--t2)">Historial · '+otras.length+' registro'+(otras.length!==1?'s':'')+'</strong></div><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse"><thead><tr style="background:#f5f5f5"><th style="padding:7px 10px;border:1px solid var(--bdr)">Alumno</th><th style="padding:7px 10px;border:1px solid var(--bdr)">CI</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Materia</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Estado</th><th style="padding:7px 10px;border:1px solid var(--bdr)">Fecha</th></tr></thead><tbody>'+otras.map(s=>'<tr><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.apellido||'')+' '+(s.nombre||'')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.ci||'—')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)">'+(s.materia||'—')+'</td><td style="padding:6px 10px;border:1px solid var(--bdr)"><span class="bx '+(s.estado==='aprobado'?'bg':'br')+'" style="font-size:10px">'+s.estado+'</span></td><td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap">'+(s.fecha?.split('T')[0]||'')+'</td></tr>').join('')+'</tbody></table></div>':''}
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#f8fafb;border-bottom:1px solid #e2e8f0">
+        <input id="histBus" placeholder="🔍 Nombre o CI..." oninput="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;min-width:160px"/>
+        <select id="histTipo" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todos los tipos</option>
+          <option value="qr">📱 Registro QR</option>
+          <option value="solicitud">📋 Solicitud docente</option>
+          <option value="asistencia">📊 Alerta asistencia</option>
+          <option value="sistema">⚙️ Acción sistema</option>
+        </select>
+        <select id="histEstado" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todos los estados</option>
+          <option value="aprobado">✅ Aprobado</option>
+          <option value="pendiente">⏳ Pendiente</option>
+          <option value="rechazado">❌ Rechazado</option>
+        </select>
+      </div>
+      <!-- Sección 1: Incorporaciones QR + Solicitudes -->
+      ${(()=>{
+        const items=[
+          ...regs.map(r=>({key:'qr-'+r.id,tipo:'qr',icono:'📱',tipLabel:'QR',
+            alumno:`${r.apellido||''}, ${r.nombre||''}`,ci:r.ci||'—',
+            carrera:r.carrera_nombre||'—',
+            seccion:r.curso_anio?(r.curso_anio+'°'+(r.curso_division&&r.curso_division!=='U'?' '+r.curso_division:'')+(r.turno?' T'+r.turno:'')):'—',
+            matricula:r.matricula||'',tel:r.telefono||'',email:r.email||'',
+            fecha:r.fecha||'',estado:r.estado||'',
+            extra:r.motivo_rechazo?'Motivo rechazo: '+r.motivo_rechazo:'',
+            acciones:r.estado==='pendiente'?`<button class="bn" style="font-size:10px;padding:3px 10px" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="font-size:10px;padding:3px 8px" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''
+          })),
+          ...sols.map(s=>{let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}const esConflicto=obs?.tipo==='conflicto';return{key:'sol-'+s.id,tipo:'solicitud',icono:'📋',tipLabel:'Solicitud',
+            alumno:`${s.apellido||''}, ${s.nombre||''}`,ci:s.ci||'—',
+            carrera:s.materia||'—',seccion:'—',matricula:'',tel:'',email:'',
+            fecha:s.fecha||'',estado:s.estado||'',
+            extra:[s.materia?'📚 '+s.materia:'',s.docente_apellido?'👤 '+s.docente_apellido+' '+s.docente_nombre:'',esConflicto&&obs?.comentario?'💬 '+obs.comentario:''].filter(Boolean).join(' · '),
+            acciones:s.estado==='pendiente'?`<button class="bn" style="font-size:10px;padding:3px 10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="font-size:10px;padding:3px 8px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>`:''
+          };})
+        ].sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
+        const stC={aprobado:'background:#dcfce7;color:#166534',pendiente:'background:#fef3c7;color:#92400e',rechazado:'background:#fee2e2;color:#991b1b'};
+        const stL={aprobado:'✅ Aprobado',pendiente:'⏳ Pendiente',rechazado:'❌ Rechazado'};
+        const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)'};
+        const rows=items.map(it=>`<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9">
+          <div style="width:38px;height:38px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+              <span style="font-weight:800;font-size:13px">${it.alumno}</span>
+              <span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;${stC[it.estado]||'background:#f1f5f9;color:#475569'}">${stL[it.estado]||it.estado}</span>
+              <span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#f1f5f9;color:#64748b">${it.icono} ${it.tipLabel}</span>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--t2)">
+              <span>🪪 CI: <strong>${it.ci}</strong></span>
+              <span>🏫 ${it.carrera}</span>
+              ${it.seccion!=='—'?`<span>📚 ${it.seccion}</span>`:''}
+              ${it.matricula?`<span>🎫 Matríc: ${it.matricula}</span>`:''}
+              ${it.tel?`<span>📞 ${it.tel}</span>`:''}
+              ${it.email?`<span>✉ ${it.email}</span>`:''}
+            </div>
+            ${it.extra?`<div style="font-size:11px;color:#64748b;margin-top:4px;background:#f8fafc;padding:3px 8px;border-radius:5px;display:inline-block">${it.extra}</div>`:''}
+            ${it.acciones?`<div style="display:flex;gap:6px;margin-top:6px">${it.acciones}</div>`:''}
+          </div>
+          <div style="flex-shrink:0;text-align:right;font-size:11px;color:var(--t3)">${(it.fecha||'').replace('T',' ').slice(0,16)}</div>
+        </div>`).join('');
+        return items.length
+          ? `<div style="padding:8px 14px;background:#eff6ff;border-bottom:1px solid #bfdbfe"><strong style="font-size:12px;color:#1e40af">📥 Incorporaciones · ${items.length} registro${items.length!==1?'s':''}</strong></div>${rows}`
+          : '<div style="padding:18px;text-align:center;color:var(--t3)">Sin registros de incorporación</div>';
+      })()}
+      <!-- Sección 2: Alertas de asistencia -->
+      ${(informes.length||ausencias.length)?`<div style="padding:8px 14px;background:#fffbeb;border-top:2px solid #fde68a;border-bottom:1px solid #fde68a"><strong style="font-size:12px;color:#92400e">📊 Alertas de asistencia · ${informes.length+ausencias.length} alerta${(informes.length+ausencias.length)!==1?'s':''}</strong></div>
+      ${informes.map(i=>`<div class="hist-row" data-busq="${((i.alumno_apellido||'')+(i.alumno_nombre||'')+(i.alumno_ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="${i.estado||'pendiente'}" style="display:flex;gap:8px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #f1f5f9;${i.estado!=='pendiente'?'opacity:0.55':''}">
+        <span style="font-size:20px;flex-shrink:0">🔔</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${i.alumno_apellido||''}, ${i.alumno_nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${i.alumno_ci||'—'}</span></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${i.materia||'—'} · ${i.carrera||''} ${i.anio||''}°${i.division&&i.division!=='U'?i.division:''}</div>
+          <div style="font-size:11px;color:var(--t3)">👤 ${i.docente_apellido||''}, ${i.docente_nombre||''} — ${i.fecha||''}</div>
+          ${i.observacion?`<div style="font-size:11px;color:#374151;background:#f9fafb;padding:3px 8px;border-radius:5px;margin-top:3px;display:inline-block">💬 "${i.observacion}"</div>`:''}
+          ${i.estado==='pendiente'?`<div style="display:flex;gap:6px;margin-top:6px"><button class="bn" style="font-size:10px;padding:3px 8px;background:#dc2626;border:none" onclick="resolverInformeGA('${i.id}','retirado','${i.alumno_id}')">🚫 Retirado</button><button class="bs" style="font-size:10px;padding:3px 8px" onclick="resolverInformeGA('${i.id}','visto',null)">✓ Visto</button></div>`:''}
+        </div>
+        <span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;flex-shrink:0;${i.estado==='pendiente'?'background:#fef3c7;color:#92400e':i.estado==='visto'?'background:#dbeafe;color:#1e40af':'background:#d1fae5;color:#065f46'}">${i.estado==='pendiente'?'⏳ PENDIENTE':i.estado==='visto'?'👁 VISTO':'✓ RESUELTO'}</span>
+      </div>`).join('')}
+      ${ausencias.map(a=>`<div class="hist-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="pendiente" style="display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:20px;flex-shrink:0">⚠️</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${a.ci||'—'}</span></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${a.materia||'—'} · ${a.carrera||''} ${a.anio||''}°${a.division&&a.division!=='U'?a.division:''}</div>
+          ${a.ultima_asistencia?`<div style="font-size:11px;color:var(--t3)">Última asistencia: ${a.ultima_asistencia}</div>`:''}
+          <button class="bs d" style="font-size:10px;padding:2px 8px;margin-top:5px" onclick="marcarNoViene('${a.alumno_id}','${(a.apellido||'')+', '+(a.nombre||'')}','${a.asignacion_id}')">🚫 Retirar</button>
+        </div>
+        <div style="text-align:center;min-width:70px;flex-shrink:0"><div style="font-size:26px;font-weight:900;color:#dc2626;line-height:1">${a.ausencias_consecutivas}</div><div style="font-size:10px;color:#991b1b;font-weight:600">sin asistir</div></div>
+      </div>`).join('')}`:''
+      }
+      <!-- Sección 3: Acciones del sistema sobre alumnos -->
+      ${auditAlumnos.length?`<div style="padding:8px 14px;background:#f0f4ff;border-top:2px solid #c7d2fe;border-bottom:1px solid #c7d2fe"><strong style="font-size:12px;color:#1e40af">⚙️ Registro de acciones · ${auditAlumnos.length} entrada${auditAlumnos.length!==1?'s':''}</strong></div>
+      ${auditAlumnos.slice(0,100).map(a=>{
+        const acIco={'INSERT':'➕','CREATE':'➕','DELETE':'🗑️','UPDATE':'✏️','ASIGNAR':'↕️','IMPORTAR':'📥','HABILITAR':'✅','REACTIVAR':'↩️'};
+        const ico=Object.entries(acIco).find(([k])=>String(a.accion||'').toUpperCase().includes(k))?.[1]||'⚙️';
+        const fec=(a.fecha_hora||a.created_at||'').replace('T',' ').slice(0,16);
+        let det='';try{const d=typeof a.detalle==='string'?JSON.parse(a.detalle):a.detalle||{};det=d.nombre?(d.apellido||'')+', '+(d.nombre||''):d.descripcion||JSON.stringify(d).slice(0,80);}catch{det=String(a.detalle||'').slice(0,80);}
+        const busqStr=((a.accion||'')+' '+(a.usuario_nombre||'')+' '+det).toLowerCase();
+        return `<div class="hist-row" data-busq="${busqStr}" data-tipo="sistema" data-estado="" style="display:flex;gap:10px;align-items:flex-start;padding:9px 16px;border-bottom:1px solid #e0e7ff">
+          <span style="font-size:18px;flex-shrink:0;margin-top:1px">${ico}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12px;color:#1e3a8a">${a.accion||'Acción'}</div>
+            ${det?`<div style="font-size:11px;color:#374151;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${det}</div>`:''}
+            <div style="font-size:11px;color:var(--t3);margin-top:1px">👤 ${a.usuario_nombre||a.usuario||'—'} <span style="background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:4px;font-size:10px">${a.rol||''}</span></div>
+          </div>
+          <div style="flex-shrink:0;color:var(--t3);font-size:11px;text-align:right">${fec}</div>
+        </div>`;
+      }).join('')}
+      ${auditAlumnos.length>100?`<div style="padding:8px;text-align:center;font-size:11px;color:var(--t3)">+${auditAlumnos.length-100} registros más (ver Auditoría completa)</div>`:''}
+      `:''}
     </div>
   </div>
   <div id="gest-sec-inactivos" style="display:none;margin-bottom:16px">
@@ -6549,6 +6722,17 @@ async function resolverInformeGA(informeId, accion, alId){
     }
     go('solicitudes');
   }catch(e){toast('Error: '+e.message,'err');}
+}
+function filtrarHistorialGA(){
+  const bus=(v('histBus')||'').toLowerCase().trim();
+  const tipo=v('histTipo')||'';
+  const estado=v('histEstado')||'';
+  document.querySelectorAll('.hist-row').forEach(row=>{
+    const okBus=!bus||row.dataset.busq.includes(bus);
+    const okTipo=!tipo||row.dataset.tipo===tipo;
+    const okEst=!estado||row.dataset.estado===estado;
+    row.style.display=(okBus&&okTipo&&okEst)?'flex':'none';
+  });
 }
 function filtrarGestionAlumnos(){
   const carrera=v('filtGestCarr');
