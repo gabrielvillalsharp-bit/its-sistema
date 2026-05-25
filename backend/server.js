@@ -1779,7 +1779,10 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     let habilitadosRecup = 0;
     if ((concepto||'').toLowerCase().includes('parcial recuperatorio')) {
       const fechaHoy = nowDate();
-      const asignaciones = db.prepare('SELECT id FROM asignaciones WHERE alumno_id=?').all(alumno_id);
+      const alCurso = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(alumno_id);
+      const asignaciones = alCurso?.curso_id
+        ? db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(alCurso.curso_id)
+        : [];
       for (const asig of asignaciones) {
         const hab = db.prepare('SELECT id, tipo_examen FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asig.id);
         if (hab) {
