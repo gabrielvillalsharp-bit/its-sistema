@@ -3871,10 +3871,10 @@ async function importarExamenes(input){
 // ── RECUPERATORIOS PARCIALES — Preview ────────────────────────────────────────
 async function mPreviewRecuperatoriosParciales(){
   const btn=document.querySelector('button[onclick="mPreviewRecuperatoriosParciales()"]');
+  const resetBtn=()=>{if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}};
   if(btn){btn.disabled=true;btn.textContent='⏳ Generando...';}
   try{
     const d=await api('GET','/api/examenes/preview-recuperatorios-parciales');
-    if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}
     const {resultado=[],sinFecha=[]}=d;
     W._prevRecupData={resultado,sinFecha};
 
@@ -3951,8 +3951,9 @@ async function mPreviewRecuperatoriosParciales(){
       </div>
     </div>`,true);
   }catch(e){
-    if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}
     toast('Error al generar preview: '+e.message,'err',5000);
+  }finally{
+    resetBtn();
   }
 }
 
