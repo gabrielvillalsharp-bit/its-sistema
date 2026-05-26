@@ -1806,13 +1806,13 @@ app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) =
         .run(id, p.asignacion_id, 'Recuperatorio', p.fecha, p.hora||null, periodo?.id||null, 20);
       creados++;
 
-      // Aviso al docente (uno por asignación — evita duplicar si es unificado el mismo docente+fecha)
+      // Aviso solo al docente de esa materia (usa su usuario_id para que solo él lo vea)
       try {
         const docKey = `${p.asignacion_id}|${p.fecha}`;
         if (!docentesAvisados.has(docKey)) {
           docentesAvisados.add(docKey);
           const info = db.prepare(`
-            SELECT u.nombre, u.apellido, ca.nombre as carrera, cu.anio
+            SELECT u.id as doc_uid, u.nombre, u.apellido, ca.nombre as carrera, cu.anio
             FROM asignaciones a
             JOIN docentes d  ON a.docente_id=d.id
             JOIN usuarios u  ON d.usuario_id=u.id
@@ -1823,28 +1823,14 @@ app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) =
             const avId = 'av_rp_' + (Date.now() + i);
             db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
               avId,
-              `📋 Recuperatorio Parcial programado — ${p.materia}`,
-              `Se programó el <strong>Recuperatorio Parcial</strong> de <strong>${p.materia}</strong> (${info.carrera} ${info.anio}°) para el día <strong>${fmtFecha(p.fecha)}</strong> a las <strong>${p.hora}</strong>. Revisá la sección Exámenes para más detalles.`,
-              'info', 0, 'docentes', req.user.id
+              `📋 Recuperatorio Parcial — ${p.materia}`,
+              `Se programó el Recuperatorio Parcial de <strong>${p.materia}</strong> (${info.carrera} ${info.anio}°) para el <strong>${fmtFecha(p.fecha)}</strong> a las <strong>${p.hora}</strong>.`,
+              'info', 0, 'docentes', info.doc_uid
             );
           }
         }
       } catch(avErr) { console.error('Aviso docente error:', avErr.message); }
     });
-
-    // Aviso general a todos los alumnos habilitados para parcial_recuperatorio
-    try {
-      const totalHab = db.prepare("SELECT COUNT(DISTINCT alumno_id) as n FROM habilitaciones_examen WHERE tipo_examen='parcial_recuperatorio' AND habilitado=1").get();
-      if (totalHab?.n > 0) {
-        const avAlId = 'av_rpal_' + Date.now();
-        db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
-          avAlId,
-          '📅 Cronograma de Recuperatorios Parciales publicado',
-          `Se publicó el cronograma de <strong>Recuperatorios Parciales</strong> (período: 10 jun – 1 jul 2025). Si estás habilitado/a para rendir, ingresá a la sección <strong>Exámenes</strong> para ver tu fecha y horario.`,
-          'info', 0, 'alumnos', req.user.id
-        );
-      }
-    } catch(avErr) { console.error('Aviso alumnos error:', avErr.message); }
 
     audit(req.user.id, 'CREAR_RECUPERATORIOS_PARCIALES', 'examenes', 'bulk', { creados, errores: errores.length });
     req.app.locals._prevRecupParcial = null;
