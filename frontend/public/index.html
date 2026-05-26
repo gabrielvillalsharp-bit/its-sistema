@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260526-HAB-MATERIA-V8 -->
+<!-- build:20260526-HAB-MATERIA-V9 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -625,6 +625,9 @@ body.mob-alumno .ct{padding-bottom:68px}
 @keyframes liveSlideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes liveGlow{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.3)}60%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
+@keyframes cuota3d{0%,100%{transform:translateY(0) rotateX(0deg) scale(1)}50%{transform:translateY(-3px) rotateX(4deg) scale(1.03)}}
+.cuota-btn-unpaid{animation:none;transition:all .15s;perspective:600px}
+.cuota-btn-unpaid:hover{animation:cuota3d .6s ease-in-out infinite}
 .ni{animation:navSlideIn .22s ease both}
 .ng-hdr{animation:navFadeGroup .18s ease both}
 .feed-carga-item{animation:liveSlideIn .3s ease both;border-left:3px solid #22c55e}
@@ -7854,31 +7857,28 @@ async function selAlumnoPago(alId){
     const cuotasGrid=['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
       // 1er año no paga matrícula
       if(n==='Matrícula'&&es1erAnio){
-        return `<div style="border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0" title="1er año: no paga matrícula">
-          <div style="font-size:13px;line-height:1">➖</div>
-          <div style="font-size:8px;font-weight:700;color:#94a3b8;margin-top:2px;line-height:1.1">Mat.<br>N/A</div>
+        return `<div style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:10px 6px;text-align:center;flex:1;min-width:50px;cursor:default" title="1er año: no paga matrícula">
+          <div style="font-size:16px;line-height:1">➖</div>
+          <div style="font-size:9px;font-weight:700;color:#94a3b8;margin-top:4px;line-height:1.2">Mat.<br>N/A</div>
         </div>`;
       }
       const key=n==='Matrícula'?'Matrícula':'Cuota '+n;
-      // Etiqueta compacta: "Mat." o "1 Mar", "2 Abr", etc.
-      const shortLbl=n==='Matrícula'?'Mat.':n+' '+mesAbr[n];
+      const shortLbl=n==='Matrícula'?'Mat.':n+'\n'+mesAbr[n];
       // Comparación EXACTA: evitar que 'Cuota 10'.includes('Cuota 1') sea true
       const ok=(pagos||[]).some(p=>p.concepto===key);
       const pago=ok?(pagos||[]).find(p=>p.concepto===key):null;
       const fullLbl=n==='Matrícula'?'Matrícula':(lb[n]||'Cuota '+n);
       if(!ok){
-        return `<div onclick="registrarPagoCuota('${alId}','${key}')"
-          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'"
-          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'"
-          style="border:2px solid #e2e8f0;border-radius:8px;background:#fff;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0;cursor:pointer;transition:all .12s"
+        return `<div class="cuota-btn-unpaid" onclick="registrarPagoCuota('${alId}','${key}')"
+          style="border:2px solid #d1fae5;border-radius:10px;background:linear-gradient(145deg,#f0fdf4,#dcfce7);padding:10px 6px;text-align:center;flex:1;min-width:50px;cursor:pointer;transform-style:preserve-3d;box-shadow:0 2px 6px rgba(22,101,52,.10)"
           title="Clic para registrar ${fullLbl}">
-          <div style="font-size:13px;line-height:1">○</div>
-          <div style="font-size:8px;font-weight:700;color:#94a3b8;margin-top:2px;line-height:1.1">${shortLbl}</div>
+          <div style="font-size:16px;line-height:1">○</div>
+          <div style="font-size:9px;font-weight:700;color:#4ade80;margin-top:4px;line-height:1.2;white-space:pre-line">${shortLbl}</div>
         </div>`;
       }
-      return `<div style="border:2px solid #4ade80;border-radius:8px;background:#f0fdf4;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0;cursor:default" title="Gs. ${Number(pago?.monto||0).toLocaleString()} — ${fmtFecha(pago?.fecha_pago)}">
-        <div style="font-size:13px;line-height:1">✅</div>
-        <div style="font-size:8px;font-weight:700;color:#166534;margin-top:2px;line-height:1.1">${shortLbl}</div>
+      return `<div style="border:2px solid #4ade80;border-radius:10px;background:linear-gradient(145deg,#16a34a,#15803d);padding:10px 6px;text-align:center;flex:1;min-width:50px;cursor:default;box-shadow:0 3px 10px rgba(22,101,52,.30)" title="Gs. ${Number(pago?.monto||0).toLocaleString()} — ${fmtFecha(pago?.fecha_pago)}">
+        <div style="font-size:16px;line-height:1">✅</div>
+        <div style="font-size:9px;font-weight:700;color:#fff;margin-top:4px;line-height:1.2;white-space:pre-line">${shortLbl}</div>
       </div>`;
     }).join('');
 
@@ -7916,9 +7916,12 @@ async function selAlumnoPago(alId){
           <span style="font-size:9px;color:#64748b;white-space:nowrap">${fmtFecha(p.fecha_pago)}</span>
         </div>`;
       });
+      // Almacenar excludeIds en W para evitar comillas dobles en onclick
+      const exclKey='_excl_'+concepto.replace(/\W+/g,'_');
+      W[exclKey]=excludeIds;
       // Botón "+ Registrar" solo si hay materias disponibles
       const btnRegistrar=lleno?''
-        :`<button onclick="registrarPagoArancel('${alId}','${concepto}',${JSON.stringify(excludeIds)})"
+        :`<button onclick="registrarPagoArancel('${alId}','${concepto}')"
           onmouseover="this.style.background='#ede9fe';this.style.borderColor='#7c3aed';this.style.color='#5b21b6'"
           onmouseout="this.style.background='#f5f3ff';this.style.borderColor='#c4b5fd';this.style.color='#7c3aed'"
           style="margin-top:7px;width:100%;padding:5px 0;border:1.5px dashed #c4b5fd;border-radius:7px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s"
@@ -8080,7 +8083,7 @@ async function selAlumnoPago(alId){
         <!-- Estado de cuotas -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
-          <div style="display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px">${cuotasGrid}</div>
+          <div style="display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;align-items:stretch">${cuotasGrid}</div>
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
           <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:flex-start">${examenesGrid}</div>
@@ -8286,8 +8289,9 @@ function registrarPagoCuota(alId, concepto){
 }
 
 // Registrar pago de examen con arancel (concepto pre-seleccionado, filtra materias ya pagadas)
-function registrarPagoArancel(alId, concepto, excludeAsigIds){
-  W._arancelExclude=excludeAsigIds||[];
+function registrarPagoArancel(alId, concepto){
+  const exclKey='_excl_'+concepto.replace(/\W+/g,'_');
+  W._arancelExclude=W[exclKey]||[];
   mPagoDirecto(alId, concepto);
 }
 

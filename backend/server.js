@@ -4126,6 +4126,13 @@ async function sendWhatsApp(phone, message) {
     return false;
   }
 }
+// ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
+async function enviarBienvenidaQR(telefono, nombre, email, ci) {
+  if (!telefono) return;
+  const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+  const msg = `🎓 *Instituto de Tecnología Santísima Trinidad*\n\n¡Bienvenido/a, *${nombre}*! 🌟\n\nNos alegra que seas parte de nuestra institución y de esta evolución educativa que estamos construyendo juntos.\n\nTus datos de acceso al sistema son:\n👤 *Usuario:* ${email}\n🔑 *Contraseña:* ${ci||'(tu número de cédula)'}\n\n🔗 *Ingresá desde:*\n${APP_URL}\n\nSi tenés alguna consulta, no dudes en comunicarte con la administración.\n\n✨ ¡Bienvenido/a a esta evolución!`;
+  sendWhatsApp(telefono, msg).catch(()=>{});
+}
 // ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
 function enHoraPermitida() {
   const py = new Date(new Date().getTime() - 4 * 60 * 60 * 1000);
@@ -5387,6 +5394,14 @@ app.post('/pub/alumno/completar', (req, res) => {
       const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
       if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
     }
+    // Enviar WhatsApp de bienvenida con credenciales
+    const alumnoActual = db.prepare('SELECT a.*, u.email FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id WHERE a.id=?').get(alumno_id);
+    const telefonoFinal = telefono || alumno.telefono;
+    const ciActual = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
+    const nombreCompleto = (nombre||alumno.nombre||'')+(apellido||alumno.apellido?(' '+(apellido||alumno.apellido)):'');
+    if (telefonoFinal && alumnoActual?.email) {
+      enviarBienvenidaQR(telefonoFinal, nombreCompleto.trim(), alumnoActual.email, ciActual);
+    }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -5485,6 +5500,14 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
         db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
       })();
       audit(req.user.id,'APROBAR_REGISTRO','solicitudes_registro',req.params.id,{nombre:sol.nombre});
+      // Enviar WhatsApp de bienvenida con credenciales al alumno aprobado
+      if (sol.telefono) {
+        const usuAprobado = db.prepare('SELECT u.email FROM alumnos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.ci=? OR (a.nombre=? AND a.apellido=?) LIMIT 1')
+          .get(String(sol.ci||'').replace(/[^0-9]/g,''), sol.nombre, sol.apellido);
+        const ciNum = String(sol.ci||'').replace(/[^0-9]/g,'');
+        const nombreCompleto = (sol.nombre||'')+' '+(sol.apellido||'');
+        enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
+      }
     } catch(e) { return res.status(500).json({ error: e.message }); }
   } else {
     db.prepare("UPDATE solicitudes_registro SET estado='rechazado',motivo_rechazo=? WHERE id=?").run(motivo||'', req.params.id);
