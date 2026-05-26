@@ -8061,7 +8061,6 @@ async function selAlumnoPago(alId){
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="mPagoDirecto('${alId}')" style="background:#fff;color:#166534;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Registrar pago</button>
           <button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">↕ Mover sección</button>
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${al.display_nombre||al.nombre||''}','${al.display_apellido||al.apellido||''}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
