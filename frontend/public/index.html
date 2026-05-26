@@ -7957,12 +7957,14 @@ async function selAlumnoPago(alId){
           ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
         </div>`;
       } else {
-        return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px">
+        return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px;position:relative">
           <div style="font-weight:800;font-size:11px;color:#b45309;margin-bottom:3px">🔓 ${label}</div>
           ${mat}
           <div style="font-size:10px;color:#e65100">Sin pago — hab. por Dirección</div>
           ${h.motivo&&!h.motivo.toLowerCase().includes('pago')?`<div style="font-size:9px;color:#64748b;margin-top:2px">${h.motivo}</div>`:''}
           ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
+          <button onclick="eliminarHabilitacion('${h.id}','${alId}')" title="Eliminar habilitación"
+            style="position:absolute;top:6px;right:6px;background:#fee2e2;border:none;border-radius:5px;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;padding:2px 7px;line-height:1.4">×</button>
         </div>`;
       }
     }
