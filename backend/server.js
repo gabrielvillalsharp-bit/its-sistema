@@ -3271,6 +3271,15 @@ app.get('/api/habilitaciones/:alumno_id', auth(), (req, res) => {
     LEFT JOIN materias m ON a.materia_id = m.id
     WHERE h.alumno_id=?`).all(req.params.alumno_id));
 });
+app.delete('/api/habilitaciones/:id', auth(['director']), (req, res) => {
+  try {
+    const h = db.prepare('SELECT * FROM habilitaciones_examen WHERE id=?').get(req.params.id);
+    if (!h) return res.status(404).json({ error: 'Habilitación no encontrada' });
+    db.prepare('DELETE FROM habilitaciones_examen WHERE id=?').run(req.params.id);
+    audit(req.user.id, 'DELETE_HABILITACION', 'habilitaciones_examen', req.params.id, { alumno_id: h.alumno_id, tipo_examen: h.tipo_examen, asignacion_id: h.asignacion_id });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // ── RE-SEED DOCENTES (para Railway donde la BD ya existía) ────────────────────
 app.post('/api/admin/reseed-docentes', auth(ADM), (req, res) => {

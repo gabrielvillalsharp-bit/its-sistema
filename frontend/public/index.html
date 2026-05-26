@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HAB-MATERIA-V3 -->
+<!-- build:20260525-HAB-MATERIA-V4 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1199,7 +1199,7 @@ function delPagoAlumno(pagoId, alId){
 }
 
 function editarPago(pagoId, concepto, monto, fecha, medioPago, comprobante, alId){
-  const conceptos=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Cuota 11','Cuota 12','Parcial Ordinario','Parcial Recuperatorio','Final Ordinario','Final Recuperatorio','Final Complementario','Final Extraordinario','Otro'];
+  const conceptos=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Parcial Ordinario','Parcial Recuperatorio','Final Ordinario','Final Recuperatorio','Final Complementario','Final Extraordinario','Otro'];
   const medios=['Efectivo','Transferencia','Cheque','Tarjeta','Otro'];
   modal(`<h4 style="margin-bottom:16px;font-size:16px;font-weight:700">✏ Editar pago</h4>
     <div class="f"><label>Concepto / Mes</label>
@@ -7740,8 +7740,8 @@ async function selAlumnoPago(alId){
       ?`<span style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">✓ Habilitado${rHab.razon==='habilitacion_especial'?' (excepción)':''}</span>`
       :`<span style="background:#fce4ec;color:#b71c1c;border:1px solid #f48fb1;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔒 En mora</span>`;
 
-    // Grid de cuotas — TODAS las 12 + matrícula (match EXACTO para evitar bug Cuota 1 vs Cuota 10)
-    const cuotasGrid=['Matrícula',...Array.from({length:12},(_,i)=>i+1)].map(n=>{
+    // Grid de cuotas — 10 cuotas + matrícula (match EXACTO para evitar bug Cuota 1 vs Cuota 10)
+    const cuotasGrid=['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
       // 1er año no paga matrícula
       if(n==='Matrícula'&&es1erAnio){
         return `<div style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:10px 8px;text-align:center;min-width:80px" title="1er año: no paga matrícula">
@@ -7788,41 +7788,44 @@ async function selAlumnoPago(alId){
       const count=pagosEx.length;
       const excludeIds=pagosConAsig.map(p=>p.asignacion_id);
       const lblShort=lbl.replace('\n',' ');
-      let cards='';
-      // Tarjetas verdes por cada materia ya pagada
+      const lleno=count>=ARANCEL_MAX;
+      // Filas de materias pagadas dentro de la tarjeta
+      let filasMateria='';
       pagosConAsig.forEach(p=>{
         const mat=p.materia_nombre||'Materia';
-        const matCort=mat.length>14?mat.substring(0,13)+'…':mat;
-        cards+=`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:9px 8px;text-align:center;min-width:78px;max-width:96px;cursor:default" title="${mat} — Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
-          <div style="font-size:18px;margin-bottom:3px">✅</div>
-          <div style="font-size:9px;font-weight:700;color:#166534;line-height:1.2;white-space:pre-line">${lbl}</div>
-          <div style="font-size:8px;color:#15803d;margin-top:3px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${mat}">📚 ${matCort}</div>
-          <div style="font-size:8px;color:#64748b;margin-top:1px">${fmtFecha(p.fecha_pago)}</div>
+        filasMateria+=`<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #dcfce7">
+          <span style="font-size:10px">✅</span>
+          <span style="font-size:10px;color:#166534;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${mat}">${mat}</span>
+          <span style="font-size:9px;color:#64748b;white-space:nowrap">${fmtFecha(p.fecha_pago)}</span>
         </div>`;
       });
-      // Tarjetas legacy (sin asignacion_id, datos históricos)
       pagosLegacy.forEach(p=>{
-        cards+=`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:9px 8px;text-align:center;min-width:78px;cursor:default" title="Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
-          <div style="font-size:18px;margin-bottom:3px">✅</div>
-          <div style="font-size:9px;font-weight:700;color:#166534;line-height:1.2;white-space:pre-line">${lbl}</div>
-          <div style="font-size:8px;color:#166534;margin-top:2px">Gs. ${Number(p.monto||0).toLocaleString()}</div>
+        filasMateria+=`<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #dcfce7">
+          <span style="font-size:10px">✅</span>
+          <span style="font-size:10px;color:#166534;font-weight:600;flex:1">Pagado</span>
+          <span style="font-size:9px;color:#64748b;white-space:nowrap">${fmtFecha(p.fecha_pago)}</span>
         </div>`;
       });
-      // Tarjeta "+" si quedan materias disponibles
-      if(count<ARANCEL_MAX){
-        cards+=`<div onclick="registrarPagoArancel('${alId}','${concepto}',${JSON.stringify(excludeIds)})"
-          onmouseover="this.style.borderColor='#7c3aed';this.style.background='#f5f3ff'"
-          onmouseout="this.style.borderColor='#d1d5db';this.style.background='#fff'"
-          style="border:2px dashed #d1d5db;border-radius:10px;background:#fff;padding:9px 8px;text-align:center;min-width:78px;cursor:pointer;transition:all .15s"
-          title="Registrar pago — ${lblShort} (${count}/${ARANCEL_MAX} materias)">
-          <div style="font-size:18px;margin-bottom:3px">${icon}</div>
-          <div style="font-size:9px;font-weight:700;color:#94a3b8;line-height:1.2;white-space:pre-line">${lbl}</div>
-          <div style="font-size:8px;color:#7c3aed;margin-top:3px;font-weight:700">+ Registrar ${count>0?'('+count+'/'+ARANCEL_MAX+')':''}</div>
-        </div>`;
-      }
-      return `<div style="display:flex;flex-direction:column;align-items:flex-start;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;background:#fafafa;min-width:90px">
-        <div style="font-size:9px;color:#64748b;font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">${lblShort}${count>0?' <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:1px 5px;font-size:8px">'+count+'/'+ARANCEL_MAX+'</span>':''}</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">${cards}</div>
+      // Botón "+ Registrar" solo si hay materias disponibles
+      const btnRegistrar=lleno?''
+        :`<button onclick="registrarPagoArancel('${alId}','${concepto}',${JSON.stringify(excludeIds)})"
+          onmouseover="this.style.background='#ede9fe';this.style.borderColor='#7c3aed';this.style.color='#5b21b6'"
+          onmouseout="this.style.background='#f5f3ff';this.style.borderColor='#c4b5fd';this.style.color='#7c3aed'"
+          style="margin-top:7px;width:100%;padding:5px 0;border:1.5px dashed #c4b5fd;border-radius:7px;background:#f5f3ff;color:#7c3aed;font-size:10px;font-weight:700;cursor:pointer;transition:all .15s"
+          title="Registrar pago de ${lblShort}">+ Registrar materia ${count>0?'('+count+'/'+ARANCEL_MAX+')':''}</button>`;
+      const borderCol=lleno?'#4ade80':count>0?'#86efac':'#e2e8f0';
+      const bgCol=lleno?'#f0fdf4':count>0?'#f7fef9':'#fff';
+      return `<div style="border:2px solid ${borderCol};border-radius:12px;background:${bgCol};padding:10px 12px;min-width:130px;max-width:200px;flex:1">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:${count?'8px':'4px'}">
+          <span style="font-size:16px">${icon}</span>
+          <div style="flex:1">
+            <div style="font-size:10px;font-weight:800;color:${count>0?'#166534':'#475569'};line-height:1.2;white-space:pre-line">${lbl}</div>
+            ${count>0?`<div style="font-size:9px;color:#64748b;margin-top:1px">${count}/${ARANCEL_MAX} materias</div>`:''}
+          </div>
+          ${lleno?'<span style="font-size:11px;font-weight:800;color:#166534">✓</span>':''}
+        </div>
+        ${filasMateria?`<div style="display:flex;flex-direction:column;gap:0">${filasMateria}</div>`:''}
+        ${btnRegistrar}
       </div>`;
     }).join('');
 
@@ -7833,15 +7836,20 @@ async function selAlumnoPago(alId){
     function renderHabCard(h,conPago){
       const label=habLabels[h.tipo_examen]||h.tipo_examen;
       const mat=h.materia_nombre?`<div style="font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:3px">📚 ${h.materia_nombre}</div>`:'';
+      const btnDel=me.rol==='director'
+        ?`<button onclick="eliminarHabilitacion('${h.id}','${alId}')" title="Eliminar habilitación" style="position:absolute;top:6px;right:6px;border:none;background:transparent;color:#94a3b8;font-size:14px;cursor:pointer;line-height:1;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='#dc2626';this.style.background='#fee2e2'" onmouseout="this.style.color='#94a3b8';this.style.background='transparent'">×</button>`
+        :'';
       if(conPago){
-        return `<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 14px;min-width:160px">
+        return `<div style="position:relative;border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 14px;min-width:160px;padding-right:${me.rol==='director'?'28px':'14px'}">
+          ${btnDel}
           <div style="font-weight:800;font-size:11px;color:#166534;margin-bottom:3px">✅ ${label}</div>
           ${mat}
           <div style="font-size:10px;color:#64748b">💳 Habilitado por pago</div>
           ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
         </div>`;
       } else {
-        return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px">
+        return `<div style="position:relative;border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px;padding-right:${me.rol==='director'?'28px':'14px'}">
+          ${btnDel}
           <div style="font-weight:800;font-size:11px;color:#b45309;margin-bottom:3px">🔓 ${label}</div>
           ${mat}
           <div style="font-size:10px;color:#e65100">Sin pago — hab. por Dirección</div>
@@ -8020,6 +8028,14 @@ async function svEditarNombreAlumno(alId){
     toast('✓ Nombre actualizado','ok',3000);
     abrirDetallePago(alId);
   }catch(e){toast('Error: '+e.message,'err');}
+}
+async function eliminarHabilitacion(habId, alId){
+  if(!confirm('¿Eliminar esta habilitación de examen? Esta acción no se puede deshacer.')) return;
+  try{
+    await api('DELETE','/api/habilitaciones/'+habId);
+    showToast('Habilitación eliminada','ok');
+    await selAlumnoPago(alId);
+  }catch(e){showToast('Error: '+e.message,'err');}
 }
 async function habilitarDesdeHistorial(alId){
   const [aranceles, asigs] = await Promise.all([
@@ -8200,7 +8216,7 @@ async function registrarPagoArancel(alId, concepto, excludeAsigIds){
 const CUOTA_DEFAULTS={
   1:'Cuota 1 — Marzo',  2:'Cuota 2 — Abril',   3:'Cuota 3 — Mayo',    4:'Cuota 4 — Junio',
   5:'Cuota 5 — Julio',  6:'Cuota 6 — Agosto',  7:'Cuota 7 — Setiembre',8:'Cuota 8 — Octubre',
-  9:'Cuota 9 — Noviembre',10:'Cuota 10 — Diciembre',11:'Cuota 11 — Enero',12:'Cuota 12 — Febrero'
+  9:'Cuota 9 — Noviembre',10:'Cuota 10 — Diciembre'
 };
 function getCuotaLabels(){
   try{const s=localStorage.getItem('its_cuota_labels');if(s){const p=JSON.parse(s);// Completar con defaults si solo tiene 1-5
@@ -8209,7 +8225,7 @@ function getCuotaLabels(){
 }
 function cuotaOptions(){
   const lb=getCuotaLabels();
-  return [1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<option value="Cuota '+n+'">'+lb[n]+'</option>').join('');
+  return [1,2,3,4,5,6,7,8,9,10].map(n=>'<option value="Cuota '+n+'">'+lb[n]+'</option>').join('');
 }
 // ── ALUMNOS FALTANTES ─────────────────────────────────────────────────────────
 async function mRegistrarFaltante(){
@@ -8290,14 +8306,14 @@ function mCuotaLabels(){
   modal('<h4>⚙ Nombres de cuotas</h4>'
     +'<p style="font-size:12px;color:var(--t2);margin-bottom:14px">Personaliza cómo aparece cada cuota en los formularios de pago.</p>'
     +'<div class="fg" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<div class="f"><label>Cuota '+n+'</label><input id="cl'+n+'" value="'+lb[n]+'" placeholder="Cuota '+n+'"/></div>').join('')
+    +[1,2,3,4,5,6,7,8,9,10].map(n=>'<div class="f"><label>Cuota '+n+'</label><input id="cl'+n+'" value="'+lb[n]+'" placeholder="Cuota '+n+'"/></div>').join('')
     +'</div>'
     +'<div class="mf"><button class="bs" onclick="cm()">Cancelar</button>'
     +'<button class="bn" onclick="saveCuotaLabels()">Guardar</button></div>',true);
 }
 function saveCuotaLabels(){
   const lb={};
-  [1,2,3,4,5,6,7,8,9,10,11,12].forEach(n=>{const el=document.getElementById('cl'+n);lb[n]=el?el.value.trim()||'Cuota '+n:'Cuota '+n;});
+  [1,2,3,4,5,6,7,8,9,10].forEach(n=>{const el=document.getElementById('cl'+n);lb[n]=el?el.value.trim()||'Cuota '+n:'Cuota '+n;});
   localStorage.setItem('its_cuota_labels',JSON.stringify(lb));
   cm();
   toast('✓ Nombres de cuotas guardados','ok',2500);
@@ -8885,7 +8901,7 @@ async function doImportarPlanilla(inp){
 }
 
 // ── PANTALLA DE REVISIÓN ANTES DE CONFIRMAR IMPORTACIÓN ───────────────────────
-const CONCEPTOS_OPTS=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10','Cuota 11','Cuota 12'];
+const CONCEPTOS_OPTS=['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5','Cuota 6','Cuota 7','Cuota 8','Cuota 9','Cuota 10'];
 
 function mostrarRevisionPlanilla(data){
   W._prevData=data;
