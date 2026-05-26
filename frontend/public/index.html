@@ -3602,6 +3602,7 @@ async function pgExamenes(el){
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
       ${esDir?`<button class="bs" style="background:#fff7ed;border-color:#ea580c;color:#ea580c" onclick="exportarExamenesPDF()">🖨 Exportar PDF</button>`:''}
+      ${esDir?`<button class="bs" style="background:#fee2e2;border-color:#dc2626;color:#dc2626" onclick="eliminarRecuperatorios(this)">🗑 Eliminar Recuperatorios</button>`:''}
       ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales(this)">🗓 Generar Recuperatorios Parciales</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
@@ -4039,6 +4040,20 @@ async function confirmarCrearRecuperatorios(){
     if(r.errores?.length)toast(`⚠️ ${r.errores.length} ya existían y fueron ignorados`,'warn',4000);
     go('examenes');
   }catch(e){toast('Error al crear: '+e.message,'err',5000);}
+}
+
+async function eliminarRecuperatorios(btn){
+  const ok=confirm('⚠️ ¿Eliminar TODOS los exámenes de tipo Recuperatorio?\nEsta acción no se puede deshacer.');
+  if(!ok)return;
+  btn.disabled=true;btn.textContent='Eliminando...';
+  try{
+    const r=await api('DELETE','/api/examenes/bulk/tipo',{tipo:'Recuperatorio'});
+    toast(`✅ ${r.eliminados} exámenes recuperatorio eliminados`,'ok');
+    go('examenes');
+  }catch(e){
+    toast('Error: '+e.message,'err',5000);
+    btn.disabled=false;btn.textContent='🗑 Eliminar Recuperatorios';
+  }
 }
 
 function exportarExamenesPDF(){

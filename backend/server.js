@@ -1843,7 +1843,7 @@ app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) =
 });
 
 // Limpiar todos los exámenes de un tipo (para reset del cronograma)
-app.delete('/api/examenes/bulk/tipo', auth(['director']), (req, res) => {
+app.delete('/api/examenes/bulk/tipo', auth(ADM), (req, res) => {
   const { tipo } = req.body;
   if (!tipo) return res.status(400).json({ error: 'Indicar tipo' });
   const n = db.prepare('DELETE FROM examenes WHERE tipo=?').run(tipo);
