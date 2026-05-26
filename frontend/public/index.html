@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HAB-MATERIA-V4 -->
+<!-- build:20260525-HAB-MATERIA-V5 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -744,6 +744,9 @@ function toast(msg, tipo='info', duracion=3500){
   c.appendChild(t);
   setTimeout(()=>{t.style.animation='toastIn .25s ease reverse';setTimeout(()=>t.remove(),220);},duracion);
 }
+
+// Alias para compatibilidad (showToast → toast)
+const showToast=(msg,t)=>toast(msg,t==='ok'||t==='s'?'ok':t==='e'||t==='err'?'err':t==='w'?'warn':'info');
 
 // ── SKELETON LOADER ───────────────────────────────────────────────────────────
 function skeletonTable(cols=5, rows=6){
@@ -8095,10 +8098,13 @@ async function confirmarHabDesdeHistorial(alId){
 function mPagoParaAlumno(alId){
   mPagoDirecto(alId);
 }
-async function mPagoDirecto(alId){
-  W._pagoSel=alId; // asegurar referencia al alumno actual
+// mPagoDirecto: abre modal de pago simplificado
+// conceptoFijo: si se pasa, oculta el selector de concepto y muestra badge fijo
+async function mPagoDirecto(alId, conceptoFijo){
+  W._pagoSel=alId;
   const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
-  const {pers,aranceles}=W._pdata||{};
+  const {pers}=W._pdata||{};
+  const periodoActivo=(pers||[]).find(p=>p.activo)||pers?.[0]||{id:''};
   let becaHTML='',moraHTML='';
   try{
     const [h,becas]=await Promise.all([
@@ -8119,17 +8125,15 @@ async function mPagoDirecto(alId){
     }
   }catch{}
   const es1erAnioForm=Number(al.curso_anio)===1;
-  modal(`<h4>+ Registrar pago</h4>
-  <div style="font-size:12px;color:var(--t2);padding:4px 10px;background:#f0f4ff;border-radius:6px;margin-bottom:10px">
-    👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong> &nbsp;·&nbsp; ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}
-  </div>
-  ${es1erAnioForm?'<div style="font-size:11px;padding:5px 10px;background:#e8f5e9;border-radius:5px;color:#2e7d32;margin-bottom:8px">ℹ 1er año — no paga matrícula</div>':''}
-  ${moraHTML}${becaHTML}
-  <input type="hidden" id="pgal" value="${alId}"/>
-  <div class="fg">
-    <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
+  // Si viene con concepto fijo, mostrarlo como badge inmutable; si no, mostrar selector completo
+  const concepto_select_html=conceptoFijo
+    ?`<div style="padding:8px 12px;background:#f0f4ff;border:1.5px solid #c7d2fe;border-radius:8px;font-size:13px;font-weight:700;color:#3730a3;margin-bottom:4px">
+        📋 ${conceptoFijo}
+      </div>
+      <input type="hidden" id="pgco" value="${conceptoFijo}"/>`
+    :`<div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
-        ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option></optgroup>'}
+        ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option></optgroup>'}
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
@@ -8139,11 +8143,25 @@ async function mPagoDirecto(alId){
           <option value="Examen Final Ordinario">Final Ordinario</option>
           <option value="Examen Final Recuperatorio">Final Recuperatorio</option>
           <option value="Examen Final Complementario">Final Complementario</option>
-          <option value="Examen Final Extraordinario">Final Extraordinario ⚡ (100 pts)</option>
+          <option value="Examen Final Extraordinario">Final Extraordinario ⚡</option>
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
-    </div>
+    </div>`;
+  // Fecha automática del sistema (oculta)
+  const hoy=new Date().toISOString().split('T')[0];
+  modal(`<h4>+ Registrar pago</h4>
+  <div style="font-size:12px;color:var(--t2);padding:4px 10px;background:#f0f4ff;border-radius:6px;margin-bottom:10px">
+    👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong> &nbsp;·&nbsp; ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}
+  </div>
+  ${es1erAnioForm?'<div style="font-size:11px;padding:5px 10px;background:#e8f5e9;border-radius:5px;color:#2e7d32;margin-bottom:8px">ℹ 1er año — no paga matrícula</div>':''}
+  ${moraHTML}${becaHTML}
+  <input type="hidden" id="pgal" value="${alId}"/>
+  <input type="hidden" id="pgfe" value="${hoy}"/>
+  <input type="hidden" id="pgco2" value=""/>
+  <input type="hidden" id="pgpe" value="${periodoActivo.id}"/>
+  <div class="fg">
+    ${concepto_select_html}
     <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
       <label style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">📚 Materia a habilitar <span style="color:var(--red)">*</span></label>
       <select id="pgco-asig" style="width:100%;font-size:12px">
@@ -8154,14 +8172,7 @@ async function mPagoDirecto(alId){
     <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
       🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
     </div>
-    <div class="fr">
-      <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0"/></div>
-      <div class="f"><label>Fecha</label><input id="pgfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
-    </div>
-    <div class="fr">
-      <div class="f"><label>Comprobante N°</label><input id="pgco2" placeholder="Opcional"/></div>
-      <div class="f"><label>Período</label><select id="pgpe">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
-    </div>
+    <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
     <div class="f"><label>Medio de pago</label><select id="pgmed">
       <option value="Efectivo">Efectivo</option>
       <option value="Transferencia">Transferencia bancaria</option>
@@ -8170,45 +8181,18 @@ async function mPagoDirecto(alId){
     </select></div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
-  setTimeout(()=>autoMontoArancel(),100);
+  setTimeout(()=>{autoMontoArancel();if(conceptoFijo)pgcoChangeHandler();},100);
 }
 
-// Registrar pago desde el cuadrado de cuota o examen (pre-selecciona el concepto)
+// Registrar pago desde el cuadrado de cuota (concepto pre-seleccionado, oculto)
 async function registrarPagoCuota(alId, concepto){
-  await mPagoDirecto(alId);
-  setTimeout(()=>{
-    const sel=document.getElementById('pgco');
-    if(!sel) return;
-    if(concepto==='Matrícula'){
-      const yr=new Date().getFullYear();
-      const opt=[...sel.options].find(o=>o.value==='Matrícula '+yr)||[...sel.options].find(o=>o.value.startsWith('Matrícula'));
-      if(opt) sel.value=opt.value;
-    } else {
-      // Buscar opción exacta primero, luego búsqueda parcial (para exámenes con arancel)
-      const exactOpt=[...sel.options].find(o=>o.value===concepto);
-      if(exactOpt){ sel.value=exactOpt.value; }
-      else {
-        const partialOpt=[...sel.options].find(o=>o.value.toLowerCase().includes(concepto.toLowerCase())||concepto.toLowerCase().includes(o.value.toLowerCase().replace(' 🔓','')));
-        if(partialOpt) sel.value=partialOpt.value;
-      }
-    }
-    autoMontoArancel();
-    pgcoChangeHandler();
-  },250);
+  await mPagoDirecto(alId, concepto);
 }
 
-// Registrar pago de examen con arancel (pre-selecciona concepto y filtra materias ya pagadas)
+// Registrar pago de examen con arancel (concepto pre-seleccionado, filtra materias ya pagadas)
 async function registrarPagoArancel(alId, concepto, excludeAsigIds){
   W._arancelExclude=excludeAsigIds||[];
-  await mPagoDirecto(alId);
-  setTimeout(()=>{
-    const sel=document.getElementById('pgco');
-    if(!sel)return;
-    const exactOpt=[...sel.options].find(o=>o.value===concepto);
-    if(exactOpt) sel.value=exactOpt.value;
-    autoMontoArancel();
-    pgcoChangeHandler();
-  },250);
+  await mPagoDirecto(alId, concepto);
 }
 
 // ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────
@@ -8341,9 +8325,13 @@ async function btnRegistrarPago(){
   }
 }
 function mPago(){
-  const {als,pers,aranceles}=W._pdata||{};
+  const {als,pers}=W._pdata||{};
+  const periodoActivo=(pers||[]).find(p=>p.activo)||(pers||[])[0]||{id:''};
+  const hoy=new Date().toISOString().split('T')[0];
   modal(`<h4>Registrar pago</h4>
-  <p style="font-size:11px;color:#e65100;padding:5px 10px;background:#fff3e0;border-radius:6px;margin-bottom:10px">⚠ El Examen Final Extraordinario requiere pago al día hasta julio inclusive.</p>
+  <input type="hidden" id="pgfe" value="${hoy}"/>
+  <input type="hidden" id="pgco2" value=""/>
+  <input type="hidden" id="pgpe" value="${periodoActivo.id}"/>
   <div class="fg">
     <div class="f">
       <label>Alumno <span style="color:var(--red)">*</span></label>
@@ -8353,9 +8341,7 @@ function mPago(){
     <div id="pgHabInfo"></div>
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
       <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
-        <optgroup label="Matrícula">
-          <option value="Matrícula">Matrícula 2026</option><option value="Matrícula">Matrícula 2025</option>
-        </optgroup>
+        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option></optgroup>
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
           <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
@@ -8365,21 +8351,20 @@ function mPago(){
           <option value="Examen Final Ordinario">Final Ordinario</option>
           <option value="Examen Final Recuperatorio">Final Recuperatorio</option>
           <option value="Examen Final Complementario">Final Complementario</option>
-          <option value="Examen Final Extraordinario">Final Extraordinario ⚡ (100 pts)</option>
+          <option value="Examen Final Extraordinario">Final Extraordinario ⚡</option>
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
+      <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+        <label style="font-size:11px;font-weight:700;color:#1d4ed8;display:block;margin-bottom:6px">📚 Materia a habilitar <span style="color:var(--red)">*</span></label>
+        <select id="pgco-asig" style="width:100%;font-size:12px"><option value="">— Cargando... —</option></select>
+        <div style="font-size:10px;color:#3730a3;margin-top:4px">El pago habilitará al docente solo para esta materia.</div>
+      </div>
       <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
-        🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para que el docente cargue la nota de <em>Parcial Recuperatorio</em>.
-      </div></div>
-    <div class="fr">
-      <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0"/></div>
-      <div class="f"><label>Fecha</label><input id="pgfe" type="date" value="${new Date().toISOString().split('T')[0]}"/></div>
+        🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
+      </div>
     </div>
-    <div class="fr">
-      <div class="f"><label>Comprobante N°</label><input id="pgco2" placeholder="Opcional"/></div>
-      <div class="f"><label>Período</label><select id="pgpe">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
-    </div>
+    <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
     <div class="f"><label>Medio de pago</label><select id="pgmed">
       <option value="Efectivo">Efectivo</option><option value="Transferencia">Transferencia bancaria</option>
       <option value="Cheque">Cheque</option><option value="Tarjeta">Tarjeta</option>
