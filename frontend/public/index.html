@@ -4088,137 +4088,184 @@ function exportarExamenesPDF(tipoForzado){
 }
 function _generarExamenesPDF(exs){
   const TIPO_LABEL={'Parcial':'Parcial Ord.','Recuperatorio':'Recuperatorio','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Complementario','Extraordinario':'Extraordinario'};
-  const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const TIPO_COLOR={'Parcial':'#1e40af','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
+  const TIPO_BG={'Parcial':'#dbeafe','Recuperatorio':'#ede9fe','Final':'#fee2e2','Final Recuperatorio':'#ffedd5','Complementario':'#d1fae5','Extraordinario':'#f5f3ff'};
+  const DIAS_FULL=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
-
-  const fmtDia=f=>{
-    if(!f)return'';
-    const[y,m,d]=f.split('-').map(Number);
-    const dt=new Date(y,m-1,d);
-    return`${DIAS[dt.getDay()]} ${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`;
-  };
-  const getMonday=f=>{
-    const[y,m,d]=f.split('-').map(Number);
-    const dt=new Date(y,m-1,d);
-    const diff=dt.getDay()===0?-6:1-dt.getDay();
-    const mon=new Date(dt);mon.setDate(dt.getDate()+diff);
-    return mon.toISOString().split('T')[0];
-  };
-  const fmtRangoSem=f=>{
-    const[y,m,d]=f.split('-').map(Number);
-    const mon=new Date(y,m-1,d);
-    const sun=new Date(mon);sun.setDate(mon.getDate()+6);
-    return`${String(mon.getDate()).padStart(2,'0')} ${MESES[mon.getMonth()]} – ${String(sun.getDate()).padStart(2,'0')} ${MESES[sun.getMonth()]} ${sun.getFullYear()}`;
-  };
   const getTurno=h=>(!h||h.startsWith('19'))?1:2;
 
-  // Agrupar: semana → carrera → turno
-  const mapa={};
-  [...exs].forEach(e=>{
-    if(!e.fecha)return;
-    const sem=getMonday(e.fecha);
-    const carr=e.carrera_nombre||'Sin carrera';
+  const fmtFechaLarga=f=>{
+    if(!f)return'—';
+    const[y,m,d]=f.split('-').map(Number);
+    const dt=new Date(y,m-1,d);
+    return`${DIAS_FULL[dt.getDay()]}, ${d} de ${MESES_FULL[m-1]} de ${y}`;
+  };
+
+  // Agrupar: fecha → turno → exámenes
+  const porFecha={};
+  [...exs].filter(e=>e.fecha).forEach(e=>{
     const t=getTurno(e.hora);
-    if(!mapa[sem])mapa[sem]={};
-    if(!mapa[sem][carr])mapa[sem][carr]={1:[],2:[]};
-    mapa[sem][carr][t].push(e);
+    if(!porFecha[e.fecha])porFecha[e.fecha]={1:[],2:[]};
+    porFecha[e.fecha][t].push(e);
   });
-  // Ordenar internamente por fecha dentro de cada turno
-  Object.values(mapa).forEach(carrs=>Object.values(carrs).forEach(turnos=>{
-    [1,2].forEach(t=>turnos[t].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.materia_nombre||'').localeCompare(b.materia_nombre||'')));
-  }));
+  // Ordenar exámenes dentro de cada turno: carrera → materia
+  Object.values(porFecha).forEach(turnos=>[1,2].forEach(t=>
+    turnos[t].sort((a,b)=>
+      (a.carrera_nombre||'').localeCompare(b.carrera_nombre||'')||
+      (a.curso_anio||0)-(b.curso_anio||0)||
+      (a.materia_nombre||'').localeCompare(b.materia_nombre||'')
+    )
+  ));
 
-  const semsKeys=Object.keys(mapa).sort();
-  let nSem=0;
+  const fechasOrdenadas=Object.keys(porFecha).sort();
 
-  const bodyHtml=semsKeys.map(sem=>{
-    nSem++;
-    const carrsKeys=Object.keys(mapa[sem]).sort();
-    const carrsHtml=carrsKeys.map(carr=>{
-      const turnos=mapa[sem][carr];
-      const turnosHtml=[1,2].map(t=>{
-        if(!turnos[t].length)return'';
-        const label=t===1?'Turno 1 &nbsp;·&nbsp; 19:00 – 20:20 hs':'Turno 2 &nbsp;·&nbsp; 20:40 – 22:00 hs';
-        const rows=turnos[t].map(e=>`<tr>
-          <td class="td-dia">${fmtDia(e.fecha)}</td>
-          <td class="td-tipo">${TIPO_LABEL[e.tipo]||e.tipo}</td>
-          <td class="td-mat">${e.materia_nombre||''}</td>
-          <td class="td-anio">${e.curso_anio||''}°${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}</td>
-          <td class="td-doc">${(e.docente_apellido||'')+', '+(e.docente_nombre||'')}</td>
-          <td class="td-hora">${e.hora||'—'}</td>
-        </tr>`).join('');
-        return`<div class="turno-h t${t}">${t===1?'🟡':'🟣'} ${label} <span class="tcnt">${turnos[t].length} examen${turnos[t].length!==1?'es':''}</span></div>
-        <table><thead><tr><th>Día / Fecha</th><th>Tipo</th><th>Materia</th><th>Año</th><th>Docente</th><th>Hora</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const bodyHtml=fechasOrdenadas.map((fecha,fi)=>{
+    const turnos=porFecha[fecha];
+    const totDia=turnos[1].length+turnos[2].length;
+    const[y,m,d]=fecha.split('-').map(Number);
+    const dt=new Date(y,m-1,d);
+    const diaNum=String(d).padStart(2,'0');
+    const mesNom=MESES_FULL[m-1];
+    const diaNom=DIAS_FULL[dt.getDay()];
+
+    const turnosHtml=[1,2].map(t=>{
+      if(!turnos[t].length)return'';
+      const tLabel=t===1?'TURNO 1  —  19:00 a 20:20 hs':'TURNO 2  —  20:40 a 22:00 hs';
+      // Agrupar por carrera dentro del turno
+      const porCarr={};
+      turnos[t].forEach(e=>{
+        const key=`${e.carrera_nombre||'Sin carrera'}||${e.curso_anio||''}||${e.curso_division||''}`;
+        if(!porCarr[key])porCarr[key]=[];
+        porCarr[key].push(e);
+      });
+      const filas=Object.entries(porCarr).map(([key,exms],ci)=>{
+        const [carr,anio,div]=key.split('||');
+        const secLabel=anio?(anio+'°'+(div&&div!=='U'?' '+div:'')):'';
+        const rowspan=exms.length;
+        return exms.map((e,ei)=>{
+          const tc=TIPO_COLOR[e.tipo]||'#374151';
+          const tb=TIPO_BG[e.tipo]||'#f8fafc';
+          const doc=(e.docente_apellido||'')+(e.docente_nombre?', '+e.docente_nombre:'');
+          const carCell=ei===0?`<td class="td-carr" rowspan="${rowspan}" style="background:#f0f9ff;border-left:3px solid #0ea5e9">
+            <div class="carr-name">${carr}</div>
+            ${secLabel?`<div class="carr-sec">${secLabel}</div>`:''}
+          </td>`:'';
+          return`<tr class="${(ci+ei)%2===0?'row-a':'row-b'}">
+            ${carCell}
+            <td class="td-tipo"><span class="tipo-badge" style="background:${tb};color:${tc}">${TIPO_LABEL[e.tipo]||e.tipo}</span></td>
+            <td class="td-mat">${e.materia_nombre||'—'}</td>
+            <td class="td-doc"><span class="doc-name">${doc||'—'}</span></td>
+            <td class="td-hora">${e.hora||'—'}</td>
+          </tr>`;
+        }).join('');
       }).join('');
-      const tot=turnos[1].length+turnos[2].length;
-      return`<div class="carr-block">
-        <div class="carr-h">📚 ${carr} <span class="tcnt">${tot} examen${tot!==1?'es':''}</span></div>
-        ${turnosHtml}
+
+      return`<div class="turno-blk t${t}">
+        <div class="turno-hdr t${t}">
+          <span class="t-icon">${t===1?'●':'●'}</span>
+          <span>${tLabel}</span>
+          <span class="t-cnt">${turnos[t].length} examen${turnos[t].length!==1?'es':''}</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="width:22%">Carrera / Año</th>
+            <th style="width:12%">Tipo</th>
+            <th style="width:28%">Materia</th>
+            <th style="width:30%">Docente</th>
+            <th style="width:8%;text-align:center">Hora</th>
+          </tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
       </div>`;
     }).join('');
-    const totSem=carrsKeys.reduce((s,c)=>s+mapa[sem][c][1].length+mapa[sem][c][2].length,0);
-    return`<div class="sem-block">
-      <div class="sem-h">📅 Semana ${nSem} &nbsp;·&nbsp; ${fmtRangoSem(sem)} <span class="sem-cnt">${totSem} exámenes · ${carrsKeys.length} carrera${carrsKeys.length!==1?'s':''}</span></div>
-      ${carrsHtml}
+
+    return`<div class="dia-blk${fi>0?' pgbrk':''}">
+      <div class="dia-hdr">
+        <div class="dia-fecha">
+          <span class="dia-num">${diaNum}</span>
+          <div>
+            <div class="dia-nombre">${diaNom}</div>
+            <div class="dia-mes">${mesNom} ${y}</div>
+          </div>
+        </div>
+        <div class="dia-cnt">${totDia} examen${totDia!==1?'es':''}</div>
+      </div>
+      ${turnosHtml}
     </div>`;
   }).join('');
 
+  const tiposPresentes=[...new Set(exs.map(e=>e.tipo).filter(Boolean))];
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Cronograma de Exámenes — ${inst}</title>
   <style>
-    @page{size:A4 landscape;margin:10mm}
-    @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sem-block{page-break-inside:avoid}}
-    *{box-sizing:border-box}
-    body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a1a;margin:0;padding:12px}
-    .page-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid #1e3a5f;padding-bottom:7px;margin-bottom:14px}
-    .page-header h1{margin:0;font-size:15px;color:#1e3a5f;font-weight:800}
-    .page-header .totales{font-size:9px;color:#6b7280;margin-top:2px}
-    .page-header .meta{font-size:9px;color:#475569;text-align:right;line-height:1.7}
-    /* semana */
-    .sem-block{margin-bottom:16px}
-    .sem-h{background:#1e3a5f;color:#fff;padding:5px 12px;font-size:11px;font-weight:800;border-radius:5px 5px 0 0;display:flex;justify-content:space-between;align-items:center}
-    .sem-cnt{font-size:9px;font-weight:400;opacity:.85}
-    /* carrera */
-    .carr-block{border:1px solid #cbd5e1;border-top:none}
-    .carr-h{background:#dbeafe;color:#1e40af;padding:4px 12px;font-size:10px;font-weight:700;border-top:1px solid #93c5fd;display:flex;justify-content:space-between}
-    /* turno */
-    .turno-h{padding:3px 12px;font-size:9px;font-weight:700;display:flex;align-items:center;gap:6px}
-    .turno-h.t1{background:#fefce8;color:#92400e;border-top:1px solid #fde68a}
-    .turno-h.t2{background:#f5f3ff;color:#5b21b6;border-top:1px solid #ddd6fe}
-    .tcnt{font-weight:400;opacity:.75;font-size:8px}
-    /* tabla */
+    @page{size:A4 landscape;margin:10mm 12mm}
+    @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.pgbrk{page-break-before:always}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:10px;color:#111;padding:10px}
+    /* ── ENCABEZADO PÁGINA ── */
+    .ph{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1e3a5f;padding-bottom:8px;margin-bottom:12px}
+    .ph h1{font-size:16px;color:#1e3a5f;font-weight:900;letter-spacing:-.3px}
+    .ph-sub{font-size:9px;color:#6b7280;margin-top:3px}
+    .ph-meta{font-size:9px;color:#475569;text-align:right;line-height:1.8}
+    .tipos-badge{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;margin-bottom:12px}
+    .tb{font-size:8px;font-weight:700;padding:2px 7px;border-radius:10px;border:1px solid}
+    /* ── DÍA ── */
+    .dia-blk{margin-bottom:14px;border:1.5px solid #cbd5e1;border-radius:8px;overflow:hidden}
+    .dia-hdr{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(90deg,#1e3a5f 0%,#1e40af 100%);color:#fff;padding:7px 14px}
+    .dia-fecha{display:flex;align-items:center;gap:10px}
+    .dia-num{font-size:28px;font-weight:900;line-height:1;letter-spacing:-1px;opacity:.95}
+    .dia-nombre{font-size:13px;font-weight:800;letter-spacing:.02em}
+    .dia-mes{font-size:10px;opacity:.8;font-weight:500}
+    .dia-cnt{font-size:10px;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:12px;font-weight:700}
+    /* ── TURNO ── */
+    .turno-blk{border-top:1px solid #e2e8f0}
+    .turno-hdr{display:flex;align-items:center;gap:8px;padding:5px 14px;font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+    .turno-hdr.t1{background:#fefce8;color:#92400e;border-top:2px solid #fde68a}
+    .turno-hdr.t2{background:#f5f3ff;color:#5b21b6;border-top:2px solid #ddd6fe}
+    .t-icon{font-size:8px}
+    .turno-hdr.t1 .t-icon{color:#f59e0b}
+    .turno-hdr.t2 .t-icon{color:#8b5cf6}
+    .t-cnt{margin-left:auto;font-weight:600;opacity:.7;text-transform:none;font-size:9px}
+    /* ── TABLA ── */
     table{width:100%;border-collapse:collapse}
-    th{background:#f8fafc;color:#374151;padding:3px 7px;text-align:left;font-size:8.5px;border-bottom:1px solid #e2e8f0;font-weight:700}
-    td{font-size:9px;padding:3px 7px;border-bottom:1px solid #f1f5f9}
+    th{background:#f1f5f9;color:#374151;padding:4px 8px;text-align:left;font-size:8.5px;font-weight:700;border-bottom:1.5px solid #cbd5e1}
+    td{padding:4px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .row-a td{background:#ffffff}
+    .row-b td{background:#f9fafb}
     tr:last-child td{border-bottom:none}
-    .td-dia{white-space:nowrap;font-weight:700;color:#1e40af;min-width:60px}
-    .td-tipo{font-size:8.5px;color:#374151;white-space:nowrap}
-    .td-mat{font-weight:700}
-    .td-anio{text-align:center;font-weight:600;white-space:nowrap;min-width:36px}
-    .td-doc{font-size:8.5px;color:#374151}
-    .td-hora{text-align:center;font-weight:800;color:#166534;min-width:42px}
-    .no-print{margin-top:14px;text-align:center;padding:8px}
+    .td-carr{font-size:9px;padding:5px 8px;vertical-align:middle}
+    .carr-name{font-weight:800;color:#0c4a6e;font-size:9.5px;line-height:1.2}
+    .carr-sec{font-size:8px;color:#0369a1;font-weight:700;margin-top:1px;background:#e0f2fe;display:inline-block;padding:0 4px;border-radius:3px}
+    .td-tipo{white-space:nowrap}
+    .tipo-badge{font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;white-space:nowrap;display:inline-block}
+    .td-mat{font-size:10px;font-weight:700;color:#0f172a}
+    .td-doc{font-size:9px;color:#374151}
+    .doc-name{display:inline-block}
+    .td-hora{text-align:center;font-size:10px;font-weight:900;color:#166534;white-space:nowrap}
+    .no-print{margin-top:16px;text-align:center;padding:8px}
   </style></head><body>
-  <div class="page-header">
+  <div class="ph">
     <div>
       <h1>📅 Cronograma de Exámenes</h1>
-      <div class="totales">${semsKeys.length} semana${semsKeys.length!==1?'s':''} &nbsp;·&nbsp; ${exs.length} exámenes en total</div>
+      <div class="ph-sub">${fechasOrdenadas.length} día${fechasOrdenadas.length!==1?'s':''} de exámenes &nbsp;·&nbsp; ${exs.length} exámenes en total &nbsp;·&nbsp; Turno Nocturno 19:00 – 22:00 hs</div>
     </div>
-    <div class="meta">
+    <div class="ph-meta">
       <strong>${inst}</strong><br>
-      Turno Nocturno &nbsp;·&nbsp; 19:00 – 22:00 hs<br>
       Generado: ${new Date().toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date().toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit'})}
     </div>
   </div>
+  <div class="tipos-badge">
+    ${tiposPresentes.map(t=>`<span class="tb" style="background:${TIPO_BG[t]||'#f8fafc'};color:${TIPO_COLOR[t]||'#374151'};border-color:${TIPO_COLOR[t]||'#e2e8f0'}">${TIPO_LABEL[t]||t}: ${exs.filter(e=>e.tipo===t).length}</span>`).join('')}
+  </div>
   ${bodyHtml}
   <div class="no-print">
-    <button onclick="window.print()" style="padding:8px 26px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Guardar PDF</button>
+    <button onclick="window.print()" style="padding:9px 28px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Guardar PDF</button>
   </div>
-  <script>setTimeout(()=>window.print(),500)<${'/'}script>
+  <script>setTimeout(()=>window.print(),600)<${'/'}script>
   </body></html>`;
-  const v=window.open('','_blank','width=1100,height=750');
-  v.document.open();v.document.write(html);v.document.close();
+  const vw=window.open('','_blank','width=1200,height=800');
+  vw.document.open();vw.document.write(html);vw.document.close();
 }
 
 async function limpiarExamenesTipo(){
