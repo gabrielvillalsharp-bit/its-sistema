@@ -2133,10 +2133,13 @@ async function pgAvisos(el){
       return !esReemplazo&&!esSoloDirector&&!esAvisoExamenAuto;
     });
   }
-  // Avisos ya vistos (marcados como leídos)
-  const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
+  // Avisos ya vistos — limpiar IDs obsoletos del localStorage (que ya no existen en DB)
+  const todosIds=new Set(avisos.map(a=>a.id));
+  const vstRaw=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
+  const vstLimpio=vstRaw.filter(id=>todosIds.has(id));
+  if(vstLimpio.length!==vstRaw.length) localStorage.setItem('its_avisos_vistos',JSON.stringify(vstLimpio));
+  const vistos=new Set(vstLimpio);
   const avisosSinLeer=avisos.filter(a=>!vistos.has(a.id));
-  const avisosLeidos=avisos.filter(a=>vistos.has(a.id));
 
   function marcarAvisoLeido(id){
     const vst=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
@@ -2161,9 +2164,16 @@ async function pgAvisos(el){
   }
   W.marcarAvisoLeido=marcarAvisoLeido;
 
+  function limpiarAvisosLeidos(){
+    localStorage.removeItem('its_avisos_vistos');
+    go('avisos');
+  }
+  W.limpiarAvisosLeidos=limpiarAvisosLeidos;
+
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
-      ${esDirector&&avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
+      ${avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
+      ${vistos.size?`<button class="bs" style="background:#fef2f2;border-color:#fca5a5;color:#dc2626" onclick="limpiarAvisosLeidos()" title="Eliminar los ya leídos de la vista">🗑 Limpiar leídos (${vistos.size})</button>`:''}
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
     </div></div>
@@ -2252,10 +2262,9 @@ async function pgAvisos(el){
     ${esDirector&&avisosSinLeer.length?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Marcar todos</button>`:''}
   </div>`:''}
 
-  ${!avisos.length?`<div class="es">No hay avisos activos</div>`:''}
+  ${!avisosSinLeer.length?`<div class="es">✅ No tenés avisos pendientes${vistos.size?` · <span style="color:#94a3b8;font-size:12px">${vistos.size} ya leído${vistos.size!==1?'s':''}</span>`:''}</div>`:''}
   ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">📬 Sin leer (${avisosSinLeer.length})</p>`:''}
   ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
-  ${avisosLeidos.length?`<p style="font-size:11px;font-weight:700;color:var(--t3);margin-top:16px;margin-bottom:8px">✓ Ya leídos (${avisosLeidos.length})</p>${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
   `;
 }
 function mAvisoDirector(){
