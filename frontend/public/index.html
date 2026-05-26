@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HAB-MATERIA-V6 -->
+<!-- build:20260526-HAB-MATERIA-V7 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -5997,15 +5997,119 @@ async function pgSolicitudes(el){
     </div>
   </div>
   <div id="gest-sec-habilitados" style="display:none;margin-bottom:16px">
-    <div style="background:linear-gradient(135deg,#7f1d1d,#c0392b);border-radius:12px 12px 0 0;padding:11px 16px"><span style="color:#fff;font-size:13px;font-weight:800">✅ Habilitados por Dirección</span><span style="color:#fca5a5;font-size:11px;margin-left:8px">Habilitación especial para exámenes</span></div>
-    <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
-      ${habsHoy?`<div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse"><thead><tr style="background:#fee2e2;color:#7f1d1d"><th style="padding:8px 10px;border:1px solid var(--bdr)">Alumno</th><th style="padding:8px 10px;border:1px solid var(--bdr)">Carrera</th><th style="padding:8px 10px;border:1px solid var(--bdr)">Examen</th><th style="padding:8px 10px;border:1px solid var(--bdr)">Motivo</th><th style="padding:8px 10px;border:1px solid var(--bdr)">Fecha</th></tr></thead><tbody>${(habs||[]).map(h=>`<tr><td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:700">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</td><td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px">${h.carrera_nombre||'—'}</td><td style="padding:6px 10px;border:1px solid var(--bdr)"><span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:4px;font-weight:700">${({final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Comp.',extraordinario:'Extraord.',parcial:'Parcial'}[h.tipo_examen]||h.tipo_examen||'—')}</span></td><td style="padding:6px 10px;border:1px solid var(--bdr);font-size:11px;color:var(--t2)">${h.motivo||'—'}</td><td style="padding:6px 10px;border:1px solid var(--bdr);white-space:nowrap;font-size:11px">${(h.fecha_habilitacion||h.fecha||'').split('T')[0]||''}</td></tr>`).join('')}</tbody></table></div>`
-      :`<div style="padding:24px;text-align:center;color:var(--t3)">Sin habilitaciones registradas</div>`}
+    ${(()=>{
+      // Guardar habs en W para filtrado dinámico
+      W._habsGA = habs||[];
+      // Construir opciones únicas para los filtros
+      const carrerasHab=[...new Map((habs||[]).filter(h=>h.carrera_nombre).map(h=>[h.carrera_nombre,h.carrera_nombre])).values()].sort();
+      const aniosHab=[...new Set((habs||[]).filter(h=>h.anio).map(h=>h.anio))].sort();
+      const seccionesHab=[...new Set((habs||[]).filter(h=>h.division&&h.division!=='U').map(h=>h.division))].sort();
+      const materiasHab=[...new Set((habs||[]).filter(h=>h.materia_nombre).map(h=>h.materia_nombre))].sort();
+      const HAB_LABELS={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario ⚡'};
+      return `
+    <div style="background:linear-gradient(135deg,#7f1d1d,#c0392b);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div><span style="color:#fff;font-size:13px;font-weight:800">✅ Habilitaciones de examen</span><span style="color:#fca5a5;font-size:11px;margin-left:8px">Con pago y sin pago por Dirección</span></div>
+      <span id="habsGA-count" style="color:#fff;font-size:11px;font-weight:700">${(habs||[]).length} registros</span>
     </div>
+    <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#fef2f2;border-bottom:1px solid #fecaca">
+        <select id="habsGA-carr" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todas las carreras</option>
+          ${carrerasHab.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <select id="habsGA-anio" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todos los años</option>
+          ${aniosHab.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+        </select>
+        <select id="habsGA-sec" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todas las secciones</option>
+          ${seccionesHab.map(s=>`<option value="${s}">Sección ${s}</option>`).join('')}
+        </select>
+        <select id="habsGA-mat" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;flex:1;min-width:140px">
+          <option value="">Todas las materias</option>
+          ${materiasHab.map(m=>`<option value="${m}">${m}</option>`).join('')}
+        </select>
+        <select id="habsGA-tipo" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Con y sin pago</option>
+          <option value="pago">💳 Con pago</option>
+          <option value="sinpago">🔓 Sin pago</option>
+        </select>
+        <select id="habsGA-examen" onchange="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+          <option value="">Todos los exámenes</option>
+          <option value="parcial_recuperatorio">Parcial Recuperatorio</option>
+          <option value="final_ord">Final Ordinario</option>
+          <option value="final_recuperatorio">Final Recuperatorio</option>
+          <option value="complementario">Final Complementario</option>
+          <option value="extraordinario">Final Extraordinario</option>
+        </select>
+        <input id="habsGA-bus" placeholder="🔍 Alumno o CI..." oninput="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;min-width:140px"/>
+      </div>
+      <!-- Tabla -->
+      <div id="habsGA-tabla" class="tw">
+        ${renderHabsGA(habs||[])}
+      </div>
+    </div>`;
+    })()}
   </div>
   </div>`;
 }
 
+function filtrarHabsGA(){
+  const carr=v('habsGA-carr')||'';
+  const anio=v('habsGA-anio')||'';
+  const sec=v('habsGA-sec')||'';
+  const mat=v('habsGA-mat')||'';
+  const tipo=v('habsGA-tipo')||'';
+  const examen=v('habsGA-examen')||'';
+  const bus=(v('habsGA-bus')||'').toLowerCase().trim();
+  let d=(W._habsGA||[]).filter(h=>{
+    if(carr && (h.carrera_nombre||'')!==carr) return false;
+    if(anio && String(h.anio||'')!==anio) return false;
+    if(sec && (h.division||'')!==sec) return false;
+    if(mat && (h.materia_nombre||'')!==mat) return false;
+    if(examen && h.tipo_examen!==examen) return false;
+    if(tipo==='pago' && !(h.motivo||'').toLowerCase().includes('pago de')) return false;
+    if(tipo==='sinpago' && (h.motivo||'').toLowerCase().includes('pago de')) return false;
+    if(bus && !((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(bus)) return false;
+    return true;
+  });
+  const tabla=document.getElementById('habsGA-tabla');
+  const cnt=document.getElementById('habsGA-count');
+  if(tabla) tabla.innerHTML=renderHabsGA(d);
+  if(cnt) cnt.textContent=d.length+' registros';
+}
+function renderHabsGA(datos){
+  const HAB_LABELS={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario ⚡'};
+  if(!datos||!datos.length) return '<div style="padding:28px;text-align:center;color:var(--t3);font-size:13px">Sin habilitaciones para los filtros seleccionados</div>';
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#fef2f2">
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Alumno</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Carrera / Año / Sec.</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Examen</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Materia</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:center;color:#7f1d1d;font-weight:700">Tipo</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Fecha</th>
+      <th style="padding:8px 10px;border-bottom:2px solid #fecaca;text-align:left;color:#7f1d1d;font-weight:700">Habilitado por</th>
+    </tr></thead>
+    <tbody>${datos.map((h,i)=>{
+      const conPago=(h.motivo||'').toLowerCase().includes('pago de');
+      const sec=h.division&&h.division!=='U'?' Sec. '+h.division:'';
+      const por=h.habilitado_por_apellido?(h.habilitado_por_apellido+', '+h.habilitado_por_nombre):'—';
+      return `<tr style="background:${i%2?'#fafafa':'#fff'};border-bottom:1px solid #f1f5f9">
+        <td style="padding:7px 10px;font-weight:700;color:#1e293b">${h.alumno_apellido||''}, ${h.alumno_nombre||''}<br><span style="font-size:10px;color:#94a3b8;font-weight:400">CI: ${h.alumno_ci||'—'}</span></td>
+        <td style="padding:7px 10px;font-size:11px;color:#475569">${h.carrera_nombre||'—'}<br><span style="font-size:10px;color:#94a3b8">${h.anio?h.anio+'° año':''} ${sec}</span></td>
+        <td style="padding:7px 10px"><span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:10px;font-weight:700;white-space:nowrap">${HAB_LABELS[h.tipo_examen]||h.tipo_examen||'—'}</span></td>
+        <td style="padding:7px 10px;font-size:11px;color:${h.materia_nombre?'#1d4ed8':'#94a3b8'};font-weight:${h.materia_nombre?'600':'400'}">${h.materia_nombre||'—'}</td>
+        <td style="padding:7px 10px;text-align:center">${conPago
+          ?'<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-weight:700">💳 Con pago</span>'
+          :'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-weight:700">🔓 Sin pago</span>'}</td>
+        <td style="padding:7px 10px;font-size:11px;color:#475569;white-space:nowrap">${(h.fecha||'').split('T')[0]||'—'}</td>
+        <td style="padding:7px 10px;font-size:11px;color:#64748b">${por}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
 function filtrarSinAsignar(){
   const q=(v('busqSinAsignar')||'').toLowerCase().replace(/\s+/g,'');
   document.querySelectorAll('.sinasig-row').forEach(row=>{

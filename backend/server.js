@@ -3620,10 +3620,11 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
   if (asignacion_id) { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
   try {
     const rows = db.prepare(`
-      SELECT h.id, h.tipo_examen, h.fecha, h.motivo,
+      SELECT h.id, h.tipo_examen, h.fecha, h.motivo, h.asignacion_id,
         al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
         COALESCE(ca.nombre, al_ca.nombre) as carrera_nombre,
         COALESCE(cu.anio, al_cu.anio) as anio,
+        COALESCE(cu.division, al_cu.division) as division,
         m.nombre as materia_nombre,
         uh.nombre as habilitado_por_nombre, uh.apellido as habilitado_por_apellido
       FROM habilitaciones_examen h
