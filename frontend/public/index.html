@@ -4063,7 +4063,7 @@ function exportarExamenesPDF(){
   const fmtF=f=>{if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`;};
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
   // Ordenar por fecha y carrera
-  const sorted=[...exs].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||')||(a.carrera_nombre||'').localeCompare(b.carrera_nombre||''));
+  const sorted=[...exs].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||(a.carrera_nombre||'').localeCompare(b.carrera_nombre||''));
   const filas=sorted.map(e=>`<tr>
     <td>${fmtF(e.fecha)}</td>
     <td>${TIPO_LABEL[e.tipo]||e.tipo}</td>
