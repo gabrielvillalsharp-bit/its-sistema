@@ -4056,9 +4056,37 @@ async function eliminarRecuperatorios(btn){
   }
 }
 
-function exportarExamenesPDF(){
-  const exs=W._exsFiltrados||W._exs||[];
-  if(!exs.length)return toast('No hay exámenes para exportar','warn');
+function exportarExamenesPDF(tipoForzado){
+  const todos=W._exs||[];
+  if(!todos.length)return toast('No hay exámenes para exportar','warn');
+  // Si viene tipo forzado (desde modal), filtrar por ese tipo
+  if(tipoForzado){
+    const exs=tipoForzado==='__todos__'?todos:todos.filter(e=>(e.tipo||'')=== tipoForzado);
+    if(!exs.length)return toast('Sin exámenes para ese tipo','warn');
+    return _generarExamenesPDF(exs);
+  }
+  // Si hay filtro activo en tabla, usar directo
+  const filtroTipoActivo=v('filtExGrupo');
+  if(filtroTipoActivo&&W._exsFiltrados?.length){
+    return _generarExamenesPDF(W._exsFiltrados);
+  }
+  // Sin filtro activo → preguntar qué tipo exportar
+  const tiposPresentes=[...new Set(todos.map(e=>e.tipo).filter(Boolean))].sort();
+  const TIPO_LABEL={'Parcial':'Parcial Ordinario','Recuperatorio':'Parcial Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Complementario','Extraordinario':'Extraordinario'};
+  const opts=tiposPresentes.map(t=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:#f8fafc" onclick="exportarExamenesPDF('${t}');cm()">
+    <span style="font-size:18px">${t==='Recuperatorio'?'🟣':t==='Final'||t==='Final Recuperatorio'?'🔴':'🔵'}</span>
+    ${TIPO_LABEL[t]||t} <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.filter(e=>e.tipo===t).length} exám.</span>
+  </label>`).join('');
+  modal(`<h4 style="margin:0 0 14px">🖨 Exportar PDF — Seleccionar tipo</h4>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    ${opts}
+    <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid #1e40af;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;background:#eff6ff;color:#1e40af" onclick="exportarExamenesPDF('__todos__');cm()">
+      <span style="font-size:18px">📋</span> Todos los tipos <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.length} exám.</span>
+    </label>
+  </div>
+  <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button></div>`,true);
+}
+function _generarExamenesPDF(exs){
   const TIPO_LABEL={'Parcial':'Parcial Ord.','Recuperatorio':'Recuperatorio','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Complementario','Extraordinario':'Extraordinario'};
   const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -4307,6 +4335,7 @@ function filtExAll(){
   if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
   if(cursoId)l=l.filter(e=>e.curso_id===cursoId);
   if(docenteId)l=l.filter(e=>e.docente_id===docenteId);
+  W._exsFiltrados=l;
   renderExsByDay(l,wrap);
 }
 function filtEx(t,val){filtExAll();}
@@ -10770,7 +10799,10 @@ async function svFeriado(){
 // ── REGISTRO DE HABILITADOS (solo Director) ───────────────────────────────────
 async function pgRegistroHabilitados(el){
   const [carrs,cursos,materias]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos'),api('GET','/api/materias').catch(()=>[])]);
-  el.innerHTML=`<div class="ph"><h3>📋 Registro de Habilitados</h3></div>
+  el.innerHTML=`<div class="ph"><h3>📋 Registro de Habilitados</h3>
+    <div class="ph-right">
+      <button class="bs" style="background:#fff7ed;border-color:#ea580c;color:#ea580c" onclick="exportarHabilitadosPDF()">🖨 Exportar PDF</button>
+    </div></div>
   <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Alumnos habilitados para rendir exámenes con arancel — por pago o por excepción de Dirección.</p>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <select id="habFiltCarr" onchange="cargarRegistroHab()" style="min-width:160px">
@@ -10821,6 +10853,7 @@ function filtRegistroHab(){
   const matId=W._habFiltMateria||'';
   let d=(W._habilitados||[]).filter(h=>((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(q));
   renderRegistroHab(d,matId);
+  // renderRegistroHab actualiza W._habFiltrados internamente
 }
 function renderRegistroHab(datos,matId){
   const el=document.getElementById('tablaHab'); if(!el)return;
@@ -10857,6 +10890,114 @@ function renderRegistroHab(datos,matId){
     </tr>`;}).join('')}
     </tbody></table></div></div>
   <p style="font-size:11px;color:var(--t2);margin-top:8px">Total: <strong>${filtered.length}</strong> habilitacion(es) registradas</p>`;
+  W._habFiltrados=filtered;
+}
+
+function exportarHabilitadosPDF(){
+  const datos=W._habFiltrados||W._habilitados||[];
+  if(!datos.length)return toast('No hay habilitaciones para exportar. Aplicá los filtros primero.','warn');
+  const inst=me.institucion_nombre||'Instituto Técnico Superior';
+  const lbl={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario',parcial:'Parcial Ordinario'};
+  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const fmtF=f=>{if(!f)return'—';const[y,m,d]=(f||'').split('-');return`${d}/${m}/${y}`;};
+
+  // Obtener parámetros de filtro activos para el encabezado del PDF
+  const filtCarrEl=document.getElementById('habFiltCarr');
+  const filtAnioEl=document.getElementById('habFiltAnio');
+  const filtTipoEl=document.getElementById('habFiltTipo');
+  const filtDivEl=document.getElementById('habFiltDiv');
+  const filtMatEl=document.getElementById('habFiltMateria');
+  const filtros=[];
+  if(filtCarrEl?.value)filtros.push('Carrera: '+filtCarrEl.options[filtCarrEl.selectedIndex].text);
+  if(filtAnioEl?.value)filtros.push('Año: '+filtAnioEl.options[filtAnioEl.selectedIndex].text);
+  if(filtDivEl?.value)filtros.push('Sección: '+filtDivEl.options[filtDivEl.selectedIndex].text);
+  if(filtMatEl?.value)filtros.push('Materia: '+filtMatEl.options[filtMatEl.selectedIndex].text);
+  if(filtTipoEl?.value)filtros.push('Examen: '+filtTipoEl.options[filtTipoEl.selectedIndex].text);
+  const filtroTxt=filtros.length?filtros.join(' · '):'Sin filtros — mostrando todos';
+
+  // Agrupar por tipo de examen → carrera → alumnos
+  const grupos={};
+  datos.forEach(h=>{
+    const tipo=lbl[h.tipo_examen]||h.tipo_examen||'Otro';
+    const carr=`${h.carrera_nombre||'Sin carrera'}${h.anio?' — '+h.anio+'°':''}${h.division&&h.division!=='U'?' '+h.division:''}`;
+    if(!grupos[tipo])grupos[tipo]={};
+    if(!grupos[tipo][carr])grupos[tipo][carr]=[];
+    grupos[tipo][carr].push(h);
+  });
+
+  const bodyHtml=Object.entries(grupos).map(([tipo,carrs])=>{
+    const carrsHtml=Object.entries(carrs).map(([carr,rows])=>{
+      const filas=rows.map(h=>{
+        const esPago=(h.motivo||'').toLowerCase().includes('pago');
+        const por=esPago?'💳 Pago':((h.habilitado_por_apellido||'')+(h.habilitado_por_nombre?' '+h.habilitado_por_nombre:''))||'—';
+        return`<tr>
+          <td class="td-al">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</td>
+          <td class="td-ci">${h.alumno_ci||'—'}</td>
+          <td class="td-mat">${h.materia_nombre||'—'}</td>
+          <td class="td-por">${por}</td>
+          <td class="td-fecha">${fmtF(h.fecha)}</td>
+          <td class="td-mot">${!esPago&&h.motivo?h.motivo:'—'}</td>
+        </tr>`;
+      }).join('');
+      return`<div class="carr-block">
+        <div class="carr-h">📚 ${carr} <span class="cnt">${rows.length} alumno${rows.length!==1?'s':''}</span></div>
+        <table><thead><tr><th>Alumno</th><th>C.I.</th><th>Materia</th><th>Habilitado por</th><th>Fecha</th><th>Motivo</th></tr></thead><tbody>${filas}</tbody></table>
+      </div>`;
+    }).join('');
+    const tot=Object.values(carrs).reduce((s,r)=>s+r.length,0);
+    return`<div class="tipo-block">
+      <div class="tipo-h">${tipo} <span class="cnt">${tot} alumno${tot!==1?'s':''}</span></div>
+      ${carrsHtml}
+    </div>`;
+  }).join('');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Habilitados — ${inst}</title>
+  <style>
+    @page{size:A4 landscape;margin:10mm}
+    @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.tipo-block{page-break-inside:avoid}}
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:10px;color:#1a1a1a;margin:0;padding:12px}
+    .page-header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid #c0392b;padding-bottom:7px;margin-bottom:14px}
+    .page-header h1{margin:0;font-size:15px;color:#c0392b;font-weight:800}
+    .page-header .meta{font-size:9px;color:#475569;text-align:right;line-height:1.7}
+    .filtros{font-size:9px;color:#6b7280;background:#f8fafc;border:1px solid #e2e8f0;padding:4px 10px;border-radius:6px;margin-bottom:10px}
+    .tipo-block{margin-bottom:14px}
+    .tipo-h{background:#c0392b;color:#fff;padding:5px 12px;font-size:11px;font-weight:800;border-radius:5px 5px 0 0;display:flex;justify-content:space-between;align-items:center}
+    .carr-block{border:1px solid #e2e8f0;border-top:none}
+    .carr-h{background:#fef2f2;color:#991b1b;padding:4px 12px;font-size:10px;font-weight:700;border-top:1px solid #fecaca;display:flex;justify-content:space-between}
+    .cnt{font-size:9px;font-weight:400;opacity:.8}
+    table{width:100%;border-collapse:collapse}
+    th{background:#f8fafc;color:#374151;padding:3px 7px;text-align:left;font-size:8.5px;border-bottom:1px solid #e2e8f0;font-weight:700}
+    td{font-size:9px;padding:3px 7px;border-bottom:1px solid #f1f5f9}
+    tr:last-child td{border-bottom:none}
+    .td-al{font-weight:700;min-width:130px}
+    .td-ci{text-align:center;font-size:8.5px;min-width:60px}
+    .td-mat{font-weight:600;min-width:100px}
+    .td-por{min-width:80px}
+    .td-fecha{text-align:center;white-space:nowrap;font-weight:600;color:#166534;min-width:60px}
+    .td-mot{color:#6b7280;font-size:8.5px}
+    .no-print{margin-top:14px;text-align:center}
+  </style></head><body>
+  <div class="page-header">
+    <div>
+      <h1>✅ Registro de Habilitados</h1>
+      <div style="font-size:9px;color:#6b7280;margin-top:2px">Total: ${datos.length} habilitación${datos.length!==1?'es':''}</div>
+    </div>
+    <div class="meta">
+      <strong>${inst}</strong><br>
+      Generado: ${new Date().toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date().toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit'})}
+    </div>
+  </div>
+  <div class="filtros">🔍 Filtros aplicados: ${filtroTxt}</div>
+  ${bodyHtml}
+  <div class="no-print">
+    <button onclick="window.print()" style="padding:8px 26px;background:#c0392b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  <script>setTimeout(()=>window.print(),500)<${'/'}script>
+  </body></html>`;
+  const v2=window.open('','_blank','width=1100,height=750');
+  v2.document.open();v2.document.write(html);v2.document.close();
 }
 
 async function pgAuditoria(el){
