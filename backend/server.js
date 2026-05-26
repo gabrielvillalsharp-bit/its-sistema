@@ -3636,7 +3636,7 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
   let where = "WHERE h.habilitado=1";
   const params = [];
   if (tipo_examen)   { where += ' AND h.tipo_examen=?'; params.push(tipo_examen); }
-  if (carrera_id)    { where += ' AND COALESCE(ca.id, al_ca.id)=?'; params.push(carrera_id); }
+  if (carrera_id)    { where += ' AND COALESCE(ca.id, al_ca.id, al_carr.id)=?'; params.push(carrera_id); }
   if (anio)          { where += ' AND COALESCE(cu.anio, al_cu.anio)=?'; params.push(parseInt(anio)); }
   if (division)      { where += ' AND COALESCE(cu.division, al_cu.division)=?'; params.push(division); }
   if (asignacion_id) { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
@@ -3644,7 +3644,7 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
     const rows = db.prepare(`
       SELECT h.id, h.tipo_examen, h.fecha, h.motivo, h.asignacion_id,
         al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
-        COALESCE(ca.nombre, al_ca.nombre) as carrera_nombre,
+        COALESCE(ca.nombre, al_ca.nombre, al_carr.nombre) as carrera_nombre,
         COALESCE(cu.anio, al_cu.anio) as anio,
         COALESCE(cu.division, al_cu.division) as division,
         m.nombre as materia_nombre,
@@ -3657,6 +3657,7 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
       LEFT JOIN carreras ca ON cu.carrera_id=ca.id
       LEFT JOIN cursos al_cu ON al.curso_id=al_cu.id
       LEFT JOIN carreras al_ca ON al_cu.carrera_id=al_ca.id
+      LEFT JOIN carreras al_carr ON al.carrera_id=al_carr.id
       LEFT JOIN usuarios uh ON h.habilitado_por=uh.id
       ${where}
       ORDER BY h.fecha DESC`).all(...params);
