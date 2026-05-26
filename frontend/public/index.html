@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HAB-MATERIA-V5 -->
+<!-- build:20260525-HAB-MATERIA-V6 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -5797,7 +5797,7 @@ async function pgSolicitudes(el){
     </div>
   </div>
   <div id="gest-sec-historial" style="display:none;margin-bottom:16px">
-    ${(()=>{ W._auditArr=(auditAlumnos?.registros||Array.isArray(auditAlumnos)?auditAlumnos:[]); return ''; })()}
+    ${(()=>{ W._auditArr=Array.isArray(auditAlumnos)?auditAlumnos:Array.isArray(auditAlumnos?.registros)?auditAlumnos.registros:[]; return ''; })()}
     <div style="background:linear-gradient(135deg,#0a3d62,#1a7fc4);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones, Seguimiento & Asignaciones</span>
       <span style="color:#bfdbfe;font-size:11px">${regs.length+sols.length} incorporaciones · ${informes.length+ausencias.length} alertas · ${W._auditArr.length} acciones</span>
