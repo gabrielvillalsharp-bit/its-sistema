@@ -3605,7 +3605,7 @@ async function pgExamenes(el){
 
       ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
-      ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales()">🗓 Generar Recuperatorios Parciales</button>`:''}
+      ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales(this)">🗓 Generar Recuperatorios Parciales</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -3869,14 +3869,13 @@ async function importarExamenes(input){
   }catch(e){toast('Error al leer el archivo: '+e.message,'err',5000);}
 }
 // ── RECUPERATORIOS PARCIALES — Preview ────────────────────────────────────────
-async function mPreviewRecuperatoriosParciales(){
-  const btn=document.querySelector('button[onclick="mPreviewRecuperatoriosParciales()"]');
-  const resetBtn=()=>{if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}};
+async function mPreviewRecuperatoriosParciales(btn){
   if(btn){btn.disabled=true;btn.textContent='⏳ Generando...';}
-  // Timeout de seguridad: 30 segundos máximo
-  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Tiempo de espera agotado (30s). Revisá la conexión e intentá de nuevo.')),30000));
   try{
-    const d=await Promise.race([api('GET','/api/examenes/preview-recuperatorios-parciales'),timeout]);
+    const d=await Promise.race([
+      api('GET','/api/examenes/preview-recuperatorios-parciales'),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('Tiempo de espera agotado. Intentá de nuevo.')),25000))
+    ]);
     const {resultado=[],sinFecha=[]}=d;
     W._prevRecupData={resultado,sinFecha};
 
@@ -3955,7 +3954,7 @@ async function mPreviewRecuperatoriosParciales(){
   }catch(e){
     toast('Error al generar preview: '+e.message,'err',5000);
   }finally{
-    resetBtn();
+    if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}
   }
 }
 
