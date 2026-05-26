@@ -4129,8 +4129,8 @@ async function sendWhatsApp(phone, message) {
 // ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
 async function enviarBienvenidaQR(telefono, nombre, email, ci) {
   if (!telefono) return;
-  const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
-  const msg = `🎓 *Instituto de Tecnología Santísima Trinidad*\n\n¡Bienvenido/a, *${nombre}*! 🌟\n\nNos alegra que seas parte de nuestra institución y de esta evolución educativa que estamos construyendo juntos.\n\nTus datos de acceso al sistema son:\n👤 *Usuario:* ${email}\n🔑 *Contraseña:* ${ci||'(tu número de cédula)'}\n\n🔗 *Ingresá desde:*\n${APP_URL}\n\nSi tenés alguna consulta, no dudes en comunicarte con la administración.\n\n✨ ¡Bienvenido/a a esta evolución!`;
+  const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+  const msg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *${nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación fue pensada en tu futuro, para que puedas acceder a tu información académica en cualquier momento y desde cualquier lugar.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: ${email}\n• Contraseña: ${ci||'(tu número de cédula)'}\n\n🔗 *Acceder al sistema:*\n${APP_URL}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`;
   sendWhatsApp(telefono, msg).catch(()=>{});
 }
 // ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
