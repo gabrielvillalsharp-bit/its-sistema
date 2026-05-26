@@ -3873,8 +3873,10 @@ async function mPreviewRecuperatoriosParciales(){
   const btn=document.querySelector('button[onclick="mPreviewRecuperatoriosParciales()"]');
   const resetBtn=()=>{if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}};
   if(btn){btn.disabled=true;btn.textContent='⏳ Generando...';}
+  // Timeout de seguridad: 30 segundos máximo
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Tiempo de espera agotado (30s). Revisá la conexión e intentá de nuevo.')),30000));
   try{
-    const d=await api('GET','/api/examenes/preview-recuperatorios-parciales');
+    const d=await Promise.race([api('GET','/api/examenes/preview-recuperatorios-parciales'),timeout]);
     const {resultado=[],sinFecha=[]}=d;
     W._prevRecupData={resultado,sinFecha};
 

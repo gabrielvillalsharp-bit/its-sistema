@@ -1624,14 +1624,14 @@ app.delete('/api/examenes/:id', auth(ADM), (req, res) => {
 });
 
 // ── RECUPERATORIOS PARCIALES — Preview automático ────────────────────────────
-app.get('/api/examenes/preview-recuperatorios-parciales', auth(['director']), (req, res) => {
+app.get('/api/examenes/preview-recuperatorios-parciales', auth(ADM), (req, res) => {
   try {
+    console.log('[RECUP-PREVIEW] Iniciando generación...');
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
     if (!periodo) return res.status(400).json({ error: 'No hay período activo' });
 
-    const normDia = s => (s||'').toLowerCase()
-      .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
-      .replace(/ó/g,'o').replace(/ú/g,'u').trim();
+    // Normalización consistente con el resto del sistema
+    const normDia = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
     const DIA_DOW = { lunes:1, martes:2, miercoles:3, jueves:4, viernes:5, sabado:6 };
 
     // Todas las asignaciones del período con día asignado
@@ -1764,11 +1764,15 @@ app.get('/api/examenes/preview-recuperatorios-parciales', auth(['director']), (r
     // Guardar en memoria para confirmación
     req.app.locals._prevRecupParcial = resultado;
 
+    console.log(`[RECUP-PREVIEW] OK — ${resultado.length} asignados, ${sinFecha.length} sin fecha`);
     res.json({ resultado, sinFecha, periodo_inicio:'2025-06-10', periodo_fin:'2025-07-01' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    console.error('[RECUP-PREVIEW] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
-app.post('/api/examenes/crear-recuperatorios-parciales', auth(['director']), (req, res) => {
+app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) => {
   try {
     const pendientes = req.app.locals._prevRecupParcial;
     if (!pendientes?.length) return res.status(400).json({ error: 'No hay preview generado. Usá el botón "Generar" primero.' });
