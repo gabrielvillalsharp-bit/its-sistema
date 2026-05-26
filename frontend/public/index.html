@@ -4248,8 +4248,14 @@ function _generarExamenesPDF(exs){
     .td-doc{font-size:9px;color:#374151}
     .doc-name{display:inline-block}
     .td-hora{text-align:center;font-size:10px;font-weight:900;color:#166534;white-space:nowrap}
-    .no-print{margin-top:16px;text-align:center;padding:8px}
-  </style></head><body>
+    .no-print{position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:0 -2px 12px rgba(0,0,0,.3);z-index:999}
+    #btn-pdf{padding:10px 28px;background:#16a34a;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700}
+    #btn-pdf:disabled{background:#6b7280;cursor:default}
+    #btn-print{padding:10px 20px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600}
+    .spacer{height:64px}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><${'/'}script>
+  </head><body>
   <div class="ph">
     <div>
       <h1>📅 Cronograma de Exámenes</h1>
@@ -4263,14 +4269,37 @@ function _generarExamenesPDF(exs){
   <div class="tipos-badge">
     ${tiposPresentes.map(t=>`<span class="tb" style="background:${TIPO_BG[t]||'#f8fafc'};color:${TIPO_COLOR[t]||'#374151'};border-color:${TIPO_COLOR[t]||'#e2e8f0'}">${TIPO_LABEL[t]||t}: ${exs.filter(e=>e.tipo===t).length}</span>`).join('')}
   </div>
+  <div id="content">
   ${bodyHtml}
-  <div class="no-print" style="position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:16px;box-shadow:0 -2px 12px rgba(0,0,0,.3)">
-    <button onclick="window.print()" style="padding:10px 32px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:.02em">🖨 Guardar como PDF</button>
-    <span style="color:#94a3b8;font-size:11px">En el diálogo de impresión → seleccionar <strong style="color:#e2e8f0">«Guardar como PDF»</strong> como destino</span>
   </div>
-  <div style="height:60px"></div>
+  <div class="spacer"></div>
+  <div class="no-print">
+    <button id="btn-pdf">💾 Descargar PDF</button>
+    <button id="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <span style="color:#94a3b8;font-size:10px">El PDF se genera y descarga directamente</span>
+  </div>
   <script>
-    window.addEventListener('load',function(){setTimeout(function(){window.print();},800);});
+    function descargarPDF(){
+      var btn=document.getElementById('btn-pdf');
+      btn.disabled=true;btn.textContent='⏳ Generando...';
+      var fecha=new Date().toISOString().slice(0,10);
+      html2pdf().set({
+        margin:[8,10,8,10],
+        filename:'cronograma_examenes_'+fecha+'.pdf',
+        image:{type:'jpeg',quality:0.97},
+        html2canvas:{scale:2,useCORS:true,logging:false},
+        jsPDF:{unit:'mm',format:'a4',orientation:'landscape'}
+      }).from(document.getElementById('content')).save().then(function(){
+        btn.disabled=false;btn.textContent='💾 Descargar PDF';
+      }).catch(function(e){
+        btn.disabled=false;btn.textContent='💾 Descargar PDF';
+        alert('Error al generar PDF. Usá el botón Imprimir.');
+      });
+    }
+    document.getElementById('btn-pdf').addEventListener('click',descargarPDF);
+    window.addEventListener('load',function(){
+      if(typeof html2pdf!=='undefined'){descargarPDF();}
+    });
   <${'/'}script>
   </body></html>`;
   try{
