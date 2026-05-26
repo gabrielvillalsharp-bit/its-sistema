@@ -1664,9 +1664,9 @@ app.get('/api/examenes/preview-recuperatorios-parciales', auth(ADM), (req, res) 
       ).all(cid).map(r => r.id);
     });
 
-    // Fechas disponibles dentro de 3 semanas desde el 10/06/2025
-    const INICIO = new Date('2025-06-10T00:00:00');
-    const FIN    = new Date('2025-07-01T00:00:00');
+    // Fechas disponibles dentro de 3 semanas desde el 10/06/2026
+    const INICIO = new Date('2026-06-10T00:00:00');
+    const FIN    = new Date('2026-07-01T00:00:00');
     const getFechas = (diaStr) => {
       const dow = DIA_DOW[normDia(diaStr)];
       if (dow === undefined) return [];
@@ -1765,7 +1765,7 @@ app.get('/api/examenes/preview-recuperatorios-parciales', auth(ADM), (req, res) 
     req.app.locals._prevRecupParcial = resultado;
 
     console.log(`[RECUP-PREVIEW] OK — ${resultado.length} asignados, ${sinFecha.length} sin fecha`);
-    res.json({ resultado, sinFecha, periodo_inicio:'2025-06-10', periodo_fin:'2025-07-01' });
+    res.json({ resultado, sinFecha, periodo_inicio:'2026-06-10', periodo_fin:'2026-07-01' });
   } catch(e) {
     console.error('[RECUP-PREVIEW] Error:', e.message);
     res.status(500).json({ error: e.message });

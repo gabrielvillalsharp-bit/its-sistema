@@ -3601,10 +3601,7 @@ async function pgExamenes(el){
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
-
-
-      ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
-      ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
+      ${esDir?`<button class="bs" style="background:#fff7ed;border-color:#ea580c;color:#ea580c" onclick="exportarExamenesPDF()">🖨 Exportar PDF</button>`:''}
       ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales(this)">🗓 Generar Recuperatorios Parciales</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
@@ -3933,7 +3930,7 @@ async function mPreviewRecuperatoriosParciales(btn){
 
     modal(`<div style="max-width:860px">
       <h4 style="margin:0 0 4px">🗓 Preview — Recuperatorios Parciales</h4>
-      <div style="font-size:12px;color:#6b7280;margin-bottom:14px">Período: 10 jun – 1 jul 2025 · Máx. 3 semanas</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:14px">Período: 10 jun – 1 jul 2026 · Máx. 3 semanas</div>
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
         <span style="background:#dcfce7;color:#166534;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">✅ ${resultado.length} exámenes asignados</span>
         ${sinFecha.length?`<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">⚠️ ${sinFecha.length} sin fecha</span>`:''}
@@ -4042,6 +4039,50 @@ async function confirmarCrearRecuperatorios(){
     if(r.errores?.length)toast(`⚠️ ${r.errores.length} ya existían y fueron ignorados`,'warn',4000);
     go('examenes');
   }catch(e){toast('Error al crear: '+e.message,'err',5000);}
+}
+
+function exportarExamenesPDF(){
+  const exs=W._exsFiltrados||W._exs||[];
+  if(!exs.length)return toast('No hay exámenes para exportar','warn');
+  const TIPO_LABEL={'Parcial':'Parcial Ordinario','Recuperatorio':'Parcial Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Final Complementario','Extraordinario':'Final Extraordinario'};
+  const fmtF=f=>{if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`;};
+  const inst=me.institucion_nombre||'Instituto Técnico Superior';
+  // Ordenar por fecha y carrera
+  const sorted=[...exs].sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||')||(a.carrera_nombre||'').localeCompare(b.carrera_nombre||''));
+  const filas=sorted.map(e=>`<tr>
+    <td>${fmtF(e.fecha)}</td>
+    <td>${TIPO_LABEL[e.tipo]||e.tipo}</td>
+    <td>${e.materia_nombre||''}</td>
+    <td>${e.carrera_nombre||''}</td>
+    <td style="text-align:center">${e.curso_anio||''}°${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}</td>
+    <td>${(e.docente_apellido||'')+', '+(e.docente_nombre||'')}</td>
+    <td style="text-align:center">${e.hora||'—'}</td>
+  </tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Cronograma de Exámenes — ${inst}</title>
+  <style>
+    @page{size:A4 landscape;margin:12mm}
+    @media print{button{display:none}*{-webkit-print-color-adjust:exact}}
+    body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0;padding:16px}
+    h2{margin:0 0 2px;font-size:15px;color:#1a3a5c}
+    .sub{font-size:10px;color:#6b7280;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#1e40af;color:#fff;padding:7px 8px;text-align:left;font-size:10px}
+    td{font-size:10px;padding:6px 8px;border-bottom:1px solid #f0f0f0}
+    tr:nth-child(even) td{background:#f8fafc}
+    .no-print{margin-top:14px;text-align:center}
+  </style></head><body>
+  <h2>📅 Cronograma de Exámenes</h2>
+  <div class="sub">${inst} · Generado: ${new Date().toLocaleDateString('es-PY')} · Total: ${exs.length} exámenes</div>
+  <table>
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Materia</th><th>Carrera</th><th>Año</th><th>Docente</th><th>Hora</th></tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div class="no-print"><button onclick="window.print()" style="padding:8px 24px;background:#1a3a5c;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
+  <script>setTimeout(()=>window.print(),400)<${'/'}script>
+  </body></html>`;
+  const v=window.open('','_blank','width=1000,height=700');
+  v.document.open();v.document.write(html);v.document.close();
 }
 
 async function limpiarExamenesTipo(){
