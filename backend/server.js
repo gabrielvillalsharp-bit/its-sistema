@@ -1014,7 +1014,12 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
       n.parcial,n.parcial_recuperatorio,n.parcial_efectivo,
       n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
       n.extraordinario,n.ausente,n.director_pts,
-      n.puntaje_total,n.nota_final,n.estado as nota_estado
+      n.puntaje_total,n.nota_final,n.estado as nota_estado,
+      CASE WHEN EXISTS(
+        SELECT 1 FROM habilitaciones_examen h
+        WHERE h.alumno_id=al.id AND h.asignacion_id=? AND h.habilitado=1
+          AND (h.habilitado_recuperatorio=1 OR h.tipo_examen='parcial_recuperatorio')
+      ) THEN 1 ELSE 0 END as hab_recuperatorio
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
@@ -1023,7 +1028,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
         al.curso_id=?
         OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL)
       )
-    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, asig.curso_id, carrera_id, carrera_id);
+    ORDER BY COALESCE(al.apellido,u.apellido)`).all(req.params.asig_id, req.params.asig_id, asig.curso_id, carrera_id, carrera_id);
 
   // Auto-asignar curso_id y crear registros de notas para alumnos que no los tienen
   alumnos.forEach(al => {
@@ -1051,6 +1056,11 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     }
     const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];
     const vals = campos.map(c => req.body[c]===''||req.body[c]===undefined||req.body[c]===null ? null : parseFloat(req.body[c]));
+    // Validar habilitación para recuperatorio (director puede siempre)
+    if (req.user.rol !== 'director' && vals[6] !== null) {
+      const hab = db.prepare(`SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND habilitado=1 AND (habilitado_recuperatorio=1 OR tipo_examen='parcial_recuperatorio') LIMIT 1`).get(req.params.alumno_id, req.params.asig_id);
+      if (!hab) return res.status(403).json({ error: 'El alumno no está habilitado para el recuperatorio en esta materia' });
+    }
     const { calcularPuntaje } = require('./db');
     // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
     const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);

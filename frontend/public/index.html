@@ -6783,7 +6783,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     const disabledFinalRec=ausente||!esArancelHab('final_recuperatorio');
     const disabledComplem=ausente||!esArancelHab('complementario');
     const disabledExtraord=ausente||!esArancelHab('extraordinario');
-    const disabledParcialRec=ausente||!esArancelHab('parcial_recuperatorio');
+    const disabledParcialRec=ausente||!a.hab_recuperatorio;
     const cuotasFalt=hab?.cuotas_faltantes||[];
     const isEven=idx%2===0;
     const rowBase=ausente?'#fff1f2':bloqueado?'#fffbf0':isEven?'#ffffff':'#f8fafc';
@@ -8391,6 +8391,19 @@ async function selAlumnoPago(alId){
     const colSinPago=habsSinPago.length
       ?`<div style="display:flex;flex-direction:column;gap:6px">${habsSinPago.map(h=>renderHabCard(h,false)).join('')}</div>`
       :`<p style="color:#94a3b8;font-size:12px;margin:0">Sin habilitaciones sin pago</p>`;
+    // Recuperatorios habilitados (con o sin pago) por materia
+    const habsRecup=(rHabEspeciales||[]).filter(h=>h.habilitado&&(h.habilitado_recuperatorio===1||h.tipo_examen==='parcial_recuperatorio'));
+    const recupHtml=habsRecup.length===0
+      ?'<p style="color:#94a3b8;font-size:12px;margin:0">Sin materias habilitadas para recuperatorio</p>'
+      :`<div style="display:flex;flex-wrap:wrap;gap:8px">${habsRecup.map(h=>`
+          <div style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1.5px solid #a5f3fc;border-radius:8px;background:#ecfeff">
+            <span style="font-size:14px">✅</span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#0e7490">${h.materia_nombre||'Materia'}</div>
+              <div style="font-size:9px;color:#64748b">${(h.motivo||'').toLowerCase().includes('pago')?'💳 Con pago':'📋 Por Dirección'}${h.fecha?' · '+fmtFecha(h.fecha):''}</div>
+            </div>
+          </div>`).join('')}</div>`;
+
     const examHtml=habsActivos.length===0
       ?'<p style="color:#94a3b8;font-size:13px;padding:8px 0">Sin habilitaciones especiales registradas</p>'
       :`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -8505,6 +8518,12 @@ async function selAlumnoPago(alId){
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
           <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:flex-start">${examenesGrid}</div>
+        </div>
+
+        <!-- Recuperatorios habilitados por materia -->
+        <div style="background:#fff;border:1px solid #a5f3fc;border-radius:10px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#0e7490;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Recuperatorios habilitados</div>
+          ${recupHtml}
         </div>
 
         <!-- Habilitaciones: con pago y sin pago -->
