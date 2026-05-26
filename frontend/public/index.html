@@ -3605,6 +3605,7 @@ async function pgExamenes(el){
 
       ${esDir?`<label class="bs" style="cursor:pointer;background:#fff3e0;border-color:#e65100;color:#e65100">📥 Importar exámenes Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarExamenes(this)"/></label>`:''}
       ${me.rol==='director'?`<button class="bs d" onclick="limpiarExamenesTipo()" title="Eliminar todos los exámenes de un tipo para empezar de cero">🗑 Limpiar tipo</button>`:''}
+      ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales()">🗓 Generar Recuperatorios Parciales</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -3867,6 +3868,102 @@ async function importarExamenes(input){
     </div>`,true);
   }catch(e){toast('Error al leer el archivo: '+e.message,'err',5000);}
 }
+// ── RECUPERATORIOS PARCIALES — Preview ────────────────────────────────────────
+async function mPreviewRecuperatoriosParciales(){
+  const btn=document.querySelector('button[onclick="mPreviewRecuperatoriosParciales()"]');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generando...';}
+  try{
+    const d=await api('GET','/api/examenes/preview-recuperatorios-parciales');
+    if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}
+    const {resultado=[],sinFecha=[]}=d;
+
+    // Agrupar resultado por fecha
+    const porFecha={};
+    resultado.forEach(e=>{
+      if(!porFecha[e.fecha])porFecha[e.fecha]=[];
+      porFecha[e.fecha].push(e);
+    });
+
+    const DIAS_ES=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const MESES_ES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const fmtFechaCalc=f=>{
+      const dt=new Date(f+'T12:00:00');
+      return `${DIAS_ES[dt.getDay()]} ${dt.getDate()} ${MESES_ES[dt.getMonth()]}`;
+    };
+
+    // Separar en 3 semanas
+    const semanas=[
+      {lbl:'Semana 1 — 10 al 16 jun',desde:'2025-06-10',hasta:'2025-06-16'},
+      {lbl:'Semana 2 — 17 al 23 jun',desde:'2025-06-17',hasta:'2025-06-23'},
+      {lbl:'Semana 3 — 24 al 30 jun',desde:'2025-06-24',hasta:'2025-07-01'},
+    ];
+
+    const buildSemana=sem=>{
+      const fechasSem=Object.keys(porFecha).filter(f=>f>=sem.desde&&f<=sem.hasta).sort();
+      if(!fechasSem.length)return`<div style="color:#9ca3af;font-size:12px;padding:8px 0">Sin exámenes esta semana</div>`;
+      return fechasSem.map(fecha=>{
+        const exs=porFecha[fecha];
+        const cards=exs.map(e=>`
+          <div style="background:${e.unificado?'#ede9fe':'#f0fdf4'};border:1.5px solid ${e.unificado?'#7c3aed':'#16a34a'};border-radius:7px;padding:7px 10px;margin-bottom:5px">
+            <div style="font-size:12px;font-weight:700;color:${e.unificado?'#6d28d9':'#166534'}">${e.materia}</div>
+            <div style="font-size:11px;color:#374151">${e.carrera} · ${e.anio}°${e.division&&e.division!=='U'?' Sec.'+e.division:''}</div>
+            <div style="font-size:11px;color:#6b7280">👤 ${e.docente} · ⏰ ${e.hora} (T${e.turno})</div>
+            ${e.unificado?`<div style="font-size:10px;color:#7c3aed;font-weight:600;margin-top:2px">🔗 Unificada</div>`:''}
+          </div>`).join('');
+        return`<div style="margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;color:#1e40af;background:#dbeafe;padding:4px 8px;border-radius:5px;margin-bottom:5px">${fmtFechaCalc(fecha)}</div>
+          ${cards}
+        </div>`;
+      }).join('');
+    };
+
+    const conflictosHtml=sinFecha.length?`
+      <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:14px;margin-top:12px">
+        <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:8px">⚠️ ${sinFecha.length} materia${sinFecha.length>1?'s':''} sin fecha disponible</div>
+        ${sinFecha.map(c=>`<div style="font-size:12px;color:#b91c1c;margin-bottom:4px">
+          • <strong>${c.materia}</strong> (${c.carrera} ${c.anio}°) — ${c.dia} — ${c.motivo}
+          ${c.opciones?.length?`<span style="color:#9ca3af"> · Opciones: ${c.opciones.join(', ')}</span>`:''}
+        </div>`).join('')}
+        <div style="font-size:11px;color:#6b7280;margin-top:8px">Estos exámenes deberán programarse manualmente con "＋ Programar examen".</div>
+      </div>`:'';
+
+    modal(`<div style="max-width:860px">
+      <h4 style="margin:0 0 4px">🗓 Preview — Recuperatorios Parciales</h4>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:14px">Período: 10 jun – 1 jul 2025 · Máx. 3 semanas</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="background:#dcfce7;color:#166534;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">✅ ${resultado.length} exámenes asignados</span>
+        ${sinFecha.length?`<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">⚠️ ${sinFecha.length} sin fecha</span>`:''}
+        <span style="background:#ede9fe;color:#6d28d9;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">🔗 ${resultado.filter(e=>e.unificado).length} unificados</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px">
+        ${semanas.map(sem=>`
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#374151;background:#f3f4f6;padding:5px 8px;border-radius:6px;margin-bottom:8px">${sem.lbl}</div>
+            ${buildSemana(sem)}
+          </div>`).join('')}
+      </div>
+      ${conflictosHtml}
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="bs" onclick="cm()">Cancelar</button>
+        ${resultado.length?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="confirmarCrearRecuperatorios()">✅ Confirmar y crear ${resultado.length} exámenes</button>`:''}
+      </div>
+    </div>`,true);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='🗓 Generar Recuperatorios Parciales';}
+    toast('Error al generar preview: '+e.message,'err',5000);
+  }
+}
+
+async function confirmarCrearRecuperatorios(){
+  cm();
+  try{
+    const r=await api('POST','/api/examenes/crear-recuperatorios-parciales');
+    toast(`✅ ${r.creados} recuperatorios parciales creados correctamente`,'ok',5000);
+    if(r.errores?.length)toast(`⚠️ ${r.errores.length} ya existían y fueron ignorados`,'warn',4000);
+    go('examenes');
+  }catch(e){toast('Error al crear: '+e.message,'err',5000);}
+}
+
 async function limpiarExamenesTipo(){
   const tipo=prompt('¿Qué tipo de exámenes eliminar?\nOpciones: Parcial · Recuperatorio · Final · Final Recuperatorio · Complementario · Extraordinario');
   if(!tipo)return;

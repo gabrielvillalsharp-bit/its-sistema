@@ -555,6 +555,19 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     curso_id   !== undefined ? (curso_id||null) : actual.curso_id,
     req.params.id
   );
+  // Si cambió nombre o apellido, sincronizar en usuarios (nombre, apellido y email)
+  if (actual.usuario_id && (nombre !== undefined || apellido !== undefined)) {
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const nuevoNombre   = nombre   !== undefined ? nombre   : actual.nombre;
+    const nuevoApellido = apellido !== undefined ? apellido : actual.apellido;
+    if (nombre   !== undefined) db.prepare('UPDATE usuarios SET nombre=?   WHERE id=?').run(nombre,   actual.usuario_id);
+    if (apellido !== undefined) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido, actual.usuario_id);
+    const ciRaw = String(ci !== undefined ? ci : actual.ci || '').replace(/[^0-9]/g,'');
+    let nuevoEmail = norm(nuevoNombre).slice(0,1) + norm(nuevoApellido) + '@its.edu.py';
+    const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(nuevoEmail, actual.usuario_id);
+    if (conflicto) nuevoEmail = norm(nuevoNombre).slice(0,1) + norm(nuevoApellido) + '.' + (ciRaw.slice(-3) || String(Date.now()%1000)) + '@its.edu.py';
+    db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, actual.usuario_id);
+  }
   res.json({ ok: true });
 });
 // ── CREAR/ACTUALIZAR ACCESOS MASIVOS ─────────────────────────────────────────
@@ -1608,6 +1621,175 @@ app.put('/api/examenes/:id', auth(ADM), (req, res) => {
 app.delete('/api/examenes/:id', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM examenes WHERE id=?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// ── RECUPERATORIOS PARCIALES — Preview automático ────────────────────────────
+app.get('/api/examenes/preview-recuperatorios-parciales', auth(['director']), (req, res) => {
+  try {
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (!periodo) return res.status(400).json({ error: 'No hay período activo' });
+
+    const normDia = s => (s||'').toLowerCase()
+      .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i')
+      .replace(/ó/g,'o').replace(/ú/g,'u').trim();
+    const DIA_DOW = { lunes:1, martes:2, miercoles:3, jueves:4, viernes:5, sabado:6 };
+
+    // Todas las asignaciones del período con día asignado
+    const asigs = db.prepare(`
+      SELECT a.id, a.docente_id, a.curso_id, a.turno, a.dia,
+        m.nombre as materia_nombre,
+        cu.anio as curso_anio, cu.division as curso_division,
+        ca.nombre as carrera_nombre,
+        u.nombre as doc_nombre, u.apellido as doc_apellido
+      FROM asignaciones a
+      JOIN materias m  ON a.materia_id=m.id
+      JOIN cursos  cu  ON a.curso_id=cu.id
+      JOIN carreras ca ON cu.carrera_id=ca.id
+      JOIN docentes d  ON a.docente_id=d.id
+      JOIN usuarios u  ON d.usuario_id=u.id
+      WHERE a.periodo_id=? AND a.dia IS NOT NULL AND a.dia!=''
+    `).all(periodo.id);
+
+    // Asignaciones que YA tienen Recuperatorio programado
+    const yaRecup = new Set(
+      db.prepare("SELECT asignacion_id FROM examenes WHERE tipo='Recuperatorio'")
+        .all().map(r => r.asignacion_id)
+    );
+
+    // Alumnos activos por curso
+    const alumnosCurso = {};
+    [...new Set(asigs.map(a => a.curso_id))].forEach(cid => {
+      alumnosCurso[cid] = db.prepare(
+        "SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'"
+      ).all(cid).map(r => r.id);
+    });
+
+    // Fechas disponibles dentro de 3 semanas desde el 10/06/2025
+    const INICIO = new Date('2025-06-10T00:00:00');
+    const FIN    = new Date('2025-07-01T00:00:00');
+    const getFechas = (diaStr) => {
+      const dow = DIA_DOW[normDia(diaStr)];
+      if (dow === undefined) return [];
+      const fechas = [];
+      const d = new Date(INICIO);
+      while (d <= FIN) {
+        if (d.getDay() === dow) fechas.push(d.toISOString().slice(0,10));
+        d.setDate(d.getDate()+1);
+      }
+      return fechas;
+    };
+
+    // Agrupar unificados: mismo docente + mismo día + mismo turno
+    const grupos = {};
+    asigs.forEach(a => {
+      if (yaRecup.has(a.id)) return;
+      const key = `${a.docente_id}|${normDia(a.dia)}|${a.turno}`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(a);
+    });
+
+    // Estado de programación
+    const alumnoFechas   = {}; // alumno_id  → Set<date>
+    const docenteTurnos  = {}; // docente_id → { date → Set<turno> }
+
+    const resultado = [];
+    const sinFecha  = [];
+
+    // Ordenar: grupos con más alumnos primero (más restringidos)
+    Object.values(grupos)
+      .sort((a, b) => {
+        const nA = [...new Set(a.flatMap(g => alumnosCurso[g.curso_id]||[]))].length;
+        const nB = [...new Set(b.flatMap(g => alumnosCurso[g.curso_id]||[]))].length;
+        return nB - nA;
+      })
+      .forEach(grupo => {
+        const a0      = grupo[0];
+        const opciones = getFechas(a0.dia);
+        const alumnosG = [...new Set(grupo.flatMap(a => alumnosCurso[a.curso_id]||[]))];
+        const docId    = a0.docente_id;
+        const turno    = a0.turno;
+
+        let fechaOk = null;
+        let motivo  = null;
+
+        for (const fecha of opciones) {
+          if (alumnosG.some(alId => alumnoFechas[alId]?.has(fecha))) {
+            motivo = `Conflicto de alumno el ${fecha}`; continue;
+          }
+          const turnosDoc = docenteTurnos[docId]?.[fecha] || new Set();
+          if (turnosDoc.has(turno))    { motivo = `Docente ya tiene ese turno el ${fecha}`; continue; }
+          if (turnosDoc.size >= 2)     { motivo = `Docente ya tiene 2 exámenes el ${fecha}`; continue; }
+          fechaOk = fecha; break;
+        }
+
+        if (fechaOk) {
+          alumnosG.forEach(alId => {
+            if (!alumnoFechas[alId]) alumnoFechas[alId] = new Set();
+            alumnoFechas[alId].add(fechaOk);
+          });
+          if (!docenteTurnos[docId]) docenteTurnos[docId] = {};
+          if (!docenteTurnos[docId][fechaOk]) docenteTurnos[docId][fechaOk] = new Set();
+          docenteTurnos[docId][fechaOk].add(turno);
+
+          const hora = turno === 2 ? '20:40' : '19:00';
+          grupo.forEach(a => resultado.push({
+            asignacion_id: a.id,
+            materia:  a.materia_nombre,
+            carrera:  a.carrera_nombre,
+            anio:     a.curso_anio,
+            division: a.curso_division,
+            docente:  `${a.doc_apellido||''}, ${a.doc_nombre||''}`,
+            dia:      a.dia,
+            turno:    a.turno,
+            fecha:    fechaOk,
+            hora,
+            unificado: grupo.length > 1,
+            unif_ids:  grupo.map(g => g.id)
+          }));
+        } else {
+          grupo.forEach(a => sinFecha.push({
+            asignacion_id: a.id,
+            materia:  a.materia_nombre,
+            carrera:  a.carrera_nombre,
+            anio:     a.curso_anio,
+            dia:      a.dia,
+            motivo:   motivo || 'Sin fechas disponibles en el período',
+            opciones
+          }));
+        }
+      });
+
+    resultado.sort((a,b) => a.fecha.localeCompare(b.fecha) || a.carrera.localeCompare(b.carrera));
+
+    // Guardar en memoria para confirmación
+    req.app.locals._prevRecupParcial = resultado;
+
+    res.json({ resultado, sinFecha, periodo_inicio:'2025-06-10', periodo_fin:'2025-07-01' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/examenes/crear-recuperatorios-parciales', auth(['director']), (req, res) => {
+  try {
+    const pendientes = req.app.locals._prevRecupParcial;
+    if (!pendientes?.length) return res.status(400).json({ error: 'No hay preview generado. Usá el botón "Generar" primero.' });
+
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    let creados = 0;
+    const errores = [];
+
+    pendientes.forEach((p, i) => {
+      const ya = db.prepare("SELECT id FROM examenes WHERE asignacion_id=? AND tipo='Recuperatorio'").get(p.asignacion_id);
+      if (ya) { errores.push(`${p.materia}: ya existe`); return; }
+      const id = 'ex_' + (Date.now() + i) + '_rp';
+      db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id,puntos_max) VALUES (?,?,?,?,?,?,?)')
+        .run(id, p.asignacion_id, 'Recuperatorio', p.fecha, p.hora||null, periodo?.id||null, 20);
+      creados++;
+    });
+
+    audit(req.user.id, 'CREAR_RECUPERATORIOS_PARCIALES', 'examenes', 'bulk', { creados, errores: errores.length });
+    req.app.locals._prevRecupParcial = null;
+    res.json({ ok: true, creados, errores });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Limpiar todos los exámenes de un tipo (para reset del cronograma)
