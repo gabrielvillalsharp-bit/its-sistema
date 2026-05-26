@@ -1810,6 +1810,17 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
       audit(req.user.id, 'HABILITAR_PAGO_EXAMEN', 'habilitaciones_examen', alumno_id, { concepto, tipo_examen: tipoExamen, asignacion_id });
     }
 
+    // Enviar constancia de pago por WhatsApp
+    const alFull = db.prepare('SELECT a.nombre, a.apellido, a.telefono FROM alumnos a WHERE a.id=?').get(alumno_id);
+    if (alFull?.telefono) {
+      const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+      const fechaFmt = (fecha_pago||nowDate()).split('-').reverse().join('/');
+      const montoFmt = 'Gs. '+Number(montoPagado).toLocaleString('es-PY');
+      const nombreCompleto = `${alFull.nombre} ${alFull.apellido}`.trim();
+      const waMsg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *${nombreCompleto}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: ${concepto}\n• Monto: ${montoFmt}\n• Fecha: ${fechaFmt}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 ${APP_URL}\n\n— *Administración · ITS Santísima Trinidad*`;
+      sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
+    }
+
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
