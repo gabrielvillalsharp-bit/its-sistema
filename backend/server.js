@@ -2055,6 +2055,23 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
       if (asignacion_id) {
         const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
         if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
+        // Agregar fecha del examen si existe programado
+        if (tipoExamen) {
+          const tipoExDB = {
+            parcial_recuperatorio: 'Recuperatorio',
+            final_ord:             'Final',
+            final_recuperatorio:   'Final Recuperatorio',
+            complementario:        'Complementario',
+            extraordinario:        'Extraordinario'
+          }[tipoExamen];
+          if (tipoExDB) {
+            const examen = db.prepare("SELECT fecha FROM examenes WHERE asignacion_id=? AND tipo=? LIMIT 1").get(asignacion_id, tipoExDB);
+            if (examen?.fecha) {
+              const [ey,em,ed] = examen.fecha.split('-');
+              lineaMateria += `\n• Fecha del examen: ${ed}/${em}/${ey}`;
+            }
+          }
+        }
       }
       const pagoTpl = getWASistemaTpl('constancia_pago');
       const waMsg = pagoTpl
