@@ -25,7 +25,18 @@
       "Bash(railway variables *)",
       "Bash(railway up *)",
       "Read(//c/Users/Gabriel/Desktop/**)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(curl -s 'https://its-sistema-production.up.railway.app/api/admin/auditoria?accion=SOLICITUD_ALUMNO&limite=20' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVfZGlyZWN0b3IiLCJub21icmUiOiJEaXJlY3RvciIsImFwZWxsaWRvIjoiU2lzdGVtYSIsInJvbCI6ImRpcmVjdG9yIiwiZW1haWwiOiJkaXJlY3RvckBpdHMuZWR1LnB5IiwiZG9jZW50ZUlkIjpudWxsLCJhbHVtbm9JZCI6bnVsbCwiaWF0IjoxNzc4OTcwNzc5LCJleHAiOjE3Nzg5OTk1Nzl9.poMUAjCcw-8Yxjv71iXZGvnvzXeYRZr57_0EwY0WqXo')",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "Bash(grep -n \"marcarNoViene\\\\|pgAsistencia\\\\|No viene\" \"C:\\\\\\\\Users\\\\\\\\Gabriel\\\\\\\\Desktop\\\\\\\\its-v3\\\\\\\\frontend\\\\\\\\public\\\\\\\\index.html\")",
+      "Bash(grep -n \"function.*Asist\\\\|W\\\\..*Asist.*=\\\\|const.*Asist\" \"C:\\\\\\\\Users\\\\\\\\Gabriel\\\\\\\\Desktop\\\\\\\\its-v3\\\\\\\\frontend\\\\\\\\public\\\\\\\\index.html\")",
+      "Bash(sed -i 's/new Date\\(\\)\\\\.getFullYear\\(\\)/nowSys\\(\\).getFullYear\\(\\)/g' backend/server.js)",
+      "Bash(sed -i \"s/new Date\\(\\)\\\\.toISOString\\(\\)\\\\.replace\\(\\\\\\\\/\\\\[:.\\\\\\\\]\\\\\\\\/g, '-'\\)\\\\.slice\\(0, 19\\)/nowSys\\(\\).toISOString\\(\\).replace\\(\\\\/[:.]\\\\//g, '-'\\).slice\\(0, 19\\)/g\" backend/server.js)",
+      "Bash(grep -n \"^  </div>\\\\`;\" frontend/public/index.html)",
+      "Bash(python3 -)",
+      "Bash(node \"C:\\\\Users\\\\Gabriel\\\\AppData\\\\Local\\\\Temp\\\\rewrite_gestion.js\")",
+      "Bash(node -e \"var fs=require\\('fs'\\);var src=fs.readFileSync\\('frontend/public/index.html','utf8'\\);var t=String.fromCharCode\\(96\\);var i=src.indexOf\\('async function pgSolicitudes'\\);var j=src.indexOf\\('async function pgEgreso'\\);var fn=src.slice\\(i,j\\);var n=fn.split\\(t\\).length-1;console.log\\('backticks in pgSolicitudes:',n\\);\")",
+      "Bash(git revert *)"
     ]
   }
 }

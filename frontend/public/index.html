@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HIST-GA -->
+<!-- build:20260525-HAB-MATERIA -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -5794,9 +5794,10 @@ async function pgSolicitudes(el){
     </div>
   </div>
   <div id="gest-sec-historial" style="display:none;margin-bottom:16px">
+    ${(()=>{ W._auditArr=(auditAlumnos?.registros||Array.isArray(auditAlumnos)?auditAlumnos:[]); return ''; })()}
     <div style="background:linear-gradient(135deg,#0a3d62,#1a7fc4);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones, Seguimiento & Asignaciones</span>
-      <span style="color:#bfdbfe;font-size:11px">${regs.length+sols.length} registros de incorporación · ${informes.length+ausencias.length} alertas asistencia · ${auditAlumnos.length} acciones sistema</span>
+      <span style="color:#bfdbfe;font-size:11px">${regs.length+sols.length} incorporaciones · ${informes.length+ausencias.length} alertas · ${W._auditArr.length} acciones</span>
     </div>
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
       <!-- Contador resumen -->
@@ -5814,6 +5815,7 @@ async function pgSolicitudes(el){
           <option value="">Todos los tipos</option>
           <option value="qr">📱 Registro QR</option>
           <option value="solicitud">📋 Solicitud docente</option>
+          <option value="asignacion">↕️ Asignación carrera</option>
           <option value="asistencia">📊 Alerta asistencia</option>
           <option value="sistema">⚙️ Acción sistema</option>
         </select>
@@ -5842,11 +5844,23 @@ async function pgSolicitudes(el){
             fecha:s.fecha||'',estado:s.estado||'',
             extra:[s.materia?'📚 '+s.materia:'',s.docente_apellido?'👤 '+s.docente_apellido+' '+s.docente_nombre:'',esConflicto&&obs?.comentario?'💬 '+obs.comentario:''].filter(Boolean).join(' · '),
             acciones:s.estado==='pendiente'?`<button class="bn" style="font-size:10px;padding:3px 10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="font-size:10px;padding:3px 8px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>`:''
-          };})
+          };}),
+          // Eventos ASIGNAR del audit log
+          ...W._auditArr.filter(a=>a.accion==='ASIGNAR').map(a=>{
+            let det={}; try{det=a.detalle?JSON.parse(a.detalle):{};}catch{}
+            return{key:'asig-'+a.id,tipo:'asignacion',icono:'↕️',tipLabel:'Asignación',
+              alumno:det.alumno||a.registro_id||'—',ci:'—',
+              carrera:det.carrera_nombre||'—',
+              seccion:det.curso_desc||'—',
+              matricula:'',tel:'',email:'',
+              fecha:a.fecha||'',estado:'aprobado',
+              extra:[det.carrera_nombre?'🏫 '+det.carrera_nombre:'',det.curso_desc?'📚 '+det.curso_desc:''].filter(Boolean).join(' · '),
+              acciones:''};})
         ].sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
         const stC={aprobado:'background:#dcfce7;color:#166534',pendiente:'background:#fef3c7;color:#92400e',rechazado:'background:#fee2e2;color:#991b1b'};
         const stL={aprobado:'✅ Aprobado',pendiente:'⏳ Pendiente',rechazado:'❌ Rechazado'};
-        const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)'};
+        const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)',asignacion:'linear-gradient(135deg,#065f46,#059669)'};
+        const borderMap={qr:'#2563EB',solicitud:'#D85A30',asignacion:'#059669'};
         const rows=items.map((it,idx)=>{
           const detalle=[
             `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:700;${stC[it.estado]||'background:#f1f5f9;color:#475569'}">${stL[it.estado]||it.estado}</span>`,
@@ -5858,7 +5872,7 @@ async function pgSolicitudes(el){
             it.tel?`<span style="color:#94a3b8">·</span><span>📞 ${it.tel}</span>`:'',
             it.extra?`<span style="color:#94a3b8">·</span><span style="color:#64748b">${it.extra}</span>`:''
           ].filter(Boolean).join(' ');
-          return `<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:10px;align-items:center;padding:11px 16px;border-bottom:4px solid #1e293b;${idx%2===1?'background:#f8fafc':''};border-left:5px solid ${it.tipo==='qr'?'#2563EB':'#D85A30'}">
+          return `<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:10px;align-items:center;padding:11px 16px;border-bottom:4px solid #1e293b;${idx%2===1?'background:#f8fafc':''};border-left:5px solid ${borderMap[it.tipo]||'#64748b'}">
             <div style="width:34px;height:34px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
             <div style="flex:1;min-width:0;overflow:hidden">
               <div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.alumno}</div>
@@ -5899,8 +5913,8 @@ async function pgSolicitudes(el){
       </div>`).join('')}`:''
       }
       <!-- Sección 3: Acciones del sistema sobre alumnos -->
-      ${auditAlumnos.length?`<div style="padding:8px 14px;background:#f0f4ff;border-top:2px solid #c7d2fe;border-bottom:1px solid #c7d2fe"><strong style="font-size:12px;color:#1e40af">⚙️ Registro de acciones · ${auditAlumnos.length} entrada${auditAlumnos.length!==1?'s':''}</strong></div>
-      ${auditAlumnos.slice(0,100).map(a=>{
+      ${W._auditArr.length?`<div style="padding:8px 14px;background:#f0f4ff;border-top:2px solid #c7d2fe;border-bottom:1px solid #c7d2fe"><strong style="font-size:12px;color:#1e40af">⚙️ Registro de acciones · ${W._auditArr.length} entrada${W._auditArr.length!==1?'s':''}</strong></div>
+      ${W._auditArr.slice(0,100).map(a=>{
         const acIco={'INSERT':'➕','CREATE':'➕','DELETE':'🗑️','UPDATE':'✏️','ASIGNAR':'↕️','IMPORTAR':'📥','HABILITAR':'✅','REACTIVAR':'↩️'};
         const ico=Object.entries(acIco).find(([k])=>String(a.accion||'').toUpperCase().includes(k))?.[1]||'⚙️';
         const fec=(a.fecha_hora||a.created_at||'').replace('T',' ').slice(0,16);
@@ -5916,7 +5930,7 @@ async function pgSolicitudes(el){
           <div style="flex-shrink:0;color:var(--t3);font-size:11px;text-align:right">${fec}</div>
         </div>`;
       }).join('')}
-      ${auditAlumnos.length>100?`<div style="padding:8px;text-align:center;font-size:11px;color:var(--t3)">+${auditAlumnos.length-100} registros más (ver Auditoría completa)</div>`:''}
+      ${W._auditArr.length>100?`<div style="padding:8px;text-align:center;font-size:11px;color:var(--t3)">+${W._auditArr.length-100} registros más (ver Auditoría completa)</div>`:''}
       `:''}
     </div>
   </div>
@@ -6141,10 +6155,11 @@ W.loadNotas=async(asigId,_tipo)=>{
   if(me.rol==='director'||me.rol==='docente'){
     try{
       const ids=alumnos.map(a=>a.id);
-      const bulk=await api('POST','/api/alumnos/habilitaciones-bulk',{alumno_ids:ids});
+      // Pasar asignacion_id para obtener tipos_habilitados específicos por materia
+      const bulk=await api('POST','/api/alumnos/habilitaciones-bulk',{alumno_ids:ids,asignacion_id:asigId});
       Object.assign(habMap,bulk);
     }catch{
-      alumnos.forEach(a=>{habMap[a.id]={habilitado:true};});
+      alumnos.forEach(a=>{habMap[a.id]={habilitado:true,tipos_habilitados:[]};});
     }
   }
 
@@ -6235,13 +6250,14 @@ W.loadNotas=async(asigId,_tipo)=>{
     const bloqueado=hab&&!hab.habilitado;
     const tiposHab=hab?.tipos_habilitados||[];
     const esHab=(tipo)=>!bloqueado||tiposHab.includes(tipo);
+    // Para los 5 exámenes con arancel: requieren habilitación específica por pago de arancel en esta materia
+    const esArancelHab=(tipo)=>tiposHab.includes(tipo);
     const disabledBase=ausente;
-    const disabledFinalOrd=ausente||!esHab('final_ord');
-    const disabledFinalRec=ausente||!esHab('final_recuperatorio');
-    const disabledComplem=ausente||!esHab('complementario');
-    const disabledExtraord=ausente||!esHab('extraordinario');
-    const habRecup=tiposHab.includes('parcial_recuperatorio')||hab?.habilitado_recuperatorio||false;
-    const disabledParcialRec=ausente||(me.rol==='docente'&&!habRecup)||(bloqueado&&!habRecup);
+    const disabledFinalOrd=ausente||!esArancelHab('final_ord');
+    const disabledFinalRec=ausente||!esArancelHab('final_recuperatorio');
+    const disabledComplem=ausente||!esArancelHab('complementario');
+    const disabledExtraord=ausente||!esArancelHab('extraordinario');
+    const disabledParcialRec=ausente||!esArancelHab('parcial_recuperatorio');
     const cuotasFalt=hab?.cuotas_faltantes||[];
     const isEven=idx%2===0;
     const rowBase=ausente?'#fff1f2':bloqueado?'#fffbf0':isEven?'#ffffff':'#f8fafc';
@@ -7949,20 +7965,21 @@ async function svEditarNombreAlumno(alId){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function habilitarDesdeHistorial(alId){
-  // Obtener aranceles para mostrar solo exámenes con arancel (parcial ordinario es gratis)
-  const aranceles = await api('GET','/api/aranceles').catch(()=>[]);
-  const examsCopago = [
-    {value:'parcial_recuperatorio', label:'Parcial Recuperatorio', tipo:'parcial'},
-    {value:'final_ord', label:'Final Ordinario', tipo:'final'},
-    {value:'final_recuperatorio', label:'Final Recuperatorio', tipo:'final'},
-    {value:'complementario', label:'Final Complementario', tipo:'final'},
-    {value:'extraordinario', label:'Final Extraordinario ⚡', tipo:'extraordinario'},
+  const [aranceles, asigs] = await Promise.all([
+    api('GET','/api/aranceles').catch(()=>[]),
+    api('GET','/api/alumnos/'+alId+'/asignaciones-activas').catch(()=>[])
+  ]);
+  const examsCopago=[
+    {value:'parcial_recuperatorio',label:'Parcial Recuperatorio',tipo:'parcial_recuperatorio'},
+    {value:'final_ord',label:'Final Ordinario',tipo:'final_ordinario'},
+    {value:'final_recuperatorio',label:'Final Recuperatorio',tipo:'final_recuperatorio'},
+    {value:'complementario',label:'Final Complementario',tipo:'complementario'},
+    {value:'extraordinario',label:'Final Extraordinario ⚡',tipo:'extraordinario'},
   ];
-  // Mostrar monto de arancel cuando corresponda
-  function montoAr(tipo){
-    const ar=aranceles.find(a=>a.tipo===tipo);
-    return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:'';
-  }
+  function montoAr(tipo){const ar=aranceles.find(a=>a.tipo===tipo);return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:''}
+  const materiasOpts=asigs.length
+    ?asigs.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('')
+    :'<option value="">Sin materias en período activo</option>';
   modal(`<h4>🔓 Habilitar examen sin pago</h4>
   <div style="font-size:12px;padding:8px 10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;color:#e65100;margin-bottom:12px">
     ⚠ Esta habilitación es <strong>sin pago</strong> — el alumno quedará habilitado pero con la deuda pendiente. Usá esta opción para excepciones o acuerdos de pago.<br>
@@ -7975,6 +7992,12 @@ async function habilitarDesdeHistorial(alId){
         ${examsCopago.map(e=>`<option value="${e.value}">${e.label}${montoAr(e.tipo)}</option>`).join('')}
       </select>
     </div>
+    <div class="f"><label>Materia <span style="color:var(--red)">*</span></label>
+      <select id="habDesdeHistAsig">
+        <option value="">— Seleccionar materia —</option>
+        ${materiasOpts}
+      </select>
+    </div>
     <div class="f"><label>Motivo / Observación</label>
       <input id="habDesdeHistMotivo" placeholder="Ej: Acuerdo de pago, beca, excepción..."/>
     </div>
@@ -7985,11 +8008,12 @@ async function habilitarDesdeHistorial(alId){
   </div>`);
 }
 async function confirmarHabDesdeHistorial(alId){
-  const tipo=v('habDesdeHistTipo'), motivo=v('habDesdeHistMotivo');
+  const tipo=v('habDesdeHistTipo'), asigId=v('habDesdeHistAsig'), motivo=v('habDesdeHistMotivo');
   if(!tipo)return alert('Seleccioná el examen a habilitar');
+  if(!asigId)return alert('Seleccioná la materia a habilitar');
   const labels={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
   try{
-    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true,tipo_examen:tipo,motivo:motivo||'Habilitado por Dirección'});
+    await api('PUT','/api/alumnos/'+alId+'/habilitar-pago',{habilitado:true,asignacion_id:asigId,tipo_examen:tipo,motivo:motivo||'Habilitado por Dirección'});
     toast(`✓ Habilitado para ${labels[tipo]||tipo} — registrado como excepción de Dirección`,'ok',4000);
     cm(); selAlumnoPago(alId);
   }catch(e){toast('Error: '+e.message,'err');}
@@ -8047,8 +8071,15 @@ async function mPagoDirecto(alId){
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
     </div>
+    <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+      <label style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">📚 Materia a habilitar <span style="color:var(--red)">*</span></label>
+      <select id="pgco-asig" style="width:100%;font-size:12px">
+        <option value="">— Cargando materias... —</option>
+      </select>
+      <div style="font-size:10px;color:#3730a3;margin-top:4px">El pago habilitará al docente a cargar la nota de este examen <strong>solo para esta materia</strong>.</div>
+    </div>
     <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
-      🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para que el docente cargue la nota de <em>Parcial Recuperatorio</em> en el sistema.
+      🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
     </div>
     <div class="fr">
       <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0"/></div>
@@ -8273,16 +8304,53 @@ function mPago(){
 function autoMontoArancel(){
   const concepto=v('pgco');
   const aranceles=W._pdata?.aranceles||[];
-  const tipoMap={'Matrícula':'matricula','Cuota':'cuota','Parcial Ordinario':'parcial','Parcial Recuperatorio':'parcial','Final Ordinario':'final','Final Complementario':'final','Final Extraordinario':'extraordinario','Certificado':'certificado'};
-  const tipo=Object.entries(tipoMap).find(([k])=>concepto.includes(k))?.[1];
-  const ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
+  // Mapa específico primero (5 exámenes con arancel), luego genérico como fallback
+  const specificMap={
+    'Examen Parcial Recuperatorio':'parcial_recuperatorio',
+    'Examen Final Ordinario':'final_ordinario',
+    'Examen Final Recuperatorio':'final_recuperatorio',
+    'Examen Final Complementario':'complementario',
+    'Examen Final Extraordinario':'extraordinario',
+  };
+  const genericMap={'Matrícula':'matricula','Cuota':'cuota','Parcial Ordinario':'parcial','Certificado':'certificado'};
+  let ar=null;
+  if(specificMap[concepto]){
+    ar=aranceles.find(a=>a.tipo===specificMap[concepto])||aranceles.find(a=>a.tipo==='parcial'&&concepto.includes('Parcial'))||aranceles.find(a=>a.tipo==='final'&&concepto.includes('Final'));
+  } else {
+    const tipo=Object.entries(genericMap).find(([k])=>concepto&&concepto.includes(k))?.[1];
+    ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
+  }
   if(ar){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=ar.monto;}
 }
+const ARANCEL_CONCEPTOS=['Examen Parcial Recuperatorio','Examen Final Ordinario','Examen Final Recuperatorio','Examen Final Complementario','Examen Final Extraordinario'];
 function pgcoChangeHandler(){
   const concepto=v('pgco')||'';
   const aviso=document.getElementById('pgco-recup-aviso');
-  if(!aviso)return;
-  aviso.style.display=(concepto.toLowerCase().includes('parcial recuperatorio'))?'block':'none';
+  const materiaDiv=document.getElementById('pgco-materia-sel');
+  const isArancel=ARANCEL_CONCEPTOS.includes(concepto);
+  if(materiaDiv){
+    materiaDiv.style.display=isArancel?'block':'none';
+    if(isArancel){
+      const alId=v('pgal');
+      if(alId){
+        const sel=document.getElementById('pgco-asig');
+        if(sel)sel.innerHTML='<option value="">— Cargando materias... —</option>';
+        api('GET','/api/alumnos/'+alId+'/asignaciones-activas').then(asigs=>{
+          if(!sel)return;
+          if(!asigs||!asigs.length){
+            sel.innerHTML='<option value="">— Sin materias en período activo —</option>';
+          } else {
+            sel.innerHTML='<option value="">— Seleccionar materia —</option>'+
+              asigs.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
+          }
+        }).catch(()=>{
+          const sel=document.getElementById('pgco-asig');
+          if(sel)sel.innerHTML='<option value="">— Error al cargar materias —</option>';
+        });
+      }
+    }
+  }
+  if(aviso)aviso.style.display=(concepto==='Examen Parcial Recuperatorio'&&isArancel)?'block':'none';
 }
 async function verificarHabPago(){
   const alId=v('pgal');
@@ -8331,20 +8399,32 @@ async function svPago(){
   // v('pgal') puede ser un <select> (mPago general) o <input hidden> (mPagoDirecto).
   // Si está vacío, usar W._pagoSel que se setea al abrir el panel de detalle.
   const alumnoId=v('pgal')||String(W._pagoSel||'');
-  const o={alumno_id:alumnoId,concepto:v('pgco'),monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
+  const concepto=v('pgco');
+  const isArancel=ARANCEL_CONCEPTOS.includes(concepto);
+  const asignacion_id=isArancel?(v('pgco-asig')||null):null;
+  if(isArancel&&!asignacion_id)return alert('⚠ Para registrar este pago debes seleccionar la materia que el alumno va a habilitar para rendir.');
+  const materiaLabel=isArancel&&asignacion_id?document.getElementById('pgco-asig')?.options[document.getElementById('pgco-asig')?.selectedIndex]?.text||'':'';
+  const o={alumno_id:alumnoId,concepto,monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
+  if(asignacion_id)o.asignacion_id=asignacion_id;
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   window._pagoData=o;
   const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(o.alumno_id));
   const nom=al?`${al.display_apellido||''}, ${al.display_nombre||''}`:'—';
   // Buscar arancel esperado para el concepto seleccionado
   const aranceles=W._pdata?.aranceles||[];
-  const tipoMap={'matricula':['matrícula','matricula'],'cuota':['cuota'],'parcial':['parcial ordinario','parcial recuperatorio','examen parcial'],'final':['final ordinario','final recuperatorio','final complementario','complementario','examen final'],'extraordinario':['extraordinario'],'certificado':['certificado']};
+  const specificTipoMap={'Examen Parcial Recuperatorio':'parcial_recuperatorio','Examen Final Ordinario':'final_ordinario','Examen Final Recuperatorio':'final_recuperatorio','Examen Final Complementario':'complementario','Examen Final Extraordinario':'extraordinario'};
+  const genericTipoMap={'matricula':['matrícula','matricula'],'cuota':['cuota'],'parcial':['parcial ordinario','examen parcial'],'certificado':['certificado']};
   let arancelEsp=null;
-  const conc_low=(o.concepto||'').toLowerCase();
-  for(const [tipo,kws] of Object.entries(tipoMap)){
-    if(kws.some(k=>conc_low.includes(k))){
-      arancelEsp=aranceles.find(a=>a.tipo===tipo&&(!a.carrera_id||a.carrera_id===al?.carrera_id))||aranceles.find(a=>a.tipo===tipo);
-      break;
+  if(specificTipoMap[o.concepto]){
+    arancelEsp=aranceles.find(a=>a.tipo===specificTipoMap[o.concepto]&&(!a.carrera_id||a.carrera_id===al?.carrera_id))||aranceles.find(a=>a.tipo===specificTipoMap[o.concepto]);
+  }
+  if(!arancelEsp){
+    const conc_low=(o.concepto||'').toLowerCase();
+    for(const [tipo,kws] of Object.entries(genericTipoMap)){
+      if(kws.some(k=>conc_low.includes(k))){
+        arancelEsp=aranceles.find(a=>a.tipo===tipo&&(!a.carrera_id||a.carrera_id===al?.carrera_id))||aranceles.find(a=>a.tipo===tipo);
+        break;
+      }
     }
   }
   const montoEsp=arancelEsp?arancelEsp.monto:null;
@@ -8368,9 +8448,11 @@ async function svPago(){
     `<div style="background:#f0f4f8;border-radius:8px;padding:10px 14px">
       <div><span style="font-size:11px;color:var(--t3)">Alumno</span><br><strong>${nom}</strong></div>
       <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Concepto</span><br><strong>${o.concepto}</strong></div>
+      ${materiaLabel?`<div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Materia habilitada</span><br><strong style="color:#1d4ed8">📚 ${materiaLabel}</strong></div>`:''}
       <div style="margin-top:6px"><span style="font-size:11px;color:var(--t3)">Monto</span><br><span style="font-size:20px;font-weight:900;color:#2e7d32">Gs. ${(o.monto||0).toLocaleString()}</span>${montoEsp?`<span style="font-size:11px;color:var(--t2);margin-left:8px">(Arancel: Gs. ${Number(montoEsp).toLocaleString()})</span>`:''}</div>
       <div style="margin-top:4px;font-size:12px">Medio: ${o.medio_pago}${o.comprobante?' · Comp: '+o.comprobante:''}</div>
     </div>
+    ${isArancel&&asignacion_id?`<div style="background:#e0f2fe;border:1px solid #7dd3fc;border-radius:6px;padding:7px 12px;margin-top:8px;font-size:11px;color:#0369a1">🔓 Al confirmar, el alumno quedará <strong>habilitado para rendir ${o.concepto}</strong> en <strong>${materiaLabel}</strong>.</div>`:''}
     ${alertaHTML}
     <p style="font-size:12px;color:var(--t2);margin-top:8px">Verificá que el monto y concepto sean correctos.</p>`,
     async function(){
@@ -8388,8 +8470,9 @@ async function svPago(){
         } else {
           go('pagos');
         }
-        if(r.habilitado_recuperatorio){
-          toast('✓ Pago registrado — 🔓 Alumno habilitado para Parcial Recuperatorio','ok',5000);
+        if(r.habilitado_examen&&r.tipo_examen){
+          const lblMap={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
+          toast(`✓ Pago registrado — 🔓 Habilitado para ${lblMap[r.tipo_examen]||r.tipo_examen}`,'ok',5000);
         } else if(r.monto_pendiente>0){
           toast(`✓ Pago registrado — Saldo pendiente: Gs. ${Number(r.monto_pendiente).toLocaleString()}`,'info',5000);
         } else {
@@ -8936,8 +9019,8 @@ function saltarConflicto(){cm();W._conflictoIdx++;procesarConflictoPago();}
 // ── ARANCELES / COSTOS ────────────────────────────────────────────────────────
 async function pgAranceles(el){
   const [aranceles,carrs]=await Promise.all([api('GET','/api/aranceles'),api('GET','/api/carreras')]);
-  const tipoLabel={matricula:'Matrícula',cuota:'Cuota',parcial:'Parcial',final:'Final',extraordinario:'Extraordinario',certificado:'Certificado',otro:'Otro'};
-  const tipoColor={matricula:'bg',cuota:'bb',parcial:'ba',final:'br',extraordinario:'bv',certificado:'bgr',otro:'bgr'};
+  const tipoLabel={matricula:'Matrícula',cuota:'Cuota',parcial:'Parcial (gen.)',final:'Final (gen.)',parcial_recuperatorio:'Parcial Recup.',final_ordinario:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',certificado:'Certificado',otro:'Otro'};
+  const tipoColor={matricula:'bg',cuota:'bb',parcial:'ba',final:'br',parcial_recuperatorio:'ba',final_ordinario:'br',final_recuperatorio:'br',complementario:'bv',extraordinario:'bv',certificado:'bgr',otro:'bgr'};
   el.innerHTML=`<div class="ph"><h3>Aranceles / Costos institucionales</h3>
     <button class="bn" onclick="mArancel()">+ Nuevo arancel</button>
   </div>
@@ -8967,12 +9050,20 @@ function mArancel(a){
     <div class="fr">
       <div class="f"><label>Tipo</label><select id="arTip">
         <option value="matricula" ${e&&a.tipo==='matricula'?'selected':''}>Matrícula</option>
-        <option value="cuota" ${e&&a.tipo==='cuota'?'selected':''}>Cuota</option>
-        <option value="parcial" ${e&&a.tipo==='parcial'?'selected':''}>Examen Parcial</option>
-        <option value="final" ${e&&a.tipo==='final'?'selected':''}>Examen Final</option>
-        <option value="extraordinario" ${e&&a.tipo==='extraordinario'?'selected':''}>Extraordinario</option>
-        <option value="certificado" ${e&&a.tipo==='certificado'?'selected':''}>Certificado</option>
-        <option value="otro" ${e&&a.tipo==='otro'?'selected':''}>Otro</option>
+        <option value="cuota" ${e&&a.tipo==='cuota'?'selected':''}>Cuota mensual</option>
+        <optgroup label="Exámenes con arancel">
+          <option value="parcial_recuperatorio" ${e&&a.tipo==='parcial_recuperatorio'?'selected':''}>Parcial Recuperatorio</option>
+          <option value="final_ordinario" ${e&&a.tipo==='final_ordinario'?'selected':''}>Final Ordinario</option>
+          <option value="final_recuperatorio" ${e&&a.tipo==='final_recuperatorio'?'selected':''}>Final Recuperatorio</option>
+          <option value="complementario" ${e&&a.tipo==='complementario'?'selected':''}>Final Complementario</option>
+          <option value="extraordinario" ${e&&a.tipo==='extraordinario'?'selected':''}>Final Extraordinario</option>
+        </optgroup>
+        <optgroup label="General">
+          <option value="parcial" ${e&&a.tipo==='parcial'?'selected':''}>Examen Parcial (genérico)</option>
+          <option value="final" ${e&&a.tipo==='final'?'selected':''}>Examen Final (genérico)</option>
+          <option value="certificado" ${e&&a.tipo==='certificado'?'selected':''}>Certificado</option>
+          <option value="otro" ${e&&a.tipo==='otro'?'selected':''}>Otro</option>
+        </optgroup>
       </select></div>
       <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="arMon" type="number" value="${e?a.monto:0}"/></div>
     </div>
@@ -10063,53 +10154,67 @@ async function svFeriado(){
 
 // ── REGISTRO DE HABILITADOS (solo Director) ───────────────────────────────────
 async function pgRegistroHabilitados(el){
-  const [carrs,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  el.innerHTML=`<div class="ph"><h3>📋 Registro de Habilitados por Dirección</h3></div>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Alumnos habilitados por excepción de Dirección para rendir exámenes con cuotas pendientes.</p>
+  const [carrs,cursos,materias]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos'),api('GET','/api/materias').catch(()=>[])]);
+  el.innerHTML=`<div class="ph"><h3>📋 Registro de Habilitados</h3></div>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Alumnos habilitados para rendir exámenes con arancel — por pago o por excepción de Dirección.</p>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <select id="habFiltCarr" onchange="cargarRegistroHab()" style="min-width:180px">
+    <select id="habFiltCarr" onchange="cargarRegistroHab()" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>'<option value="'+c.id+'">'+c.nombre+'</option>').join('')}
     </select>
-    <select id="habFiltAnio" onchange="cargarRegistroHab()" style="min-width:100px">
+    <select id="habFiltAnio" onchange="cargarRegistroHab()" style="min-width:90px">
       <option value="">Todos los años</option>
       ${[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort().map(a=>'<option value="'+a+'">'+a+'° año</option>').join('')}
     </select>
-    <select id="habFiltTipo" onchange="cargarRegistroHab()" style="min-width:160px">
+    <select id="habFiltDiv" onchange="cargarRegistroHab()" style="min-width:110px">
+      <option value="">Todas las secciones</option>
+      ${[...new Set(cursos.map(cu=>cu.division).filter(Boolean))].sort().map(d=>'<option value="'+d+'">'+(d==='U'?'Sección Única':'Sección '+d)+'</option>').join('')}
+    </select>
+    <select id="habFiltTipo" onchange="cargarRegistroHab()" style="min-width:170px">
       <option value="">Todos los exámenes</option>
+      <option value="parcial_recuperatorio">Parcial Recuperatorio</option>
       <option value="final_ord">Final Ordinario</option>
       <option value="final_recuperatorio">Final Recuperatorio</option>
-      <option value="complementario">Complementario</option>
-      <option value="extraordinario">Extraordinario</option>
-      <option value="parcial">Parcial</option>
-      <option value="parcial_recuperatorio">Parcial Recuperatorio</option>
+      <option value="complementario">Final Complementario</option>
+      <option value="extraordinario">Final Extraordinario</option>
     </select>
-    <input id="habFiltBus" placeholder="🔍 Buscar alumno..." oninput="filtRegistroHab()" style="min-width:180px"/>
+    <select id="habFiltMateria" onchange="cargarRegistroHab()" style="min-width:160px">
+      <option value="">Todas las materias</option>
+      ${(materias||[]).map(m=>'<option value="'+m.id+'">'+m.nombre+'</option>').join('')}
+    </select>
+    <input id="habFiltBus" placeholder="🔍 Buscar alumno..." oninput="filtRegistroHab()" style="min-width:160px"/>
   </div>
   <div id="tablaHab"><div class="es">Cargando...</div></div>`;
   cargarRegistroHab();
 }
 async function cargarRegistroHab(){
-  const carrId=v('habFiltCarr'),anio=v('habFiltAnio'),tipo=v('habFiltTipo');
+  const carrId=v('habFiltCarr'),anio=v('habFiltAnio'),tipo=v('habFiltTipo'),div=v('habFiltDiv'),matId=v('habFiltMateria');
   const q=[];
   if(carrId)q.push('carrera_id='+carrId);
   if(anio)q.push('anio='+anio);
   if(tipo)q.push('tipo_examen='+tipo);
+  if(div)q.push('division='+encodeURIComponent(div));
+  // Si se filtra por materia, necesitamos filtrar en frontend (ya que filtramos por materia_id, no asignacion_id)
   const url='/api/admin/habilitados'+(q.length?'?'+q.join('&'):'');
   const datos=await api('GET',url).catch(()=>[]);
   W._habilitados=datos;
-  renderRegistroHab(datos);
+  W._habFiltMateria=matId;
+  renderRegistroHab(datos,matId);
 }
 function filtRegistroHab(){
   const q=(v('habFiltBus')||'').toLowerCase();
-  renderRegistroHab((W._habilitados||[]).filter(h=>{
-    return((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(q);
-  }));
+  const matId=W._habFiltMateria||'';
+  let d=(W._habilitados||[]).filter(h=>((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(q));
+  renderRegistroHab(d,matId);
 }
-function renderRegistroHab(datos){
+function renderRegistroHab(datos,matId){
   const el=document.getElementById('tablaHab'); if(!el)return;
-  if(!datos?.length){el.innerHTML='<div class="es">Sin habilitaciones registradas</div>';return;}
-  const lbl={final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',final:'Final'};
+  // Filtrar por materia en frontend si se especificó
+  let filtered=datos||[];
+  if(matId) filtered=filtered.filter(h=>h.materia_id===matId||h.materia_nombre&&(W._habMateriaMap||{})[h.materia_nombre]===matId);
+  if(!filtered.length){el.innerHTML='<div class="es">Sin habilitaciones registradas con los filtros actuales</div>';return;}
+  const lbl={parcial_recuperatorio:'Parcial Recup.',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',parcial:'Parcial',final:'Final'};
+  const colores={parcial_recuperatorio:'ba',final_ord:'br',final_recuperatorio:'br',complementario:'bv',extraordinario:'bv'};
   el.innerHTML=`<div class="card"><div class="tw"><table style="font-size:12px;width:100%;border-collapse:collapse">
     <thead><tr style="background:#c0392b;color:#fff">
       <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Alumno</th>
@@ -10121,20 +10226,22 @@ function renderRegistroHab(datos){
       <th style="padding:7px 10px;border:1px solid #a93226">Fecha</th>
       <th style="padding:7px 10px;border:1px solid #a93226;text-align:left">Motivo</th>
     </tr></thead><tbody>
-    ${datos.map(h=>`<tr>
+    ${filtered.map(h=>{
+      const esPago=(h.motivo||'').toLowerCase().includes('pago');
+      return `<tr>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-weight:600">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center;font-size:11px">${h.alumno_ci||'—'}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.carrera_nombre||'—'} ${h.anio?h.anio+'°':''}</td>
-      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.materia_nombre||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;font-weight:600">${h.materia_nombre||'—'}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);text-align:center">
-        <span class="bx br" style="font-size:10px">${lbl[h.tipo_examen]||h.tipo_examen||'—'}</span>
+        <span class="bx ${colores[h.tipo_examen]||'br'}" style="font-size:10px">${lbl[h.tipo_examen]||h.tipo_examen||'—'}</span>
       </td>
-      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${h.habilitado_por_nombre||''} ${h.habilitado_por_apellido||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${esPago?'💳 Pago':h.habilitado_por_nombre||''} ${esPago?'':h.habilitado_por_apellido||''}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;white-space:nowrap;text-align:center">${fmtFecha(h.fecha)}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px;color:var(--t2)">${h.motivo||'—'}</td>
-    </tr>`).join('')}
+    </tr>`;}).join('')}
     </tbody></table></div></div>
-  <p style="font-size:11px;color:var(--t2);margin-top:8px">Total: <strong>${datos.length}</strong> habilitacion(es) registradas</p>`;
+  <p style="font-size:11px;color:var(--t2);margin-top:8px">Total: <strong>${filtered.length}</strong> habilitacion(es) registradas</p>`;
 }
 
 async function pgAuditoria(el){

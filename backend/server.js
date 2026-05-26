@@ -1743,8 +1743,22 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   res.json({ pagos, totalPagado, alumno: al });
 });
 app.post('/api/pagos', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago } = req.body;
+  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id } = req.body;
+  // Mapa: concepto exacto → tipo_examen (solo para los 5 exámenes con arancel)
+  const ARANCEL_TIPO_MAP = {
+    'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
+    'Examen Final Ordinario':       'final_ord',
+    'Examen Final Recuperatorio':   'final_recuperatorio',
+    'Examen Final Complementario':  'complementario',
+    'Examen Final Extraordinario':  'extraordinario',
+  };
+  const tipoExamen = ARANCEL_TIPO_MAP[concepto] || null;
   try {
+    // Validar duplicado: mismo alumno + asignacion + tipo_examen
+    if (tipoExamen && asignacion_id) {
+      const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asignacion_id, tipoExamen);
+      if (dup) return res.status(400).json({ error: `El alumno ya tiene habilitación registrada para ${concepto} en esta materia. No se puede pagar dos veces el mismo examen en la misma materia.` });
+    }
     const id = 'pg_'+Date.now();
     // Buscar el arancel correspondiente al concepto para validar el monto
     const al = db.prepare('SELECT carrera_id FROM alumnos WHERE id=?').get(alumno_id);
@@ -1775,36 +1789,19 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
     audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago});
 
-    // Auto-habilitar recuperatorio al registrar pago de Parcial Recuperatorio
-    let habilitadosRecup = 0;
-    if ((concepto||'').toLowerCase().includes('parcial recuperatorio')) {
+    // Auto-crear habilitación por pago de examen con arancel (para la materia específica)
+    let habilitadoExamen = false;
+    if (tipoExamen && asignacion_id) {
       const fechaHoy = nowDate();
-      const alCurso = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(alumno_id);
-      const asignaciones = alCurso?.curso_id
-        ? db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(alCurso.curso_id)
-        : [];
-      for (const asig of asignaciones) {
-        const hab = db.prepare('SELECT id, tipo_examen FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asig.id);
-        if (hab) {
-          // Setear habilitado_recuperatorio=1 y también tipo_examen si estaba vacío
-          db.prepare('UPDATE habilitaciones_examen SET habilitado_recuperatorio=1,habilitado=1,habilitado_por=?,fecha=?,motivo=? WHERE alumno_id=? AND asignacion_id=?')
-            .run(req.user.id, fechaHoy, 'Habilitado por pago', alumno_id, asig.id);
-          // Si no tenía tipo_examen, setear parcial_recuperatorio
-          if (!hab.tipo_examen) {
-            db.prepare('UPDATE habilitaciones_examen SET tipo_examen=? WHERE alumno_id=? AND asignacion_id=?')
-              .run('parcial_recuperatorio', alumno_id, asig.id);
-          }
-        } else {
-          const habId = 'hab_'+Date.now()+'_'+asig.id;
-          db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,1)')
-            .run(habId, alumno_id, asig.id, 'parcial_recuperatorio', req.user.id, fechaHoy, 'Habilitado por pago');
-        }
-        habilitadosRecup++;
-      }
-      audit(req.user.id,'HABILITAR_RECUPERATORIO_PAGO','habilitaciones_examen',alumno_id,{concepto,asignaciones_habilitadas:habilitadosRecup});
+      const habId = 'hab_' + Date.now() + '_' + alumno_id;
+      const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
+      db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
+        .run(habId, alumno_id, asignacion_id, tipoExamen, req.user.id, fechaHoy, 'Habilitado por pago de '+concepto, esRecup);
+      habilitadoExamen = true;
+      audit(req.user.id, 'HABILITAR_PAGO_EXAMEN', 'habilitaciones_examen', alumno_id, { concepto, tipo_examen: tipoExamen, asignacion_id });
     }
 
-    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_recuperatorio: habilitadosRecup > 0 });
+    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.put('/api/pagos/:id', auth(ADM), (req, res) => {
@@ -2375,8 +2372,9 @@ app.get('/api/alumnos/:id/habilitacion', auth(), (req, res) => {
 // ── MOVER ALUMNO A OTRA CARRERA/SECCIÓN ──────────────────────────────────────
 app.put('/api/alumnos/:id/asignar', auth(ADM), (req, res) => {
   const { carrera_id, curso_id } = req.body;
-  const al = db.prepare('SELECT id,carrera_id,curso_id FROM alumnos WHERE id=?').get(req.params.id);
+  const al = db.prepare('SELECT id,nombre,apellido,carrera_id,curso_id FROM alumnos WHERE id=?').get(req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const anterior = { carrera_id: al.carrera_id, curso_id: al.curso_id };
   db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=? WHERE id=?').run(carrera_id||null, curso_id||null, al.id);
   // Si hay nueva sección, crear registros de notas pendientes
   if (curso_id) {
@@ -2389,6 +2387,14 @@ app.put('/api/alumnos/:id/asignar', auth(ADM), (req, res) => {
       });
     }
   }
+  const nuevaCarr = carrera_id ? db.prepare('SELECT nombre FROM carreras WHERE id=?').get(carrera_id) : null;
+  const nuevoCurso = curso_id ? db.prepare('SELECT anio,division FROM cursos WHERE id=?').get(curso_id) : null;
+  audit(req.user.id, 'ASIGNAR', 'alumnos', req.params.id, {
+    alumno: `${al.apellido||''}, ${al.nombre||''}`,
+    anterior,
+    carrera_nombre: nuevaCarr?.nombre || null,
+    curso_desc: nuevoCurso ? `${nuevoCurso.anio}°${nuevoCurso.division && nuevoCurso.division!=='U'?' '+nuevoCurso.division:''}` : null
+  });
   res.json({ ok: true });
 });
 
@@ -3301,7 +3307,7 @@ app.delete('/api/actividades/:id', auth(ADM), (req, res) => {
 
 // ── HABILITACIONES EN BULK (evita N+1 en loadNotas) ──────────────────────────
 app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req, res) => {
-  const { alumno_ids } = req.body;
+  const { alumno_ids, asignacion_id } = req.body;
   if (!Array.isArray(alumno_ids) || !alumno_ids.length) return res.json({});
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) {
@@ -3313,22 +3319,39 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
   const placeholders = alumno_ids.map(() => '?').join(',');
   const pagos = db.prepare(`SELECT alumno_id, concepto FROM pagos WHERE alumno_id IN (${placeholders}) AND periodo_id=? AND estado='Pagado'`).all(...alumno_ids, periodo.id);
   const alumnos = db.prepare(`SELECT id,nombre,apellido,habilitado_pago_pendiente FROM alumnos WHERE id IN (${placeholders})`).all(...alumno_ids);
-  // Recopilar TODOS los tipos habilitados por alumno (array, no solo el primero)
+  // Recopilar tipos habilitados por alumno
   const habEspeciales = {};
-  const habWithFlag = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
-  if (habWithFlag.length) {
-    const habPh = habWithFlag.map(() => '?').join(',');
-    db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado=1 ORDER BY fecha DESC`).all(...habWithFlag)
+  if (asignacion_id) {
+    // Modo por-asignación: verificar habilitaciones específicas para esta materia (todos los alumnos)
+    db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${placeholders}) AND asignacion_id=? AND habilitado=1`)
+      .all(...alumno_ids, asignacion_id)
       .forEach(h => {
         if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
-        if (!habEspeciales[h.alumno_id].includes(h.tipo_examen)) habEspeciales[h.alumno_id].push(h.tipo_examen);
+        if (h.tipo_examen && !habEspeciales[h.alumno_id].includes(h.tipo_examen)) habEspeciales[h.alumno_id].push(h.tipo_examen);
       });
-    // Incluir habilitado_recuperatorio como 'parcial_recuperatorio'
-    db.prepare(`SELECT alumno_id FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado_recuperatorio=1`).all(...habWithFlag)
+    // Incluir habilitado_recuperatorio de esta asignación
+    db.prepare(`SELECT alumno_id FROM habilitaciones_examen WHERE alumno_id IN (${placeholders}) AND asignacion_id=? AND habilitado_recuperatorio=1`)
+      .all(...alumno_ids, asignacion_id)
       .forEach(h => {
         if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
         if (!habEspeciales[h.alumno_id].includes('parcial_recuperatorio')) habEspeciales[h.alumno_id].push('parcial_recuperatorio');
       });
+  } else {
+    // Modo global: habilitaciones especiales solo para alumnos con flag de mora
+    const habWithFlag = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
+    if (habWithFlag.length) {
+      const habPh = habWithFlag.map(() => '?').join(',');
+      db.prepare(`SELECT alumno_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado=1 ORDER BY fecha DESC`).all(...habWithFlag)
+        .forEach(h => {
+          if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
+          if (!habEspeciales[h.alumno_id].includes(h.tipo_examen)) habEspeciales[h.alumno_id].push(h.tipo_examen);
+        });
+      db.prepare(`SELECT alumno_id FROM habilitaciones_examen WHERE alumno_id IN (${habPh}) AND habilitado_recuperatorio=1`).all(...habWithFlag)
+        .forEach(h => {
+          if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
+          if (!habEspeciales[h.alumno_id].includes('parcial_recuperatorio')) habEspeciales[h.alumno_id].push('parcial_recuperatorio');
+        });
+    }
   }
   const pagosPorAlumno = {};
   pagos.forEach(p => {
@@ -3341,15 +3364,15 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
   const result = {};
   alumnos.forEach(al => {
     const conceptos = pagosPorAlumno[al.id] || [];
-    // Comparación exacta: evitar que 'Cuota 10' matchee 'Cuota 1' con .includes()
     const faltantes = cuotasRequeridas.filter(c => !conceptos.some(p => p === c));
+    const tiposHab = habEspeciales[al.id] || [];
     if (faltantes.length === 0) {
-      result[al.id] = { habilitado: true, razon: 'pago_al_dia', tipos_habilitados: [], cuotas_faltantes: [], habilitado_recuperatorio: !!recuperatorioMap[al.id] };
+      // Cuotas al día: no bloqueado, pero tipos_habilitados refleja lo pagado por esta asignacion
+      result[al.id] = { habilitado: true, razon: 'pago_al_dia', tipos_habilitados: asignacion_id ? tiposHab : [], cuotas_faltantes: [], habilitado_recuperatorio: !!recuperatorioMap[al.id] };
       return;
     }
-    const tiposHab = habEspeciales[al.id] || [];
     result[al.id] = {
-      habilitado: false,
+      habilitado: asignacion_id ? tiposHab.length > 0 : false,
       razon: tiposHab.length ? 'habilitacion_especial' : 'mora_de_pago',
       tipos_habilitados: tiposHab,
       cuotas_faltantes: faltantes,
@@ -3549,12 +3572,14 @@ app.post('/api/admin/backup/github-test', auth(ADM), async (req, res) => {
 // ── AUDITORÍA COMPLETA ────────────────────────────────────────────────────────
 // ── REGISTRO DE HABILITADOS ────────────────────────────────────────────────────
 app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
-  const { carrera_id, anio, tipo_examen } = req.query;
+  const { carrera_id, anio, tipo_examen, division, asignacion_id } = req.query;
   let where = "WHERE h.habilitado=1";
   const params = [];
-  if (tipo_examen) { where += ' AND h.tipo_examen=?'; params.push(tipo_examen); }
-  if (carrera_id)  { where += ' AND COALESCE(ca.id, al_ca.id)=?'; params.push(carrera_id); }
-  if (anio)        { where += ' AND COALESCE(cu.anio, al_cu.anio)=?'; params.push(parseInt(anio)); }
+  if (tipo_examen)   { where += ' AND h.tipo_examen=?'; params.push(tipo_examen); }
+  if (carrera_id)    { where += ' AND COALESCE(ca.id, al_ca.id)=?'; params.push(carrera_id); }
+  if (anio)          { where += ' AND COALESCE(cu.anio, al_cu.anio)=?'; params.push(parseInt(anio)); }
+  if (division)      { where += ' AND COALESCE(cu.division, al_cu.division)=?'; params.push(division); }
+  if (asignacion_id) { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
   try {
     const rows = db.prepare(`
       SELECT h.id, h.tipo_examen, h.fecha, h.motivo,
@@ -3575,6 +3600,26 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
       ${where}
       ORDER BY h.fecha DESC`).all(...params);
     res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ASIGNACIONES ACTIVAS DEL ALUMNO (para selector de materia en pagos/habilitaciones) ──
+app.get('/api/alumnos/:id/asignaciones-activas', auth(ADM), (req, res) => {
+  try {
+    const al = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(req.params.id);
+    if (!al?.curso_id) return res.json([]);
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (!periodo) return res.json([]);
+    const asigs = db.prepare(`
+      SELECT a.id, m.nombre as materia_nombre, cu.anio, cu.division,
+        u.nombre as docente_nombre, u.apellido as docente_apellido
+      FROM asignaciones a
+      JOIN materias m ON a.materia_id = m.id
+      JOIN cursos cu ON a.curso_id = cu.id
+      LEFT JOIN usuarios u ON a.docente_id = u.id
+      WHERE a.curso_id = ? AND a.periodo_id = ?
+      ORDER BY m.nombre`).all(al.curso_id, periodo.id);
+    res.json(asigs);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5411,4 +5456,25 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
 
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
+// ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
+try {
+  const arancelesSeed = [
+    { id: 'ar_parcial_rec',  tipo: 'parcial_recuperatorio', concepto: 'Examen Parcial Recuperatorio', monto: 30000  },
+    { id: 'ar_final_ord',    tipo: 'final_ordinario',       concepto: 'Examen Final Ordinario',       monto: 50000  },
+    { id: 'ar_final_rec',    tipo: 'final_recuperatorio',   concepto: 'Examen Final Recuperatorio',   monto: 80000  },
+    { id: 'ar_complem',      tipo: 'complementario',        concepto: 'Examen Final Complementario',  monto: 120000 },
+    { id: 'ar_extraord',     tipo: 'extraordinario',        concepto: 'Examen Final Extraordinario',  monto: 200000 },
+  ];
+  for (const ar of arancelesSeed) {
+    const existing = db.prepare('SELECT id FROM aranceles WHERE tipo=? AND carrera_id IS NULL').get(ar.tipo);
+    if (!existing) {
+      try {
+        db.prepare('INSERT INTO aranceles (id,concepto,monto,tipo,carrera_id,descripcion,anio,activo) VALUES (?,?,?,?,NULL,NULL,NULL,1)')
+          .run(ar.id, ar.concepto, ar.monto, ar.tipo);
+        console.log(`✓ Arancel sembrado: ${ar.concepto} — Gs. ${ar.monto}`);
+      } catch(e2) { console.error('Arancel seed error:', ar.tipo, e2.message); }
+    }
+  }
+} catch(e) { console.error('Aranceles seed error:', e.message); }
+
 app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
