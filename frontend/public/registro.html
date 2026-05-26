@@ -85,9 +85,22 @@ label{font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;display:blo
 .back-btn{background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer;padding:4px 0;margin-bottom:14px;display:flex;align-items:center;gap:5px;font-weight:600}
 .back-btn:hover{color:#374151}
 
-/* No encontrado */
-.no-encontrado{margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px;text-align:center}
-.no-encontrado p{font-size:13px;color:#718096;margin-bottom:12px}
+/* No encontrado — oculto hasta que hay búsqueda sin resultados */
+.no-encontrado{display:none;margin-top:16px;border-top:2px dashed #fde68a;padding-top:16px;text-align:center;background:#fffbeb;border-radius:12px;padding:16px}
+.no-encontrado p{font-size:13px;color:#78350f;margin-bottom:12px;font-weight:600}
+/* Instrucciones pasos */
+.steps-guide{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.step-guide{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:12px;background:#f0fff4;border:1.5px solid #bbf7d0}
+.step-guide.active-step{background:#fff;border:2px solid #166534;box-shadow:0 0 0 4px rgba(22,101,52,.1)}
+.step-num{width:28px;height:28px;border-radius:50%;background:#166534;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-guide.inactive .step-num{background:#e2e8f0;color:#94a3b8}
+.step-guide.inactive{background:#f8fafc;border-color:#e2e8f0;opacity:.7}
+.step-txt strong{display:block;font-size:13px;font-weight:800;color:#166534}
+.step-guide.inactive .step-txt strong{color:#94a3b8}
+.step-txt span{font-size:11px;color:#6b7280}
+/* Flecha animada */
+@keyframes bounce-down{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+.arrow-down{text-align:center;font-size:22px;animation:bounce-down .8s infinite;color:#166534;margin:-4px 0 8px}
 
 /* Success screen */
 .success-screen{text-align:center;padding:32px 16px}
@@ -208,31 +221,60 @@ function seleccionarCurso(idx) {
 
 // PASO 1: Buscar nombre
 function renderStep1() {
-  const alumnosFiltrados = cursoSeleccionado
-    ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id)
-    : alumnos;
   const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
   const app = document.getElementById('app');
   const stepNum = cursos.length > 1 ? 1 : 0;
   const totalSteps = cursos.length > 1 ? 3 : 2;
+  const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
   app.innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
   <div class="card">
     ${cursos.length > 1 ? `<button class="back-btn" onclick="renderStep0()">← Cambiar año/sección</button>` : ''}
-    <h2>🔍 Buscá tu nombre</h2>
-    <div class="hint">
-      <span class="hint-icon">✏️</span>
-      <div><strong>Escribí tu apellido</strong> y cuando aparezca tu nombre, <strong>tocalo con el dedo</strong> para continuar.</div>
+    <h2>🔍 ¿Estás en la lista?</h2>
+
+    <div class="steps-guide">
+      <div class="step-guide active-step">
+        <div class="step-num">1</div>
+        <div class="step-txt">
+          <strong>✏️ Escribí tu nombre o apellido abajo</strong>
+          <span>Tu nombre aparecerá en la pantalla automáticamente</span>
+        </div>
+      </div>
+      <div class="step-guide inactive">
+        <div class="step-num">2</div>
+        <div class="step-txt">
+          <strong>👆 Tocá tu nombre cuando aparezca</strong>
+          <span>Solo si ves tu nombre, tocalo para continuar</span>
+        </div>
+      </div>
+      <div class="step-guide inactive">
+        <div class="step-num">3</div>
+        <div class="step-txt">
+          <strong>❌ ¿No aparece tu nombre? Recién ahí pedí registro</strong>
+          <span>El botón aparecerá solo si no te encontramos</span>
+        </div>
+      </div>
     </div>
+
+    <div class="arrow-down">↓</div>
+
     <div class="field">
-      <label>Apellido o nombre</label>
-      <input id="busqueda" placeholder="Ej: García, María..." oninput="filtrarAlumnos()" autocomplete="off" autofocus/>
+      <label style="font-size:14px;font-weight:900;color:#166534;text-transform:none;letter-spacing:0">👉 Escribí acá tu nombre o apellido</label>
+      <input id="busqueda" placeholder="Ej: García   o   María..." oninput="filtrarAlumnos()" autocomplete="off" autofocus
+        style="font-size:17px;padding:14px 16px;border:2.5px solid #166534;box-shadow:0 0 0 4px rgba(22,101,52,.12)"/>
+      <p style="font-size:11px;color:#6b7280;margin-top:6px;text-align:center">Con solo 2 letras ya aparecen los resultados · ${pool.length} alumno${pool.length!==1?'s':''} en la lista</p>
     </div>
+
     <div id="lista-alumnos">
-      <div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras para buscar</span></div>
+      <div class="empty"><span class="empty-icon">👆</span><span style="font-size:14px;font-weight:700;color:#374151">Empezá a escribir tu nombre arriba</span></div>
     </div>
-    <div class="no-encontrado">
-      <p>¿No aparece tu nombre en la lista?</p>
-      <button class="btn btn-secondary" onclick="renderFormNuevo()">👤 Solicitar incorporación</button>
+
+    <div class="no-encontrado" id="no-encontrado-box">
+      <p style="font-size:15px">😕 Tu nombre no aparece en la lista</p>
+      <p style="font-size:12px;color:#92400e;margin-bottom:14px">Antes de continuar, asegurate de haber escrito bien tu nombre o apellido.</p>
+      <button class="btn btn-primary" style="background:linear-gradient(160deg,#d97706,#b45309);box-shadow:0 4px 14px rgba(180,83,9,.35)" onclick="renderFormNuevo()">
+        📝 Colocar mi nombre en la lista
+      </button>
+      <p style="font-size:11px;color:#92400e;margin-top:10px">El director revisará tu solicitud y te incorporará</p>
     </div>
   </div>`;
 }
@@ -242,22 +284,41 @@ let _resultados = [];
 function filtrarAlumnos() {
   const q = document.getElementById('busqueda').value.toLowerCase().trim();
   const lista = document.getElementById('lista-alumnos');
+  const noEncontrado = document.getElementById('no-encontrado-box');
+
+  // Ocultar botón de solicitud mientras se escribe
+  if (noEncontrado) noEncontrado.style.display = 'none';
+
   if (!q || q.length < 2) {
-    lista.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras</span></div>';
+    lista.innerHTML = '<div class="empty"><span class="empty-icon">👆</span><span style="font-size:14px;font-weight:700;color:#374151">Seguí escribiendo tu nombre...</span></div>';
     return;
   }
+
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   const qn = norm(q);
   const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
-  const filtrados = pool.filter(a => norm((a.apellido||'')+' '+(a.nombre||'')).includes(qn) || norm((a.nombre||'')+' '+(a.apellido||'')).includes(qn));
+  const filtrados = pool.filter(a =>
+    norm((a.apellido||'')+' '+(a.nombre||'')).includes(qn) ||
+    norm((a.nombre||'')+' '+(a.apellido||'')).includes(qn)
+  );
+
   if (!filtrados.length) {
-    lista.innerHTML = '<div class="empty"><span class="empty-icon">😕</span><span>No se encontró ningún alumno.<br/><small>Si debés estar, usá el botón de abajo.</small></span></div>';
+    lista.innerHTML = '';
+    // Solo ahora mostrar el botón de solicitud
+    if (noEncontrado) noEncontrado.style.display = 'block';
     return;
   }
+
+  // Ocultar botón si sí hay resultados
+  if (noEncontrado) noEncontrado.style.display = 'none';
+
   _resultados = filtrados.slice(0, 15);
-  lista.innerHTML = `<div class="hint" style="margin-bottom:10px">
-    <span class="hint-icon">👆</span>
-    <span><strong>¿Sos vos?</strong> Tocá tu nombre para continuar</span>
+  lista.innerHTML = `<div style="background:#f0fff4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+    <span style="font-size:20px">👆</span>
+    <div>
+      <strong style="font-size:13px;color:#166534">¿Sos vos? Tocá tu nombre para continuar</strong>
+      <div style="font-size:11px;color:#6b7280;margin-top:1px">${filtrados.length} resultado${filtrados.length!==1?'s':''} encontrado${filtrados.length!==1?'s':''}</div>
+    </div>
   </div>`
   + _resultados.map((a, idx) => {
     const tieneCi = a.ci && a.ci.trim() !== '';
@@ -274,7 +335,7 @@ function filtrarAlumnos() {
         <span class="chevron">›</span>
       </div>
     </div>`;
-  }).join('') + (filtrados.length > 15 ? `<div class="empty"><span>Mostrando 15 de ${filtrados.length} — Escribí más para filtrar</span></div>` : '');
+  }).join('') + (filtrados.length > 15 ? `<div class="empty"><span>Mostrando 15 de ${filtrados.length} — Escribí más para afinar la búsqueda</span></div>` : '');
 }
 
 function seleccionarAlumno(idx) {
@@ -344,16 +405,22 @@ function renderFormNuevo() {
   const app = document.getElementById('app');
   app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
   <div class="card">
-    <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
-    <h2>👤 Solicitar incorporación</h2>
-    <p style="font-size:13px;color:#718096;margin-bottom:16px">El director revisará tu solicitud y te incorporará al sistema.</p>
+    <button class="back-btn" onclick="renderStep1()">← Volver a buscar mi nombre</button>
+    <h2>📝 Colocar mi nombre en la lista</h2>
+    <div class="hint" style="background:#fef9c3;border-color:#fde047;margin-bottom:16px">
+      <span class="hint-icon">⚠️</span>
+      <div style="color:#713f12">
+        <strong>¿Ya intentaste buscar tu nombre?</strong><br/>
+        <span style="font-size:12px">Si no apareció después de escribirlo, completá este formulario. El director revisará tu solicitud y te agregará al sistema.</span>
+      </div>
+    </div>
     <div id="err-nuevo"></div>
     <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label><input id="inp-nombre" placeholder="Tu nombre" autocomplete="given-name"/></div>
     <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label><input id="inp-apellido" placeholder="Tu apellido" autocomplete="family-name"/></div>
     <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci2" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>
     <div class="field"><label>Teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel2" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>
     <button class="btn btn-primary" onclick="enviarSolicitud()">📤 Enviar solicitud al director</button>
-    <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
+    <button class="btn btn-secondary" onclick="renderStep1()">← Volver a buscar</button>
   </div>`;
 }
 
