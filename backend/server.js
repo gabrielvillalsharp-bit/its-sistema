@@ -1828,7 +1828,14 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
         const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
         if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
       }
-      const waMsg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *${nombreCompleto}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: ${conceptoDisplay}${lineaMateria}\n• Monto: ${montoFmt}\n• Fecha: ${fechaFmt}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 ${APP_URL}\n\n— *Administración · ITS Santísima Trinidad*`;
+      const pagoTpl = getWASistemaTpl('constancia_pago');
+      const waMsg = pagoTpl
+        .replace(/\{nombre\}/g, nombreCompleto)
+        .replace(/\{concepto\}/g, conceptoDisplay)
+        .replace(/\{materia\}/g, lineaMateria)
+        .replace(/\{monto\}/g, montoFmt)
+        .replace(/\{fecha\}/g, fechaFmt)
+        .replace(/\{url\}/g, APP_URL);
       sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
     }
 
@@ -4153,7 +4160,12 @@ async function sendWhatsApp(phone, message) {
 async function enviarBienvenidaQR(telefono, nombre, email, ci) {
   if (!telefono) return;
   const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
-  const msg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *${nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación fue pensada en tu futuro, para que puedas acceder a tu información académica en cualquier momento y desde cualquier lugar.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: ${email}\n• Contraseña: ${ci||'(tu número de cédula)'}\n\n🔗 *Acceder al sistema:*\n${APP_URL}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`;
+  const tpl = getWASistemaTpl('bienvenida_qr');
+  const msg = tpl
+    .replace(/\{nombre\}/g, nombre||'')
+    .replace(/\{email\}/g, email||'')
+    .replace(/\{ci\}/g, ci||'(tu número de cédula)')
+    .replace(/\{url\}/g, APP_URL);
   sendWhatsApp(telefono, msg).catch(()=>{});
 }
 // ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
@@ -4427,6 +4439,15 @@ const WA_TPL_DEFAULTS = {
   'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
   'urgente':'⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
 };
+// ── PLANTILLAS DEL SISTEMA (bienvenida QR, constancia pago) ───────────────
+const WA_SISTEMA_DEFAULTS = {
+  bienvenida_qr: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *{nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación está al servicio de tu aprendizaje y tu crecimiento profesional.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: {email}\n• Contraseña: {ci}\n\n🔗 *Acceder al sistema:*\n{url}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`,
+  constancia_pago: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *{nombre}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: {concepto}{materia}\n• Monto: {monto}\n• Fecha: {fecha}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 {url}\n\n— *Administración · ITS Santísima Trinidad*`,
+};
+function getWASistemaTpl(clave) {
+  const row = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get('wa_sis_'+clave);
+  return row?.valor || WA_SISTEMA_DEFAULTS[clave] || '';
+}
 app.get('/api/whatsapp/reglas', auth(ADM), (req, res) => {
   const reglas = WA_REGLAS_DEF.map(r => {
     const actRow = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get(`wa_regla_${r.key}_activa`);
@@ -4456,6 +4477,29 @@ app.put('/api/whatsapp/plantillas/:clave', auth(ADM), (req, res) => {
   const { valor } = req.body;
   if (!valor) return res.status(400).json({ error: 'Falta el texto de la plantilla' });
   db.prepare('UPDATE configuracion SET valor=? WHERE clave=?').run(valor, req.params.clave);
+  res.json({ ok: true });
+});
+// ── WHATSAPP: plantillas del sistema (bienvenida QR, constancia pago) ──────
+app.get('/api/whatsapp/plantillas-sistema', auth(ADM), (req, res) => {
+  const claves = ['bienvenida_qr','constancia_pago'];
+  const result = claves.map(c => ({
+    clave: c,
+    valor: getWASistemaTpl(c),
+    default: WA_SISTEMA_DEFAULTS[c] || '',
+  }));
+  res.json(result);
+});
+app.put('/api/whatsapp/plantillas-sistema/:clave', auth(ADM), (req, res) => {
+  const { clave } = req.params;
+  const { valor } = req.body;
+  if (!['bienvenida_qr','constancia_pago'].includes(clave)) return res.status(400).json({ error: 'Plantilla inválida' });
+  if (!valor) return res.status(400).json({ error: 'Falta el texto' });
+  if (valor === '__default__') {
+    db.prepare("DELETE FROM configuracion WHERE clave=?").run('wa_sis_'+clave);
+  } else {
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)").run('wa_sis_'+clave, valor, 'Plantilla sistema WA '+clave);
+  }
+  audit(req.user.id,'EDIT_WA_PLANTILLA','configuracion',clave,{len:valor.length});
   res.json({ ok: true });
 });
 

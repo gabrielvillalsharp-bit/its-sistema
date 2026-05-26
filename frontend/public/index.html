@@ -1534,8 +1534,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas'};
-  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas'].map((t,i)=>{
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas'};
+  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -1829,6 +1829,11 @@ async function pgWhatsApp(el){
         }).join('')}
       </div>
     </div>
+  </div>
+
+  <!-- Panel: Plantillas del sistema -->
+  <div id="wa-panel-plantillas" style="display:none">
+    <div id="wa-plantillas-cuerpo"><div class="es">Cargando plantillas...</div></div>
   </div>`;
 
   // Store data for filters
@@ -1837,12 +1842,13 @@ async function pgWhatsApp(el){
 }
 
 function waTab(t){
-  ['enviar','masivo','programar','historial','recibidos','docentes','reglas'].forEach(x=>{
+  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
     if(b){b.style.background=x===t?'#128C7E':'transparent';b.style.color=x===t?'#fff':'#555';}
   });
+  if(t==='plantillas') loadWAPlantillas();
 }
 function waDestChange(){
   const t=document.getElementById('waDestTipo')?.value;
@@ -1982,6 +1988,89 @@ async function waGuardarRegla(key){
     await api('POST',`/api/whatsapp/reglas/${key}`,{template});
     toast('✓ Plantilla guardada','ok');
   }catch(e){toast('Error: '+e.message,'err');}
+}
+async function loadWAPlantillas(){
+  const [sis, regl] = await Promise.all([
+    api('GET','/api/whatsapp/plantillas-sistema').catch(()=>[]),
+    api('GET','/api/whatsapp/reglas').catch(()=>[]),
+  ]);
+  const el=document.getElementById('wa-plantillas-cuerpo');
+  if(!el) return;
+
+  const SISTEMA_INFO = {
+    bienvenida_qr: { titulo:'🎓 Bienvenida por QR', desc:'Se envía cuando un alumno completa su registro vía QR o cuando se aprueba su solicitud de incorporación.', vars:['{nombre}','{email}','{ci}','{url}'] },
+    constancia_pago: { titulo:'💳 Constancia de pago', desc:'Se envía automáticamente cada vez que se registra un pago de cualquier tipo.', vars:['{nombre}','{concepto}','{materia}','{monto}','{fecha}','{url}'] },
+  };
+
+  let html = '<div style="display:flex;flex-direction:column;gap:20px">';
+
+  // Plantillas del sistema
+  html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:4px"><div style="font-size:12px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.06em">📱 Mensajes automáticos del sistema</div><div style="font-size:11px;color:#6b7280;margin-top:2px">Estos mensajes se envían automáticamente según las acciones del sistema.</div></div>';
+
+  (sis||[]).forEach(tpl => {
+    const info = SISTEMA_INFO[tpl.clave] || { titulo: tpl.clave, desc:'', vars:[] };
+    const esDefault = (tpl.valor||'').trim() === (tpl.default||'').trim();
+    html += `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-weight:800;font-size:13px;color:#166534">${info.titulo}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">${info.desc}</div>
+        </div>
+        ${esDefault ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:12px;padding:2px 8px;font-weight:700">Por defecto</span>' : '<span style="font-size:10px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:12px;padding:2px 8px;font-weight:700">✏ Personalizado</span>'}
+      </div>
+      <div style="padding:14px 16px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          ${info.vars.map(v => `<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:2px 7px;font-family:monospace">${v}</span>`).join('')}
+        </div>
+        <textarea id="wa-tpl-${tpl.clave}" rows="8" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;font-family:monospace;border:1.5px solid #e5e7eb;border-radius:8px;resize:vertical;line-height:1.5">${tpl.valor||''}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+          ${!esDefault ? `<button onclick="waRestaurarSistema('${tpl.clave}')" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;font-size:11px;cursor:pointer;color:#64748b">↺ Restaurar original</button>` : ''}
+          <button onclick="waGuardarSistema('${tpl.clave}')" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Guardar cambios</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // Plantillas de recordatorios de examen
+  html += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-top:8px;margin-bottom:4px"><div style="font-size:12px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.06em">📅 Recordatorios de examen (docentes)</div><div style="font-size:11px;color:#93c5fd;margin-top:2px">Variables: {docente} {tipo} {materia} {carrera} {curso} {fecha} {hora}</div></div>';
+
+  (regl||[]).filter(r=>r.template).forEach(r => {
+    html += `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:800;font-size:13px;color:#1d4ed8">⏰ ${r.label||r.key}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:1px">${r.descripcion||''}</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+          <input type="checkbox" id="wa-regla-act-${r.key}" ${r.activa?'checked':''} onchange="waToggleRegla('${r.key}',this.checked)"> Activa
+        </label>
+      </div>
+      <div style="padding:14px 16px">
+        <textarea id="wa-tpl-regla-${r.key}" rows="5" style="width:100%;box-sizing:border-box;padding:10px;font-size:12px;font-family:monospace;border:1.5px solid #e5e7eb;border-radius:8px;resize:vertical">${r.template||''}</textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <button onclick="waGuardarRegla('${r.key}')" style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Guardar</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+async function waGuardarSistema(clave){
+  const el = document.getElementById('wa-tpl-'+clave);
+  if(!el) return;
+  const valor = el.value;
+  if(!valor.trim()){toast('El texto no puede estar vacío','err');return;}
+  const r = await api('PUT','/api/whatsapp/plantillas-sistema/'+clave,{valor}).catch(()=>null);
+  if(r?.ok){ toast('✅ Plantilla guardada','ok'); loadWAPlantillas(); }
+  else toast('Error al guardar','err');
+}
+async function waRestaurarSistema(clave){
+  if(!confirm('¿Restaurar la plantilla original?')) return;
+  const r = await api('PUT','/api/whatsapp/plantillas-sistema/'+clave,{valor:'__default__'}).catch(()=>null);
+  if(r?.ok){ toast('✅ Plantilla restaurada','ok'); loadWAPlantillas(); }
+  else toast('Error al restaurar','err');
 }
 function waMostrarMensaje(idx){
   const m=(W._waMsgs||[])[idx];
