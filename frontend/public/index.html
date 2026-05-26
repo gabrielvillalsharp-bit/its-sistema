@@ -4058,31 +4058,36 @@ async function eliminarRecuperatorios(btn){
 
 function exportarExamenesPDF(tipoForzado){
   const todos=W._exs||[];
-  if(!todos.length)return toast('No hay exámenes para exportar','warn');
+  if(!todos.length)return toast('No hay exámenes cargados. Recargar la página e intentar nuevamente.','warn',4000);
   // Si viene tipo forzado (desde modal), filtrar por ese tipo
   if(tipoForzado){
-    const exs=tipoForzado==='__todos__'?todos:todos.filter(e=>(e.tipo||'')=== tipoForzado);
+    cm();
+    const exs=tipoForzado==='__todos__'?todos:todos.filter(e=>(e.tipo||'')===tipoForzado);
     if(!exs.length)return toast('Sin exámenes para ese tipo','warn');
     return _generarExamenesPDF(exs);
   }
   // Si hay filtro activo en tabla, usar directo
   const filtroTipoActivo=v('filtExGrupo');
-  if(filtroTipoActivo&&W._exsFiltrados?.length){
+  if(filtroTipoActivo&&W._exsFiltrados&&W._exsFiltrados.length){
     return _generarExamenesPDF(W._exsFiltrados);
   }
   // Sin filtro activo → preguntar qué tipo exportar
   const tiposPresentes=[...new Set(todos.map(e=>e.tipo).filter(Boolean))].sort();
   const TIPO_LABEL={'Parcial':'Parcial Ordinario','Recuperatorio':'Parcial Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Complementario','Extraordinario':'Extraordinario'};
-  const opts=tiposPresentes.map(t=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:#f8fafc" onclick="exportarExamenesPDF('${t}');cm()">
-    <span style="font-size:18px">${t==='Recuperatorio'?'🟣':t==='Final'||t==='Final Recuperatorio'?'🔴':'🔵'}</span>
-    ${TIPO_LABEL[t]||t} <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.filter(e=>e.tipo===t).length} exám.</span>
-  </label>`).join('');
+  const TIPO_ICON={'Parcial':'🔵','Recuperatorio':'🟣','Final':'🔴','Final Recuperatorio':'🟠','Complementario':'🟢','Extraordinario':'🟤'};
+  const opts=tiposPresentes.map(t=>`<button style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:#f8fafc;width:100%;text-align:left" onclick="exportarExamenesPDF('${t}')">
+    <span style="font-size:18px">${TIPO_ICON[t]||'🔵'}</span>
+    <span>${TIPO_LABEL[t]||t}</span>
+    <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.filter(e=>e.tipo===t).length} exám.</span>
+  </button>`).join('');
   modal(`<h4 style="margin:0 0 14px">🖨 Exportar PDF — Seleccionar tipo</h4>
   <div style="display:flex;flex-direction:column;gap:6px">
     ${opts}
-    <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid #1e40af;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;background:#eff6ff;color:#1e40af" onclick="exportarExamenesPDF('__todos__');cm()">
-      <span style="font-size:18px">📋</span> Todos los tipos <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.length} exám.</span>
-    </label>
+    <button style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #1e40af;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;background:#eff6ff;color:#1e40af;width:100%;text-align:left" onclick="exportarExamenesPDF('__todos__')">
+      <span style="font-size:18px">📋</span>
+      <span>Todos los tipos</span>
+      <span style="color:#94a3b8;font-size:11px;margin-left:auto">${todos.length} exám.</span>
+    </button>
   </div>
   <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button></div>`,true);
 }
@@ -4259,13 +4264,29 @@ function _generarExamenesPDF(exs){
     ${tiposPresentes.map(t=>`<span class="tb" style="background:${TIPO_BG[t]||'#f8fafc'};color:${TIPO_COLOR[t]||'#374151'};border-color:${TIPO_COLOR[t]||'#e2e8f0'}">${TIPO_LABEL[t]||t}: ${exs.filter(e=>e.tipo===t).length}</span>`).join('')}
   </div>
   ${bodyHtml}
-  <div class="no-print">
-    <button onclick="window.print()" style="padding:9px 28px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Guardar PDF</button>
+  <div class="no-print" style="position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:16px;box-shadow:0 -2px 12px rgba(0,0,0,.3)">
+    <button onclick="window.print()" style="padding:10px 32px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:.02em">🖨 Guardar como PDF</button>
+    <span style="color:#94a3b8;font-size:11px">En el diálogo de impresión → seleccionar <strong style="color:#e2e8f0">«Guardar como PDF»</strong> como destino</span>
   </div>
-  <script>setTimeout(()=>window.print(),600)<${'/'}script>
+  <div style="height:60px"></div>
+  <script>
+    window.addEventListener('load',function(){setTimeout(function(){window.print();},800);});
+  <${'/'}script>
   </body></html>`;
-  const vw=window.open('','_blank','width=1200,height=800');
-  vw.document.open();vw.document.write(html);vw.document.close();
+  try{
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const vw=window.open(url,'_blank');
+    if(!vw||vw.closed){
+      URL.revokeObjectURL(url);
+      toast('⚠️ Popup bloqueado. Permitir popups para este sitio e intentar nuevamente.','warn',6000);
+      return;
+    }
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }catch(err){
+    toast('Error al generar PDF: '+err.message,'err',5000);
+    console.error('_generarExamenesPDF error:',err);
+  }
 }
 
 async function limpiarExamenesTipo(){
