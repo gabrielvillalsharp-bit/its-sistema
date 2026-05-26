@@ -4441,7 +4441,7 @@ const WA_TPL_DEFAULTS = {
 };
 // ── PLANTILLAS DEL SISTEMA (bienvenida QR, constancia pago) ───────────────
 const WA_SISTEMA_DEFAULTS = {
-  bienvenida_qr: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *{nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación está al servicio de tu aprendizaje y tu crecimiento profesional.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: {email}\n• Contraseña: {ci}\n\n🔗 *Acceder al sistema:*\n{url}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`,
+  bienvenida_qr: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *{nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación fue pensada para tu comodidad, para que puedas acceder a tu información académica en cualquier momento y desde cualquier lugar.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: {email}\n• Contraseña: {ci}\n\n🔗 *Acceder al sistema:*\n{url}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`,
   constancia_pago: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *{nombre}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: {concepto}{materia}\n• Monto: {monto}\n• Fecha: {fecha}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 {url}\n\n— *Administración · ITS Santísima Trinidad*`,
 };
 function getWASistemaTpl(clave) {
@@ -5456,6 +5456,21 @@ app.post('/pub/alumno/completar', (req, res) => {
       db.prepare('UPDATE alumnos SET apellido=? WHERE id=?').run(apellido.trim(), alumno_id);
       if (alumno.usuario_id) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido.trim(), alumno.usuario_id);
       logQR('apellido', alumno.apellido, apellido.trim());
+    }
+    // Si cambió nombre o apellido, regenerar el email/usuario
+    if (alumno.usuario_id && ((nombre && nombre.trim()) || (apellido && apellido.trim()))) {
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+      const nuevoNombre = (nombre && nombre.trim()) ? nombre.trim() : (alumno.nombre||'');
+      const nuevoApellido = (apellido && apellido.trim()) ? apellido.trim() : (alumno.apellido||'');
+      const ciNum = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
+      let nuevoEmail = norm(nuevoNombre)+'.'+norm(nuevoApellido)+'@its.edu.py';
+      const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(nuevoEmail, alumno.usuario_id);
+      if (conflicto) nuevoEmail = norm(nuevoNombre)+'.'+norm(nuevoApellido)+'.'+(ciNum.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+      const emailActual = db.prepare('SELECT email FROM usuarios WHERE id=?').get(alumno.usuario_id)?.email||'';
+      if (nuevoEmail !== emailActual) {
+        db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, alumno.usuario_id);
+        logQR('email', emailActual, nuevoEmail);
+      }
     }
     if (curso_id && !alumno.curso_id) {
       const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
