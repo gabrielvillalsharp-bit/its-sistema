@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260526-HAB-MATERIA-V7 -->
+<!-- build:20260526-HAB-MATERIA-V8 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -2874,7 +2874,7 @@ async function pgAlumnos(el){
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
     <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px"/>
-    <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+    <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">📌 Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
     <select id="filtAlAnio" onchange="fAlAll()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
     <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
     <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
@@ -2898,7 +2898,8 @@ function fAlAll(){
   const tb=document.getElementById('altb');if(!tb)return;
   let l=W._als||[];
   if(bus)l=l.filter(a=>(a.display_nombre||'').toLowerCase().includes(bus)||(a.display_apellido||'').toLowerCase().includes(bus)||(a.display_ci||'').toLowerCase().includes(bus));
-  if(carrId) l=l.filter(a=>a.carrera_id===carrId);
+  if(carrId==='SIN_ASIGNAR') l=l.filter(a=>!a.carrera_id);
+  else if(carrId) l=l.filter(a=>String(a.carrera_id||'')===carrId);
   if(anio)   l=l.filter(a=>String(a.curso_anio||a.anio)===anio);
   if(cursoId)l=l.filter(a=>a.curso_id===cursoId);
   if(turno){const ct=new Set((W._cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(a=>ct.has(a.curso_id));}
@@ -7848,34 +7849,36 @@ async function selAlumnoPago(alId){
       :`<span style="background:#fce4ec;color:#b71c1c;border:1px solid #f48fb1;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700">🔒 En mora</span>`;
 
     // Grid de cuotas — 10 cuotas + matrícula (match EXACTO para evitar bug Cuota 1 vs Cuota 10)
+    // Abreviación de mes para tarjetas compactas
+    const mesAbr=['','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const cuotasGrid=['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
       // 1er año no paga matrícula
       if(n==='Matrícula'&&es1erAnio){
-        return `<div style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;padding:10px 8px;text-align:center;min-width:80px" title="1er año: no paga matrícula">
-          <div style="font-size:20px;margin-bottom:4px">➖</div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.2">Matrícula<br>No aplica</div>
+        return `<div style="border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0" title="1er año: no paga matrícula">
+          <div style="font-size:13px;line-height:1">➖</div>
+          <div style="font-size:8px;font-weight:700;color:#94a3b8;margin-top:2px;line-height:1.1">Mat.<br>N/A</div>
         </div>`;
       }
       const key=n==='Matrícula'?'Matrícula':'Cuota '+n;
-      const lbl=n==='Matrícula'?'Matrícula':lb[n]||'Cuota '+n;
+      // Etiqueta compacta: "Mat." o "1 Mar", "2 Abr", etc.
+      const shortLbl=n==='Matrícula'?'Mat.':n+' '+mesAbr[n];
       // Comparación EXACTA: evitar que 'Cuota 10'.includes('Cuota 1') sea true
       const ok=(pagos||[]).some(p=>p.concepto===key);
       const pago=ok?(pagos||[]).find(p=>p.concepto===key):null;
+      const fullLbl=n==='Matrícula'?'Matrícula':(lb[n]||'Cuota '+n);
       if(!ok){
         return `<div onclick="registrarPagoCuota('${alId}','${key}')"
-          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb';this.style.boxShadow='0 2px 8px rgba(245,158,11,.25)'"
-          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.boxShadow='none'"
-          style="border:2px solid #e2e8f0;border-radius:10px;background:#fff;padding:10px 8px;text-align:center;min-width:80px;cursor:pointer;transition:all .15s"
-          title="Clic para registrar ${lbl}">
-          <div style="font-size:20px;margin-bottom:4px">○</div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.2">${lbl.replace(' — ',' —\n')}</div>
-          <div style="font-size:9px;color:#f59e0b;margin-top:3px;opacity:0" class="cuota-hint">+ Registrar</div>
+          onmouseover="this.style.borderColor='#f59e0b';this.style.background='#fffbeb'"
+          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'"
+          style="border:2px solid #e2e8f0;border-radius:8px;background:#fff;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0;cursor:pointer;transition:all .12s"
+          title="Clic para registrar ${fullLbl}">
+          <div style="font-size:13px;line-height:1">○</div>
+          <div style="font-size:8px;font-weight:700;color:#94a3b8;margin-top:2px;line-height:1.1">${shortLbl}</div>
         </div>`;
       }
-      return `<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 8px;text-align:center;min-width:80px;cursor:default" title="Gs. ${Number(pago?.monto||0).toLocaleString()} — ${fmtFecha(pago?.fecha_pago)}">
-        <div style="font-size:20px;margin-bottom:4px">✅</div>
-        <div style="font-size:10px;font-weight:700;color:#166534;line-height:1.2">${lbl.replace(' — ',' —\n')}</div>
-        ${pago?`<div style="font-size:9px;color:#166534;margin-top:3px">Gs. ${Number(pago.monto||0).toLocaleString()}</div>`:''}
+      return `<div style="border:2px solid #4ade80;border-radius:8px;background:#f0fdf4;padding:5px 4px;text-align:center;min-width:46px;flex-shrink:0;cursor:default" title="Gs. ${Number(pago?.monto||0).toLocaleString()} — ${fmtFecha(pago?.fecha_pago)}">
+        <div style="font-size:13px;line-height:1">✅</div>
+        <div style="font-size:8px;font-weight:700;color:#166534;margin-top:2px;line-height:1.1">${shortLbl}</div>
       </div>`;
     }).join('');
 
@@ -7943,20 +7946,15 @@ async function selAlumnoPago(alId){
     function renderHabCard(h,conPago){
       const label=habLabels[h.tipo_examen]||h.tipo_examen;
       const mat=h.materia_nombre?`<div style="font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:3px">📚 ${h.materia_nombre}</div>`:'';
-      const btnDel=me.rol==='director'
-        ?`<button onclick="eliminarHabilitacion('${h.id}','${alId}')" title="Eliminar habilitación" style="position:absolute;top:6px;right:6px;border:none;background:transparent;color:#94a3b8;font-size:14px;cursor:pointer;line-height:1;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='#dc2626';this.style.background='#fee2e2'" onmouseout="this.style.color='#94a3b8';this.style.background='transparent'">×</button>`
-        :'';
       if(conPago){
-        return `<div style="position:relative;border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 14px;min-width:160px;padding-right:${me.rol==='director'?'28px':'14px'}">
-          ${btnDel}
+        return `<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 14px;min-width:160px">
           <div style="font-weight:800;font-size:11px;color:#166534;margin-bottom:3px">✅ ${label}</div>
           ${mat}
           <div style="font-size:10px;color:#64748b">💳 Habilitado por pago</div>
           ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
         </div>`;
       } else {
-        return `<div style="position:relative;border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px;padding-right:${me.rol==='director'?'28px':'14px'}">
-          ${btnDel}
+        return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px">
           <div style="font-weight:800;font-size:11px;color:#b45309;margin-bottom:3px">🔓 ${label}</div>
           ${mat}
           <div style="font-size:10px;color:#e65100">Sin pago — hab. por Dirección</div>
@@ -8082,7 +8080,7 @@ async function selAlumnoPago(alId){
         <!-- Estado de cuotas -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">${cuotasGrid}</div>
+          <div style="display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px">${cuotasGrid}</div>
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
           <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:flex-start">${examenesGrid}</div>
@@ -8202,32 +8200,13 @@ async function confirmarHabDesdeHistorial(alId){
 function mPagoParaAlumno(alId){
   mPagoDirecto(alId);
 }
-// mPagoDirecto: abre modal de pago simplificado
+// mPagoDirecto: abre modal de pago simplificado (síncrono — modal abre inmediatamente)
 // conceptoFijo: si se pasa, oculta el selector de concepto y muestra badge fijo
-async function mPagoDirecto(alId, conceptoFijo){
+function mPagoDirecto(alId, conceptoFijo){
   W._pagoSel=alId;
   const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
   const {pers}=W._pdata||{};
   const periodoActivo=(pers||[]).find(p=>p.activo)||pers?.[0]||{id:''};
-  let becaHTML='',moraHTML='';
-  try{
-    const [h,becas]=await Promise.all([
-      api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
-      api('GET','/api/becas?alumno_id='+alId).catch(()=>[])
-    ]);
-    const becasActivas=(becas||[]).filter(b=>b.activa);
-    if(becasActivas.length){
-      becaHTML=`<div style="font-size:11px;padding:6px 10px;background:#e8f5e9;border:2px solid #4caf50;border-radius:6px;margin-bottom:10px">
-        💎 <strong>BECA ACTIVA:</strong> ${becasActivas.map(b=>`${b.tipo}${b.porcentaje?' — '+b.porcentaje+'% descuento':b.monto_fijo?' — Gs. '+Number(b.monto_fijo).toLocaleString()+' descuento':''}`).join(' · ')}
-        <br><span style="font-size:10px;color:#388e3c">Aplicar el descuento correspondiente al monto</span>
-      </div>`;
-    }
-    if(!h.habilitado){
-      moraHTML=`<div style="font-size:11px;padding:5px 8px;background:#fff3e0;border-radius:4px;color:#e65100;margin-bottom:8px">
-        ⚠ <strong>En mora:</strong> ${(h.cuotas_faltantes||[]).length?'Faltan '+h.cuotas_faltantes.join(', '):'cuotas incompletas'}
-      </div>`;
-    }
-  }catch{}
   const es1erAnioForm=Number(al.curso_anio)===1;
   // Si viene con concepto fijo, mostrarlo como badge inmutable; si no, mostrar selector completo
   const concepto_select_html=conceptoFijo
@@ -8259,7 +8238,7 @@ async function mPagoDirecto(alId, conceptoFijo){
     👤 <strong>${al.display_apellido||''}, ${al.display_nombre||''}</strong> &nbsp;·&nbsp; ${al.carrera_nombre||''} ${al.curso_anio?al.curso_anio+'°':''}
   </div>
   ${es1erAnioForm?'<div style="font-size:11px;padding:5px 10px;background:#e8f5e9;border-radius:5px;color:#2e7d32;margin-bottom:8px">ℹ 1er año — no paga matrícula</div>':''}
-  ${moraHTML}${becaHTML}
+  <div id="pgBecaInfo"></div>
   <input type="hidden" id="pgal" value="${alId}"/>
   <input type="hidden" id="pgfe" value="${hoy}"/>
   <input type="hidden" id="pgco2" value=""/>
@@ -8285,18 +8264,31 @@ async function mPagoDirecto(alId, conceptoFijo){
     </select></div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
-  setTimeout(()=>{autoMontoArancel();if(conceptoFijo)pgcoChangeHandler();},100);
+  // Llamar handlers inmediatamente (modal ya está en DOM)
+  autoMontoArancel();
+  if(conceptoFijo) pgcoChangeHandler();
+  // Cargar becas en background y mostrar si hay activas
+  api('GET','/api/becas?alumno_id='+alId).then(becas=>{
+    const activas=(becas||[]).filter(b=>b.activa);
+    if(!activas.length) return;
+    const el=document.getElementById('pgBecaInfo');
+    if(!el) return;
+    el.innerHTML=`<div style="font-size:11px;padding:6px 10px;background:#e8f5e9;border:2px solid #4caf50;border-radius:6px;margin-bottom:10px">
+      💎 <strong>BECA ACTIVA:</strong> ${activas.map(b=>`${b.tipo}${b.porcentaje?' — '+b.porcentaje+'% descuento':b.monto_fijo?' — Gs. '+Number(b.monto_fijo).toLocaleString()+' descuento':''}`).join(' · ')}
+      <br><span style="font-size:10px;color:#388e3c">Aplicar el descuento correspondiente al monto</span>
+    </div>`;
+  }).catch(()=>{});
 }
 
 // Registrar pago desde el cuadrado de cuota (concepto pre-seleccionado, oculto)
-async function registrarPagoCuota(alId, concepto){
-  await mPagoDirecto(alId, concepto);
+function registrarPagoCuota(alId, concepto){
+  mPagoDirecto(alId, concepto);
 }
 
 // Registrar pago de examen con arancel (concepto pre-seleccionado, filtra materias ya pagadas)
-async function registrarPagoArancel(alId, concepto, excludeAsigIds){
+function registrarPagoArancel(alId, concepto, excludeAsigIds){
   W._arancelExclude=excludeAsigIds||[];
-  await mPagoDirecto(alId, concepto);
+  mPagoDirecto(alId, concepto);
 }
 
 // ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────

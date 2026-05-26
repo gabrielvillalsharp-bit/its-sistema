@@ -418,7 +418,7 @@ app.get('/api/alumnos', auth(), (req, res) => {
     LEFT JOIN carreras c ON al.carrera_id=c.id
     LEFT JOIN cursos cu ON al.curso_id=cu.id
     LEFT JOIN usuarios u ON al.usuario_id=u.id
-    ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 500`).all(...params));
+    ${where} ORDER BY COALESCE(al.apellido,u.apellido) LIMIT 2000`).all(...params));
 });
 
 // ── BUSCAR CONFLICTO ANTES DE CREAR ALUMNO ─────────────────────────────────
