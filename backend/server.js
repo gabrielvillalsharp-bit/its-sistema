@@ -1817,7 +1817,12 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
       const fechaFmt = (fecha_pago||nowDate()).split('-').reverse().join('/');
       const montoFmt = 'Gs. '+Number(montoPagado).toLocaleString('es-PY');
       const nombreCompleto = `${alFull.nombre} ${alFull.apellido}`.trim();
-      const waMsg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *${nombreCompleto}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: ${concepto}\n• Monto: ${montoFmt}\n• Fecha: ${fechaFmt}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 ${APP_URL}\n\n— *Administración · ITS Santísima Trinidad*`;
+      let lineaMateria = '';
+      if (asignacion_id) {
+        const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
+        if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
+      }
+      const waMsg = `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *${nombreCompleto}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: ${concepto}${lineaMateria}\n• Monto: ${montoFmt}\n• Fecha: ${fechaFmt}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 ${APP_URL}\n\n— *Administración · ITS Santísima Trinidad*`;
       sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
     }
 
