@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260525-HAB-MATERIA -->
+<!-- build:20260525-HAB-MATERIA-V2 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -7780,47 +7780,100 @@ async function selAlumnoPago(alId){
       {concepto:'Examen Final Complementario',   lbl:'Final\nComplement.',  icon:'📋'},
       {concepto:'Examen Final Extraordinario',   lbl:'Extraord.\n⚡',       icon:'⚡'},
     ];
+    const ARANCEL_MAX=5;
     const examenesGrid=examenesArancel.map(({concepto,lbl,icon})=>{
       const pagosEx=(pagos||[]).filter(p=>(p.concepto||'').toLowerCase()===concepto.toLowerCase());
-      if(!pagosEx.length){
-        return `<div onclick="registrarPagoCuota('${alId}','${concepto}')"
-          onmouseover="this.style.borderColor='#7c3aed';this.style.background='#f5f3ff';this.style.boxShadow='0 2px 8px rgba(124,58,237,.18)'"
-          onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.boxShadow='none'"
-          style="border:2px solid #e2e8f0;border-radius:10px;background:#fff;padding:10px 8px;text-align:center;min-width:80px;cursor:pointer;transition:all .15s"
-          title="Clic para registrar ${lbl.replace('\n',' ')}">
-          <div style="font-size:20px;margin-bottom:4px">${icon}</div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;line-height:1.3;white-space:pre-line">${lbl}</div>
-          <div style="font-size:9px;color:#7c3aed;margin-top:3px;opacity:0" class="cuota-hint">+ Registrar</div>
+      const pagosConAsig=pagosEx.filter(p=>p.asignacion_id);
+      const pagosLegacy=pagosEx.filter(p=>!p.asignacion_id);
+      const count=pagosEx.length;
+      const excludeIds=pagosConAsig.map(p=>p.asignacion_id);
+      const lblShort=lbl.replace('\n',' ');
+      let cards='';
+      // Tarjetas verdes por cada materia ya pagada
+      pagosConAsig.forEach(p=>{
+        const mat=p.materia_nombre||'Materia';
+        const matCort=mat.length>14?mat.substring(0,13)+'…':mat;
+        cards+=`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:9px 8px;text-align:center;min-width:78px;max-width:96px;cursor:default" title="${mat} — Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
+          <div style="font-size:18px;margin-bottom:3px">✅</div>
+          <div style="font-size:9px;font-weight:700;color:#166534;line-height:1.2;white-space:pre-line">${lbl}</div>
+          <div style="font-size:8px;color:#15803d;margin-top:3px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${mat}">📚 ${matCort}</div>
+          <div style="font-size:8px;color:#64748b;margin-top:1px">${fmtFecha(p.fecha_pago)}</div>
+        </div>`;
+      });
+      // Tarjetas legacy (sin asignacion_id, datos históricos)
+      pagosLegacy.forEach(p=>{
+        cards+=`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:9px 8px;text-align:center;min-width:78px;cursor:default" title="Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
+          <div style="font-size:18px;margin-bottom:3px">✅</div>
+          <div style="font-size:9px;font-weight:700;color:#166534;line-height:1.2;white-space:pre-line">${lbl}</div>
+          <div style="font-size:8px;color:#166534;margin-top:2px">Gs. ${Number(p.monto||0).toLocaleString()}</div>
+        </div>`;
+      });
+      // Tarjeta "+" si quedan materias disponibles
+      if(count<ARANCEL_MAX){
+        cards+=`<div onclick="registrarPagoArancel('${alId}','${concepto}',${JSON.stringify(excludeIds)})"
+          onmouseover="this.style.borderColor='#7c3aed';this.style.background='#f5f3ff'"
+          onmouseout="this.style.borderColor='#d1d5db';this.style.background='#fff'"
+          style="border:2px dashed #d1d5db;border-radius:10px;background:#fff;padding:9px 8px;text-align:center;min-width:78px;cursor:pointer;transition:all .15s"
+          title="Registrar pago — ${lblShort} (${count}/${ARANCEL_MAX} materias)">
+          <div style="font-size:18px;margin-bottom:3px">${icon}</div>
+          <div style="font-size:9px;font-weight:700;color:#94a3b8;line-height:1.2;white-space:pre-line">${lbl}</div>
+          <div style="font-size:8px;color:#7c3aed;margin-top:3px;font-weight:700">+ Registrar ${count>0?'('+count+'/'+ARANCEL_MAX+')':''}</div>
         </div>`;
       }
-      // Puede haber más de un pago (varios recuperatorios)
-      return pagosEx.map(p=>`<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 8px;text-align:center;min-width:80px;cursor:default" title="Gs. ${Number(p.monto||0).toLocaleString()} — ${fmtFecha(p.fecha_pago)}">
-        <div style="font-size:20px;margin-bottom:4px">✅</div>
-        <div style="font-size:10px;font-weight:700;color:#166534;line-height:1.3;white-space:pre-line">${lbl}</div>
-        <div style="font-size:9px;color:#166534;margin-top:3px">Gs. ${Number(p.monto||0).toLocaleString()}</div>
-        <div style="font-size:9px;color:#64748b">${fmtFecha(p.fecha_pago)}</div>
-      </div>`).join('');
+      return `<div style="display:flex;flex-direction:column;align-items:flex-start;margin-bottom:2px">
+        <div style="font-size:9px;color:#64748b;font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${lblShort} ${count>0?'<span style="background:#dcfce7;color:#166534;border-radius:8px;padding:1px 6px;font-size:8px">'+count+'/'+ARANCEL_MAX+' materias</span>':''}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">${cards}</div>
+      </div>`;
     }).join('');
 
-    // Exámenes habilitados
+    // Habilitaciones — separadas en "con pago" y "sin pago"
     const habLabels={parcial:'Parcial Ordinario',parcial_recuperatorio:'Parcial Recuperatorio',final:'Final Ordinario',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario ⚡'};
-    const tipoArMap={parcial_recuperatorio:'parcial',final_ord:'final',final_recuperatorio:'final',complementario:'final',extraordinario:'extraordinario'};
+    const habsConPago=habsActivos.filter(h=>(h.motivo||'').toLowerCase().includes('pago de'));
+    const habsSinPago=habsActivos.filter(h=>!(h.motivo||'').toLowerCase().includes('pago de'));
+    function renderHabCard(h,conPago){
+      const label=habLabels[h.tipo_examen]||h.tipo_examen;
+      const mat=h.materia_nombre?`<div style="font-size:10px;color:#1d4ed8;font-weight:700;margin-bottom:3px">📚 ${h.materia_nombre}</div>`:'';
+      if(conPago){
+        return `<div style="border:2px solid #4ade80;border-radius:10px;background:#f0fdf4;padding:10px 14px;min-width:160px">
+          <div style="font-weight:800;font-size:11px;color:#166534;margin-bottom:3px">✅ ${label}</div>
+          ${mat}
+          <div style="font-size:10px;color:#64748b">💳 Habilitado por pago</div>
+          ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
+        </div>`;
+      } else {
+        return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:10px 14px;min-width:160px">
+          <div style="font-weight:800;font-size:11px;color:#b45309;margin-bottom:3px">🔓 ${label}</div>
+          ${mat}
+          <div style="font-size:10px;color:#e65100">Sin pago — hab. por Dirección</div>
+          ${h.motivo&&!h.motivo.toLowerCase().includes('pago')?`<div style="font-size:9px;color:#64748b;margin-top:2px">${h.motivo}</div>`:''}
+          ${h.fecha?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${fmtFecha(h.fecha)}</div>`:''}
+        </div>`;
+      }
+    }
+    const colConPago=habsConPago.length
+      ?`<div style="display:flex;flex-direction:column;gap:6px">${habsConPago.map(h=>renderHabCard(h,true)).join('')}</div>`
+      :`<p style="color:#94a3b8;font-size:12px;margin:0">Sin habilitaciones con pago</p>`;
+    const colSinPago=habsSinPago.length
+      ?`<div style="display:flex;flex-direction:column;gap:6px">${habsSinPago.map(h=>renderHabCard(h,false)).join('')}</div>`
+      :`<p style="color:#94a3b8;font-size:12px;margin:0">Sin habilitaciones sin pago</p>`;
     const examHtml=habsActivos.length===0
       ?'<p style="color:#94a3b8;font-size:13px;padding:8px 0">Sin habilitaciones especiales registradas</p>'
-      :`<div style="display:flex;gap:10px;flex-wrap:wrap">${habsActivos.map(h=>{
-          const label=habLabels[h.tipo_examen]||h.tipo_examen;
-          const ar=aranceles.find(a=>a.tipo===(tipoArMap[h.tipo_examen]||h.tipo_examen));
-          const monto=ar?`Gs. ${Number(ar.monto).toLocaleString()}`:'—';
-          const yaPago=(pagos||[]).some(p=>p.concepto?.toLowerCase().includes(label.toLowerCase().replace(' ⚡','')));
-          return `<div style="border:2px solid #fcd34d;border-radius:10px;background:#fffbf0;padding:12px 16px;min-width:180px">
-            <div style="font-weight:800;font-size:12px;color:#b45309;margin-bottom:4px">${label}</div>
-            <div style="font-size:11px;color:#64748b;margin-bottom:3px">Arancel: <strong>${monto}</strong></div>
-            <div style="font-size:11px;color:#e65100;margin-bottom:8px">🔓 Hab. sin pago — deuda pendiente</div>
-            <div style="font-size:10px;color:#64748b">${h.motivo&&!h.motivo.includes('pago')?h.motivo:'Habilitado por Dirección'}</div>
-          </div>`;}).join('')}</div>`;
+      :`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;padding:4px 8px;background:#dcfce7;border-radius:6px">💳 Habilitaciones con pago</div>
+            ${colConPago}
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;padding:4px 8px;background:#fef3c7;border-radius:6px">🔓 Sin pago (por Dirección)</div>
+            ${colSinPago}
+          </div>
+        </div>`;
 
     // Historial de pagos (tabla completa)
-    const historialHtml=Object.entries(grupos).filter(([,g])=>g.pagos.length>0).map(([,g])=>`
+    const ARANCEL_HIST_SET=new Set(ARANCEL_CONCEPTOS.map(c=>c.toLowerCase()));
+    const historialHtml=Object.entries(grupos).filter(([,g])=>g.pagos.length>0).map(([key,g])=>{
+      const esExamen=key==='examenes';
+      return `
       <div style="margin-bottom:16px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
         <div style="background:${g.color};padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px;border-bottom:1px solid #e2e8f0">
           <span>${g.icon} ${g.label}</span>
@@ -7830,15 +7883,19 @@ async function selAlumnoPago(alId){
           <thead><tr style="background:#f8fafc">
             <th style="padding:7px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Fecha</th>
             <th style="padding:7px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Concepto</th>
+            ${esExamen?'<th style="padding:7px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Materia</th>':''}
             <th style="padding:7px 12px;text-align:right;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Monto</th>
             <th style="padding:7px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Medio</th>
             <th style="padding:7px 12px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Comprobante</th>
             <th style="padding:7px 12px;width:80px;border-bottom:1px solid #e2e8f0"></th>
           </tr></thead>
-          <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map((p,pi)=>`
+          <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map((p,pi)=>{
+            const isArancel=ARANCEL_HIST_SET.has((p.concepto||'').toLowerCase());
+            return `
             <tr style="background:${pi%2?'#f8fafc':'#fff'}">
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${p.concepto}</td>
+              ${esExamen?`<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:${isArancel&&p.materia_nombre?'#1d4ed8':'#94a3b8'};font-size:11px">${isArancel&&p.materia_nombre?'📚 '+p.materia_nombre:'—'}</td>`:''}
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;color:#166534;font-size:13px">Gs. ${Number(p.monto||0).toLocaleString()}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#64748b">${p.medio_pago||'Efectivo'}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#94a3b8">${p.comprobante||'—'}</td>
@@ -7851,10 +7908,10 @@ async function selAlumnoPago(alId){
                   </div>
                 </div>
               </td>
-            </tr>`).join('')}
+            </tr>`;}).join('')}
           </tbody>
         </table>
-      </div>`).join('')||'<p style="color:#94a3b8;font-size:13px;padding:16px 0;text-align:center">Sin pagos registrados</p>';
+      </div>`;}).join('')||'<p style="color:#94a3b8;font-size:13px;padding:16px 0;text-align:center">Sin pagos registrados</p>';
 
     const totalPagos=(pagos||[]).length;
     const totalPendientes=12-grupos.cuotas.pagos.length+(grupos.matricula.pagos.length===0?1:0);
@@ -7913,12 +7970,12 @@ async function selAlumnoPago(alId){
           <div style="display:flex;gap:6px;flex-wrap:wrap">${cuotasGrid}</div>
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">${examenesGrid}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">${examenesGrid}</div>
         </div>
 
-        <!-- Exámenes habilitados sin pago -->
+        <!-- Habilitaciones: con pago y sin pago -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🔓 Habilitaciones sin pago (por Dirección)</div>
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">🔓 Habilitaciones de examen</div>
           ${examHtml}
         </div>
 
@@ -8119,6 +8176,20 @@ async function registrarPagoCuota(alId, concepto){
         if(partialOpt) sel.value=partialOpt.value;
       }
     }
+    autoMontoArancel();
+    pgcoChangeHandler();
+  },250);
+}
+
+// Registrar pago de examen con arancel (pre-selecciona concepto y filtra materias ya pagadas)
+async function registrarPagoArancel(alId, concepto, excludeAsigIds){
+  W._arancelExclude=excludeAsigIds||[];
+  await mPagoDirecto(alId);
+  setTimeout(()=>{
+    const sel=document.getElementById('pgco');
+    if(!sel)return;
+    const exactOpt=[...sel.options].find(o=>o.value===concepto);
+    if(exactOpt) sel.value=exactOpt.value;
     autoMontoArancel();
     pgcoChangeHandler();
   },250);
@@ -8337,13 +8408,19 @@ function pgcoChangeHandler(){
         if(sel)sel.innerHTML='<option value="">— Cargando materias... —</option>';
         api('GET','/api/alumnos/'+alId+'/asignaciones-activas').then(asigs=>{
           if(!sel)return;
-          if(!asigs||!asigs.length){
-            sel.innerHTML='<option value="">— Sin materias en período activo —</option>';
+          const exclude=new Set(W._arancelExclude||[]);
+          W._arancelExclude=null;
+          const disponibles=(asigs||[]).filter(a=>!exclude.has(a.id));
+          if(!disponibles.length){
+            sel.innerHTML=exclude.size
+              ?'<option value="">— Todas las materias ya tienen este examen habilitado —</option>'
+              :'<option value="">— Sin materias en período activo —</option>';
           } else {
             sel.innerHTML='<option value="">— Seleccionar materia —</option>'+
-              asigs.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
+              disponibles.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
           }
         }).catch(()=>{
+          W._arancelExclude=null;
           const sel=document.getElementById('pgco-asig');
           if(sel)sel.innerHTML='<option value="">— Error al cargar materias —</option>';
         });

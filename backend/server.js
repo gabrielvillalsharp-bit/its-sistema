@@ -53,6 +53,15 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
+// ── MIGRACIÓN: asignacion_id en pagos (para vincular pago con materia habilitada) ──
+try {
+  const cols = db.prepare("PRAGMA table_info(pagos)").all().map(c => c.name);
+  if (!cols.includes('asignacion_id')) {
+    db.prepare("ALTER TABLE pagos ADD COLUMN asignacion_id TEXT REFERENCES asignaciones(id)").run();
+    console.log('[Migración] pagos.asignacion_id agregado');
+  }
+} catch(e) { console.warn('[Migración] pagos.asignacion_id:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
@@ -1738,7 +1747,7 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT a.*, cu.anio as curso_anio FROM alumnos a LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
   // Alumno solo puede ver su propio perfil
   if (req.user.rol === 'alumno' && al?.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
-  const pagos = db.prepare(`SELECT p.*,c.nombre as carrera FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);
+  const pagos = db.prepare(`SELECT p.*,c.nombre as carrera,m.nombre as materia_nombre FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN asignaciones asig ON p.asignacion_id=asig.id LEFT JOIN materias m ON asig.materia_id=m.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);
   const totalPagado = pagos.reduce((s,p)=>s+p.monto,0);
   res.json({ pagos, totalPagado, alumno: al });
 });
@@ -1785,7 +1794,7 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const montoPagado = parseFloat(monto)||0;
     const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
     const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
-    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo');
+    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null);
     const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
     audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago});
 
@@ -3240,7 +3249,12 @@ app.post('/api/habilitaciones', auth(ADM), (req, res) => {
   res.json({ id });
 });
 app.get('/api/habilitaciones/:alumno_id', auth(), (req, res) => {
-  res.json(db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').all(req.params.alumno_id));
+  res.json(db.prepare(`
+    SELECT h.*, m.nombre as materia_nombre
+    FROM habilitaciones_examen h
+    LEFT JOIN asignaciones a ON h.asignacion_id = a.id
+    LEFT JOIN materias m ON a.materia_id = m.id
+    WHERE h.alumno_id=?`).all(req.params.alumno_id));
 });
 
 // ── RE-SEED DOCENTES (para Railway donde la BD ya existía) ────────────────────
