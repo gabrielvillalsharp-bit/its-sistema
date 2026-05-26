@@ -1828,6 +1828,21 @@ app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
   try {
     const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
     db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id);
+    // Si el pago era de un examen con arancel vinculado a una materia, eliminar la habilitación creada por ese pago
+    if (p?.asignacion_id && p?.alumno_id) {
+      const ARANCEL_TIPO_MAP = {
+        'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
+        'Examen Final Ordinario':       'final_ord',
+        'Examen Final Recuperatorio':   'final_recuperatorio',
+        'Examen Final Complementario':  'complementario',
+        'Examen Final Extraordinario':  'extraordinario',
+      };
+      const tipoExamen = ARANCEL_TIPO_MAP[p.concepto] || null;
+      if (tipoExamen) {
+        db.prepare("DELETE FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=? AND motivo LIKE 'Habilitado por pago de%'")
+          .run(p.alumno_id, p.asignacion_id, tipoExamen);
+      }
+    }
     audit(req.user.id,'DELETE','pagos',req.params.id,{concepto:p?.concepto,monto:p?.monto});
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
