@@ -4884,6 +4884,34 @@ app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
   } catch(e) { res.json({ configurado: true, estado: 'error', mensaje: e.message }); }
 });
 
+// ── WHATSAPP GESTIÓN: reconectar + obtener QR ────────────────────────────────
+app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
+  try {
+    await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
+  try {
+    // Intentar obtener QR — Evolution API v2 usa /instance/qrcode/{instance}?image=true
+    const r = await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+    const d = await r.json().catch(()=>({}));
+    // El QR puede venir como base64 o como string para generar
+    const qrBase64 = d?.base64 || d?.qrcode?.base64 || null;
+    const qrCode   = d?.code   || d?.qrcode?.code   || null;
+    res.json({ qr: qrBase64, code: qrCode, raw: d });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── WHATSAPP GESTIÓN: envío individual ───────────────────────────────────────
 app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   const { telefono, mensaje, destinatario_tipo, destinatario_id, destinatario_nombre } = req.body;

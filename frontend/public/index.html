@@ -1633,6 +1633,7 @@ async function pgWhatsApp(el){
       <span style="font-size:22px">💬</span> WhatsApp — Gestión
     </div>
     <div style="background:#fff;border:2px solid ${stColor};color:${stColor};border-radius:20px;padding:5px 14px;font-weight:700;font-size:13px">${stLabel}</div>
+    ${estadoR.estado!=='open'?`<button onclick="waReconectar()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700">📱 Reconectar / Ver QR</button>`:''}
     <button onclick="recargarWA()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px">🔄 Actualizar</button>
   </div>
 
@@ -1980,6 +1981,42 @@ function waFiltHist(){
   });
 }
 function recargarWA(){go('whatsapp');}
+async function waReconectar(){
+  const btn=event?.target;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Conectando...';}
+  try{
+    await api('POST','/api/whatsapp/reconectar',{});
+    // Esperar 3s para que Evolution genere el QR, luego pedirlo
+    await new Promise(r=>setTimeout(r,3000));
+    const d=await api('GET','/api/whatsapp/qr');
+    if(d.qr){
+      // QR como imagen base64
+      modal(`<div style="text-align:center;padding:8px">
+        <h3 style="margin:0 0 12px;font-size:16px">📱 Escaneá el QR con WhatsApp</h3>
+        <p style="font-size:12px;color:#555;margin-bottom:14px">Abrí WhatsApp → ⋮ Dispositivos vinculados → Vincular dispositivo</p>
+        <img src="${d.qr}" style="width:260px;height:260px;border:3px solid #25D366;border-radius:12px" />
+        <p style="font-size:11px;color:#888;margin-top:10px">El QR expira en ~60 segundos. Si vence, hacé clic en "Reconectar" de nuevo.</p>
+        <button onclick="cm();recargarWA()" style="margin-top:10px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
+      </div>`);
+    } else if(d.code){
+      // QR como texto — mostrar con qrcode.js si está disponible, o el código raw
+      modal(`<div style="text-align:center;padding:8px">
+        <h3 style="margin:0 0 12px;font-size:16px">📱 Código QR</h3>
+        <p style="font-size:12px;color:#555;margin-bottom:10px">Abrí WhatsApp → ⋮ Dispositivos vinculados → Vincular dispositivo</p>
+        <div id="wa-qr-canvas" style="display:flex;justify-content:center;margin-bottom:10px"></div>
+        <p style="font-size:10px;color:#aaa;word-break:break-all;max-width:300px;margin:0 auto">${d.code.slice(0,40)}…</p>
+        <button onclick="cm();recargarWA()" style="margin-top:12px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
+      </div>`);
+    } else {
+      toast('WhatsApp conectando... Actualizá en unos segundos para ver el estado.','info',5000);
+      setTimeout(()=>recargarWA(),5000);
+    }
+  } catch(e){
+    toast('Error al reconectar: '+e.message,'err');
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='📱 Reconectar / Ver QR';}
+  }
+}
 async function waToggleRegla(key, activa){
   try{
     await api('POST',`/api/whatsapp/reglas/${key}`,{activa});
