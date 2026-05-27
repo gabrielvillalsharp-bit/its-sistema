@@ -1,4 +1,4 @@
-process.env.TZ = 'America/Asuncion';
+﻿process.env.TZ = 'America/Asuncion';
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -483,7 +483,7 @@ app.get('/api/alumnos', auth(), (req, res) => {
 // ── BUSCAR CONFLICTO ANTES DE CREAR ALUMNO ─────────────────────────────────
 app.get('/api/alumnos/buscar-conflicto', auth(ADM), (req, res) => {
   const { ci, nombre, apellido } = req.query;
-  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
   const resultados = [];
 
@@ -616,7 +616,7 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   );
   // Si cambió nombre o apellido, sincronizar en usuarios (nombre, apellido y email)
   if (actual.usuario_id && (nombre !== undefined || apellido !== undefined)) {
-    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
     const nuevoNombre   = nombre   !== undefined ? nombre   : actual.nombre;
     const nuevoApellido = apellido !== undefined ? apellido : actual.apellido;
     if (nombre   !== undefined) db.prepare('UPDATE usuarios SET nombre=?   WHERE id=?').run(nombre,   actual.usuario_id);
@@ -1701,7 +1701,7 @@ app.get('/api/examenes/preview-recuperatorios-parciales', auth(ADM), (req, res) 
     if (!periodo) return res.status(400).json({ error: 'No hay período activo' });
 
     // Normalización consistente con el resto del sistema
-    const normDia = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+    const normDia = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
     const DIA_DOW = { lunes:1, martes:2, miercoles:3, jueves:4, viernes:5, sabado:6 };
 
     // Todas las asignaciones del período con día asignado
@@ -2773,7 +2773,7 @@ app.post('/api/pagos/previsualizar-sin-asignar', auth(ADM), upload.single('archi
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', header: 1, raw: true });
     if (!rawRows.length) return res.status(400).json({ error: 'Archivo vacío' });
-    function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+    function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
     let headerRowIdx = -1;
     for (let i = 0; i < Math.min(rawRows.length, 6); i++) {
       if (rawRows[i].some(c => /cedula|c\.i\.|^ci$/i.test(norm(c)))) { headerRowIdx = i; break; }
@@ -2844,7 +2844,7 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
     if (!rawRows.length) return res.status(400).json({ error: 'Archivo vacío' });
 
     // Detectar fila de encabezados
-    function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+    function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
     let headerRowIdx = -1;
     for (let i = 0; i < Math.min(rawRows.length, 6); i++) {
       const row = rawRows[i];
@@ -2872,7 +2872,7 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
       'cuota 9':'Cuota 9','cuota 10':'Cuota 10','cuota 11':'Cuota 11','cuota 12':'Cuota 12',
     };
 
-    function normId(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,''); }
+    function normId(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
 
     // Decisiones por CI: 'sin_asignar' = quitar carrera | 'mantener' = no tocar carrera
     let decisiones = {};
@@ -3033,7 +3033,7 @@ function parsearPlanillaXLSX(buffer) {
   const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
   if (!rawRows.length) throw new Error('Sin datos en el archivo');
 
-  const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
+  const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^["']|["']$/g,'').trim();
   // Año escolar paraguayo: Cuota 1 = Marzo, Cuota 2 = Abril, ..., Cuota 10 = Diciembre
   // Cuota 11 = Enero, Cuota 12 = Febrero (meses restantes inicio/fin de año)
   const mesMap = {
@@ -3072,7 +3072,7 @@ function parsearPlanillaXLSX(buffer) {
   });
 
   // Cache de alumnos sin CI para búsqueda por nombre
-  const normNombre = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const normNombre = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
   const alumnosSinCI = db.prepare("SELECT id, COALESCE(nombre,'') as nombre, COALESCE(apellido,'') as apellido FROM alumnos WHERE ci IS NULL OR ci=''").all();
 
   const filas = [];
@@ -3164,7 +3164,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
     const { carrera_id, curso_id, conceptos, filas } = req.body;
     if (!Array.isArray(conceptos) || !Array.isArray(filas)) return res.status(400).json({ error: 'Datos inválidos' });
 
-    const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
     const carr = carrera_id ? db.prepare('SELECT id,codigo,nombre FROM carreras WHERE id=?').get(carrera_id) : null;
 
@@ -3262,8 +3262,8 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
     if (!rawRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
 
-    const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/^["']|["']$/g,'').trim();
-    const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^["']|["']$/g,'').trim();
+    const normId = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
 
     // Encontrar fila de cabeceras buscando "cedula"/"ci" en las primeras 10 filas
     // Con raw:true, las celdas de texto siguen siendo strings; convertir todo a string para búsqueda
@@ -4320,7 +4320,7 @@ app.post('/api/admin/reparar-alumno', auth(ADM), (req, res) => {
     // Verificar que realmente no tiene usuario
     const yaTieneUsu = alumno.usuario_id ? db.prepare('SELECT id FROM usuarios WHERE id=?').get(alumno.usuario_id) : null;
     if (yaTieneUsu) return res.json({ ok:true, mensaje:'El alumno ya tiene cuenta de usuario', usuario_id:yaTieneUsu.id });
-    const normStr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const normStr = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
     const nNorm = normStr(alumno.nombre);
     const aNorm = normStr(alumno.apellido);
     const ciRaw = String(alumno.ci||'').replace(/[^0-9]/g,'');
@@ -5296,7 +5296,7 @@ app.post('/api/solicitudes-alumno/verificar', auth(['director','docente']), (req
   try {
     const { nombre, apellido, ci, asignacion_id } = req.body;
     if (!nombre || !asignacion_id) return res.status(400).json({ error: 'Faltan datos' });
-    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
     const ciRaw = String(ci||'').replace(/[^0-9]/g,'');
 
     // 1. ¿Ya hay solicitud pendiente para este alumno en esta asignación?
@@ -5362,7 +5362,7 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
       const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carreraId||'').n;
       const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
-      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
       const fechaHoy = nowDate();
       db.transaction(() => {
         const normNombre = norm(sol.nombre||'');
@@ -5863,7 +5863,7 @@ app.post('/pub/alumno/completar', (req, res) => {
     }
     // Si cambió nombre o apellido, regenerar el email/usuario
     if (alumno.usuario_id && ((nombre && nombre.trim()) || (apellido && apellido.trim()))) {
-      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
       const nuevoNombre = (nombre && nombre.trim()) ? nombre.trim() : (alumno.nombre||'');
       const nuevoApellido = (apellido && apellido.trim()) ? apellido.trim() : (alumno.apellido||'');
       const ciNum = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
@@ -5897,7 +5897,7 @@ app.post('/pub/solicitud-registro', (req, res) => {
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
-  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const esCambioCarrera = tipo === 'cambio_carrera' && alumno_id;
 
   if (!esCambioCarrera) {
@@ -5985,7 +5985,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
     try {
       db.transaction(() => {
         const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
-        const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+        const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
 
         // ── 1. Encontrar o crear usuario ────────────────────────────────────
         const existPorCi = ciRaw ? db.prepare('SELECT id, rol FROM usuarios WHERE ci=?').get(ciRaw) : null;
@@ -6068,7 +6068,7 @@ app.get('/pub/buscar-alumno', (req, res) => {
   // Normalización segura con escape Unicode explícito (evita corrupción CRLF)
   const norm = s => (s||'').toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')   // quita tildes/acentos
+    .replace(/[\u0300-\u036f]/g, '')   // quita tildes/acentos
     .replace(/[^a-z0-9 ]/g, '')        // solo letras, dígitos y espacio
     .replace(/\s+/g, ' ')
     .trim();
