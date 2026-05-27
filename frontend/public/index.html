@@ -291,6 +291,7 @@ tr:hover td{background:#fafaf7}
 .frase-txt{font-size:11px;font-style:italic;color:#fff;line-height:1.55;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.20)}
 .frase-autor{font-size:10px;color:rgba(255,255,255,.82);margin-top:5px;font-weight:700;letter-spacing:.03em}
 .dash-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.al-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .kpi-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-sm);transition:transform .22s,box-shadow .22s,border-color .22s;will-change:transform;position:relative;overflow:hidden}
 .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
 .kpi-card.green::before{background:linear-gradient(90deg,#1f8246,#166534)}
@@ -434,6 +435,7 @@ body.mob-alumno .ct{padding-bottom:68px}
   .kpi-val{font-size:24px!important}
   /* Grid 2 cols alumno home */
   #mc [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  .al-grid-2col{grid-template-columns:1fr!important}
   /* ── ALUMNOS TABLE → TARJETAS ── */
   .als-table{display:block!important}
   .als-table thead{display:none!important}
@@ -725,8 +727,8 @@ body.mob-alumno .ct{padding-bottom:68px}
   <button class="mbn-btn" id="mbn-mi-asistencia" onclick="go('mi-asistencia')">
     <span class="mbn-ico">✅</span><span class="mbn-lbl">Asistencia</span>
   </button>
-  <button class="mbn-btn" id="mbn-mi-estado-cuenta" onclick="go('mi-estado-cuenta')">
-    <span class="mbn-ico">💳</span><span class="mbn-lbl">Cuenta</span>
+  <button class="mbn-btn" id="mbn-calendario" onclick="go('calendario')">
+    <span class="mbn-ico">📅</span><span class="mbn-lbl">Exámenes</span>
   </button>
   <button class="mbn-btn" id="mbn-mas" onclick="toggleMobMenu()">
     <span class="mbn-ico">☰</span><span class="mbn-lbl">Más</span>
@@ -1337,7 +1339,7 @@ async function pgDash(el){
       <div class="kpi-card red"><span class="kpi-icon">❌</span><div class="kpi-val" style="color:var(--red)">${reprobadas}</div><div class="kpi-lbl">Reprobadas</div></div>
       <div class="kpi-card blue"><span class="kpi-icon">📅</span><div class="kpi-val">${exams.length}</div><div class="kpi-lbl">Exámenes próximos</div></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="al-grid-2col">
       <!-- Mis materias / notas -->
       <div class="card card-p">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -1378,7 +1380,32 @@ async function pgDash(el){
           }).join(''):`<div class="es" style="padding:12px">Sin registros</div>`}
         </div>
       </div>
-    </div>`;
+    </div>
+    ${exams.length>0?`
+    <div class="card card-p" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <p style="font-size:14px;font-weight:700">📅 Horario de exámenes</p>
+        <button class="bs" style="font-size:11px" onclick="go('calendario')">Ver calendario →</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+      ${exams.map(e=>{
+        const colorTipo=e.tipo==='Final'?'#fee2e2':e.tipo==='Recuperatorio'?'#fef3c7':'#dbeafe';
+        const textTipo=e.tipo==='Final'?'#b91c1c':e.tipo==='Recuperatorio'?'#92400e':'#1e40af';
+        const badgeTipo=e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+          <div style="text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 10px;min-width:52px;flex-shrink:0">
+            <div style="font-size:18px;font-weight:900;color:#1e293b;line-height:1">${new Date(e.fecha+'T12:00').getDate()}</div>
+            <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase">${new Date(e.fecha+'T12:00').toLocaleString('es',{month:'short'})}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.materia_nombre}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">${e.hora?'🕐 '+e.hora:''} ${e.aula?'📍 '+e.aula:''}</div>
+          </div>
+          <span class="bx ${badgeTipo}" style="flex-shrink:0;font-size:11px">${e.tipo}</span>
+        </div>`;
+      }).join('')}
+      </div>
+    </div>`:''}`;
     return;
   }
 
