@@ -74,6 +74,9 @@ try {
   }
 } catch(e) { console.warn('[Migración] pagos.asignacion_id:', e.message); }
 
+try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
+try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
@@ -5890,31 +5893,35 @@ app.post('/pub/alumno/completar', (req, res) => {
 });
 
 app.post('/pub/solicitud-registro', (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id, curso_id } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id, curso_id, alumno_id, tipo } = req.body;
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
   const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-  // Verificar duplicado por CI en alumnos
-  if (ci) {
-    const ciNorm = String(ci).replace(/[^0-9]/g,'');
-    if (ciNorm) {
-      const existCI = db.prepare(`SELECT a.apellido,a.nombre,c.nombre as carrera,cu.anio FROM alumnos a JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.ci=?`).get(ciNorm);
-      if (existCI) {
-        const detalle = `${existCI.apellido}, ${existCI.nombre} — ${existCI.carrera}${existCI.anio?' · '+existCI.anio+'° año':''}`;
-        return res.status(409).json({ error:`Ya existe un alumno registrado con esa cédula: ${detalle}`, duplicate:true });
+  const esCambioCarrera = tipo === 'cambio_carrera' && alumno_id;
+
+  if (!esCambioCarrera) {
+    // Verificar duplicado por CI en alumnos
+    if (ci) {
+      const ciNorm = String(ci).replace(/[^0-9]/g,'');
+      if (ciNorm) {
+        const existCI = db.prepare(`SELECT a.apellido,a.nombre,c.nombre as carrera,cu.anio FROM alumnos a JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.ci=?`).get(ciNorm);
+        if (existCI) {
+          const detalle = `${existCI.apellido}, ${existCI.nombre} — ${existCI.carrera}${existCI.anio?' · '+existCI.anio+'° año':''}`;
+          return res.status(409).json({ error:`Ya existe un alumno registrado con esa cédula: ${detalle}`, duplicate:true });
+        }
       }
     }
+    // Verificar duplicado por nombre+apellido en la misma carrera
+    const existNombre = db.prepare(`SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? AND carrera_id=? LIMIT 1`).get(normStr(nombre), normStr(apellido), carrera_id);
+    if (existNombre) return res.status(409).json({ error:`Ya existe un alumno con ese nombre en esta carrera. Si ya estás registrado/a, buscá tu nombre en la lista principal.`, duplicate:true });
   }
-  // Verificar duplicado por nombre+apellido en la misma carrera
-  const existNombre = db.prepare(`SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? AND carrera_id=? LIMIT 1`).get(normStr(nombre), normStr(apellido), carrera_id);
-  if (existNombre) return res.status(409).json({ error:`Ya existe un alumno con ese nombre en esta carrera. Si ya estás registrado/a, buscá tu nombre en la lista principal.`, duplicate:true });
   // Verificar solicitud pendiente duplicada
   const existSol = db.prepare(`SELECT id FROM solicitudes_registro WHERE carrera_id=? AND estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=? AND lower(apellido)=?)) LIMIT 1`).get(carrera_id, ci||'__', normStr(nombre), normStr(apellido));
   if (existSol) return res.status(409).json({ error:`Ya enviaste una solicitud para esta carrera. El director la revisará pronto.`, duplicate:true });
   const id = 'sreg_'+Date.now();
-  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id) VALUES (?,?,?,?,?,?,?)')
-    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id, curso_id||null);
+  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id, curso_id||null, alumno_id||null, tipo||'nuevo');
   res.json({ id, ok: true });
 });
 
@@ -5936,7 +5943,7 @@ app.get('/api/qr-cambios', auth(ADM), (req, res) => {
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT sr.*, c.nombre as carrera_nombre,
+      SELECT sr.*, sr.tipo, sr.alumno_id, c.nombre as carrera_nombre,
         cu.anio as curso_anio, cu.division as curso_division
       FROM solicitudes_registro sr
       JOIN carreras c ON sr.carrera_id=c.id
@@ -5952,6 +5959,29 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
   const sol = db.prepare('SELECT * FROM solicitudes_registro WHERE id=?').get(req.params.id);
   if (!sol) return res.status(404).json({ error: 'Solicitud no encontrada' });
   if (accion === 'aprobar') {
+      // Shortcut: cambio de carrera — solo mover al alumno existente
+      if (sol.tipo === 'cambio_carrera' && sol.alumno_id) {
+        try {
+          const updFields = ['carrera_id=?']; const updVals = [sol.carrera_id];
+          if (sol.curso_id) { updFields.push('curso_id=?'); updVals.push(sol.curso_id); }
+          updFields.push("estado='Activo'");
+          updVals.push(sol.alumno_id);
+          db.prepare(`UPDATE alumnos SET ${updFields.join(',')} WHERE id=?`).run(...updVals);
+          if (sol.curso_id) {
+            const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+            if (periodo) {
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(sol.curso_id, periodo.id);
+              asigs.forEach((asig, i) => {
+                db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)')
+                  .run('n_cc_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5), sol.alumno_id, asig.id, 'Pendiente');
+              });
+            }
+          }
+          db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
+          audit(req.user.id,'APROBAR_CAMBIO_CARRERA','solicitudes_registro',req.params.id,{alumno_id:sol.alumno_id,carrera_id:sol.carrera_id});
+          return res.json({ ok: true, tipo: 'cambio_carrera' });
+        } catch(e) { return res.status(500).json({ error: e.message }); }
+      }
     try {
       db.transaction(() => {
         const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
@@ -6031,7 +6061,9 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
 // ── BÚSQUEDA GLOBAL DE ALUMNOS (para registro QR) ────────────────────────────
 app.get('/pub/buscar-alumno', (req, res) => {
   const { q, carrera_id, curso_id } = req.query;
-  if (!q || q.trim().length < 2) return res.json([]);
+  const ciParam = String(req.query.ci||'').replace(/[^0-9]/g,'');
+  const qTrim = (q||'').trim();
+  if (qTrim.length < 2 && ciParam.length < 4) return res.json([]);
 
   // Normalización segura con escape Unicode explícito (evita corrupción CRLF)
   const norm = s => (s||'').toLowerCase()
@@ -6041,9 +6073,8 @@ app.get('/pub/buscar-alumno', (req, res) => {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const qNorm   = norm(q.trim());
+  const qNorm   = norm(qTrim);
   const palabras = qNorm.split(' ').filter(p => p.length >= 2);
-  if (!palabras.length) return res.json([]);
 
   try {
     // JOIN con usuarios para capturar nombres que solo están en esa tabla
@@ -6068,12 +6099,17 @@ app.get('/pub/buscar-alumno', (req, res) => {
       const ape = norm(a.apellido);
       // Partes individuales del nombre completo (para matching por inicio de palabra)
       const partes = (ape + ' ' + nom).split(' ').filter(Boolean);
-      const ci = String(a.ci||'').replace(/[^0-9]/g,'');
+      const aCi = String(a.ci||'').replace(/[^0-9]/g,'');
 
-      // Búsqueda por CI (mínimo 4 dígitos)
-      const qCI = q.trim().replace(/[^0-9]/g,'');
-      if (qCI.length >= 4 && ci && ci.includes(qCI)) return true;
+      // CI filter (if ci param provided, must match)
+      if (ciParam.length >= 4) {
+        if (!aCi || !aCi.includes(ciParam)) return false;
+        // If no name query, CI alone is enough
+        if (!palabras.length) return true;
+      }
 
+      // Name filter
+      if (!palabras.length) return false;
       // Cada palabra buscada debe encontrarse al INICIO de alguna parte del nombre
       // Ej: "garc" → matchea "garcia" pero NO "angelica"
       return palabras.every(p => partes.some(parte => parte.startsWith(p)));
