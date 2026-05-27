@@ -1520,10 +1520,11 @@ app.get('/api/examenes', auth(), (req, res) => {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
   }
-  // Alumno: solo ve exámenes de su propia carrera
+  // Alumno: solo ve exámenes de su propia carrera Y su propio año/curso
   if (req.user.rol === 'alumno') {
-    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
     if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
+    if (al?.curso_id)   { where += ' AND cu.id=?';  params.push(al.curso_id); }
   }
   try {
     res.json(db.prepare(`
@@ -4024,6 +4025,44 @@ app.delete('/api/admin/auditoria', auth(ADM), (req, res) => {
   res.json({ ok: true, eliminados: result.changes });
 });
 
+// ── REPARAR NOTAS FALTANTES (alumnos con curso pero sin notas) ───────────────
+app.post('/api/admin/reparar-notas', auth(ADM), (req, res) => {
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) return res.status(400).json({ error: 'No hay periodo activo' });
+
+  const alumnos = db.prepare(`
+    SELECT al.id, al.curso_id,
+      COALESCE(al.nombre,u.nombre) as nombre,
+      COALESCE(al.apellido,u.apellido) as apellido
+    FROM alumnos al
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    WHERE al.curso_id IS NOT NULL AND al.estado='Activo'
+  `).all();
+
+  let reparados = 0, notasCreadas = 0;
+  db.transaction(() => {
+    alumnos.forEach(al => {
+      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(al.curso_id, periodo.id);
+      let creoPara = 0;
+      asigs.forEach((asig, i) => {
+        const existe = db.prepare('SELECT id FROM notas WHERE alumno_id=? AND asignacion_id=?').get(al.id, asig.id);
+        if (!existe) {
+          try {
+            db.prepare('INSERT INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)')
+              .run('n_rep_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5), al.id, asig.id, 'Pendiente');
+            creoPara++;
+            notasCreadas++;
+          } catch(e) {}
+        }
+      });
+      if (creoPara > 0) reparados++;
+    });
+  })();
+
+  audit(req.user.id, 'REPARAR_NOTAS', 'notas', 'bulk', { alumnos_reparados: reparados, notas_creadas: notasCreadas });
+  res.json({ ok: true, alumnos_reparados: reparados, notas_creadas: notasCreadas });
+});
+
 // ── DIAGNÓSTICO COMPLETO DEL SISTEMA ────────────────────────────────────────
 app.get('/api/admin/diagnostico', auth(ADM), (req, res) => {
   const problemas = [];
@@ -4586,6 +4625,23 @@ cron.schedule('0 7 * * *', async () => {
 // ── CRON: Recordatorio horario — carga pendiente ≤7h antes del examen ─────────
 // Corre cada hora. Si el examen es hoy, en ≤7h, sin archivo → manda recordatorio.
 // Sigue enviando hora a hora hasta que el docente cargue el archivo.
+// Watchdog WhatsApp: reconecta automáticamente si se cae
+cron.schedule('*/15 * * * *', async () => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return;
+  try {
+    const r = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+    const d = await r.json().catch(() => ({}));
+    const state = d?.instance?.state || d?.state || '';
+    if (state && state !== 'open') {
+      console.log('[WA] Watchdog: estado', state, '— reconectando...');
+      await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
+    }
+  } catch(e) { /* silencioso */ }
+});
+
 cron.schedule('0 * * * *', async () => {
   if (!enHoraPermitida()) return;
   const reglaUrg = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_urgente_activa'").get();
@@ -5800,16 +5856,17 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
       db.transaction(() => {
         const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
         const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-        const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
-        const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(sol.carrera_id).n;
-        const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
-        const existPorCi = ciRaw ? db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw) : null;
-        const existPorNombre = !existPorCi ? db.prepare("SELECT id FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
+
+        // ── 1. Encontrar o crear usuario ────────────────────────────────────
+        const existPorCi = ciRaw ? db.prepare('SELECT id, rol FROM usuarios WHERE ci=?').get(ciRaw) : null;
+        const existPorNombre = !existPorCi ? db.prepare("SELECT id, rol FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
         let finalUid;
         if (existPorCi) {
           finalUid = existPorCi.id;
+          if (existPorCi.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
         } else if (existPorNombre) {
           finalUid = existPorNombre.id;
+          if (existPorNombre.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
         } else {
           let emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'@its.edu.py';
           if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
@@ -5818,19 +5875,38 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
           db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
             .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw.slice(-3)||'123',10), 'alumno');
         }
+
+        // ── 2. Encontrar o crear alumno, siempre sincronizar datos ─────────
         const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
-        const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
+        let aid;
         if (!yaAlumno) {
+          const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
+          const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(sol.carrera_id).n;
+          const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+          aid = 'a_'+Date.now();
           db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
             .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
-          if (sol.curso_id) {
-            const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-            if (periodo) {
-              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(sol.curso_id, periodo.id);
-              asigs.forEach(asig => {
-                try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {}
-              });
-            }
+        } else {
+          aid = yaAlumno.id;
+          // Sincronizar: carrera, curso, estado, datos personales — igual que un alumno nuevo
+          const upd = ['carrera_id=?', 'estado=\'Activo\'', 'nombre=?', 'apellido=?'];
+          const upv = [sol.carrera_id, sol.nombre, sol.apellido];
+          if (sol.curso_id) { upd.push('curso_id=?'); upv.push(sol.curso_id); }
+          if (ciRaw)        { upd.push('ci=?');       upv.push(ciRaw); }
+          if (sol.telefono) { upd.push('telefono=?');  upv.push(sol.telefono); }
+          upv.push(aid);
+          db.prepare(`UPDATE alumnos SET ${upd.join(',')} WHERE id=?`).run(...upv);
+        }
+
+        // ── 3. Crear notas para todas las asignaciones del periodo activo ──
+        const cursoId = sol.curso_id;
+        if (cursoId) {
+          const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+          if (periodo) {
+            const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(cursoId, periodo.id);
+            asigs.forEach((asig, i) => {
+              try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_qr_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {}
+            });
           }
         }
         db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
@@ -5875,4 +5951,26 @@ try {
   }
 } catch(e) { console.error('Aranceles seed error:', e.message); }
 
-app.listen(PORT, () => { console.log(`✓ ITS v4 en http://localhost:${PORT}`); });
+app.listen(PORT, () => {
+  console.log(`✓ ITS v4 en http://localhost:${PORT}`);
+  // Auto-reconectar WhatsApp al arranque si estaba conectado previamente
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (EVO_URL && EVO_KEY && EVO_INSTANCE) {
+    setTimeout(async () => {
+      try {
+        const r = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+        const d = await r.json().catch(() => ({}));
+        const state = d?.instance?.state || d?.state || '';
+        if (state !== 'open') {
+          console.log('[WA] Estado al arranque:', state, '— intentando reconectar...');
+          await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
+          console.log('[WA] Reconexión iniciada.');
+        } else {
+          console.log('[WA] ✅ WhatsApp conectado al arranque.');
+        }
+      } catch(e) { console.warn('[WA] Auto-reconectar falló:', e.message); }
+    }, 5000);
+  }
+});
