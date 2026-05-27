@@ -1855,10 +1855,16 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
   if (desde) { where += ' AND e.fecha>=?'; params.push(desde); }
   if (hasta) { where += ' AND e.fecha<=?'; params.push(hasta); }
   if (docente_id) { where += ' AND a.docente_id=?'; params.push(docente_id); }
-  // Alumno: solo ve exámenes de su carrera
+  // Alumno: solo ve exámenes de su carrera Y su propio año/curso
   if (req.user.rol === 'alumno') {
-    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+    const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
     if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
+    if (al?.curso_id)   { where += ' AND cu.id=?';  params.push(al.curso_id); }
+  }
+  // Docente: forzar filtro por sus propias asignaciones (seguridad server-side)
+  if (req.user.rol === 'docente' && !docente_id) {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
   }
   res.json(db.prepare(`
     SELECT e.*,
@@ -2309,6 +2315,11 @@ app.get('/api/examenes/:id', auth(), (req, res) => {
     if (req.user.rol === 'docente') {
       const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
       if (doc && e.docente_id !== doc.id) return res.status(403).json({ error: 'Sin acceso' });
+    }
+    if (req.user.rol === 'alumno') {
+      const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+      if ((al?.carrera_id && e.carrera_id !== al.carrera_id) || (al?.curso_id && e.curso_id !== al.curso_id))
+        return res.status(403).json({ error: 'Sin acceso' });
     }
     res.json(e);
   } catch(err) { res.status(500).json({ error: err.message }); }
