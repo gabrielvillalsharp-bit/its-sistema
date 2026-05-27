@@ -492,7 +492,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
         if (usuExiste) {
           userId = usuExiste.id;
         } else {
-          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw,10),'alumno');
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw.slice(-3)||'123',10),'alumno');
           userId = uid;
         }
       }
@@ -592,13 +592,13 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
         // Crear usuario nuevo
         const uid = 'u_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
         db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
-          .run(uid, al.nombre, al.apellido, ciRaw, emailFinal, bcrypt.hashSync(ciRaw, 10), 'alumno');
+          .run(uid, al.nombre, al.apellido, ciRaw, emailFinal, bcrypt.hashSync(ciRaw.slice(-3)||'123', 10), 'alumno');
         db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(uid, al.id);
         creados++;
       } else {
         // Actualizar contraseña al CI actual (por si cambió)
         db.prepare('UPDATE usuarios SET email=?,password_hash=?,ci=? WHERE id=?')
-          .run(emailFinal, bcrypt.hashSync(ciRaw, 10), ciRaw, al.usuario_id);
+          .run(emailFinal, bcrypt.hashSync(ciRaw.slice(-3)||'123', 10), ciRaw, al.usuario_id);
         actualizados++;
       }
     } catch(e) { errores.push(al.nombre+': '+e.message); }
@@ -803,7 +803,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
             if (!existente.usuario_id) {
               const uid2='u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
               try{
-                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid2,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw,10),'alumno');
+                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid2,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw.slice(-3)||'123',10),'alumno');
                 db.prepare('UPDATE alumnos SET usuario_id=? WHERE ci=?').run(uid2,ciRaw);
               }catch{}
             }
@@ -818,7 +818,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
             if (!usuExiste) {
               uid = 'u_e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
               try {
-                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(ciRaw, 10), 'alumno');
+                db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid, nombre, apellido, ciRaw, emailAuto, bcrypt.hashSync(ciRaw.slice(-3)||'123', 10), 'alumno');
               } catch { uid = null; }
             } else { uid = usuExiste.id; }
             db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, uid, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', ciRaw, nombre, apellido);
@@ -856,7 +856,7 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
     const uid='u_acc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
     try{
       db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
-        .run(uid,al.nombre,al.apellido,ciRaw,email,bcrypt.hashSync(ciRaw,10),'alumno');
+        .run(uid,al.nombre,al.apellido,ciRaw,email,bcrypt.hashSync(ciRaw.slice(-3)||'123',10),'alumno');
       db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(uid,al.id);
       creados++;
     }catch(e){errores.push(al.nombre+': '+e.message);}
@@ -5225,7 +5225,7 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
           if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
             emailFinal = normNombre+'.'+normApellido+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
           finalUid = 'u_a_'+Date.now();
-          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(finalUid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123',10),'alumno');
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(finalUid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw.slice(-3)||'123',10),'alumno');
         }
         const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
         const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
@@ -5727,7 +5727,7 @@ app.post('/pub/alumno/completar', (req, res) => {
     const ciActual = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
     const nombreCompleto = (nombre||alumno.nombre||'')+(apellido||alumno.apellido?(' '+(apellido||alumno.apellido)):'');
     if (telefonoFinal && alumnoActual?.email) {
-      enviarBienvenidaQR(telefonoFinal, nombreCompleto.trim(), alumnoActual.email, ciActual);
+      enviarBienvenidaQR(telefonoFinal, nombreCompleto.trim(), alumnoActual.email, ciActual.slice(-3));
     }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -5816,13 +5816,22 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
             emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
           finalUid = 'u_a_'+Date.now();
           db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
-            .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
+            .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw.slice(-3)||'123',10), 'alumno');
         }
         const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
         const aid = yaAlumno ? yaAlumno.id : 'a_'+Date.now();
         if (!yaAlumno) {
-          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?)')
-            .run(aid, finalUid, matricula, sol.carrera_id, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+            .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+          if (sol.curso_id) {
+            const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+            if (periodo) {
+              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(sol.curso_id, periodo.id);
+              asigs.forEach(asig => {
+                try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {}
+              });
+            }
+          }
         }
         db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
       })();
@@ -5833,7 +5842,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
           .get(String(sol.ci||'').replace(/[^0-9]/g,''), sol.nombre, sol.apellido);
         const ciNum = String(sol.ci||'').replace(/[^0-9]/g,'');
         const nombreCompleto = (sol.nombre||'')+' '+(sol.apellido||'');
-        enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
+        enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum.slice(-3));
       }
     } catch(e) { return res.status(500).json({ error: e.message }); }
   } else {

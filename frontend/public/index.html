@@ -676,12 +676,12 @@ body.mob-alumno .ct{padding-bottom:68px}
     <h1>Instituto Técnico Superior</h1>
     <p>Santísima Trinidad — Sistema Académico</p>
   </div>
-  <div class="f"><label>Email o C.I.</label><input id="lem" placeholder="Ej: 1234567 o director@its.edu.py" onkeydown="if(event.key==='Enter')document.getElementById('lps').focus()"/></div>
+  <div class="f"><label>Email o C.I.</label><input id="lem" placeholder="Ej: 1234567 o director@its.edu.py" onkeydown="if(event.key==='Enter')document.getElementById('lps').focus()" autocapitalize="none" autocorrect="off" spellcheck="false"/></div>
   <div class="f"><label>Contraseña</label><input id="lps" type="password" placeholder="Tu número de cédula" onkeydown="if(event.key==='Enter')doLogin()"/></div>
   <button class="bp" onclick="doLogin()">Ingresar al sistema</button>
   <div id="le" style="font-size:12px;color:#b91c1c;margin-top:6px;padding:8px;background:#fff3f3;border-radius:6px;display:none">Email/CI o contraseña incorrectos</div>
   <div style="font-size:11px;color:#888;margin-top:8px;text-align:center">
-    Alumnos: ingresá con tu N° de cédula como usuario y contraseña
+    Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula
   </div>
 </div>
 </div>
@@ -6289,7 +6289,8 @@ async function resolverRegistroQr(id, accion){
     await api('PUT','/api/solicitudes-registro/'+id+'/resolver',{accion:'aprobar'});
     toast('✅ Alumno incorporado correctamente','ok');
   }
-  go('solicitudes');
+  await go('solicitudes');
+  setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},150);
 }
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
