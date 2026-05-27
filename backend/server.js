@@ -1897,7 +1897,7 @@ app.get('/api/avisos', auth(), (req, res) => {
   } else if (rol === 'docente') {
     // Docente SOLO ve: sus propios avisos + avisos del director
     // NUNCA ve avisos de otros docentes
-    whereDestino = `AND (av.usuario_id='${uid}' OR u.rol='director')`;
+    whereDestino = `AND (av.usuario_id='${uid}' OR (u.rol='director' AND av.destinatario IN ('todos','docentes')))`;
   }
   // director ve todos
   res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido,u.rol as autor_rol
@@ -5937,6 +5937,53 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
     audit(req.user.id,'RECHAZAR_REGISTRO','solicitudes_registro',req.params.id,{motivo});
   }
   res.json({ ok: true });
+});
+
+// ── BÚSQUEDA GLOBAL DE ALUMNOS (para registro QR) ────────────────────────────
+app.get('/pub/buscar-alumno', (req, res) => {
+  const { q, carrera_id, curso_id } = req.query;
+  if (!q || q.trim().length < 2) return res.json([]);
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,'');
+  const qNorm = norm(q.trim());
+  const palabras = qNorm.split(/\s+/).filter(p => p.length >= 2);
+  try {
+    const todos = db.prepare(`
+      SELECT al.id, al.nombre, al.apellido, al.ci, al.telefono, al.curso_id, al.carrera_id, al.estado,
+        c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+      FROM alumnos al
+      LEFT JOIN carreras c ON al.carrera_id=c.id
+      LEFT JOIN cursos cu ON al.curso_id=cu.id
+      WHERE al.estado='Activo'
+      ORDER BY al.apellido, al.nombre
+    `).all();
+    const filtrados = todos.filter(a => {
+      const full1 = norm((a.nombre||'')+' '+(a.apellido||''));
+      const full2 = norm((a.apellido||'')+' '+(a.nombre||''));
+      const ci = String(a.ci||'').replace(/[^0-9]/g,'');
+      if (full1.includes(qNorm) || full2.includes(qNorm)) return true;
+      if (palabras.length >= 2 && palabras.every(p => full1.includes(p))) return true;
+      if (ci && ci.includes(q.trim().replace(/[^0-9]/g,''))) return true;
+      return false;
+    }).slice(0, 15);
+    const resultado = filtrados.map(a => {
+      const mismaCarrera = carrera_id && a.carrera_id === carrera_id;
+      const mismoCurso   = curso_id   && a.curso_id   === curso_id;
+      let match_tipo;
+      if (!a.carrera_id) {
+        match_tipo = 'sin_asignar';
+      } else if (mismaCarrera && mismoCurso) {
+        match_tipo = 'perfecto';
+      } else if (mismaCarrera && !a.curso_id) {
+        match_tipo = 'misma_carrera_sin_curso';
+      } else if (mismaCarrera) {
+        match_tipo = 'misma_carrera_otro_curso';
+      } else {
+        match_tipo = 'otra_carrera';
+      }
+      return { ...a, match_tipo };
+    });
+    res.json(resultado);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));

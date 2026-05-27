@@ -123,14 +123,15 @@ const params = new URLSearchParams(location.search);
 const carreraId = params.get('c');
 let carrera = null;
 let cursos = [];
-let alumnos = [];
 let cursoSeleccionado = null;
 let alumnoSeleccionado = null;
+let _searchTimer = null;
+let _resultados = [];
 
 async function apiFetch(method, url, body) {
   const res = await fetch(url, {
     method,
-    headers:{'Content-Type':'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json();
@@ -149,10 +150,9 @@ async function init() {
     return;
   }
   try {
-    [carrera, cursos, alumnos] = await Promise.all([
-      apiFetch('GET', '/pub/carrera/'+carreraId),
-      apiFetch('GET', '/pub/carrera/'+carreraId+'/cursos'),
-      apiFetch('GET', '/pub/carrera/'+carreraId+'/alumnos')
+    [carrera, cursos] = await Promise.all([
+      apiFetch('GET', '/pub/carrera/' + carreraId),
+      apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
     ]);
     renderStep0();
   } catch(e) {
@@ -181,161 +181,208 @@ function labelCurso(c) {
 // PASO 0: Seleccionar año/sección
 function renderStep0() {
   const app = document.getElementById('app');
-  if (cursos.length === 0) {
-    cursoSeleccionado = null;
-    renderStep1();
-    return;
-  }
-  if (cursos.length === 1) {
-    cursoSeleccionado = cursos[0];
-    renderStep1();
-    return;
-  }
+  if (cursos.length === 0) { cursoSeleccionado = null; renderStep1(); return; }
+  if (cursos.length === 1) { cursoSeleccionado = cursos[0]; renderStep1(); return; }
   app.innerHTML = renderHeader() + renderSteps(0, 3) + `
   <div class="card">
     <h2>📚 ¿A qué año y sección pertenecés?</h2>
-    <div class="hint">
-      <span class="hint-icon">👇</span>
-      <span>Tocá el cuadro que corresponde a tu año y sección</span>
-    </div>
+    <div class="hint"><span class="hint-icon">👇</span><span>Tocá el cuadro que corresponde a tu año y sección</span></div>
     <div class="curso-grid">
-      ${cursos.map((c, idx) => {
-        const alumnosCurso = alumnos.filter(a => a.curso_id === c.id).length;
-        const div = c.division && c.division !== 'U' ? c.division : null;
-        return `<div class="curso-card" onclick="seleccionarCurso(${idx})">
-          <div class="anio">${c.anio}°</div>
-          <div class="label">año</div>
-          ${div ? `<div class="seccion">Sección ${div}</div>` : '<div class="seccion">Único</div>'}
-          <div class="cnt">${alumnosCurso} alumnos</div>
-          <span class="curso-card-tap">›</span>
-        </div>`;
-      }).join('')}
+      ${cursos.map(c => `
+        <div class="curso-card" onclick="seleccionarCurso('${c.id}')">
+          <div class="anio">${c.anio}</div>
+          <div class="label">${c.division !== 'U' ? 'Sección ' + c.division : 'Año'}</div>
+          ${c.turno ? `<div class="seccion">${c.turno}</div>` : ''}
+          <div class="curso-card-tap">👆</div>
+        </div>
+      `).join('')}
     </div>
   </div>`;
 }
 
-function seleccionarCurso(idx) {
-  cursoSeleccionado = cursos[idx] || null;
+function seleccionarCurso(id) {
+  cursoSeleccionado = cursos.find(c => c.id === id) || null;
   renderStep1();
 }
 
-// PASO 1: Buscar nombre
+// PASO 1: Buscar nombre en toda la BD
 function renderStep1() {
   const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
-  const app = document.getElementById('app');
   const stepNum = cursos.length > 1 ? 1 : 0;
   const totalSteps = cursos.length > 1 ? 3 : 2;
-  const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
-  app.innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
+  document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
   <div class="card">
     ${cursos.length > 1 ? `<button class="back-btn" onclick="renderStep0()">← Cambiar año/sección</button>` : ''}
     <h2>🔍 ¿Estás en la lista?</h2>
-
     <div class="steps-guide">
       <div class="step-guide active-step">
         <div class="step-num">1</div>
-        <div class="step-txt">
-          <strong>✏️ Escribí tu nombre o apellido abajo</strong>
-          <span>Tu nombre aparecerá en la pantalla automáticamente</span>
-        </div>
+        <div class="step-txt"><strong>✏️ Escribí tu nombre o apellido abajo</strong><span>El sistema te buscará en toda la base de datos</span></div>
       </div>
       <div class="step-guide inactive">
         <div class="step-num">2</div>
-        <div class="step-txt">
-          <strong>👆 Tocá tu nombre cuando aparezca</strong>
-          <span>Solo si ves tu nombre, tocalo para continuar</span>
-        </div>
+        <div class="step-txt"><strong>👆 Tocá tu nombre cuando aparezca</strong><span>Si está en verde, todo listo</span></div>
       </div>
       <div class="step-guide inactive">
         <div class="step-num">3</div>
-        <div class="step-txt">
-          <strong>❌ ¿No aparece tu nombre? Recién ahí pedí registro</strong>
-          <span>El botón aparecerá solo si no te encontramos</span>
-        </div>
+        <div class="step-txt"><strong>❌ ¿No aparece? Recién ahí pedí registro</strong><span>Solo si el sistema no te encontró</span></div>
       </div>
     </div>
-
     <div class="arrow-down">↓</div>
-
     <div class="field">
-      <label style="font-size:14px;font-weight:900;color:#166534;text-transform:none;letter-spacing:0">👉 Escribí acá tu nombre o apellido</label>
-      <input id="busqueda" placeholder="Ej: García   o   María..." oninput="filtrarAlumnos()" autocomplete="off" autofocus
-        style="font-size:17px;padding:14px 16px;border:2.5px solid #166534;box-shadow:0 0 0 4px rgba(22,101,52,.12)"/>
-      <p style="font-size:11px;color:#6b7280;margin-top:6px;text-align:center">Con solo 2 letras ya aparecen los resultados · ${pool.length} alumno${pool.length!==1?'s':''} en la lista</p>
+      <label>👉 Escribí acá tu nombre o apellido</label>
+      <input id="busqueda" type="text" placeholder="Ej: García, Juan García, 4512345..."
+        autocapitalize="words" autocomplete="off" spellcheck="false"
+        oninput="debounceBuscar()" style="border:2.5px solid #166634;box-shadow:0 0 0 4px rgba(22,101,52,.12);font-size:16px"/>
     </div>
-
-    <div id="lista-alumnos">
-      <div class="empty"><span class="empty-icon">👆</span><span style="font-size:14px;font-weight:700;color:#374151">Empezá a escribir tu nombre arriba</span></div>
-    </div>
-
-    <div class="no-encontrado" id="no-encontrado-box">
-      <p style="font-size:15px">😕 Tu nombre no aparece en la lista</p>
-      <p style="font-size:12px;color:#92400e;margin-bottom:14px">Antes de continuar, asegurate de haber escrito bien tu nombre o apellido.</p>
-      <button class="btn btn-primary" style="background:linear-gradient(160deg,#d97706,#b45309);box-shadow:0 4px 14px rgba(180,83,9,.35)" onclick="renderFormNuevo()">
-        📝 Colocar mi nombre en la lista
-      </button>
-      <p style="font-size:11px;color:#92400e;margin-top:10px">El director revisará tu solicitud y te incorporará</p>
+    <div id="lista-resultados">
+      <div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras para buscar</span></div>
     </div>
   </div>`;
+  setTimeout(() => document.getElementById('busqueda')?.focus(), 100);
 }
 
-let _resultados = [];
+function debounceBuscar() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(buscarAlumno, 400);
+}
 
-function filtrarAlumnos() {
-  const q = document.getElementById('busqueda').value.toLowerCase().trim();
-  const lista = document.getElementById('lista-alumnos');
-  const noEncontrado = document.getElementById('no-encontrado-box');
+async function buscarAlumno() {
+  const q = document.getElementById('busqueda')?.value.trim() || '';
+  const lista = document.getElementById('lista-resultados');
+  if (!lista) return;
+  if (q.length < 2) {
+    lista.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras para buscar</span></div>';
+    document.getElementById('no-encontrado-box') && (document.getElementById('no-encontrado-box').style.display = 'none');
+    return;
+  }
+  lista.innerHTML = '<div class="loading"><div class="spinner"></div> Buscando...</div>';
+  try {
+    const cursoId = cursoSeleccionado?.id || '';
+    const resultados = await apiFetch('GET', `/pub/buscar-alumno?q=${encodeURIComponent(q)}&carrera_id=${carreraId}&curso_id=${cursoId}`);
+    _resultados = resultados;
+    renderResultados(resultados, q);
+  } catch(e) {
+    lista.innerHTML = `<div class="alert alert-err">❌ Error al buscar: ${e.message}</div>`;
+  }
+}
 
-  // Ocultar botón de solicitud mientras se escribe
-  if (noEncontrado) noEncontrado.style.display = 'none';
+function renderResultados(resultados, q) {
+  const lista = document.getElementById('lista-resultados');
+  if (!lista) return;
 
-  if (!q || q.length < 2) {
-    lista.innerHTML = '<div class="empty"><span class="empty-icon">👆</span><span style="font-size:14px;font-weight:700;color:#374151">Seguí escribiendo tu nombre...</span></div>';
+  if (!resultados.length) {
+    lista.innerHTML = `
+      <div style="border:2px dashed #fbbf24;border-radius:14px;padding:20px;text-align:center;background:#fffbeb;margin-top:8px">
+        <div style="font-size:28px;margin-bottom:8px">🔎</div>
+        <div style="font-weight:800;font-size:14px;color:#92400e;margin-bottom:6px">No encontramos "<strong>${q}</strong>" en el sistema</div>
+        <div style="font-size:12px;color:#78350f;margin-bottom:14px">¿Seguro que escribiste bien tu nombre? Intentá solo con tu apellido.<br/>Si definitivamente no aparecés, pedí tu incorporación:</div>
+        <button class="btn btn-primary" style="max-width:280px;margin:0 auto" onclick="renderFormNuevo()">📝 Colocar mi nombre en la lista</button>
+      </div>`;
     return;
   }
 
-  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-  const qn = norm(q);
-  const pool = cursoSeleccionado ? alumnos.filter(a => a.curso_id === cursoSeleccionado.id) : alumnos;
-  const filtrados = pool.filter(a =>
-    norm((a.apellido||'')+' '+(a.nombre||'')).includes(qn) ||
-    norm((a.nombre||'')+' '+(a.apellido||'')).includes(qn)
-  );
+  // Agrupar por tipo
+  const perfectos     = resultados.filter(r => r.match_tipo === 'perfecto');
+  const sinCurso      = resultados.filter(r => r.match_tipo === 'misma_carrera_sin_curso');
+  const otroCurso     = resultados.filter(r => r.match_tipo === 'misma_carrera_otro_curso');
+  const otraCarrera   = resultados.filter(r => r.match_tipo === 'otra_carrera');
+  const sinAsignar    = resultados.filter(r => r.match_tipo === 'sin_asignar');
 
-  if (!filtrados.length) {
-    lista.innerHTML = '';
-    // Solo ahora mostrar el botón de solicitud
-    if (noEncontrado) noEncontrado.style.display = 'block';
-    return;
+  let html = '';
+
+  // ── Coincidencias perfectas (misma carrera + mismo curso)
+  if (perfectos.length) {
+    html += `<div style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Encontrado en tu curso</div>`;
+    html += perfectos.map((a, i) => itemAlumno(a, i, 'perfecto')).join('');
   }
 
-  // Ocultar botón si sí hay resultados
-  if (noEncontrado) noEncontrado.style.display = 'none';
+  // ── Misma carrera pero sin curso asignado
+  if (sinCurso.length) {
+    html += `<div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📋 En tu carrera — sin sección asignada aún</div>`;
+    html += sinCurso.map((a, i) => itemAlumno(a, perfectos.length + i, 'sin_curso')).join('');
+  }
 
-  _resultados = filtrados.slice(0, 15);
-  lista.innerHTML = `<div style="background:#f0fff4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-    <span style="font-size:20px">👆</span>
-    <div>
-      <strong style="font-size:13px;color:#166534">¿Sos vos? Tocá tu nombre para continuar</strong>
-      <div style="font-size:11px;color:#6b7280;margin-top:1px">${filtrados.length} resultado${filtrados.length!==1?'s':''} encontrado${filtrados.length!==1?'s':''}</div>
-    </div>
-  </div>`
-  + _resultados.map((a, idx) => {
-    const tieneCi = a.ci && a.ci.trim() !== '';
-    const tieneTel = a.telefono && a.telefono.trim() !== '';
-    const completo = tieneCi && tieneTel;
-    return `<div class="alumno-item ${!completo?'incompleto':''}" onclick="seleccionarAlumno(${idx})">
+  // ── Misma carrera pero otro año/curso
+  if (otroCurso.length) {
+    html += `<div style="font-size:11px;font-weight:800;color:#d97706;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">⚠️ En tu carrera — año diferente al seleccionado</div>`;
+    html += otroCurso.map((a, i) => itemAlumno(a, perfectos.length + sinCurso.length + i, 'otro_curso')).join('');
+  }
+
+  // ── Sin asignar (ninguna carrera)
+  if (sinAsignar.length) {
+    html += `<div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📂 Registrado sin carrera asignada</div>`;
+    html += sinAsignar.map((a, i) => itemAlumno(a, perfectos.length + sinCurso.length + otroCurso.length + i, 'sin_asignar')).join('');
+  }
+
+  // ── Otra carrera — NO se puede confirmar, solo avisar
+  if (otraCarrera.length) {
+    html += `<div style="font-size:11px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">🚨 Registrado en otra carrera</div>`;
+    html += otraCarrera.map(a => `
+      <div style="border:2px solid #fecaca;border-radius:14px;padding:14px 16px;margin-bottom:8px;background:#fef2f2">
+        <div style="font-weight:800;font-size:14px;color:#991b1b">${a.apellido}, ${a.nombre}</div>
+        <div style="font-size:12px;color:#7f1d1d;margin-top:4px">📚 Registrado en: <strong>${a.carrera_nombre}</strong>${a.curso_anio ? ' · ' + a.curso_anio + '° año' : ''}</div>
+        <div style="font-size:12px;color:#7f1d1d;margin-top:2px">CI: ${a.ci || '—'}</div>
+        <div style="margin-top:10px;padding:10px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
+          <div style="font-size:12px;color:#991b1b;font-weight:700">⚠️ Aparecés en <strong>${a.carrera_nombre}</strong>, no en ${carrera.nombre}.</div>
+          <div style="font-size:11px;color:#7f1d1d;margin-top:4px">Si querés cambiar de carrera, hablá directamente con el director del ITS. No podés hacer el cambio desde aquí.</div>
+        </div>
+      </div>`).join('');
+  }
+
+  // Si la única coincidencia es otra carrera (no puede hacer nada), agregar opción de solicitar
+  const puedeSolicitar = !perfectos.length && !sinCurso.length && !otroCurso.length && !sinAsignar.length;
+  if (puedeSolicitar && otraCarrera.length) {
+    html += `
+      <div style="border:2px dashed #e5e7eb;border-radius:12px;padding:16px;text-align:center;margin-top:12px;background:#f9fafb">
+        <div style="font-size:13px;color:#374151;margin-bottom:10px">¿Sos alumno nuevo de <strong>${carrera.nombre}</strong>?</div>
+        <button class="btn btn-primary" style="max-width:260px;margin:0 auto" onclick="renderFormNuevo()">📝 Colocar mi nombre en la lista</button>
+      </div>`;
+  }
+
+  lista.innerHTML = html;
+}
+
+function itemAlumno(a, idx, tipo) {
+  const tieneCI = !!a.ci;
+  const tieneTel = !!a.telefono;
+  const incompleto = !tieneCI || !tieneTel;
+
+  let borderColor = '#e2e8f0', bgColor = '#fff', tagHtml = '', nota = '';
+  if (tipo === 'perfecto') {
+    borderColor = '#86efac'; bgColor = '#f0fff4';
+    tagHtml = `<span class="tag tag-ok">✅ Tu curso</span>`;
+  } else if (tipo === 'sin_curso') {
+    borderColor = '#93c5fd'; bgColor = '#eff6ff';
+    tagHtml = `<span class="tag" style="background:#dbeafe;color:#1d4ed8">📋 Sin sección</span>`;
+    nota = `<div style="font-size:11px;color:#1d4ed8;margin-top:4px">Al confirmar te asignaremos a ${cursoSeleccionado ? labelCurso(cursoSeleccionado) : 'tu curso'}</div>`;
+  } else if (tipo === 'otro_curso') {
+    borderColor = '#fcd34d'; bgColor = '#fffbeb';
+    tagHtml = `<span class="tag tag-warn">⚠️ Año ${a.curso_anio || '?'}°</span>`;
+    nota = `<div style="font-size:11px;color:#92400e;margin-top:4px">Estás en ${a.curso_anio}° año — verificá con el director si es correcto</div>`;
+  } else if (tipo === 'sin_asignar') {
+    borderColor = '#c4b5fd'; bgColor = '#faf5ff';
+    tagHtml = `<span class="tag" style="background:#ede9fe;color:#7c3aed">📂 Sin carrera</span>`;
+    nota = `<div style="font-size:11px;color:#7c3aed;margin-top:4px">Al confirmar te asignaremos a ${carrera.nombre}${cursoSeleccionado ? ' · ' + labelCurso(cursoSeleccionado) : ''}</div>`;
+  }
+
+  return `
+    <div class="alumno-item ${incompleto ? 'incompleto' : ''}" style="border-color:${borderColor};background:${bgColor}"
+      onclick="seleccionarAlumno(${idx})">
       <div style="flex:1;min-width:0">
-        <div class="alumno-nombre">${a.apellido||''}, ${a.nombre||''}</div>
-        <div class="alumno-detalle">CI: ${tieneCi?a.ci:'—'} &nbsp;·&nbsp; Tel: ${tieneTel?a.telefono:'—'}</div>
-        ${!completo ? `<div class="alumno-cta">👉 Tocá para completar tus datos</div>` : `<div style="font-size:11px;color:#16a34a;margin-top:3px;font-weight:600">✓ Datos completos — tocá para actualizar</div>`}
+        <div class="alumno-nombre">${a.apellido}, ${a.nombre}</div>
+        <div class="alumno-detalle">
+          ${tieneCI ? 'CI: ' + a.ci : '<span style="color:#d97706">⚠ Sin cédula</span>'}
+          ${tieneTel ? ' · 📞 ' + a.telefono : ' · <span style="color:#d97706">Sin teléfono</span>'}
+        </div>
+        ${nota}
+        ${incompleto ? '<div class="alumno-cta">✏️ Completá tus datos →</div>' : ''}
       </div>
       <div class="alumno-right">
-        <span class="tag ${completo?'tag-ok':'tag-warn'}">${completo?'✓ Completo':'⚠ Incompleto'}</span>
+        ${tagHtml}
         <span class="chevron">›</span>
       </div>
     </div>`;
-  }).join('') + (filtrados.length > 15 ? `<div class="empty"><span>Mostrando 15 de ${filtrados.length} — Escribí más para afinar la búsqueda</span></div>` : '');
 }
 
 function seleccionarAlumno(idx) {
@@ -346,15 +393,37 @@ function seleccionarAlumno(idx) {
 // PASO 2A: Completar datos de alumno existente
 function renderFormCompletar(a) {
   const sinSeccion = !a.curso_id && cursoSeleccionado;
+  const esOtraCarrera = a.carrera_id && a.carrera_id !== carreraId;
   const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
   const totalSteps = cursos.length > 1 ? 3 : 2;
   const app = document.getElementById('app');
+
+  let avisoCarrera = '';
+  if (esOtraCarrera) {
+    avisoCarrera = `<div class="hint" style="background:#fef2f2;border-color:#fecaca">
+      <span class="hint-icon">🚨</span>
+      <div style="color:#991b1b"><strong>Estás en ${a.carrera_nombre}</strong><br/>
+      <span style="font-size:12px">Al guardar, tus datos se actualizarán pero tu carrera actual no cambia. Contactá al director para cambiar de carrera.</span></div>
+    </div>`;
+  } else if (a.curso_anio && cursoSeleccionado && a.curso_anio != cursoSeleccionado.anio) {
+    avisoCarrera = `<div class="hint">
+      <span class="hint-icon">⚠️</span>
+      <div style="color:#713f12"><strong>Estás registrado en ${a.curso_anio}° año</strong><br/>
+      <span style="font-size:12px">Si querés cambiar de año, contactá al director. Podés actualizar tus datos de contacto.</span></div>
+    </div>`;
+  } else if (sinSeccion) {
+    avisoCarrera = `<div class="hint" style="background:#eff6ff;border-color:#93c5fd">
+      <span class="hint-icon">📌</span>
+      <span style="color:#1e40af">Se te asignará a <strong>${subLabel}</strong> al guardar.</span>
+    </div>`;
+  }
+
   app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
   <div class="card">
-    <button class="back-btn" onclick="renderStep1()">← Volver a la lista</button>
+    <button class="back-btn" onclick="renderStep1()">← Volver a la búsqueda</button>
     <h2>✏️ Completá tus datos</h2>
-    <p style="font-size:13px;color:#718096;margin-bottom:16px">Podés corregir o agregar cualquier dato.</p>
-    ${sinSeccion ? `<div class="hint"><span class="hint-icon">📌</span><span>Se te asignará a <strong>${subLabel}</strong> al guardar.</span></div>` : ''}
+    <p style="font-size:13px;color:#718096;margin-bottom:14px">Corregí o agregá cualquier dato. Solo vos podés ver esta información.</p>
+    ${avisoCarrera}
     <div id="err-completar"></div>
     <div class="grid2">
       <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label>
@@ -368,7 +437,6 @@ function renderFormCompletar(a) {
     </div>
     <div class="field"><label>Teléfono <span style="color:#dc2626">*</span></label>
       <input id="inp-tel" type="tel" value="${(a.telefono||'').replace(/"/g,'&quot;')}" placeholder="Ej: 0981 123456" inputmode="tel"/>
-      ${a.telefono ? '<p style="font-size:11px;color:#6b7280;margin-top:4px">Podés corregirlo si hay un error</p>' : ''}
     </div>
     <button class="btn btn-primary" onclick="guardarDatos()">💾 Guardar mis datos</button>
     <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
@@ -376,11 +444,11 @@ function renderFormCompletar(a) {
 }
 
 async function guardarDatos() {
-  const nombre = document.getElementById('inp-nombre')?.value.trim() || '';
+  const nombre   = document.getElementById('inp-nombre')?.value.trim() || '';
   const apellido = document.getElementById('inp-apellido')?.value.trim() || '';
-  const ci = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
-  const tel = document.getElementById('inp-tel')?.value.trim() || '';
-  const err = document.getElementById('err-completar');
+  const ci       = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
+  const tel      = document.getElementById('inp-tel')?.value.trim() || '';
+  const err      = document.getElementById('err-completar');
   if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Nombre y apellido son obligatorios</div>'; return; }
   if (!ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
@@ -402,8 +470,7 @@ async function guardarDatos() {
 function renderFormNuevo() {
   const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
   const totalSteps = cursos.length > 1 ? 3 : 2;
-  const app = document.getElementById('app');
-  app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
+  document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
   <div class="card">
     <button class="back-btn" onclick="renderStep1()">← Volver a buscar mi nombre</button>
     <h2>📝 Colocar mi nombre en la lista</h2>
@@ -425,13 +492,13 @@ function renderFormNuevo() {
 }
 
 async function enviarSolicitud() {
-  const nombre = document.getElementById('inp-nombre').value.trim();
+  const nombre   = document.getElementById('inp-nombre').value.trim();
   const apellido = document.getElementById('inp-apellido').value.trim();
-  const ci = document.getElementById('inp-ci2').value.replace(/[^0-9]/g,'');
+  const ci       = document.getElementById('inp-ci2').value.replace(/[^0-9]/g,'');
   const telefono = document.getElementById('inp-tel2').value.trim();
-  const err = document.getElementById('err-nuevo');
+  const err      = document.getElementById('err-nuevo');
   if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Completá nombre y apellido</div>'; return; }
-  if (!ci) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de cédula</div>'; return; }
+  if (!ci)       { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de cédula</div>'; return; }
   if (!telefono) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de teléfono</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Enviando solicitud...</div>';
   try {
@@ -455,10 +522,8 @@ async function enviarSolicitud() {
   }
 }
 
-// PASO FINAL: Éxito
 function renderExito(tipo) {
-  const app = document.getElementById('app');
-  app.innerHTML = renderHeader() + `
+  document.getElementById('app').innerHTML = renderHeader() + `
   <div class="card">
     <div class="success-screen">
       <div class="success-icon">${tipo==='nuevo'?'📬':'✅'}</div>
