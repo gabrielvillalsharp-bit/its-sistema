@@ -2963,9 +2963,9 @@ async function doEliminarGrupo(){
 
 async function pgAlumnos(el){
   const [als,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  W._als=als;W._carrs=carrs;W._cursos=cursos;
+  W._als=als;W._carrs=carrs;W._cursos=cursos;W._alsPag=0;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Alumnos (${als.length})</h3>
+  el.innerHTML=`<div class="ph"><h3>Alumnos (<span id="alTotal">${als.length}</span>)</h3>
     <div class="ph-right">
       <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
       <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
@@ -2981,7 +2981,9 @@ async function pgAlumnos(el){
     <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
   </div>
   <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
-  <tbody id="altb">${als.map(aRow).join('')}</tbody></table></div></div>`;
+  <tbody id="altb"></tbody></table></div>
+  <div id="alsPagNav" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;font-size:13px"></div></div>`;
+  fAlAll();
 }
 function filtAlCursos(){
   const carrId=v('filtAlCarr');
@@ -2990,7 +2992,8 @@ function filtAlCursos(){
   const cursos=(W._cursos||[]).filter(cu=>!carrId||cu.carrera_id===carrId);
   sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}${cu.turno?' T'+cu.turno:''}</option>`).join('');
 }
-function fAlAll(){
+const _ALS_PAGE_SIZE=50;
+function fAlAll(pag){
   const bus=(v('filtAlBus')||'').toLowerCase().trim();
   const carrId=v('filtAlCarr');
   const anio=v('filtAlAnio');
@@ -3004,8 +3007,23 @@ function fAlAll(){
   if(anio)   l=l.filter(a=>String(a.curso_anio||a.anio)===anio);
   if(cursoId)l=l.filter(a=>a.curso_id===cursoId);
   if(turno){const ct=new Set((W._cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(a=>ct.has(a.curso_id));}
-  tb.innerHTML=l.map(aRow).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';
+  W._alsFiltrados=l;
+  if(pag===undefined) W._alsPag=0;
+  const p=W._alsPag||0;
+  const total=l.length;
+  const totalPags=Math.max(1,Math.ceil(total/_ALS_PAGE_SIZE));
+  const page=l.slice(p*_ALS_PAGE_SIZE,(p+1)*_ALS_PAGE_SIZE);
+  tb.innerHTML=page.map(aRow).join('')||'<tr><td colspan="7" class="es">Sin alumnos</td></tr>';
+  const tot=document.getElementById('alTotal');if(tot)tot.textContent=total;
+  const nav=document.getElementById('alsPagNav');
+  if(nav){
+    if(totalPags<=1){nav.innerHTML='';return;}
+    nav.innerHTML=`<button class="bs" onclick="alsIrPag(${p-1})" ${p===0?'disabled':''}>← Ant.</button>
+      <span style="color:#555">Página ${p+1} de ${totalPags} &nbsp;·&nbsp; ${total} alumnos</span>
+      <button class="bs" onclick="alsIrPag(${p+1})" ${p>=totalPags-1?'disabled':''}>Sig. →</button>`;
+  }
 }
+function alsIrPag(p){W._alsPag=p;fAlAll(p);}
 function fAl(t,val){if(t==='c'){const el=document.getElementById('filtAlCarr');if(el)el.value=val;}if(t==='cu'){const el=document.getElementById('filtAlCurso');if(el)el.value=val;}fAlAll();}
 async function exportarListaPDF(){
   const bus=(v('filtAlBus')||'').toLowerCase().trim();

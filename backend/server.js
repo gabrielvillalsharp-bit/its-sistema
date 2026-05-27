@@ -5699,6 +5699,11 @@ try {
     CREATE INDEX IF NOT EXISTS idx_asistencia_fecha_asig ON asistencia(fecha, asignacion_id);
     CREATE INDEX IF NOT EXISTS idx_pagos_alumno_periodo ON pagos(alumno_id, periodo_id);
     CREATE INDEX IF NOT EXISTS idx_honorarios_docente_fecha ON honorarios(docente_id, fecha);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_carrera ON alumnos(carrera_id);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_curso ON alumnos(curso_id);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_estado ON alumnos(estado);
+    CREATE INDEX IF NOT EXISTS idx_alumnos_apellido ON alumnos(apellido);
+    CREATE INDEX IF NOT EXISTS idx_usuarios_ci ON usuarios(ci);
   `);
 } catch {}
 
