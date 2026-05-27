@@ -9,8 +9,19 @@ const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
+
+// ── CACHE EN MEMORIA para datos estáticos (TTL 60s) ──────────────────────────
+const _cache = {};
+function cacheGet(key) {
+  const e = _cache[key];
+  if (e && Date.now() - e.ts < 60000) return e.data;
+  return null;
+}
+function cacheSet(key, data) { _cache[key] = { data, ts: Date.now() }; }
+function cacheInvalidate(...keys) { keys.forEach(k => delete _cache[k]); }
 
 
 const app = express();
@@ -48,6 +59,7 @@ const apiLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes. Esperá un momento.' },
 });
 
+app.use(compression());
 app.use(express.json());
 app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
@@ -235,35 +247,57 @@ app.get('/api/logo', (req, res) => {
   const inst = db.prepare('SELECT logo_base64 FROM institucion WHERE id=1').get();
   res.json({ logo: inst?.logo_base64 || null });
 });
-app.get('/api/institucion', auth(), (req, res) => res.json(db.prepare('SELECT * FROM institucion WHERE id=1').get()));
+app.get('/api/institucion', auth(), (req, res) => {
+  const cached = cacheGet('institucion');
+  if (cached) return res.json(cached);
+  const data = db.prepare('SELECT * FROM institucion WHERE id=1').get();
+  cacheSet('institucion', data);
+  res.json(data);
+});
 app.put('/api/institucion', auth(ADM), (req, res) => {
   const { nombre, telefono, email, direccion, mision } = req.body;
   db.prepare('UPDATE institucion SET nombre=?,telefono=?,email=?,direccion=?,mision=? WHERE id=1').run(nombre,telefono||'',email||'',direccion||'',mision||'');
+  cacheInvalidate('institucion');
   res.json({ ok: true });
 });
 app.post('/api/institucion/logo', auth(ADM), upload.single('logo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
   const b64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
   db.prepare('UPDATE institucion SET logo_base64=? WHERE id=1').run(b64);
+  cacheInvalidate('institucion');
   res.json({ ok: true, logo_base64: b64 });
 });
 
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────
-app.get('/api/periodos', auth(), (req, res) => res.json(db.prepare('SELECT * FROM periodos ORDER BY anio DESC').all()));
+app.get('/api/periodos', auth(), (req, res) => {
+  const cached = cacheGet('periodos');
+  if (cached) return res.json(cached);
+  const data = db.prepare('SELECT * FROM periodos ORDER BY anio DESC').all();
+  cacheSet('periodos', data);
+  res.json(data);
+});
 app.post('/api/periodos', auth(ADM), (req, res) => {
   const { nombre, anio, semestre, fecha_inicio, fecha_fin } = req.body;
   const id = db.prepare('INSERT INTO periodos (nombre,anio,semestre,fecha_inicio,fecha_fin) VALUES (?,?,?,?,?)').run(nombre,anio,semestre,fecha_inicio,fecha_fin).lastInsertRowid;
+  cacheInvalidate('periodos');
   res.json({ id });
 });
 app.put('/api/periodos/:id/activar', auth(ADM), (req, res) => {
   db.prepare('UPDATE periodos SET activo=0').run();
   db.prepare('UPDATE periodos SET activo=1 WHERE id=?').run(req.params.id);
+  cacheInvalidate('periodos');
   res.json({ ok: true });
 });
-app.delete('/api/periodos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM periodos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/periodos/:id', auth(ADM), (req, res) => {
+  db.prepare('DELETE FROM periodos WHERE id=?').run(req.params.id);
+  cacheInvalidate('periodos');
+  res.json({ ok: true });
+});
 
 // ── CARRERAS ──────────────────────────────────────────────────────────────────
 app.get('/api/carreras', auth(), (req, res) => {
+  const cached = cacheGet('carreras');
+  if (cached) return res.json(cached);
   const rows = db.prepare(`
     SELECT c.*,
       COUNT(DISTINCT CASE WHEN a.estado='Activo' THEN a.id END) as total_alumnos,
@@ -273,40 +307,62 @@ app.get('/api/carreras', auth(), (req, res) => {
     LEFT JOIN materias m ON c.id=m.carrera_id
     GROUP BY c.id ORDER BY c.nombre`).all();
   const cursosPorCarrera = db.prepare('SELECT * FROM cursos ORDER BY carrera_id,anio,division').all();
-  rows.forEach(c => {
-    c.cursos = cursosPorCarrera.filter(cu => cu.carrera_id === c.id);
-  });
+  rows.forEach(c => { c.cursos = cursosPorCarrera.filter(cu => cu.carrera_id === c.id); });
+  cacheSet('carreras', rows);
   res.json(rows);
 });
 app.post('/api/carreras', auth(ADM), (req, res) => {
   const { nombre, codigo, turno, semestres } = req.body;
   const id = codigo.toLowerCase().replace(/\s/g,'_') + '_' + Date.now()%1000;
   db.prepare('INSERT INTO carreras (id,nombre,codigo,turno,semestres,activa) VALUES (?,?,?,?,?,1)').run(id,nombre,codigo,turno,semestres||4);
+  cacheInvalidate('carreras', 'cursos');
   res.json({ id });
 });
 app.put('/api/carreras/:id', auth(ADM), (req, res) => {
   const { nombre, codigo, turno, semestres, activa } = req.body;
   db.prepare('UPDATE carreras SET nombre=?,codigo=?,turno=?,semestres=?,activa=? WHERE id=?').run(nombre,codigo,turno,semestres,activa?1:0,req.params.id);
+  cacheInvalidate('carreras', 'cursos');
   res.json({ ok: true });
 });
-app.delete('/api/carreras/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM carreras WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/carreras/:id', auth(ADM), (req, res) => {
+  db.prepare('DELETE FROM carreras WHERE id=?').run(req.params.id);
+  cacheInvalidate('carreras', 'cursos');
+  res.json({ ok: true });
+});
 
 // ── CURSOS ────────────────────────────────────────────────────────────────────
 app.get('/api/cursos', auth(), (req, res) => {
   const { carrera_id } = req.query;
+  // Si filtra por carrera específica, no cachear (resultado varía)
+  if (carrera_id) {
+    const q = `SELECT cu.*,ca.nombre as carrera_nombre,ca.codigo as carrera_codigo,
+      (SELECT COUNT(*) FROM alumnos WHERE curso_id=cu.id AND estado='Activo') as total_alumnos
+      FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id
+      WHERE cu.carrera_id=? ORDER BY ca.nombre,cu.anio,cu.division`;
+    return res.json(db.prepare(q).all(carrera_id));
+  }
+  const cached = cacheGet('cursos');
+  if (cached) return res.json(cached);
   const q = `SELECT cu.*,ca.nombre as carrera_nombre,ca.codigo as carrera_codigo,
     (SELECT COUNT(*) FROM alumnos WHERE curso_id=cu.id AND estado='Activo') as total_alumnos
     FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id
-    ${carrera_id?'WHERE cu.carrera_id=?':''} ORDER BY ca.nombre,cu.anio,cu.division`;
-  res.json(carrera_id ? db.prepare(q).all(carrera_id) : db.prepare(q).all());
+    ORDER BY ca.nombre,cu.anio,cu.division`;
+  const data = db.prepare(q).all();
+  cacheSet('cursos', data);
+  res.json(data);
 });
 app.post('/api/cursos', auth(ADM), (req, res) => {
   const { carrera_id, anio, division, turno } = req.body;
   const id = `${carrera_id}_${anio}${(division||'u').toLowerCase()}`;
   db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division,turno) VALUES (?,?,?,?,?)').run(id,carrera_id,anio,division||'U',turno||'');
+  cacheInvalidate('cursos', 'carreras');
   res.json({ id });
 });
-app.delete('/api/cursos/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM cursos WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/cursos/:id', auth(ADM), (req, res) => {
+  db.prepare('DELETE FROM cursos WHERE id=?').run(req.params.id);
+  cacheInvalidate('cursos', 'carreras');
+  res.json({ ok: true });
+});
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
