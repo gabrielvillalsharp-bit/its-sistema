@@ -213,30 +213,20 @@ function renderStep1() {
   document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
   <div class="card">
     ${cursos.length > 1 ? `<button class="back-btn" onclick="renderStep0()">← Cambiar año/sección</button>` : ''}
-    <h2>🔍 ¿Estás en la lista?</h2>
-    <div class="steps-guide">
-      <div class="step-guide active-step">
-        <div class="step-num">1</div>
-        <div class="step-txt"><strong>✏️ Escribí tu nombre o apellido abajo</strong><span>El sistema te buscará en toda la base de datos</span></div>
-      </div>
-      <div class="step-guide inactive">
-        <div class="step-num">2</div>
-        <div class="step-txt"><strong>👆 Tocá tu nombre cuando aparezca</strong><span>Si está en verde, todo listo</span></div>
-      </div>
-      <div class="step-guide inactive">
-        <div class="step-num">3</div>
-        <div class="step-txt"><strong>❌ ¿No aparece? Recién ahí pedí registro</strong><span>Solo si el sistema no te encontró</span></div>
-      </div>
+    <h2>🔍 Buscá tu nombre</h2>
+    <div class="hint" style="margin-bottom:14px">
+      <span class="hint-icon">💡</span>
+      <span>Escribí tu <strong>apellido</strong> primero para encontrarte más rápido. Si no aparecés, intentá con el nombre completo.</span>
     </div>
-    <div class="arrow-down">↓</div>
-    <div class="field">
-      <label>👉 Escribí acá tu nombre o apellido</label>
-      <input id="busqueda" type="text" placeholder="Ej: García, Juan García, 4512345..."
+    <div class="field" style="margin-bottom:8px">
+      <label>👉 Apellido o nombre</label>
+      <input id="busqueda" type="text" placeholder="Ej: García   o   Juan García"
         autocapitalize="words" autocomplete="off" spellcheck="false"
-        oninput="debounceBuscar()" style="border:2.5px solid #166634;box-shadow:0 0 0 4px rgba(22,101,52,.12);font-size:16px"/>
+        oninput="debounceBuscar()" style="border:2.5px solid #166534;box-shadow:0 0 0 4px rgba(22,101,52,.12);font-size:17px;padding:14px;"/>
     </div>
+    <div id="busq-hint" style="font-size:12px;color:#6b7280;margin-bottom:12px;min-height:18px"></div>
     <div id="lista-resultados">
-      <div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras para buscar</span></div>
+      <div class="empty"><span class="empty-icon">🔍</span><span>Escribí tu apellido para buscar</span></div>
     </div>
   </div>`;
   setTimeout(() => document.getElementById('busqueda')?.focus(), 100);
@@ -250,17 +240,23 @@ function debounceBuscar() {
 async function buscarAlumno() {
   const q = document.getElementById('busqueda')?.value.trim() || '';
   const lista = document.getElementById('lista-resultados');
+  const hint  = document.getElementById('busq-hint');
   if (!lista) return;
   if (q.length < 2) {
-    lista.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span><span>Escribí al menos 2 letras para buscar</span></div>';
-    document.getElementById('no-encontrado-box') && (document.getElementById('no-encontrado-box').style.display = 'none');
+    lista.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span><span>Escribí tu apellido para buscar</span></div>';
+    if (hint) hint.textContent = '';
     return;
   }
-  lista.innerHTML = '<div class="loading"><div class="spinner"></div> Buscando...</div>';
+  lista.innerHTML = '<div class="loading"><div class="spinner"></div> Buscando <strong>"' + q + '"</strong>...</div>';
+  if (hint) hint.textContent = '';
   try {
     const cursoId = cursoSeleccionado?.id || '';
     const resultados = await apiFetch('GET', `/pub/buscar-alumno?q=${encodeURIComponent(q)}&carrera_id=${carreraId}&curso_id=${cursoId}`);
     _resultados = resultados;
+    if (hint) {
+      if (resultados.length === 0) hint.textContent = '';
+      else hint.textContent = `${resultados.length} resultado${resultados.length>1?'s':''} encontrado${resultados.length>1?'s':''}`;
+    }
     renderResultados(resultados, q);
   } catch(e) {
     lista.innerHTML = `<div class="alert alert-err">❌ Error al buscar: ${e.message}</div>`;
@@ -274,10 +270,15 @@ function renderResultados(resultados, q) {
   if (!resultados.length) {
     lista.innerHTML = `
       <div style="border:2px dashed #fbbf24;border-radius:14px;padding:20px;text-align:center;background:#fffbeb;margin-top:8px">
-        <div style="font-size:28px;margin-bottom:8px">🔎</div>
-        <div style="font-weight:800;font-size:14px;color:#92400e;margin-bottom:6px">No encontramos "<strong>${q}</strong>" en el sistema</div>
-        <div style="font-size:12px;color:#78350f;margin-bottom:14px">¿Seguro que escribiste bien tu nombre? Intentá solo con tu apellido.<br/>Si definitivamente no aparecés, pedí tu incorporación:</div>
-        <button class="btn btn-primary" style="max-width:280px;margin:0 auto" onclick="renderFormNuevo()">📝 Colocar mi nombre en la lista</button>
+        <div style="font-size:32px;margin-bottom:10px">🔎</div>
+        <div style="font-weight:800;font-size:15px;color:#92400e;margin-bottom:8px">"${q}" no está en el sistema</div>
+        <div style="font-size:13px;color:#78350f;margin-bottom:6px">Antes de pedir registro, probá estas búsquedas:</div>
+        <div style="font-size:12px;color:#78350f;background:#fef9c3;border-radius:8px;padding:10px;margin-bottom:14px;text-align:left">
+          ✏️ Solo el <strong>apellido</strong> (sin el nombre)<br/>
+          ✏️ El apellido <strong>sin tilde</strong>: "Rodriguez" en vez de "Rodríguez"<br/>
+          ✏️ Primeras 4 letras del apellido: "Garc" para "García"
+        </div>
+        <button class="btn btn-primary" style="max-width:280px;margin:0 auto" onclick="renderFormNuevo()">📝 No aparezco — pedir registro</button>
       </div>`;
     return;
   }

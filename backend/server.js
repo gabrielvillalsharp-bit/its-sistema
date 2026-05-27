@@ -6032,43 +6032,62 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
 app.get('/pub/buscar-alumno', (req, res) => {
   const { q, carrera_id, curso_id } = req.query;
   if (!q || q.trim().length < 2) return res.json([]);
-  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,'');
-  const qNorm = norm(q.trim());
-  const palabras = qNorm.split(/\s+/).filter(p => p.length >= 2);
+
+  // Normalización segura con escape Unicode explícito (evita corrupción CRLF)
+  const norm = s => (s||'').toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')   // quita tildes/acentos
+    .replace(/[^a-z0-9 ]/g, '')        // solo letras, dígitos y espacio
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const qNorm   = norm(q.trim());
+  const palabras = qNorm.split(' ').filter(p => p.length >= 2);
+  if (!palabras.length) return res.json([]);
+
   try {
+    // JOIN con usuarios para capturar nombres que solo están en esa tabla
     const todos = db.prepare(`
-      SELECT al.id, al.nombre, al.apellido, al.ci, al.telefono, al.curso_id, al.carrera_id, al.estado,
-        c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+      SELECT al.id, al.estado, al.curso_id, al.carrera_id, al.telefono,
+        COALESCE(al.nombre,   u.nombre,   '') AS nombre,
+        COALESCE(al.apellido, u.apellido, '') AS apellido,
+        COALESCE(al.ci,       u.ci,       '') AS ci,
+        c.nombre  AS carrera_nombre,
+        cu.anio   AS curso_anio,
+        cu.division AS curso_division
       FROM alumnos al
-      LEFT JOIN carreras c ON al.carrera_id=c.id
-      LEFT JOIN cursos cu ON al.curso_id=cu.id
-      WHERE al.estado='Activo'
-      ORDER BY al.apellido, al.nombre
+      LEFT JOIN usuarios  u  ON al.usuario_id  = u.id
+      LEFT JOIN carreras  c  ON al.carrera_id  = c.id
+      LEFT JOIN cursos    cu ON al.curso_id     = cu.id
+      WHERE al.estado NOT IN ('Retirado','Inactivo')
+      ORDER BY COALESCE(al.apellido, u.apellido), COALESCE(al.nombre, u.nombre)
     `).all();
+
     const filtrados = todos.filter(a => {
-      const full1 = norm((a.nombre||'')+' '+(a.apellido||''));
-      const full2 = norm((a.apellido||'')+' '+(a.nombre||''));
+      const nom = norm(a.nombre);
+      const ape = norm(a.apellido);
+      // Partes individuales del nombre completo (para matching por inicio de palabra)
+      const partes = (ape + ' ' + nom).split(' ').filter(Boolean);
       const ci = String(a.ci||'').replace(/[^0-9]/g,'');
-      if (full1.includes(qNorm) || full2.includes(qNorm)) return true;
-      if (palabras.length >= 2 && palabras.every(p => full1.includes(p))) return true;
-      if (ci && ci.includes(q.trim().replace(/[^0-9]/g,''))) return true;
-      return false;
-    }).slice(0, 15);
-    const resultado = filtrados.map(a => {
+
+      // Búsqueda por CI (mínimo 4 dígitos)
+      const qCI = q.trim().replace(/[^0-9]/g,'');
+      if (qCI.length >= 4 && ci && ci.includes(qCI)) return true;
+
+      // Cada palabra buscada debe encontrarse al INICIO de alguna parte del nombre
+      // Ej: "garc" → matchea "garcia" pero NO "angelica"
+      return palabras.every(p => partes.some(parte => parte.startsWith(p)));
+    });
+
+    const resultado = filtrados.slice(0, 15).map(a => {
       const mismaCarrera = carrera_id && a.carrera_id === carrera_id;
       const mismoCurso   = curso_id   && a.curso_id   === curso_id;
       let match_tipo;
-      if (!a.carrera_id) {
-        match_tipo = 'sin_asignar';
-      } else if (mismaCarrera && mismoCurso) {
-        match_tipo = 'perfecto';
-      } else if (mismaCarrera && !a.curso_id) {
-        match_tipo = 'misma_carrera_sin_curso';
-      } else if (mismaCarrera) {
-        match_tipo = 'misma_carrera_otro_curso';
-      } else {
-        match_tipo = 'otra_carrera';
-      }
+      if      (!a.carrera_id)                    match_tipo = 'sin_asignar';
+      else if (mismaCarrera && mismoCurso)        match_tipo = 'perfecto';
+      else if (mismaCarrera && !a.curso_id)       match_tipo = 'misma_carrera_sin_curso';
+      else if (mismaCarrera)                      match_tipo = 'misma_carrera_otro_curso';
+      else                                        match_tipo = 'otra_carrera';
       return { ...a, match_tipo };
     });
     res.json(resultado);
