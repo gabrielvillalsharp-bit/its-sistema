@@ -7058,7 +7058,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     // estilos de celda comunes
     const cellBase=`border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle;`;
     const inp=(campo,max,val,bg,dis,clr='#0f172a')=>`<td class="${dis?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${dis?'#f8fafc':bg}">
-      <input class="nota-inp" type="number" min="0" max="${max}" step="0.5" value="${val??''}" placeholder="${dis?'🔒':'·'}" ${dis?'disabled':''}
+      <input class="nota-inp" type="number" min="0" max="${max}" step="1" value="${val??''}" placeholder="${dis?'🔒':'·'}" ${dis?'disabled':''}
         autocomplete="off" oninput="updN('${a.id}','${asigId}','${campo}',this.value)"
         style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${val!=null?'700':'400'};color:${dis?'#94a3b8':val!=null?clr:'#64748b'};border-radius:4px"/></td>`;
     const celdaMora=me.rol==='director'?`<td style="${cellBase}padding:5px 6px;text-align:center;background:${bloqueado?'#fff1f2':'#ffffff'};min-width:88px" id="mora-${a.id}">
@@ -7076,38 +7076,38 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${inp('tp2',5,a.tp2,'#ffffff',disabledBase,'#15803d')}
       ${inp('tp3',5,a.tp3,'#ffffff',disabledBase,'#15803d')}
       <td class="${disabledBase?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledBase?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1">
-        <input class="nota-inp" type="number" min="0" max="5" step="0.5" value="${a.tp4??''}" placeholder="${disabledBase?'🔒':'·'}" ${disabledBase?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="5" step="1" value="${a.tp4??''}" placeholder="${disabledBase?'🔒':'·'}" ${disabledBase?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','tp4',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.tp4!=null?'700':'400'};color:${disabledBase?'#94a3b8':a.tp4!=null?'#15803d':'#64748b'}"/></td>
       <td style="${cellBase}padding:4px 8px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1;font-weight:800;font-size:14px;color:#374151" id="tptot-${a.id}">${a.tp_total??'—'}</td>
       ${inp('parcial',20,a.parcial,'#ffffff',disabledBase,'#1d4ed8')}
       <td class="${disabledParcialRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledParcialRec?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="20" step="0.5" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'·'}" ${disabledParcialRec?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="20" step="1" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'·'}" ${disabledParcialRec?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.parcial_recuperatorio!=null?'700':'400'};color:${disabledParcialRec?'#94a3b8':'#92400e'}" title="${disabledParcialRec?'Requiere habilitación':''}"/>
         ${a.parcial_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       ${inp('final_ord',50,a.final_ord,'#ffffff',disabledFinalOrd,'#9a3412')}
       <td class="${disabledFinalRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledFinalRec?'#f8fafc':'#ffffff'};position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.final_recuperatorio??''}" placeholder="${disabledFinalRec?'🔒':'·'}" ${disabledFinalRec?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="1" value="${a.final_recuperatorio??''}" placeholder="${disabledFinalRec?'🔒':'·'}" ${disabledFinalRec?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','final_recuperatorio',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.final_recuperatorio!=null?'700':'400'};color:${disabledFinalRec?'#94a3b8':'#92400e'}"/>
         ${a.final_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       <td class="${disabledComplem?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledComplem?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="50" step="0.5" value="${a.complementario??''}" placeholder="${disabledComplem?'🔒':'·'}" ${disabledComplem?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="50" step="1" value="${a.complementario??''}" placeholder="${disabledComplem?'🔒':'·'}" ${disabledComplem?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','complementario',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.complementario!=null?'700':'400'};color:${disabledComplem?'#94a3b8':'#9f1239'}"/>
         ${a.complementario!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fce7f3;color:#be185d;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       <td class="${disabledExtraord?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledExtraord?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="100" step="0.5" value="${a.extraordinario??''}" placeholder="${disabledExtraord?'🔒':'·'}" ${disabledExtraord?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="100" step="1" value="${a.extraordinario??''}" placeholder="${disabledExtraord?'🔒':'·'}" ${disabledExtraord?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','extraordinario',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.extraordinario!=null?'800':'400'};color:${disabledExtraord?'#94a3b8':'#7e22ce'}"/>
         ${a.extraordinario!=null?`<span style="position:absolute;bottom:1px;right:2px;font-size:7px;background:#e9d5ff;color:#6d28d9;padding:0 3px;border-radius:3px;font-weight:700">RST</span>`:''}
       </td>
       <td class="${me.rol!=='director'?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:#ffffff;border-right:1px solid #cbd5e1;position:relative">
-        <input class="nota-inp" type="number" min="0" max="10" step="0.5" value="${a.director_pts??''}" placeholder="${me.rol!=='director'?'🔒':'·'}" ${me.rol!=='director'?'disabled':''}
+        <input class="nota-inp" type="number" min="0" max="10" step="1" value="${a.director_pts??''}" placeholder="${me.rol!=='director'?'🔒':'·'}" ${me.rol!=='director'?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','director_pts',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.director_pts!=null?'800':'400'};color:${me.rol!=='director'?'#93c5fd':'#1d4ed8'}" title="${me.rol!=='director'?'Solo director':'Puntos de dirección'}"/>
       </td>
@@ -7189,8 +7189,16 @@ function marcarAusente(aId,asigId,ausente){W.marcarAusente(aId,asigId,ausente);}
 function loadAsist(asigId){W.loadAsist(asigId);}
 
 W.updN=async(aId,asigId,campo,val)=>{
+  // Rechazar decimales y comas
+  if(val!=='' && val!==null && val!==undefined){
+    const n=Number(String(val).replace(',','.'));
+    if(!Number.isInteger(n)){
+      toast('⚠️ Solo se permiten números enteros. Sin comas ni decimales.','err');
+      return;
+    }
+  }
   if(!W._nc[aId])W._nc[aId]={};
-  W._nc[aId][campo]=val===''?null:parseFloat(val);
+  W._nc[aId][campo]=val===''?null:Math.round(Number(val));
   const n=W._nc[aId];
   try{
     const r=await api('PUT',`/api/notas/${aId}/${asigId}`,{

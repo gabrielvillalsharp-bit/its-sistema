@@ -1149,7 +1149,20 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       if (!doc || doc.id !== asig?.docente_id) return res.status(403).json({ error: 'Solo podés cargar notas de tus propias materias' });
     }
     const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];
-    const vals = campos.map(c => req.body[c]===''||req.body[c]===undefined||req.body[c]===null ? null : parseFloat(req.body[c]));
+    // Validar que todos los valores sean enteros (sin comas ni decimales)
+    for (const c of campos) {
+      const v = req.body[c];
+      if (v === '' || v === undefined || v === null) continue;
+      const n = Number(String(v).replace(',', '.'));
+      if (!isNaN(n) && !Number.isInteger(n)) {
+        return res.status(400).json({ error: `La nota "${c}" tiene valor decimal (${v}). Solo se permiten números enteros.` });
+      }
+    }
+    const vals = campos.map(c => {
+      const v = req.body[c];
+      if (v === '' || v === undefined || v === null) return null;
+      return Math.round(Number(String(v).replace(',', '.')));
+    });
     // Validar habilitación para recuperatorio (director puede siempre)
     if (req.user.rol !== 'director' && vals[6] !== null) {
       const hab = db.prepare(`SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND habilitado=1 AND (habilitado_recuperatorio=1 OR tipo_examen='parcial_recuperatorio') LIMIT 1`).get(req.params.alumno_id, req.params.asig_id);
