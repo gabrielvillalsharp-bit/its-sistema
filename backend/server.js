@@ -4964,9 +4964,19 @@ app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const EVO_KEY = process.env.EVOLUTION_KEY;
   const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
+  const base = EVO_URL.replace(/\/+$/, '');
+  const h = { apikey: EVO_KEY };
   try {
-    await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
-    res.json({ ok: true });
+    // 1. Logout para limpiar sesión rota (ignora error si ya está desconectado)
+    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
+    await new Promise(r => setTimeout(r, 1500));
+    // 2. Iniciar nueva conexión y obtener QR
+    const r = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
+    const d = await r.json().catch(()=>({}));
+    const qr = d?.base64 || d?.qrcode?.base64 || null;
+    const code = d?.code || d?.qrcode?.code || null;
+    console.log('[WA] Reconexión iniciada — QR disponible:', !!qr);
+    res.json({ ok: true, qr, code });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
