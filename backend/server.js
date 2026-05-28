@@ -4650,6 +4650,8 @@ async function procesarIntervalos(intervalos, usarHora = false) {
         audit('sistema', 'NOTIFICACION_WA', 'examenes', ex.id, { intervalo: label, tel: ex.doc_telefono });
         total++;
       }
+      // Delay anti-spam entre notificaciones automáticas
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
     }
   }
   return total;
@@ -4737,6 +4739,7 @@ cron.schedule('0 7 * * *', async () => {
       const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`).run(wid,'programado','docente',ex.docente_id,`${ex.doc_apellido}, ${ex.doc_nombre}`,ex.telefono,msg,ok?'enviado':'fallido','sistema_auto');
       if (ok) enviados++;
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
     }
     if (enviados > 0) console.log(`[CRON 7AM] Avisos carga examen: ${enviados} enviados`);
   } catch(e) { console.error('[CRON 7AM] Error:', e.message); }
@@ -4806,6 +4809,7 @@ cron.schedule('0 * * * *', async () => {
       const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`).run(wid,'programado','docente',ex.docente_id,`${ex.doc_apellido}, ${ex.doc_nombre}`,ex.telefono,msg,ok?'enviado':'fallido','sistema_auto');
       if (ok) enviados++;
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
     }
     if (enviados > 0) console.log(`[CRON HORARIO] Recordatorios carga: ${enviados} enviados`);
   } catch(e) { console.error('[CRON HORARIO] Error:', e.message); }
@@ -5079,6 +5083,8 @@ app.post('/api/whatsapp/masivo', auth(ADM), async (req, res) => {
         VALUES (?,?,?,?,?,?,?,?,?)`)
         .run(id,'masivo','docente',doc.id,`${doc.apellido}, ${doc.nombre}`,doc.telefono,mensaje,ok?'enviado':'fallido',req.user.id);
       if (ok) enviados++; else fallidos++;
+      // Delay anti-spam: 4-7 segundos aleatorios entre mensajes
+      await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
     }
     audit(req.user.id,'WA_MASIVO','wa_mensajes','masivo',{ enviados, fallidos, total: docentes.length });
   });
@@ -5177,6 +5183,7 @@ cron.schedule('* * * * *', async () => {
               VALUES (?,?,?,?,?,?,?,?,?)`)
               .run('wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),'programado','docente',doc.id,`${doc.apellido}, ${doc.nombre}`,doc.telefono,prog.mensaje,'enviado',prog.creado_por);
           }
+          await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
         }
         db.prepare("UPDATE wa_programados SET estado='enviado' WHERE id=?").run(prog.id);
         console.log(`[Programado WA] masivo ${prog.id}: ${env}/${docentes.length} enviados`);
