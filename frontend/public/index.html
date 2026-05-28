@@ -1634,6 +1634,7 @@ async function pgWhatsApp(el){
     </div>
     <div style="background:#fff;border:2px solid ${stColor};color:${stColor};border-radius:20px;padding:5px 14px;font-weight:700;font-size:13px">${stLabel}</div>
     ${estadoR.estado!=='open'?`<button onclick="waReconectar()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700">📱 Reconectar / Ver QR</button>`:''}
+    ${estadoR.estado==='open'?`<button onclick="waDesconectar()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700">🔌 Desconectar</button>`:''}
     <button onclick="recargarWA()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px">🔄 Actualizar</button>
   </div>
 
@@ -2015,6 +2016,19 @@ async function waReconectar(){
     toast('Error al reconectar: '+e.message,'err');
   } finally {
     if(btn){btn.disabled=false;btn.textContent='📱 Reconectar / Ver QR';}
+  }
+}
+async function waDesconectar(){
+  if(!confirm('¿Desconectar WhatsApp? Tendrás que escanear el QR de nuevo para volver a conectar.')) return;
+  const btn=event?.target;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Desconectando...';}
+  try{
+    await api('POST','/api/whatsapp/desconectar',{});
+    toast('WhatsApp desconectado. Usá "Reconectar" para vincular de nuevo.','ok');
+    setTimeout(()=>recargarWA(),1500);
+  } catch(e){
+    toast('Error al desconectar: '+e.message,'err');
+    if(btn){btn.disabled=false;btn.textContent='🔌 Desconectar';}
   }
 }
 async function waToggleRegla(key, activa){

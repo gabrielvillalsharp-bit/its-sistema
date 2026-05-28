@@ -4958,6 +4958,22 @@ app.post('/api/whatsapp/test-envio', auth(ADM), async (req, res) => {
   }
 });
 
+// ── WHATSAPP GESTIÓN: desconectar (logout forzado) ───────────────────────────
+app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
+  const base = EVO_URL.replace(/\/+$/, '');
+  const h = { apikey: EVO_KEY };
+  try {
+    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
+    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'POST',   headers: h }).catch(()=>{});
+    console.log('[WA] Desconexión forzada por director');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── WHATSAPP GESTIÓN: reconectar + obtener QR ────────────────────────────────
 app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
