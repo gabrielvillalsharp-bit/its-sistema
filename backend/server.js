@@ -77,6 +77,41 @@ try {
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 
+// ── MIGRACIÓN: ampliar CHECK constraint de aranceles.tipo ────────────────────
+try {
+  const arancelSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='aranceles'").get()?.sql || '';
+  const tiposNuevos = ['parcial_recuperatorio','final_ordinario','final_recuperatorio','complementario'];
+  const necesitaMigracion = tiposNuevos.some(t => !arancelSql.includes(t));
+  if (necesitaMigracion) {
+    db.exec(`
+      PRAGMA foreign_keys=OFF;
+      CREATE TABLE IF NOT EXISTS aranceles_new (
+        id TEXT PRIMARY KEY,
+        concepto TEXT NOT NULL,
+        monto INTEGER NOT NULL DEFAULT 0,
+        tipo TEXT NOT NULL DEFAULT 'cuota' CHECK(tipo IN (
+          'matricula','cuota','parcial','parcial_recuperatorio',
+          'final','final_ordinario','final_recuperatorio',
+          'complementario','extraordinario','certificado','otro'
+        )),
+        carrera_id TEXT REFERENCES carreras(id),
+        descripcion TEXT,
+        anio INTEGER,
+        activo INTEGER NOT NULL DEFAULT 1,
+        fecha_actualizacion TEXT DEFAULT (date('now'))
+      );
+      INSERT OR IGNORE INTO aranceles_new SELECT
+        id, concepto, monto, tipo, carrera_id, descripcion, anio,
+        COALESCE(activo,1), COALESCE(fecha_actualizacion, date('now'))
+      FROM aranceles;
+      DROP TABLE aranceles;
+      ALTER TABLE aranceles_new RENAME TO aranceles;
+      PRAGMA foreign_keys=ON;
+    `);
+    console.log('[Migración] aranceles.tipo CHECK constraint ampliado ✓');
+  }
+} catch(e) { console.warn('[Migración] aranceles constraint:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
