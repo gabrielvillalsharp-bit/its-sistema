@@ -1663,6 +1663,68 @@ app.get('/api/examenes', auth(), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── EXÁMENES PENDIENTES DE CARGA DE PUNTAJES ──────────────────────────────────
+// Mapeo tipo de examen → columna en tabla notas
+const EXAMEN_NOTA_COL = {
+  'Parcial':             'parcial',
+  'Recuperatorio':       'parcial_recuperatorio',
+  'Final':               'final_ord',
+  'Final Recuperatorio': 'final_recuperatorio',
+  'Complementario':      'complementario',
+  'Extraordinario':      'extraordinario',
+};
+
+app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, res) => {
+  const hoy = new Date().toISOString().split('T')[0];
+  // Solo exámenes cuya fecha + 8 días ya pasó
+  const fechaLimite = new Date();
+  fechaLimite.setDate(fechaLimite.getDate() - 8);
+  const flStr = fechaLimite.toISOString().split('T')[0];
+
+  let docente_id = null;
+  if (req.user.rol === 'docente') {
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    docente_id = doc?.id;
+    if (!docente_id) return res.json([]);
+  }
+
+  let sql = `
+    SELECT e.id, e.tipo, e.fecha, e.asignacion_id, e.hora,
+      m.nombre as materia_nombre, m.id as materia_id,
+      ca.nombre as carrera_nombre, ca.id as carrera_id,
+      cu.anio as curso_anio, cu.division as curso_division, cu.id as curso_id,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      d.id as docente_id, d.titulo as docente_titulo
+    FROM examenes e
+    JOIN asignaciones a ON e.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN docentes d ON a.docente_id=d.id
+    JOIN usuarios u ON d.usuario_id=u.id
+    WHERE e.fecha <= ?`;
+  const params = [flStr];
+  if (docente_id) { sql += ' AND a.docente_id=?'; params.push(docente_id); }
+  sql += ' ORDER BY ca.nombre, cu.anio, m.nombre, e.fecha';
+
+  const exams = db.prepare(sql).all(...params);
+  const pendientes = [];
+
+  for (const ex of exams) {
+    const col = EXAMEN_NOTA_COL[ex.tipo];
+    if (!col) continue;
+    const total = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE curso_id=? AND estado='Activo'`).get(ex.curso_id)?.n || 0;
+    if (total === 0) continue;
+    // Si ningún alumno tiene puntaje cargado en esa columna → pendiente
+    const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
+    if (cargados === 0) {
+      const dias = Math.floor((new Date(hoy) - new Date(ex.fecha)) / (1000*60*60*24));
+      pendientes.push({ ...ex, col_nota: col, total_alumnos: total, dias_vencido: dias });
+    }
+  }
+  res.json(pendientes);
+});
+
 app.post('/api/examenes', auth(ADM), (req, res) => {
   const { asignacion_id, asignaciones_unif, tipo, fecha, hora, aula, periodo_id, observacion, puntos_max } = req.body;
   if (!asignacion_id) return res.status(400).json({ error: 'Asignación requerida' });

@@ -1732,11 +1732,12 @@ async function pgDash(el){
     const hoy=new Date().toISOString().split('T')[0];
     const lim=new Date();lim.setDate(lim.getDate()+30);
     const limStr=lim.toISOString().split('T')[0];
-    const [dash,asigs,exams,avs]=await Promise.all([
+    const [dash,asigs,exams,avs,exPendNotas]=await Promise.all([
       api('GET','/api/dashboard').catch(()=>({})),
       me.docenteId?api('GET','/api/asignaciones?docente_id='+me.docenteId).catch(()=>[]):Promise.resolve([]),
       api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
       api('GET','/api/avisos').catch(()=>[]),
+      api('GET','/api/examenes/pendientes-notas').catch(()=>[]),
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
     const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
@@ -1751,6 +1752,17 @@ async function pgDash(el){
     ])}
 
     ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
+
+    ${(exPendNotas||[]).length?`
+    <div style="background:linear-gradient(135deg,#7c2d12,#c2410c);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-start;box-shadow:0 3px 10px rgba(194,65,12,.35);cursor:pointer" onclick="go('examenes')">
+      <span style="font-size:24px;flex-shrink:0;animation:pulse-bell 1.2s infinite">⚠️</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:6px">Tenés ${exPendNotas.length} examen${exPendNotas.length!==1?'es':''} con puntajes sin cargar</div>
+        ${exPendNotas.map(p=>`<div style="font-size:12px;color:#fed7aa;margin-bottom:3px">• <strong style="color:#fff">${p.materia_nombre}</strong> — ${p.tipo} del ${fmtFecha(p.fecha)} <span style="color:#fbbf24">(${p.dias_vencido}d sin cargar, ${p.total_alumnos} alumnos)</span></div>`).join('')}
+        <div style="font-size:11px;color:#fdba74;margin-top:8px;font-weight:600">→ Hacé clic para ir a la sección Exámenes y cargar los puntajes</div>
+      </div>
+    </div>`:''}
+
     <!-- KPI docente -->
     <div class="dash-kpi">
       <div class="kpi-card blue"><span class="kpi-icon">📚</span><div class="kpi-val">${misAsigs.length}</div><div class="kpi-lbl">Materias asignadas</div></div>
@@ -2556,9 +2568,10 @@ async function pgAvisos(el){
   if(nb) nb.style.display='none';
   const bb=document.getElementById('notif-bell-btn');
   if(bb) bb.style.display='none';
-  const [avs, actividad] = await Promise.all([
+  const [avs, actividad, exPendAviso] = await Promise.all([
     api('GET','/api/avisos'),
-    me.rol==='director' ? api('GET','/api/actividad-reciente').catch(()=>[]) : Promise.resolve([])
+    me.rol==='director' ? api('GET','/api/actividad-reciente').catch(()=>[]) : Promise.resolve([]),
+    me.rol==='docente' ? api('GET','/api/examenes/pendientes-notas').catch(()=>[]) : Promise.resolve([]),
   ]);
   const puedeEditar=me.rol==='director'||me.rol==='docente';
   const esDirector=me.rol==='director';
@@ -2718,6 +2731,29 @@ async function pgAvisos(el){
     </div>
   </div>`:''}
 
+  ${(exPendAviso||[]).length?`
+  <div style="border:2px solid #c2410c;border-radius:12px;overflow:hidden;margin-bottom:16px;box-shadow:0 3px 10px rgba(194,65,12,.2)">
+    <div style="background:linear-gradient(90deg,#7c2d12,#c2410c);color:#fff;padding:11px 16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px;animation:pulse-bell 1.2s infinite">⚠️</span>
+      <div>
+        <div style="font-size:13px;font-weight:800">Puntajes pendientes de carga — ${exPendAviso.length} examen${exPendAviso.length!==1?'es':''}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:1px">Superaron los 8 días desde la fecha del examen sin registrar notas</div>
+      </div>
+      <button onclick="go('examenes')" style="margin-left:auto;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.45);color:#fff;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Ver en Exámenes →</button>
+    </div>
+    ${exPendAviso.map(p=>`
+    <div style="padding:10px 16px;border-bottom:1px solid #fed7aa;background:#fff7ed;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#7c2d12">${p.materia_nombre}</div>
+        <div style="font-size:11px;color:#9a3412">${p.carrera_nombre} · ${p.curso_anio}° · <strong>${p.tipo}</strong> del ${fmtFecha(p.fecha)} · ${p.total_alumnos} alumnos</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;background:#fee2e2;color:#b91c1c;border-radius:10px;padding:3px 10px;font-weight:700">⏱ ${p.dias_vencido}d sin cargar</span>
+        <button class="bs" style="font-size:11px;padding:4px 12px;background:#fff;border-color:#c2410c;color:#c2410c" onclick="go('notas')">✏️ Cargar notas</button>
+      </div>
+    </div>`).join('')}
+  </div>`:''}
+
   ${avisosSinLeer.length?`
   <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,#e53935,#ef5350);color:#fff;border-radius:12px;padding:12px 18px;margin-bottom:16px;box-shadow:0 3px 10px rgba(229,57,53,.35);animation:fadeInQ .3s ease">
     <span style="font-size:24px;animation:pulse-bell 1s infinite">🔔</span>
@@ -2728,7 +2764,8 @@ async function pgAvisos(el){
     ${esDirector&&avisosSinLeer.length?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Marcar todos</button>`:''}
   </div>`:''}
 
-  ${!avisosSinLeer.length?`<div class="es">✅ No tenés avisos pendientes${vistos.size?` · <span style="color:#94a3b8;font-size:12px">${vistos.size} ya leído${vistos.size!==1?'s':''}</span>`:''}</div>`:''}
+  ${!avisosSinLeer.length&&!(exPendAviso||[]).length?`<div class="es">✅ No tenés avisos pendientes${vistos.size?` · <span style="color:#94a3b8;font-size:12px">${vistos.size} ya leído${vistos.size!==1?'s':''}</span>`:''}</div>`:''}
+  ${!avisosSinLeer.length&&(exPendAviso||[]).length?`<div class="es" style="margin-bottom:8px">✅ Sin avisos nuevos${vistos.size?` · ${vistos.size} ya leído${vistos.size!==1?'s':''}`:''}</div>`:''}
   ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">📬 Sin leer (${avisosSinLeer.length})</p>`:''}
   ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
   `;
@@ -4091,6 +4128,13 @@ async function pgExamenes(el){
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   const esDir=me.rol==='director';
   const esDocente=me.rol==='docente';
+
+  // Panel de pendientes de carga (director y docente)
+  let pendientesNotas=[];
+  try{ pendientesNotas=await api('GET','/api/examenes/pendientes-notas'); }catch{}
+  // Guardar IDs pendientes para usarlos en exRow
+  W._exPendIds=new Set((pendientesNotas||[]).map(p=>p.id));
+
   el.innerHTML=`<div class="ph"><h3>Exámenes parciales y finales</h3>
     <div class="ph-right">
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
@@ -4128,7 +4172,82 @@ async function pgExamenes(el){
     </select>`:''}
   </div>
   <div id="extb"></div>`;
-  renderExsByDay(exs, document.getElementById('extb'));
+
+  // ── Panel pendientes de carga de puntajes ──────────────────────────────────
+  const panelPN=document.createElement('div');
+  panelPN.style.marginBottom='16px';
+  if(pendientesNotas.length){
+    // Agrupar por carrera → anio → materia
+    const grupos={};
+    pendientesNotas.forEach(p=>{
+      const cKey=p.carrera_nombre;
+      const aKey=p.curso_anio+'°'+(p.curso_division&&p.curso_division!=='U'?' '+p.curso_division:'');
+      if(!grupos[cKey])grupos[cKey]={};
+      if(!grupos[cKey][aKey])grupos[cKey][aKey]=[];
+      grupos[cKey][aKey].push(p);
+    });
+    const tipoLabel={'Parcial':'Parcial','Recuperatorio':'Parc. Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Complementario','Extraordinario':'Extraordinario'};
+    let rowsHtml='';
+    Object.entries(grupos).forEach(([carr,anios])=>{
+      Object.entries(anios).forEach(([anio,exs])=>{
+        exs.forEach((p,i)=>{
+          rowsHtml+=`<tr style="background:${i%2?'#fff':'#fffbeb'}">
+            ${i===0&&exs.length===1?`<td rowspan="${exs.length}" style="padding:8px 12px;border:1px solid #fde68a;font-weight:700;vertical-align:middle;background:#fef9c3">${carr}</td>
+            <td rowspan="${exs.length}" style="padding:8px 12px;border:1px solid #fde68a;text-align:center;font-weight:600;vertical-align:middle;background:#fef9c3">${anio}</td>`:
+            i===0?`<td rowspan="${exs.length}" style="padding:8px 12px;border:1px solid #fde68a;font-weight:700;vertical-align:middle;background:#fef9c3">${carr}</td>
+            <td rowspan="${exs.length}" style="padding:8px 12px;border:1px solid #fde68a;text-align:center;font-weight:600;vertical-align:middle;background:#fef9c3">${anio}</td>`:''}
+            <td style="padding:7px 12px;border:1px solid #fde68a"><strong>${p.materia_nombre}</strong></td>
+            <td style="padding:7px 12px;border:1px solid #fde68a;white-space:nowrap">${p.docente_titulo?p.docente_titulo+' ':''}${p.docente_apellido}, ${p.docente_nombre}</td>
+            <td style="padding:7px 12px;border:1px solid #fde68a;text-align:center"><span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;background:#fee2e2;color:#b91c1c">${tipoLabel[p.tipo]||p.tipo}</span></td>
+            <td style="padding:7px 12px;border:1px solid #fde68a;text-align:center;white-space:nowrap">${fmtFecha(p.fecha)}</td>
+            <td style="padding:7px 12px;border:1px solid #fde68a;text-align:center"><span style="font-size:11px;color:#d97706;font-weight:700">⏱ ${p.dias_vencido}d sin cargar</span></td>
+            <td style="padding:7px 12px;border:1px solid #fde68a;text-align:center">${p.total_alumnos} alumnos</td>
+            ${esDir?`<td style="padding:7px 12px;border:1px solid #fde68a;text-align:center"><button class="bs" style="font-size:11px;padding:3px 10px" onclick="irANotasAsig('${p.asignacion_id}')">✏️ Ir a notas</button></td>`:''}
+          </tr>`;
+        });
+      });
+    });
+    panelPN.innerHTML=`
+    <div style="border:2px solid #f59e0b;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(245,158,11,.15)">
+      <div style="background:linear-gradient(90deg,#b45309,#d97706);color:#fff;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">⚠️</span>
+          <strong style="font-size:13px">Puntajes pendientes de carga (${pendientesNotas.length} examen${pendientesNotas.length!==1?'es':''})</strong>
+          <span style="background:rgba(255,255,255,.2);border-radius:10px;padding:2px 8px;font-size:11px">Más de 8 días sin registrar</span>
+        </div>
+        <button onclick="this.closest('div[style]').parentElement.style.display='none'" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">✕ Cerrar</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#fef3c7">
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:left">Carrera</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Año</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:left">Materia</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:left">Docente</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Tipo examen</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Fecha</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Demora</th>
+            <th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Alumnos</th>
+            ${esDir?'<th style="padding:7px 12px;border:1px solid #fde68a;text-align:center">Acción</th>':''}
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+  const extbEl=document.getElementById('extb');
+  if(extbEl) extbEl.parentElement.insertBefore(panelPN,extbEl);
+  renderExsByDay(exs, extbEl);
+}
+
+// Ir directo a la sección notas con una asignación preseleccionada
+function irANotasAsig(asigId){
+  go('notas');
+  // Esperar a que cargue la página de notas y preseleccionar la asignación
+  setTimeout(()=>{
+    const sel=document.getElementById('asigSel')||document.querySelector('select[id*="asig"]');
+    if(sel&&asigId){sel.value=asigId;sel.dispatchEvent(new Event('change'));}
+  },800);
 }
 function exRow(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
@@ -4167,6 +4286,7 @@ function exRow(e){
         <div class="prog-fill" style="width:${pct}%"></div>
       </div>
       <span style="font-size:10px;margin-left:3px">${e.notas_cargadas||0}/${e.total_alumnos||0}</span>
+      ${W._exPendIds&&W._exPendIds.has(e.id)?`<br><span style="font-size:10px;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:1px 6px;font-weight:700;animation:pulse-bell 1.5s infinite">⚠ Sin cargar</span>`:''}
     </td>
     <td>
       <div class="abs">
