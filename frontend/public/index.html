@@ -748,6 +748,69 @@ body.mob-alumno .ct{padding-bottom:68px}
 .lp2-left .lb svg{fill:#4ade80}
 .lp2-left .lb img{filter:brightness(1.05)}
 @keyframes lp2GlowPulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:1}}
+
+/* ── LOGIN CENTRADO lp3 ──────────────────────────────────────── */
+#lp3{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f9fafb;position:relative;overflow:hidden}
+
+/* Cuadrícula de puntos animada */
+#lp3::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(34,197,94,.2) 1.2px,transparent 1.2px);background-size:32px 32px;animation:dotsDrift 20s linear infinite;pointer-events:none}
+@keyframes dotsDrift{from{background-position:0 0}to{background-position:32px 32px}}
+
+/* Líneas diagonales dobles */
+#lp3::after{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(-50deg,transparent,transparent 44px,rgba(34,197,94,.055) 44px,rgba(34,197,94,.055) 45px),repeating-linear-gradient(40deg,transparent,transparent 70px,rgba(22,101,52,.035) 70px,rgba(22,101,52,.035) 71px);animation:linesMove 12s linear infinite;pointer-events:none}
+
+/* Orbes de fondo */
+.lp3-orb{position:absolute;border-radius:50%;pointer-events:none}
+.lp3-orb1{width:700px;height:700px;background:radial-gradient(circle,rgba(34,197,94,.1) 0%,transparent 65%);top:-200px;left:-200px;animation:spOrb1 9s ease-in-out infinite}
+.lp3-orb2{width:600px;height:600px;background:radial-gradient(circle,rgba(22,101,52,.08) 0%,transparent 65%);bottom:-180px;right:-180px;animation:spOrb2 11s ease-in-out infinite}
+.lp3-orb3{width:400px;height:400px;background:radial-gradient(circle,rgba(74,222,128,.07) 0%,transparent 65%);top:50%;left:50%;transform:translate(-50%,-50%);animation:spOrb1 7s 2s ease-in-out infinite}
+
+/* Rayos de luz verticales */
+.lp3-beam{position:absolute;width:1.5px;height:100%;background:linear-gradient(180deg,transparent 0%,rgba(34,197,94,.0) 15%,rgba(74,222,128,.45) 50%,rgba(34,197,94,.0) 85%,transparent 100%);animation:beamX 5s ease-in-out infinite;filter:blur(1px);pointer-events:none}
+.lp3-beam:nth-child(4){left:8%;animation-delay:0s;animation-duration:6s}
+.lp3-beam:nth-child(5){left:22%;animation-delay:1.2s;animation-duration:7s;opacity:.6}
+.lp3-beam:nth-child(6){left:40%;animation-delay:2.5s;animation-duration:5s;opacity:.4}
+.lp3-beam:nth-child(7){left:62%;animation-delay:.8s;animation-duration:8s;opacity:.5}
+.lp3-beam:nth-child(8){left:78%;animation-delay:1.8s;animation-duration:6.5s;opacity:.7}
+.lp3-beam:nth-child(9){left:92%;animation-delay:3s;animation-duration:7s;opacity:.4}
+
+/* Rayos horizontales */
+.lp3-hbeam{position:absolute;height:1px;width:100%;background:linear-gradient(90deg,transparent 0%,rgba(34,197,94,.3) 30%,rgba(74,222,128,.5) 50%,rgba(34,197,94,.3) 70%,transparent 100%);animation:beamY 7s ease-in-out infinite;filter:blur(.8px);pointer-events:none}
+.lp3-hbeam:nth-child(10){top:20%;animation-delay:.5s;animation-duration:8s}
+.lp3-hbeam:nth-child(11){top:55%;animation-delay:2s;animation-duration:10s;opacity:.6}
+.lp3-hbeam:nth-child(12){top:80%;animation-delay:4s;animation-duration:7s;opacity:.5}
+
+/* Anillos decorativos */
+.lp3-ring{position:absolute;border-radius:50%;border:1px solid rgba(34,197,94,.1);pointer-events:none;animation:ringPulse 4s ease-in-out infinite}
+.lp3-ring1{width:500px;height:500px;top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:0s}
+.lp3-ring2{width:700px;height:700px;top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:.8s;border-color:rgba(34,197,94,.06)}
+.lp3-ring3{width:900px;height:900px;top:50%;left:50%;transform:translate(-50%,-50%);animation-delay:1.6s;border-color:rgba(34,197,94,.04)}
+@keyframes ringPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.6}50%{transform:translate(-50%,-50%) scale(1.04);opacity:1}}
+
+/* Card centrado */
+.lp3-card{position:relative;z-index:10;width:100%;max-width:420px;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);border:1px solid rgba(34,197,94,.15);border-radius:28px;padding:44px 40px 36px;box-shadow:0 4px 6px rgba(0,0,0,.03),0 20px 60px rgba(22,101,52,.12),0 40px 80px rgba(22,101,52,.07),0 0 0 1px rgba(255,255,255,.6) inset;text-align:center}
+
+/* Logo en card */
+.lp3-logo-wrap{position:relative;display:inline-block;margin-bottom:20px}
+.lp3-glow{position:absolute;inset:-24px;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,.3) 0%,transparent 70%);animation:lp2GlowPulse 2.5s ease-in-out infinite;pointer-events:none}
+.lp3-card .lb{margin-bottom:0;box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 32px rgba(22,101,52,.2),0 24px 48px rgba(22,101,52,.1)}
+
+/* Textos del card */
+.lp3-inst{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#16a34a;margin:0 0 6px}
+.lp3-title{font-size:30px;font-weight:900;letter-spacing:-.03em;color:#052e16;margin:0 0 24px;line-height:1.1}
+.lp3-title em{font-style:normal;background:linear-gradient(135deg,#166534,#22c55e,#15803d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.lp3-divider{width:40px;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);border-radius:2px;margin:0 auto 24px}
+
+/* Inputs del card */
+.lp3-card .f{text-align:left;margin-bottom:14px}
+.lp3-card .f label{font-size:11px;font-weight:700;color:#374151;letter-spacing:.06em;text-transform:uppercase}
+.lp3-card input{border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 16px;font-size:14px;width:100%;box-sizing:border-box;transition:all .2s;background:rgba(249,250,251,.8)}
+.lp3-card input:focus{outline:none;border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.1);background:#fff}
+.lp3-btn{width:100%;padding:14px;background:linear-gradient(135deg,#166534 0%,#15803d 50%,#052e16 100%);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.02em;box-shadow:0 4px 16px rgba(22,101,52,.35),0 1px 0 rgba(255,255,255,.15) inset;transition:transform .15s,box-shadow .15s;margin-top:6px;position:relative;overflow:hidden}
+.lp3-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.1),transparent);pointer-events:none}
+.lp3-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(22,101,52,.45)}
+.lp3-hint{font-size:11px;color:#94a3b8;margin-top:14px;line-height:1.6}
+@media(max-width:500px){#lp3{padding:16px;align-items:flex-start;padding-top:30px}.lp3-card{padding:32px 24px 28px}.lp3-title{font-size:24px}.lp3-ring1,.lp3-ring2,.lp3-ring3{display:none}}
 </style>
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -800,7 +863,7 @@ body.mob-alumno .ct{padding-bottom:68px}
 </div>
 
 <!-- ── LOGIN CREATIVO ALTERNATIVO ─────────────────────────────── -->
-<div id="lp2">
+<div id="lp2" class="hidden">
   <div class="lp2-left">
     <div class="lp2-lines"></div>
     <div class="lp2-lines2"></div>
@@ -838,6 +901,46 @@ body.mob-alumno .ct{padding-bottom:68px}
       <div id="le2" style="font-size:12px;color:#b91c1c;margin-top:10px;padding:8px 12px;background:#fff3f3;border-radius:8px;display:none;border:1px solid #fca5a5">Email/CI o contraseña incorrectos</div>
       <div class="lp2-hint">Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula</div>
     </div>
+  </div>
+</div>
+
+<!-- ── LOGIN CENTRADO lp3 ─────────────────────────────────────── -->
+<div id="lp3">
+  <!-- Orbes de fondo -->
+  <div class="lp3-orb lp3-orb1"></div>
+  <div class="lp3-orb lp3-orb2"></div>
+  <div class="lp3-orb lp3-orb3"></div>
+  <!-- Rayos verticales -->
+  <div class="lp3-beam"></div>
+  <div class="lp3-beam"></div>
+  <div class="lp3-beam"></div>
+  <div class="lp3-beam"></div>
+  <div class="lp3-beam"></div>
+  <div class="lp3-beam"></div>
+  <!-- Rayos horizontales -->
+  <div class="lp3-hbeam"></div>
+  <div class="lp3-hbeam"></div>
+  <div class="lp3-hbeam"></div>
+  <!-- Anillos -->
+  <div class="lp3-ring lp3-ring1"></div>
+  <div class="lp3-ring lp3-ring2"></div>
+  <div class="lp3-ring lp3-ring3"></div>
+  <!-- Card central -->
+  <div class="lp3-card">
+    <div class="lp3-logo-wrap">
+      <div class="lp3-glow"></div>
+      <div class="lb" id="lp3LogoCont">
+        <svg id="lp3LogoSvg" viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg>
+      </div>
+    </div>
+    <p class="lp3-inst">Instituto Técnico Superior</p>
+    <h1 class="lp3-title"><em>Santísima Trinidad</em></h1>
+    <div class="lp3-divider"></div>
+    <div class="f"><label>Email o C.I.</label><input id="lem3" placeholder="Ej: 1234567 o director@its.edu.py" onkeydown="if(event.key==='Enter')document.getElementById('lps3').focus()" autocapitalize="none" autocorrect="off" spellcheck="false"/></div>
+    <div class="f" style="margin-bottom:18px"><label>Contraseña</label><input id="lps3" type="password" placeholder="Tu contraseña" onkeydown="if(event.key==='Enter')doLogin3()"/></div>
+    <button class="lp3-btn" onclick="doLogin3()">Ingresar al sistema →</button>
+    <div id="le3" style="font-size:12px;color:#b91c1c;margin-top:10px;padding:8px 12px;background:#fff3f3;border-radius:8px;display:none;border:1px solid #fca5a5">Email/CI o contraseña incorrectos</div>
+    <div class="lp3-hint">Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula</div>
   </div>
 </div>
 
@@ -933,7 +1036,7 @@ async function api(m,u,b,isFile){
       if(tok){
         tok=null;localStorage.removeItem('its_tk3');
         toast('Sesión expirada. Por favor ingresá nuevamente.','warn',5000);
-        setTimeout(()=>{me=null;document.getElementById('app').style.display='none';document.getElementById('lp').style.display='flex';},2000);
+        setTimeout(()=>{me=null;hide('ap');hide('lp');hide('lp2');show('lp3');},2000);
       }
       const e=await r.json().catch(()=>({error:'Credenciales incorrectas'}));
       throw new Error(e.error||'Credenciales incorrectas');
@@ -983,7 +1086,25 @@ async function doLogin2(){
     document.getElementById('le2').style.display='block';
   }
 }
-function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');hide('lp');hide('lp2');show('lp2');}
+async function doLogin3(){
+  document.getElementById('le3').style.display='none';
+  const email=document.getElementById('lem3').value.trim();
+  const password=document.getElementById('lps3').value;
+  if(!email||!password){
+    document.getElementById('le3').textContent='Ingresá email/CI y contraseña';
+    document.getElementById('le3').style.display='block';
+    return;
+  }
+  try{
+    const res=await api('POST','/api/login',{email,password});
+    tok=res.token;me=res.user;localStorage.setItem('its_tk3',tok);startApp();
+  }catch(e){
+    const msg=e.message==='Sesión expirada'?'Credenciales incorrectas':e.message||'Credenciales incorrectas';
+    document.getElementById('le3').textContent=msg;
+    document.getElementById('le3').style.display='block';
+  }
+}
+function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');hide('lp');hide('lp2');hide('ap');show('lp3');}
 function toggleMobMenu(){
   const sb=document.querySelector('.sb');
   const ov=document.getElementById('mob-overlay');
@@ -1009,6 +1130,9 @@ function closeMobMenu(){
     // Login creativo lp2
     const lc2=document.getElementById('lp2LogoCont');
     if(lc2) lc2.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
+    // Login centrado lp3
+    const lc3=document.getElementById('lp3LogoCont');
+    if(lc3) lc3.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
     // Topbar del sistema (puede no existir aún; se reintenta al hacer startApp)
     const sc=document.getElementById('sysLogoCont');
     if(sc) sc.innerHTML=`<img src="${data.logo}" alt="Logo ITS"/>`;
@@ -1025,7 +1149,7 @@ function closeMobMenu(){
 })();
 
 function startApp(){
-  hide('lp');hide('lp2');show('ap');
+  hide('lp');hide('lp2');hide('lp3');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   if(me.rol==='alumno') document.body.classList.add('mob-alumno');
   // Aplicar logo en topbar (por si ya se cargó antes del login)
