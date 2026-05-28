@@ -1547,8 +1547,8 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
 
   // Honorarios generados (clases + reemplazos realizados), excluyendo anulados
   const hons = db.prepare(`
-    SELECT h.*, m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso,
-      a.turno, a.hora_inicio, a.hora_fin
+    SELECT h.*, m.nombre as materia_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
+      COALESCE(a.turno, h.turno) as turno, a.hora_inicio, a.hora_fin
     FROM honorarios h
     LEFT JOIN asignaciones a ON h.asignacion_id=a.id
     LEFT JOIN materias m ON a.materia_id=m.id
