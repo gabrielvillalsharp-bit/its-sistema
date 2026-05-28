@@ -2302,37 +2302,67 @@ function waFiltHist(){
   });
 }
 function recargarWA(){go('whatsapp');}
+function _waShowQR(qr,code){
+  // Muestra el QR en un modal. qr=base64 image, code=string crudo
+  if(qr){
+    modal(`<div style="text-align:center;padding:8px">
+      <h3 style="margin:0 0 8px;font-size:16px">📱 Escaneá el QR con WhatsApp</h3>
+      <p style="font-size:12px;color:#555;margin-bottom:12px">Abrí WhatsApp → ⋮ <b>Dispositivos vinculados</b> → Vincular dispositivo</p>
+      <img src="${qr}" style="width:260px;height:260px;border:3px solid #25D366;border-radius:12px;display:block;margin:0 auto" />
+      <p style="font-size:11px;color:#888;margin-top:10px">⏱ El QR expira en ~60 seg. Si vence, cerrá y hacé clic en <b>Reconectar</b> de nuevo.</p>
+      <button onclick="cm();recargarWA()" style="margin-top:10px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
+    </div>`);
+  } else if(code){
+    const img=`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(code)}`;
+    modal(`<div style="text-align:center;padding:8px">
+      <h3 style="margin:0 0 8px;font-size:16px">📱 Escaneá el QR con WhatsApp</h3>
+      <p style="font-size:12px;color:#555;margin-bottom:12px">Abrí WhatsApp → ⋮ <b>Dispositivos vinculados</b> → Vincular dispositivo</p>
+      <img src="${img}" style="width:260px;height:260px;border:3px solid #25D366;border-radius:12px;display:block;margin:0 auto" onerror="this.style.display='none';document.getElementById('wa-qr-raw').style.display='block'" />
+      <pre id="wa-qr-raw" style="display:none;font-size:9px;word-break:break-all;max-width:280px;margin:8px auto;background:#f1f5f9;padding:8px;border-radius:8px">${code.slice(0,120)}…</pre>
+      <p style="font-size:11px;color:#888;margin-top:10px">⏱ El QR expira en ~60 seg.</p>
+      <button onclick="cm();recargarWA()" style="margin-top:10px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
+    </div>`);
+  }
+}
 async function waReconectar(){
   const btn=event?.target;
-  if(btn){btn.disabled=true;btn.textContent='⏳ Conectando...';}
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generando QR...';}
+  // Modal de progreso mientras espera
+  modal(`<div style="text-align:center;padding:24px 16px">
+    <div style="font-size:32px;margin-bottom:12px">📡</div>
+    <h3 style="margin:0 0 8px;font-size:15px">Reconectando WhatsApp…</h3>
+    <p style="font-size:12px;color:#888;margin:0">Esto puede tardar hasta 15 segundos.<br>No cierres esta ventana.</p>
+    <div style="margin-top:16px;height:4px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+      <div id="wa-prog-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#25D366,#128C7E);border-radius:4px;transition:width .5s ease"></div>
+    </div>
+    <p id="wa-prog-txt" style="font-size:11px;color:#94a3b8;margin-top:8px">Iniciando...</p>
+  </div>`);
+  const setP=(p,t)=>{const b=document.getElementById('wa-prog-bar');const x=document.getElementById('wa-prog-txt');if(b)b.style.width=p+'%';if(x)x.textContent=t;};
   try{
-    await api('POST','/api/whatsapp/reconectar',{});
-    // Esperar 3s para que Evolution genere el QR, luego pedirlo
-    await new Promise(r=>setTimeout(r,3000));
-    const d=await api('GET','/api/whatsapp/qr');
-    if(d.qr){
-      // QR como imagen base64
-      modal(`<div style="text-align:center;padding:8px">
-        <h3 style="margin:0 0 12px;font-size:16px">📱 Escaneá el QR con WhatsApp</h3>
-        <p style="font-size:12px;color:#555;margin-bottom:14px">Abrí WhatsApp → ⋮ Dispositivos vinculados → Vincular dispositivo</p>
-        <img src="${d.qr}" style="width:260px;height:260px;border:3px solid #25D366;border-radius:12px" />
-        <p style="font-size:11px;color:#888;margin-top:10px">El QR expira en ~60 segundos. Si vence, hacé clic en "Reconectar" de nuevo.</p>
-        <button onclick="cm();recargarWA()" style="margin-top:10px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
-      </div>`);
-    } else if(d.code){
-      // QR como texto — mostrar con qrcode.js si está disponible, o el código raw
-      modal(`<div style="text-align:center;padding:8px">
-        <h3 style="margin:0 0 12px;font-size:16px">📱 Código QR</h3>
-        <p style="font-size:12px;color:#555;margin-bottom:10px">Abrí WhatsApp → ⋮ Dispositivos vinculados → Vincular dispositivo</p>
-        <div id="wa-qr-canvas" style="display:flex;justify-content:center;margin-bottom:10px"></div>
-        <p style="font-size:10px;color:#aaa;word-break:break-all;max-width:300px;margin:0 auto">${d.code.slice(0,40)}…</p>
-        <button onclick="cm();recargarWA()" style="margin-top:12px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
-      </div>`);
+    setP(10,'Desconectando sesión anterior...');
+    const d=await api('POST','/api/whatsapp/reconectar',{});
+    setP(90,'Procesando respuesta...');
+    if(d.qr||d.code){
+      cm();
+      _waShowQR(d.qr,d.code);
     } else {
-      toast('WhatsApp conectando... Actualizá en unos segundos para ver el estado.','info',5000);
-      setTimeout(()=>recargarWA(),5000);
+      // El servidor ya reintentó 4 veces; hacer un último intento desde el cliente
+      setP(95,'Solicitando QR al servidor...');
+      await new Promise(r=>setTimeout(r,3000));
+      const d2=await api('GET','/api/whatsapp/qr');
+      cm();
+      if(d2.qr||d2.code){
+        _waShowQR(d2.qr,d2.code);
+      } else if(d2.state==='open'){
+        toast('✅ WhatsApp ya está conectado.','ok');
+        recargarWA();
+      } else {
+        cm();
+        toast('No se pudo obtener el QR. Intentá el botón ⚡ Reset completo.','warn',7000);
+      }
     }
   } catch(e){
+    cm();
     toast('Error al reconectar: '+e.message,'err');
   } finally {
     if(btn){btn.disabled=false;btn.textContent='📱 Reconectar / Ver QR';}
@@ -2342,21 +2372,25 @@ async function waReset(){
   if(!confirm('⚠️ Reset completo: borra y recrea la instancia de WhatsApp.\nTendrás que escanear el QR de nuevo. ¿Continuar?')) return;
   const btn=event?.target;
   if(btn){btn.disabled=true;btn.textContent='⏳ Reseteando...';}
+  modal(`<div style="text-align:center;padding:24px 16px">
+    <div style="font-size:32px;margin-bottom:12px">⚡</div>
+    <h3 style="margin:0 0 8px;font-size:15px">Reset completo en curso…</h3>
+    <p style="font-size:12px;color:#888;margin:0">Borrando y recreando la instancia.<br>Esto puede tardar ~15 segundos.</p>
+  </div>`);
   try{
     const d=await api('POST','/api/whatsapp/reset',{});
-    if(d.qr){
-      modal(`<div style="text-align:center;padding:8px">
-        <h3 style="margin:0 0 12px;font-size:16px">📱 Escaneá el QR con WhatsApp</h3>
-        <p style="font-size:12px;color:#555;margin-bottom:14px">Abrí WhatsApp → ⋮ Dispositivos vinculados → Vincular dispositivo</p>
-        <img src="${d.qr}" style="width:260px;height:260px;border:3px solid #25D366;border-radius:12px" />
-        <p style="font-size:11px;color:#888;margin-top:10px">El QR expira en ~60 segundos.</p>
-        <button onclick="cm();recargarWA()" style="margin-top:10px;background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700">✓ Ya escaneé</button>
-      </div>`);
+    cm();
+    if(d.qr||d.code){
+      _waShowQR(d.qr,d.code);
     } else {
-      toast('Instancia reseteada. Esperá 5 segundos y hacé clic en Reconectar.','ok');
-      setTimeout(()=>recargarWA(),2000);
+      // Reintento tras reset
+      await new Promise(r=>setTimeout(r,4000));
+      const d2=await api('GET','/api/whatsapp/qr');
+      if(d2.qr||d2.code){ _waShowQR(d2.qr,d2.code); }
+      else { toast('Instancia recreada. Hacé clic en "Reconectar / Ver QR" para escanear.','ok',7000); recargarWA(); }
     }
   } catch(e){
+    cm();
     toast('Error en reset: '+e.message,'err');
     if(btn){btn.disabled=false;btn.textContent='⚡ Reset completo';}
   }

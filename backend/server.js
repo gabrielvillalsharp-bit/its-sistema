@@ -5056,6 +5056,13 @@ app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Helper: extraer QR de la respuesta de Evolution API (varios formatos)
+function _evoExtractQR(d) {
+  const qr   = d?.base64 || d?.qrcode?.base64 || d?.qr?.base64 || null;
+  const code = d?.code   || d?.qrcode?.code   || d?.qr?.code   || null;
+  return { qr, code };
+}
+
 // ── WHATSAPP GESTIÓN: reconectar + obtener QR ────────────────────────────────
 app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
@@ -5065,21 +5072,38 @@ app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const base = EVO_URL.replace(/\/+$/, '');
   const h = { apikey: EVO_KEY };
   try {
-    // 1. Logout (DELETE y POST por compatibilidad entre versiones)
-    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
-    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'POST',   headers: h }).catch(()=>{});
-    await new Promise(r => setTimeout(r, 1000));
-    // 2. Restart para limpiar estado interno
-    await fetch(`${base}/instance/restart/${EVO_INSTANCE}`, { method: 'PUT',  headers: h }).catch(()=>{});
-    await fetch(`${base}/instance/restart/${EVO_INSTANCE}`, { method: 'POST', headers: h }).catch(()=>{});
-    await new Promise(r => setTimeout(r, 2000));
-    // 3. Obtener QR
-    const r = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
-    const d = await r.json().catch(()=>({}));
-    const qr   = d?.base64 || d?.qrcode?.base64 || null;
-    const code  = d?.code   || d?.qrcode?.code   || null;
-    console.log('[WA] Reconexión forzada — QR disponible:', !!qr, '| raw keys:', Object.keys(d).join(','));
-    res.json({ ok: true, qr, code, raw: d });
+    // 1. Verificar estado actual
+    const stR = await fetch(`${base}/instance/connectionState/${EVO_INSTANCE}`, { headers: h }).catch(()=>null);
+    const stD = stR ? await stR.json().catch(()=>({})) : {};
+    const state = stD?.instance?.state || stD?.state || '';
+    console.log('[WA] Estado actual:', state);
+
+    // 2. Solo hacer logout si no está ya desconectado
+    if (state === 'open' || state === 'connecting') {
+      await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    // 3. Llamar connect para generar QR
+    const connR = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
+    const connD = await connR.json().catch(()=>({}));
+    console.log('[WA] Connect response keys:', Object.keys(connD).join(','));
+    let { qr, code } = _evoExtractQR(connD);
+
+    // 4. Si no hay QR todavía, reintentar hasta 4 veces con delay
+    if (!qr && !code) {
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 2500));
+        const retR = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h }).catch(()=>null);
+        const retD = retR ? await retR.json().catch(()=>({})) : {};
+        const extracted = _evoExtractQR(retD);
+        console.log(`[WA] Reintento ${i+1} — QR: ${!!extracted.qr} keys: ${Object.keys(retD).join(',')}`);
+        if (extracted.qr || extracted.code) { qr = extracted.qr; code = extracted.code; break; }
+      }
+    }
+
+    console.log('[WA] Reconexión — QR disponible:', !!qr, 'code:', !!code);
+    res.json({ ok: true, qr, code });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5089,13 +5113,14 @@ app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
   const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
   try {
-    // Intentar obtener QR — Evolution API v2 usa /instance/qrcode/{instance}?image=true
-    const r = await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/instance/connect/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
     const d = await r.json().catch(()=>({}));
-    // El QR puede venir como base64 o como string para generar
-    const qrBase64 = d?.base64 || d?.qrcode?.base64 || null;
-    const qrCode   = d?.code   || d?.qrcode?.code   || null;
-    res.json({ qr: qrBase64, code: qrCode, raw: d });
+    const { qr, code } = _evoExtractQR(d);
+    // También exponer el estado actual
+    const stR = await fetch(`${EVO_URL.replace(/\/+$/,'')}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } }).catch(()=>null);
+    const stD = stR ? await stR.json().catch(()=>({})) : {};
+    const state = stD?.instance?.state || stD?.state || '';
+    res.json({ qr, code, state, raw: d });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
