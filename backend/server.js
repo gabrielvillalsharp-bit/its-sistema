@@ -4958,6 +4958,36 @@ app.post('/api/whatsapp/test-envio', auth(ADM), async (req, res) => {
   }
 });
 
+// ── WHATSAPP GESTIÓN: reset completo (borrar y recrear instancia) ─────────────
+app.post('/api/whatsapp/reset', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(400).json({ error: 'Evolution API no configurada' });
+  const base = EVO_URL.replace(/\/+$/, '');
+  const h = { 'Content-Type': 'application/json', apikey: EVO_KEY };
+  try {
+    // 1. Borrar instancia existente
+    await fetch(`${base}/instance/delete/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
+    await new Promise(r => setTimeout(r, 2000));
+    // 2. Crear instancia nueva con el mismo nombre
+    const createResp = await fetch(`${base}/instance/create`, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ instanceName: EVO_INSTANCE, qrcode: true, integration: 'WHATSAPP-BAILEYS' })
+    });
+    const createData = await createResp.json().catch(()=>({}));
+    console.log('[WA] Instancia recreada:', JSON.stringify(createData).slice(0,200));
+    await new Promise(r => setTimeout(r, 2000));
+    // 3. Obtener QR
+    const qrResp = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
+    const qrData = await qrResp.json().catch(()=>({}));
+    const qr   = qrData?.base64 || qrData?.qrcode?.base64 || createData?.qrcode?.base64 || null;
+    const code  = qrData?.code   || qrData?.qrcode?.code   || null;
+    console.log('[WA] Reset completo — QR disponible:', !!qr);
+    res.json({ ok: true, qr, code, raw: qrData });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── WHATSAPP GESTIÓN: desconectar (logout forzado) ───────────────────────────
 app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
