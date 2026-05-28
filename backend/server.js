@@ -2032,6 +2032,14 @@ app.delete('/api/avisos/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE avisos SET activo=0 WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
+// Borrar múltiples avisos a la vez (para "limpiar leídos")
+app.delete('/api/avisos', auth(ADM), (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids requeridos' });
+  const placeholders = ids.map(() => '?').join(',');
+  const r = db.prepare(`UPDATE avisos SET activo=0 WHERE id IN (${placeholders})`).run(...ids);
+  res.json({ ok: true, eliminados: r.changes });
+});
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 app.get('/api/pagos', auth(ADM), (req, res) => {

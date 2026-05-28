@@ -2619,7 +2619,18 @@ async function pgAvisos(el){
   }
   W.marcarAvisoLeido=marcarAvisoLeido;
 
-  function limpiarAvisosLeidos(){
+  async function limpiarAvisosLeidos(){
+    const ids=[...vistos]; // IDs de avisos ya leídos
+    if(!ids.length) return;
+    if(esDirector){
+      // Director: borrar del servidor (marcar inactivos) y limpiar localStorage
+      try{
+        await api('DELETE','/api/avisos',{ids});
+      }catch(e){
+        toast('Error al eliminar: '+e.message,'err'); return;
+      }
+    }
+    // Para todos: limpiar el tracking local y recargar
     localStorage.removeItem('its_avisos_vistos');
     go('avisos');
   }
