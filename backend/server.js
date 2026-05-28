@@ -4495,24 +4495,31 @@ async function sendWhatsApp(phone, message) {
     console.warn('[WA] Teléfono inválido:', phone);
     return { ok: false, error: `Teléfono inválido: "${phone}"` };
   }
-  try {
-    const resp = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
-      body: JSON.stringify({ number: numero, textMessage: { text: message } }),
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      const errMsg = data?.message || data?.error || data?.response?.message || JSON.stringify(data);
-      console.error('[WA] Error Evolution API:', resp.status, JSON.stringify(data));
-      return { ok: false, error: `Evolution API ${resp.status}: ${errMsg}`, numero };
+  const headers = { 'Content-Type': 'application/json', 'apikey': EVO_KEY };
+  const url = `${EVO_URL}/message/sendText/${EVO_INSTANCE}`;
+  // Intentar formato v2 primero, luego v1 como fallback
+  const payloads = [
+    { number: numero, textMessage: { text: message } },   // Evolution API v2
+    { number: numero, text: message },                     // Evolution API v1
+    { number: numero, options: { delay: 0 }, textMessage: { text: message } }, // v2 con options
+  ];
+  let lastErr = '';
+  for (const body of payloads) {
+    try {
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        console.log(`[WA] Enviado a ${numero} con payload ${JSON.stringify(Object.keys(body))} → key:${data?.key?.id||'ok'}`);
+        return { ok: true, numero };
+      }
+      lastErr = data?.message || data?.error || data?.response?.message || JSON.stringify(data);
+      console.warn(`[WA] Falló payload ${JSON.stringify(Object.keys(body))}: ${resp.status} ${lastErr}`);
+    } catch(e) {
+      lastErr = e.message;
+      console.error('[WA] Error fetch:', e.message);
     }
-    console.log(`[WA] Enviado a ${numero} → key:${data?.key?.id||'ok'}`);
-    return { ok: true, numero };
-  } catch(e) {
-    console.error('[WA] Error fetch:', e.message);
-    return { ok: false, error: e.message };
   }
+  return { ok: false, error: `Evolution API: ${lastErr}`, numero };
 }
 // ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
 async function enviarBienvenidaQR(telefono, nombre, email, ci) {
