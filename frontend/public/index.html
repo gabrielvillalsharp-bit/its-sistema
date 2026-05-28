@@ -705,8 +705,18 @@ body.mob-alumno .ct{padding-bottom:68px}
 .lp2-stat{text-align:left}
 .lp2-stat strong{display:block;font-size:26px;font-weight:900;color:#4ade80;line-height:1}
 .lp2-stat span{font-size:11px;color:rgba(255,255,255,.5);font-weight:500;margin-top:2px;display:block}
-.lp2-right{flex:1;max-width:480px;display:flex;align-items:center;justify-content:center;padding:40px;background:#fff;position:relative;z-index:1}
-.lp2-right::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(34,197,94,.03) 38px,rgba(34,197,94,.03) 39px);background-size:80px 80px;animation:linesMove 12s linear infinite;pointer-events:none}
+.lp2-right{flex:1;max-width:480px;display:flex;align-items:center;justify-content:center;padding:40px;background:#fff;position:relative;z-index:1;overflow:hidden}
+/* Puntos en cuadrícula */
+.lp2-right::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(34,197,94,.18) 1px,transparent 1px);background-size:28px 28px;pointer-events:none;opacity:.7}
+/* Líneas diagonales sutiles sobre los puntos */
+.lp2-right::after{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(34,197,94,.04) 38px,rgba(34,197,94,.04) 39px);background-size:80px 80px;animation:linesMove 12s linear infinite;pointer-events:none}
+/* Círculos decorativos en esquinas */
+.lp2-deco1{position:absolute;width:280px;height:280px;border-radius:50%;border:1.5px solid rgba(34,197,94,.1);top:-80px;right:-80px;pointer-events:none;animation:spOrb1 8s ease-in-out infinite}
+.lp2-deco2{position:absolute;width:180px;height:180px;border-radius:50%;border:1px solid rgba(34,197,94,.08);top:-30px;right:-30px;pointer-events:none;animation:spOrb1 8s .5s ease-in-out infinite}
+.lp2-deco3{position:absolute;width:240px;height:240px;border-radius:50%;border:1.5px solid rgba(34,197,94,.08);bottom:-80px;left:-80px;pointer-events:none;animation:spOrb2 9s ease-in-out infinite}
+.lp2-deco4{position:absolute;width:140px;height:140px;border-radius:50%;border:1px solid rgba(34,197,94,.07);bottom:-30px;left:-30px;pointer-events:none;animation:spOrb2 9s .8s ease-in-out infinite}
+/* Rayo de luz diagonal en el fondo blanco */
+.lp2-deco5{position:absolute;width:2px;height:100%;background:linear-gradient(180deg,transparent,rgba(34,197,94,.12) 40%,rgba(34,197,94,.2) 50%,rgba(34,197,94,.12) 60%,transparent);right:30%;animation:beamX 9s 1s ease-in-out infinite;filter:blur(2px);pointer-events:none}
 .lp2-form{width:100%;max-width:360px;position:relative;z-index:1}
 .lp2-form h2{font-size:38px;font-weight:900;margin:0 0 6px;letter-spacing:-.04em;font-family:'Georgia',serif;background:linear-gradient(135deg,#166534 0%,#22c55e 50%,#15803d 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}
 .lp2-form p{font-size:13px;color:#94a3b8;margin:0 0 28px;font-weight:500}
@@ -814,6 +824,11 @@ body.mob-alumno .ct{padding-bottom:68px}
     </div>
   </div>
   <div class="lp2-right">
+    <div class="lp2-deco1"></div>
+    <div class="lp2-deco2"></div>
+    <div class="lp2-deco3"></div>
+    <div class="lp2-deco4"></div>
+    <div class="lp2-deco5"></div>
     <div class="lp2-form">
       <h2>Bienvenido</h2>
       <p>Ingresá tus credenciales para continuar</p>
