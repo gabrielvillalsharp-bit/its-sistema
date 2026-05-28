@@ -4517,6 +4517,26 @@ function normalizarTelefono(tel) {
   if (!t.startsWith('595')) t = '595' + t;
   return t;
 }
+// ── ANTI-SPAM: límite diario y variación de texto ────────────────────────────
+const WA_LIMITE_DIARIO = 60; // máximo mensajes por día
+
+function waMensajesHoy() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const r = db.prepare("SELECT COUNT(*) as n FROM wa_mensajes WHERE estado='enviado' AND fecha>=? AND fecha<?")
+    .get(hoy + 'T00:00:00', hoy + 'T23:59:59');
+  return r?.n || 0;
+}
+
+// Variaciones de apertura y cierre para que cada mensaje sea ligeramente distinto
+const WA_APERTURAS = ['', '', '', '¡Hola! ', 'Buen día. ', ''];
+const WA_CIERRES   = ['', '\n\n_Atentamente, ITS._', '', '\n\n_Sistema ITS._', '', '\n\n_Saludos._'];
+
+function waVariarTexto(mensaje) {
+  const ap = WA_APERTURAS[Math.floor(Math.random() * WA_APERTURAS.length)];
+  const ci = WA_CIERRES[Math.floor(Math.random() * WA_CIERRES.length)];
+  return ap + mensaje + ci;
+}
+
 async function sendWhatsApp(phone, message) {
   const EVO_URL      = process.env.EVOLUTION_URL;
   const EVO_KEY      = process.env.EVOLUTION_KEY;
@@ -4530,15 +4550,23 @@ async function sendWhatsApp(phone, message) {
     console.warn('[WA] Teléfono inválido:', phone);
     return { ok: false, error: `Teléfono inválido: "${phone}"` };
   }
+  // Límite diario anti-spam
+  const enviados = waMensajesHoy();
+  if (enviados >= WA_LIMITE_DIARIO) {
+    console.warn(`[WA] Límite diario alcanzado (${enviados}/${WA_LIMITE_DIARIO}). Mensaje no enviado.`);
+    return { ok: false, error: `Límite diario de ${WA_LIMITE_DIARIO} mensajes alcanzado` };
+  }
+  // Variación de texto anti-spam
+  const mensajeVariado = waVariarTexto(message);
   const headers = { 'Content-Type': 'application/json', 'apikey': EVO_KEY };
-  const baseUrl = EVO_URL.replace(/\/+$/, ''); // quitar trailing slash
+  const baseUrl = EVO_URL.replace(/\/+$/, '');
   const url = `${baseUrl}/message/sendText/${EVO_INSTANCE}`;
-  console.log(`[WA] Enviando a ${numero} → ${url}`);
+  console.log(`[WA] Enviando a ${numero} (${enviados+1}/${WA_LIMITE_DIARIO} hoy)`);
   // Intentar formato v2 primero, luego v1 como fallback
   const payloads = [
-    { number: numero, textMessage: { text: message } },                                           // v2
-    { number: numero, text: message },                                                            // v1
-    { number: numero, options: { delay: 1200, presence: 'composing' }, textMessage: { text: message } }, // v2 con options
+    { number: numero, textMessage: { text: mensajeVariado } },
+    { number: numero, text: mensajeVariado },
+    { number: numero, options: { delay: 1200, presence: 'composing' }, textMessage: { text: mensajeVariado } },
   ];
   let lastErr = '';
   for (const body of payloads) {
@@ -4937,7 +4965,14 @@ app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
   try {
     const r = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
     const d = await r.json().catch(()=>({}));
-    res.json({ configurado: true, estado: d?.instance?.state || d?.state || 'desconocido', raw: d });
+    const enviados_hoy = waMensajesHoy();
+    res.json({
+      configurado: true,
+      estado: d?.instance?.state || d?.state || 'desconocido',
+      raw: d,
+      enviados_hoy,
+      limite_diario: WA_LIMITE_DIARIO,
+    });
   } catch(e) { res.json({ configurado: true, estado: 'error', mensaje: e.message }); }
 });
 
