@@ -4488,10 +4488,13 @@ async function sendWhatsApp(phone, message) {
   const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) {
     console.warn('[WA] Variables EVOLUTION_URL / EVOLUTION_KEY / EVOLUTION_INSTANCE no configuradas');
-    return false;
+    return { ok: false, error: 'Evolution API no configurada (variables de entorno faltantes)' };
   }
   const numero = normalizarTelefono(phone);
-  if (!numero) { console.warn('[WA] Teléfono inválido:', phone); return false; }
+  if (!numero) {
+    console.warn('[WA] Teléfono inválido:', phone);
+    return { ok: false, error: `Teléfono inválido: "${phone}"` };
+  }
   try {
     const resp = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
       method: 'POST',
@@ -4500,14 +4503,15 @@ async function sendWhatsApp(phone, message) {
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
+      const errMsg = data?.message || data?.error || data?.response?.message || JSON.stringify(data);
       console.error('[WA] Error Evolution API:', resp.status, JSON.stringify(data));
-      return false;
+      return { ok: false, error: `Evolution API ${resp.status}: ${errMsg}`, numero };
     }
     console.log(`[WA] Enviado a ${numero} → key:${data?.key?.id||'ok'}`);
-    return true;
+    return { ok: true, numero };
   } catch(e) {
     console.error('[WA] Error fetch:', e.message);
-    return false;
+    return { ok: false, error: e.message };
   }
 }
 // ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
@@ -4590,7 +4594,7 @@ async function procesarIntervalos(intervalos, usarHora = false) {
       if (!ex.doc_telefono) continue;
       const vars = examenVars(ex);
       const msg  = buildWaMsg(`wa_tpl_${label}`, vars);
-      const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+      const {ok} = await sendWhatsApp(ex.doc_telefono, msg);
       const dest = `${ex.doc_apellido||''} ${ex.doc_nombre||''}`.trim();
       const wid  = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`)
@@ -4681,7 +4685,7 @@ cron.schedule('0 7 * * *', async () => {
         horas_rest: '',
       };
       const msg = buildWaMsg('wa_tpl_aviso24', vars24);
-      const ok = await sendWhatsApp(ex.telefono, msg);
+      const {ok} = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, '24h', ok?'enviado':'fallido');
       const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
@@ -4750,7 +4754,7 @@ cron.schedule('0 * * * *', async () => {
         horas_rest: `${hRest} hora${hRest !== 1 ? 's' : ''}`,
       };
       const msg = buildWaMsg('wa_tpl_urgente', vars);
-      const ok = await sendWhatsApp(ex.telefono, msg);
+      const {ok} = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'horario', ok?'enviado':'fallido');
       const wid = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
@@ -4781,7 +4785,7 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   if (!ex.doc_telefono) return res.status(400).json({ error: 'El docente no tiene teléfono registrado' });
   const vars = examenVars(ex);
   const msg  = buildWaMsg('wa_tpl_24h', vars);
-  const ok   = await sendWhatsApp(ex.doc_telefono, msg);
+  const {ok} = await sendWhatsApp(ex.doc_telefono, msg);
   if (!ok) return res.status(500).json({ error: 'No se pudo enviar. WhatsApp no está conectado — vinculá el dispositivo en la sección WhatsApp.' });
   audit(req.user.id, 'WHATSAPP_MANUAL', 'examenes', ex.id, { tel: ex.doc_telefono });
   res.json({ ok: true, tel: normalizarTelefono(ex.doc_telefono) });
@@ -4887,6 +4891,27 @@ app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
   } catch(e) { res.json({ configurado: true, estado: 'error', mensaje: e.message }); }
 });
 
+// ── WHATSAPP DIAGNÓSTICO: prueba de envío con detalle de error ────────────────
+app.post('/api/whatsapp/test-envio', auth(ADM), async (req, res) => {
+  const { telefono } = req.body;
+  const EVO_URL      = process.env.EVOLUTION_URL;
+  const EVO_KEY      = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  const numero = normalizarTelefono(telefono || '0991000000');
+  const info = { EVO_URL: EVO_URL||'(no configurado)', EVO_INSTANCE: EVO_INSTANCE||'(no configurado)', numero_normalizado: numero };
+  try {
+    const resp = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
+      body: JSON.stringify({ number: numero, textMessage: { text: '✅ Prueba de conexión ITS' } }),
+    });
+    const data = await resp.json().catch(()=>({}));
+    res.json({ ...info, http_status: resp.status, ok: resp.ok, response: data });
+  } catch(e) {
+    res.json({ ...info, error: e.message });
+  }
+});
+
 // ── WHATSAPP GESTIÓN: reconectar + obtener QR ────────────────────────────────
 app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
@@ -4919,13 +4944,14 @@ app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
 app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   const { telefono, mensaje, destinatario_tipo, destinatario_id, destinatario_nombre } = req.body;
   if (!telefono || !mensaje) return res.status(400).json({ error: 'Teléfono y mensaje requeridos' });
-  const ok = await sendWhatsApp(telefono, mensaje);
+  const waRes = await sendWhatsApp(telefono, mensaje);
+  const ok = waRes.ok;
   const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
   db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
     VALUES (?,?,?,?,?,?,?,?,?)`)
     .run(id,'individual',destinatario_tipo||'custom',destinatario_id||null,destinatario_nombre||null,telefono,mensaje,ok?'enviado':'fallido',req.user.id);
   audit(req.user.id,'WA_INDIVIDUAL','wa_mensajes',id,{ tel: telefono, ok });
-  if (!ok) return res.status(500).json({ error: 'No se pudo enviar. Verificá la conexión WhatsApp.' });
+  if (!ok) return res.status(500).json({ error: waRes.error || 'No se pudo enviar. Verificá la conexión WhatsApp.' });
   res.json({ ok: true, id });
 });
 
@@ -4940,7 +4966,7 @@ app.post('/api/whatsapp/masivo', auth(ADM), async (req, res) => {
       AND d.telefono IS NOT NULL AND d.telefono!=''`).all();
     let enviados=0, fallidos=0;
     for (const doc of docentes) {
-      const ok = await sendWhatsApp(doc.telefono, mensaje);
+      const {ok} = await sendWhatsApp(doc.telefono, mensaje);
       const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
         VALUES (?,?,?,?,?,?,?,?,?)`)
@@ -5037,7 +5063,7 @@ cron.schedule('* * * * *', async () => {
           AND d.telefono IS NOT NULL AND d.telefono!=''`).all();
         let env=0;
         for (const doc of docentes) {
-          const ok = await sendWhatsApp(doc.telefono, prog.mensaje);
+          const {ok} = await sendWhatsApp(doc.telefono, prog.mensaje);
           if (ok) {
             env++;
             db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
@@ -5048,7 +5074,7 @@ cron.schedule('* * * * *', async () => {
         db.prepare("UPDATE wa_programados SET estado='enviado' WHERE id=?").run(prog.id);
         console.log(`[Programado WA] masivo ${prog.id}: ${env}/${docentes.length} enviados`);
       } else {
-        const ok = await sendWhatsApp(prog.destinatario_telefono, prog.mensaje);
+        const {ok} = await sendWhatsApp(prog.destinatario_telefono, prog.mensaje);
         db.prepare("UPDATE wa_programados SET estado=? WHERE id=?").run(ok?'enviado':'cancelado', prog.id);
         if (ok) {
           db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
