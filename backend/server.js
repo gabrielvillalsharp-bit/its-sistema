@@ -4534,9 +4534,11 @@ function normalizarTelefono(tel) {
 const WA_LIMITE_DIARIO = 60; // máximo mensajes por día
 
 function waMensajesHoy() {
-  const hoy = new Date().toISOString().split('T')[0];
-  const r = db.prepare("SELECT COUNT(*) as n FROM wa_mensajes WHERE estado='enviado' AND fecha>=? AND fecha<?")
-    .get(hoy + 'T00:00:00', hoy + 'T23:59:59');
+  const hoy = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
+  // SQLite guarda CURRENT_TIMESTAMP como 'YYYY-MM-DD HH:MM:SS' (espacio, no T)
+  // Usar DATE(fecha) para comparar independientemente del formato
+  const r = db.prepare("SELECT COUNT(*) as n FROM wa_mensajes WHERE estado='enviado' AND DATE(fecha)=?")
+    .get(hoy);
   return r?.n || 0;
 }
 
