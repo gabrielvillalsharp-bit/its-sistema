@@ -4496,24 +4496,28 @@ async function sendWhatsApp(phone, message) {
     return { ok: false, error: `Teléfono inválido: "${phone}"` };
   }
   const headers = { 'Content-Type': 'application/json', 'apikey': EVO_KEY };
-  const url = `${EVO_URL}/message/sendText/${EVO_INSTANCE}`;
+  const baseUrl = EVO_URL.replace(/\/+$/, ''); // quitar trailing slash
+  const url = `${baseUrl}/message/sendText/${EVO_INSTANCE}`;
+  console.log(`[WA] Enviando a ${numero} → ${url}`);
   // Intentar formato v2 primero, luego v1 como fallback
   const payloads = [
-    { number: numero, textMessage: { text: message } },   // Evolution API v2
-    { number: numero, text: message },                     // Evolution API v1
-    { number: numero, options: { delay: 0 }, textMessage: { text: message } }, // v2 con options
+    { number: numero, textMessage: { text: message } },                                           // v2
+    { number: numero, text: message },                                                            // v1
+    { number: numero, options: { delay: 1200, presence: 'composing' }, textMessage: { text: message } }, // v2 con options
   ];
   let lastErr = '';
   for (const body of payloads) {
     try {
       const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-      const data = await resp.json().catch(() => ({}));
+      const rawText = await resp.text();
+      let data = {};
+      try { data = JSON.parse(rawText); } catch {}
       if (resp.ok) {
-        console.log(`[WA] Enviado a ${numero} con payload ${JSON.stringify(Object.keys(body))} → key:${data?.key?.id||'ok'}`);
+        console.log(`[WA] ✅ Enviado a ${numero} → key:${data?.key?.id||'ok'}`);
         return { ok: true, numero };
       }
-      lastErr = data?.message || data?.error || data?.response?.message || JSON.stringify(data);
-      console.warn(`[WA] Falló payload ${JSON.stringify(Object.keys(body))}: ${resp.status} ${lastErr}`);
+      lastErr = rawText.slice(0, 300);
+      console.warn(`[WA] Falló payload ${JSON.stringify(Object.keys(body))}: ${resp.status} → ${lastErr}`);
     } catch(e) {
       lastErr = e.message;
       console.error('[WA] Error fetch:', e.message);
