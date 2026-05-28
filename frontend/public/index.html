@@ -27,10 +27,10 @@ input,select,textarea,button{font-family:inherit;font-size:14px}
 input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--txt);outline:none;transition:border-color .15s,box-shadow .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(22,101,52,.12)}
 /* ── LOGIN ─────────────────────────────────── */
-#lp{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#052e16 0%,#14532d 50%,#166534 100%);position:relative;overflow:hidden}
-#lp::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(34,197,94,.15) 0%,transparent 65%);pointer-events:none}
-#lp::after{content:'';position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(74,222,128,.08) 0%,transparent 70%);pointer-events:none}
-.lc{background:rgba(255,255,255,.97);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:2.6rem;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.3),0 2px 8px rgba(0,0,0,.2);backdrop-filter:blur(12px);position:relative;z-index:1}
+#lp{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;position:relative;overflow:hidden}
+#lp::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.13) 0%,transparent 70%);top:-150px;left:-150px;animation:spOrb1 7s ease-in-out infinite;pointer-events:none}
+#lp::after{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(22,101,52,.1) 0%,transparent 70%);bottom:-120px;right:-120px;animation:spOrb2 8s ease-in-out infinite;pointer-events:none}
+.lc{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:2.6rem;width:400px;box-shadow:0 4px 6px rgba(0,0,0,.04),0 16px 48px rgba(22,101,52,.12),0 32px 64px rgba(22,101,52,.08);position:relative;z-index:1}
 .ll{text-align:center;margin-bottom:1.8rem}
 .lb{
   width:116px;height:116px;
@@ -642,22 +642,28 @@ body.mob-alumno .ct{padding-bottom:68px}
 ::-webkit-scrollbar-thumb{background:#d0cfc9;border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:#b8b7b1}
 /* ── SPLASH ────────────────────────────────── */
-#splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#052e16 0%,#14532d 45%,#166534 100%);transition:opacity .6s ease,visibility .6s ease;pointer-events:none;overflow:hidden}
+#splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;transition:opacity .6s ease,visibility .6s ease;pointer-events:none;overflow:hidden}
 #splash.hide{opacity:0;visibility:hidden}
-#splash::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(34,197,94,.18) 0%,transparent 70%);pointer-events:none}
-.sp-logo{width:116px;height:116px;background:rgba(255,255,255,.08);border-radius:30px;display:inline-flex;align-items:center;justify-content:center;position:relative;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 16px 48px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);animation:spFloat 1.6s cubic-bezier(.22,1,.36,1) both;backdrop-filter:blur(8px)}
-.sp-logo img{width:96px;height:96px;object-fit:contain;border-radius:22px;display:block;position:relative;z-index:1}
-.sp-logo svg{width:56px;height:56px;fill:#4ade80}
-.sp-badge{margin-top:28px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 14px;animation:spFade 1s .5s both}
-.sp-badge span{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)}
-.sp-title{margin-top:16px;font-size:32px;font-weight:900;letter-spacing:-.03em;color:#fff;animation:spFade 1s .35s both;text-align:center;line-height:1.1;text-shadow:0 2px 24px rgba(0,0,0,.3)}
-.sp-sub{margin-top:8px;font-size:16px;font-weight:600;color:rgba(255,255,255,.7);animation:spFade 1s .5s both;letter-spacing:.01em;text-align:center}
-.sp-divider{margin-top:28px;width:48px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);animation:spFade 1s .6s both}
-.sp-bar{margin-top:20px;width:180px;height:3px;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden;animation:spFade 1s .55s both}
-.sp-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#4ade80,#22c55e,#86efac);animation:spLoad 1.2s .3s cubic-bezier(.4,0,.2,1) both}
+/* Orbes animados de fondo */
+#splash::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.12) 0%,transparent 70%);top:-120px;left:-100px;animation:spOrb1 6s ease-in-out infinite}
+#splash::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(22,101,52,.09) 0%,transparent 70%);bottom:-80px;right:-80px;animation:spOrb2 7s ease-in-out infinite}
+.sp-orb3{position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,.08) 0%,transparent 70%);bottom:10%;left:5%;animation:spOrb1 8s 1s ease-in-out infinite;pointer-events:none}
+.sp-logo{width:120px;height:120px;background:#fff;border-radius:28px;display:inline-flex;align-items:center;justify-content:center;position:relative;box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 32px rgba(22,101,52,.18),0 28px 56px rgba(22,101,52,.1);animation:spFloat 1.6s cubic-bezier(.22,1,.36,1) both}
+.sp-logo::before{content:'';position:absolute;inset:0;border-radius:28px;padding:1.5px;background:linear-gradient(135deg,#22c55e,#15803d,#86efac,#15803d);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.sp-logo img{width:100px;height:100px;object-fit:contain;border-radius:22px;display:block;position:relative;z-index:1}
+.sp-logo svg{width:56px;height:56px;fill:#166634}
+.sp-badge{margin-top:24px;display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;padding:4px 14px;animation:spFade 1s .5s both}
+.sp-badge span{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#16a34a}
+.sp-title{margin-top:14px;font-size:30px;font-weight:900;letter-spacing:-.03em;color:#052e16;animation:spFade 1s .35s both;text-align:center;line-height:1.1}
+.sp-sub{margin-top:6px;font-size:14px;font-weight:600;color:#5a9e78;animation:spFade 1s .5s both;letter-spacing:.01em;text-align:center}
+.sp-divider{margin-top:24px;width:48px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);animation:spFade 1s .6s both}
+.sp-bar{margin-top:18px;width:180px;height:3px;border-radius:2px;background:#dcfce7;overflow:hidden;animation:spFade 1s .55s both}
+.sp-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#22c55e,#166534,#4ade80);animation:spLoad 1.2s .3s cubic-bezier(.4,0,.2,1) both}
 @keyframes spFloat{0%{opacity:0;transform:translateY(32px) scale(.85)}65%{transform:translateY(-5px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes spFade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spLoad{from{width:0}to{width:100%}}
+@keyframes spOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,30px) scale(1.15)}}
+@keyframes spOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-30px,-40px) scale(1.1)}}
 </style>
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -665,6 +671,7 @@ body.mob-alumno .ct{padding-bottom:68px}
 <div id="toast-container"></div>
 
 <div id="splash">
+  <div class="sp-orb3"></div>
   <div class="sp-logo" id="splashLogoCont">
     <svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg>
   </div>
