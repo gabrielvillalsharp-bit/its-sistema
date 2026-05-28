@@ -4967,16 +4967,21 @@ app.post('/api/whatsapp/reconectar', auth(ADM), async (req, res) => {
   const base = EVO_URL.replace(/\/+$/, '');
   const h = { apikey: EVO_KEY };
   try {
-    // 1. Logout para limpiar sesión rota (ignora error si ya está desconectado)
+    // 1. Logout (DELETE y POST por compatibilidad entre versiones)
     await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'DELETE', headers: h }).catch(()=>{});
-    await new Promise(r => setTimeout(r, 1500));
-    // 2. Iniciar nueva conexión y obtener QR
+    await fetch(`${base}/instance/logout/${EVO_INSTANCE}`, { method: 'POST',   headers: h }).catch(()=>{});
+    await new Promise(r => setTimeout(r, 1000));
+    // 2. Restart para limpiar estado interno
+    await fetch(`${base}/instance/restart/${EVO_INSTANCE}`, { method: 'PUT',  headers: h }).catch(()=>{});
+    await fetch(`${base}/instance/restart/${EVO_INSTANCE}`, { method: 'POST', headers: h }).catch(()=>{});
+    await new Promise(r => setTimeout(r, 2000));
+    // 3. Obtener QR
     const r = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
     const d = await r.json().catch(()=>({}));
-    const qr = d?.base64 || d?.qrcode?.base64 || null;
-    const code = d?.code || d?.qrcode?.code || null;
-    console.log('[WA] Reconexión iniciada — QR disponible:', !!qr);
-    res.json({ ok: true, qr, code });
+    const qr   = d?.base64 || d?.qrcode?.base64 || null;
+    const code  = d?.code   || d?.qrcode?.code   || null;
+    console.log('[WA] Reconexión forzada — QR disponible:', !!qr, '| raw keys:', Object.keys(d).join(','));
+    res.json({ ok: true, qr, code, raw: d });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
