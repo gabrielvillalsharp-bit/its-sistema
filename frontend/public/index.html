@@ -30,6 +30,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #lp{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;position:relative;overflow:hidden}
 #lp::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.13) 0%,transparent 70%);top:-150px;left:-150px;animation:spOrb1 7s ease-in-out infinite;pointer-events:none}
 #lp::after{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(22,101,52,.1) 0%,transparent 70%);bottom:-120px;right:-120px;animation:spOrb2 8s ease-in-out infinite;pointer-events:none}
+.lp-lines{position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(34,197,94,.05) 38px,rgba(34,197,94,.05) 39px);background-size:80px 80px;animation:linesMove 10s linear infinite;pointer-events:none;z-index:0}
+.lp-beam{position:absolute;width:1px;height:100%;background:linear-gradient(180deg,transparent,rgba(34,197,94,.35) 50%,transparent);animation:beamX 6s ease-in-out infinite;filter:blur(1px);pointer-events:none;z-index:0}
+.lp-beam:nth-child(2){left:20%;animation-delay:1s;animation-duration:7s}
+.lp-beam:nth-child(3){left:60%;animation-delay:2.5s;animation-duration:5s;opacity:.6}
+.lp-beam:nth-child(4){left:85%;animation-delay:.5s;animation-duration:8s;opacity:.5}
 .lc{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:2.6rem;width:400px;box-shadow:0 4px 6px rgba(0,0,0,.04),0 16px 48px rgba(22,101,52,.12),0 32px 64px rgba(22,101,52,.08);position:relative;z-index:1}
 .ll{text-align:center;margin-bottom:1.8rem}
 .lb{
@@ -644,7 +649,10 @@ body.mob-alumno .ct{padding-bottom:68px}
 /* ── SPLASH ────────────────────────────────── */
 #splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;transition:opacity .6s ease,visibility .6s ease;pointer-events:none;overflow:hidden}
 #splash.hide{opacity:0;visibility:hidden}
-/* Orbes animados de fondo */
+/* Líneas diagonales animadas */
+.sp-lines{position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(34,197,94,.06) 38px,rgba(34,197,94,.06) 39px);background-size:80px 80px;animation:linesMove 10s linear infinite;pointer-events:none}
+.sp-lines2{position:absolute;inset:0;background-image:repeating-linear-gradient(35deg,transparent,transparent 60px,rgba(22,101,52,.04) 60px,rgba(22,101,52,.04) 61px);background-size:120px 120px;animation:linesMove2 14s linear infinite;pointer-events:none}
+/* Orbes animados */
 #splash::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,.12) 0%,transparent 70%);top:-120px;left:-100px;animation:spOrb1 6s ease-in-out infinite}
 #splash::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(22,101,52,.09) 0%,transparent 70%);bottom:-80px;right:-80px;animation:spOrb2 7s ease-in-out infinite}
 .sp-orb3{position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,.08) 0%,transparent 70%);bottom:10%;left:5%;animation:spOrb1 8s 1s ease-in-out infinite;pointer-events:none}
@@ -664,6 +672,50 @@ body.mob-alumno .ct{padding-bottom:68px}
 @keyframes spLoad{from{width:0}to{width:100%}}
 @keyframes spOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,30px) scale(1.15)}}
 @keyframes spOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-30px,-40px) scale(1.1)}}
+@keyframes linesMove{from{background-position:0 0}to{background-position:80px 80px}}
+@keyframes linesMove2{from{background-position:0 0}to{background-position:-120px 120px}}
+/* Luces tipo beam que cruzan la pantalla */
+.sp-beam{position:absolute;width:2px;height:100%;background:linear-gradient(180deg,transparent 0%,rgba(34,197,94,.0) 20%,rgba(74,222,128,.5) 50%,rgba(34,197,94,.0) 80%,transparent 100%);animation:beamX 4s ease-in-out infinite;pointer-events:none;filter:blur(1px)}
+.sp-beam:nth-child(2){left:20%;animation-delay:.8s;animation-duration:5s;opacity:.6}
+.sp-beam:nth-child(3){left:50%;animation-delay:1.8s;animation-duration:6s;opacity:.4}
+.sp-beam:nth-child(4){left:75%;animation-delay:.4s;animation-duration:4.5s;opacity:.5}
+.sp-beam-h{position:absolute;height:1px;width:100%;background:linear-gradient(90deg,transparent 0%,transparent 15%,rgba(34,197,94,.4) 50%,transparent 85%,transparent 100%);animation:beamY 5s ease-in-out infinite;pointer-events:none;filter:blur(.5px)}
+.sp-beam-h:nth-child(6){top:30%;animation-delay:1.2s;animation-duration:6s;opacity:.5}
+.sp-beam-h:nth-child(7){top:65%;animation-delay:2.5s;animation-duration:7s;opacity:.4}
+@keyframes beamX{0%{transform:translateY(-100%);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateY(100vh);opacity:0}}
+@keyframes beamY{0%{transform:translateX(-100%);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateX(100vw);opacity:0}}
+
+/* ── LOGIN CREATIVO (lp2) ───────────────────── */
+#lp2{min-height:100vh;display:flex;align-items:stretch;justify-content:center;background:#fff;position:relative;overflow:hidden}
+.lp2-left{flex:1;max-width:520px;background:linear-gradient(160deg,#052e16 0%,#14532d 60%,#166534 100%);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:60px 56px;position:relative;overflow:hidden}
+.lp2-lines{position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(255,255,255,.04) 38px,rgba(255,255,255,.04) 39px);background-size:80px 80px;animation:linesMove 10s linear infinite;pointer-events:none}
+.lp2-lines2{position:absolute;inset:0;background-image:repeating-linear-gradient(35deg,transparent,transparent 60px,rgba(74,222,128,.05) 60px,rgba(74,222,128,.05) 61px);background-size:120px 120px;animation:linesMove2 14s linear infinite;pointer-events:none}
+.lp2-beam{position:absolute;width:1px;height:100%;background:linear-gradient(180deg,transparent,rgba(74,222,128,.6) 50%,transparent);animation:beamX 5s ease-in-out infinite;filter:blur(1px);pointer-events:none}
+.lp2-beam:nth-child(3){left:25%;animation-delay:1s;animation-duration:6s;opacity:.5}
+.lp2-beam:nth-child(4){left:60%;animation-delay:2.5s;animation-duration:4s;opacity:.4}
+.lp2-orb{position:absolute;border-radius:50%;pointer-events:none}
+.lp2-orb1{width:400px;height:400px;background:radial-gradient(circle,rgba(34,197,94,.2) 0%,transparent 70%);top:-100px;right:-100px;animation:spOrb1 7s ease-in-out infinite}
+.lp2-orb2{width:300px;height:300px;background:radial-gradient(circle,rgba(74,222,128,.12) 0%,transparent 70%);bottom:-80px;left:-60px;animation:spOrb2 8s ease-in-out infinite}
+.lp2-tag{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:5px 14px;margin-bottom:32px}
+.lp2-tag span{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.lp2-left h1{font-size:42px;font-weight:900;color:#fff;line-height:1.05;letter-spacing:-.03em;margin:0 0 12px;position:relative;z-index:1}
+.lp2-left h1 em{font-style:normal;color:#4ade80}
+.lp2-left p{font-size:15px;color:rgba(255,255,255,.6);font-weight:500;margin:0 0 40px;position:relative;z-index:1;line-height:1.6}
+.lp2-stats{display:flex;gap:28px;position:relative;z-index:1}
+.lp2-stat{text-align:left}
+.lp2-stat strong{display:block;font-size:26px;font-weight:900;color:#4ade80;line-height:1}
+.lp2-stat span{font-size:11px;color:rgba(255,255,255,.5);font-weight:500;margin-top:2px;display:block}
+.lp2-right{flex:1;max-width:480px;display:flex;align-items:center;justify-content:center;padding:40px;background:#fff;position:relative;z-index:1}
+.lp2-right::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(-55deg,transparent,transparent 38px,rgba(34,197,94,.03) 38px,rgba(34,197,94,.03) 39px);background-size:80px 80px;animation:linesMove 12s linear infinite;pointer-events:none}
+.lp2-form{width:100%;max-width:360px;position:relative;z-index:1}
+.lp2-form h2{font-size:26px;font-weight:900;color:#052e16;margin:0 0 4px;letter-spacing:-.02em}
+.lp2-form p{font-size:13px;color:#94a3b8;margin:0 0 28px;font-weight:500}
+.lp2-form .f label{font-size:12px;font-weight:700;color:#374151;letter-spacing:.02em;text-transform:uppercase}
+.lp2-form input{border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 14px;font-size:14px;width:100%;box-sizing:border-box;transition:border-color .2s,box-shadow .2s;background:#fafafa}
+.lp2-form input:focus{outline:none;border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.12);background:#fff}
+.lp2-btn{width:100%;padding:13px;background:linear-gradient(135deg,#16a34a 0%,#052e16 100%);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.01em;box-shadow:0 4px 16px rgba(22,101,52,.3);transition:transform .15s,box-shadow .15s;margin-top:4px}
+.lp2-btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(22,101,52,.4)}
+.lp2-hint{font-size:11px;color:#94a3b8;margin-top:16px;text-align:center;line-height:1.5}
 </style>
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -671,6 +723,14 @@ body.mob-alumno .ct{padding-bottom:68px}
 <div id="toast-container"></div>
 
 <div id="splash">
+  <div class="sp-lines"></div>
+  <div class="sp-lines2"></div>
+  <div class="sp-beam" style="left:15%"></div>
+  <div class="sp-beam" style="left:20%"></div>
+  <div class="sp-beam" style="left:50%"></div>
+  <div class="sp-beam" style="left:75%"></div>
+  <div class="sp-beam-h" style="top:30%"></div>
+  <div class="sp-beam-h" style="top:65%"></div>
   <div class="sp-orb3"></div>
   <div class="sp-logo" id="splashLogoCont">
     <svg viewBox="0 0 24 24"><path d="M12 3L2 8v8l10 5 10-5V8L12 3zm0 2.18L20 9v.09L12 13.09 4 9.09V9l8-3.82zM4 11.28l8 4 8-4V17l-8 4-8-4v-5.72z"/></svg>
@@ -682,7 +742,12 @@ body.mob-alumno .ct{padding-bottom:68px}
   <div class="sp-bar"><div class="sp-bar-fill"></div></div>
 </div>
 
-<div id="lp">
+<div id="lp" class="hidden">
+<div class="lp-lines"></div>
+<div class="lp-beam" style="left:10%"></div>
+<div class="lp-beam" style="left:20%"></div>
+<div class="lp-beam" style="left:60%"></div>
+<div class="lp-beam" style="left:85%"></div>
 <div class="lc">
   <div class="ll">
     <div class="lb" id="loginLogoCont">
@@ -700,6 +765,37 @@ body.mob-alumno .ct{padding-bottom:68px}
     Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula
   </div>
 </div>
+</div>
+
+<!-- ── LOGIN CREATIVO ALTERNATIVO ─────────────────────────────── -->
+<div id="lp2">
+  <div class="lp2-left">
+    <div class="lp2-lines"></div>
+    <div class="lp2-lines2"></div>
+    <div class="lp2-beam" style="left:15%"></div>
+    <div class="lp2-beam" style="left:60%"></div>
+    <div class="lp2-orb lp2-orb1"></div>
+    <div class="lp2-orb lp2-orb2"></div>
+    <div class="lp2-tag" style="position:relative;z-index:1"><span>✦ Sistema Académico ✦</span></div>
+    <h1 style="position:relative;z-index:1">Santísima<br><em>Trinidad</em></h1>
+    <p>Instituto Técnico Superior<br>Gestión académica integrada</p>
+    <div class="lp2-stats">
+      <div class="lp2-stat"><strong>100%</strong><span>Digital</span></div>
+      <div class="lp2-stat"><strong>24/7</strong><span>Disponible</span></div>
+      <div class="lp2-stat"><strong>ITS</strong><span>Sistema v4</span></div>
+    </div>
+  </div>
+  <div class="lp2-right">
+    <div class="lp2-form">
+      <h2>Bienvenido</h2>
+      <p>Ingresá tus credenciales para continuar</p>
+      <div class="f"><label>Email o C.I.</label><input id="lem2" placeholder="Ej: 1234567 o director@its.edu.py" onkeydown="if(event.key==='Enter')document.getElementById('lps2').focus()" autocapitalize="none" autocorrect="off" spellcheck="false"/></div>
+      <div class="f"><label>Contraseña</label><input id="lps2" type="password" placeholder="Tu contraseña" onkeydown="if(event.key==='Enter')doLogin2()"/></div>
+      <button class="lp2-btn" onclick="doLogin2()">Ingresar al sistema →</button>
+      <div id="le2" style="font-size:12px;color:#b91c1c;margin-top:10px;padding:8px 12px;background:#fff3f3;border-radius:8px;display:none;border:1px solid #fca5a5">Email/CI o contraseña incorrectos</div>
+      <div class="lp2-hint">Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula</div>
+    </div>
+  </div>
 </div>
 
 <div id="ap" class="hidden">
@@ -826,7 +922,25 @@ async function doLogin(){
     document.getElementById('le').style.display='block';
   }
 }
-function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');show('lp');hide('ap');}
+async function doLogin2(){
+  document.getElementById('le2').style.display='none';
+  const email=document.getElementById('lem2').value.trim();
+  const password=document.getElementById('lps2').value;
+  if(!email||!password){
+    document.getElementById('le2').textContent='Ingresá email/CI y contraseña';
+    document.getElementById('le2').style.display='block';
+    return;
+  }
+  try{
+    const res=await api('POST','/api/login',{email,password});
+    tok=res.token;me=res.user;localStorage.setItem('its_tk3',tok);startApp();
+  }catch(e){
+    const msg=e.message==='Sesión expirada'?'Credenciales incorrectas':e.message||'Credenciales incorrectas';
+    document.getElementById('le2').textContent=msg;
+    document.getElementById('le2').style.display='block';
+  }
+}
+function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');hide('lp');hide('lp2');show('lp2');}
 function toggleMobMenu(){
   const sb=document.querySelector('.sb');
   const ov=document.getElementById('mob-overlay');
@@ -865,7 +979,7 @@ function closeMobMenu(){
 })();
 
 function startApp(){
-  hide('lp');show('ap');
+  hide('lp');hide('lp2');show('ap');
   document.getElementById('un').textContent=me.nombre+' '+me.apellido;
   if(me.rol==='alumno') document.body.classList.add('mob-alumno');
   // Aplicar logo en topbar (por si ya se cargó antes del login)
