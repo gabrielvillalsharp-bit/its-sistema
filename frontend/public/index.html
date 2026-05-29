@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260526-HAB-MATERIA-V9 -->
+<!-- build:20260528-PEND-TOGGLE-V10 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1827,7 +1827,7 @@ async function pgDash(el){
   <div class="dash-kpi">
     <div class="kpi-card green"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos activos</div></div>
     <div class="kpi-card blue"><span class="kpi-icon">👨‍🏫</span><div class="kpi-val">${d.total_docentes}</div><div class="kpi-lbl">Docentes</div></div>
-    <div class="kpi-card ${(exPendDir||[]).length>0?'red':'green'}" style="cursor:pointer" onclick="document.getElementById('dash-pend-notas')?.scrollIntoView({behavior:'smooth'})">
+    <div class="kpi-card ${(exPendDir||[]).length>0?'red':'green'}" style="cursor:pointer" onclick="(function(){const p=document.getElementById('dash-pend-notas');if(!p)return;const showing=p.style.display!=='none';p.style.display=showing?'none':'block';if(!showing)p.scrollIntoView({behavior:'smooth',block:'start'});})()">
       <span class="kpi-icon">✏️</span>
       <div class="kpi-val" style="color:${(exPendDir||[]).length>0?'var(--red)':'var(--green)'}">${(exPendDir||[]).length}</div>
       <div class="kpi-lbl">Notas pendientes</div>
@@ -1870,50 +1870,87 @@ async function pgDash(el){
     </div>
   </div>
 
-  ${(exPendDir||[]).length ? `
-  <div id="dash-pend-notas" class="card card-p" style="margin-top:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="background:linear-gradient(135deg,#b45309,#d97706);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚠️</div>
-        <div>
-          <p style="font-size:14px;font-weight:800;color:#92400e;margin:0">Puntajes pendientes de carga</p>
-          <p style="font-size:11px;color:#b45309;margin:0">${exPendDir.length} examen${exPendDir.length!==1?'es':''} sin registrar · más de 8 días desde la fecha</p>
-        </div>
-      </div>
-      <button class="bs" style="font-size:11px;background:#fff7ed;border-color:#f59e0b;color:#92400e" onclick="go('examenes')">Ver exámenes →</button>
-    </div>
+  <div id="dash-pend-notas" class="card card-p" style="margin-top:16px;display:none">
     ${(()=>{
       const tlbl={'Parcial':'Parcial','Recuperatorio':'Recuper.','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Compl.','Extraordinario':'Extraord.'};
-      const grupos={};
-      exPendDir.forEach(p=>{
-        const k=p.carrera_nombre;
-        if(!grupos[k])grupos[k]=[];
-        grupos[k].push(p);
+      const pend=exPendDir||[];
+      if(!pend.length) return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0 4px">
+          <div style="background:linear-gradient(135deg,#16a34a,#15803d);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">✅</div>
+          <div>
+            <p style="font-size:14px;font-weight:800;color:#166534;margin:0">Todo al día</p>
+            <p style="font-size:12px;color:#4ade80;margin:0">No hay puntajes pendientes de carga</p>
+          </div>
+        </div>`;
+      // Build nested structure: carrera → anio+division → docente → [exams]
+      const tree={};
+      pend.forEach(p=>{
+        const carr=p.carrera_nombre||'Sin carrera';
+        const sec=p.curso_anio?`${p.curso_anio}° Año${p.division&&p.division!=='U'?' — Sección '+p.division:''}`:'-';
+        const doc=`${p.docente_titulo?p.docente_titulo+' ':''}${p.docente_apellido}, ${p.docente_nombre}`;
+        if(!tree[carr])tree[carr]={};
+        if(!tree[carr][sec])tree[carr][sec]={};
+        if(!tree[carr][sec][doc])tree[carr][sec][doc]=[];
+        tree[carr][sec][doc].push(p);
       });
-      return Object.entries(grupos).map(([carr,items])=>`
-        <div style="margin-bottom:12px">
-          <div style="font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.06em;padding:5px 0 6px;border-bottom:2px solid #fde68a;margin-bottom:6px">📚 ${carr}</div>
-          ${items.map(p=>`
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;background:#fffbeb;margin-bottom:4px;gap:8px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:10px;min-width:0">
-              <div style="text-align:center;min-width:28px">
-                <div style="font-size:13px;font-weight:800;color:#b45309">${p.curso_anio}°</div>
-              </div>
-              <div style="min-width:0">
-                <div style="font-size:13px;font-weight:700;color:#1c1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.materia_nombre}</div>
-                <div style="font-size:11px;color:#78716c">${p.docente_titulo?p.docente_titulo+' ':''}${p.docente_apellido}, ${p.docente_nombre}</div>
-              </div>
+      const totalCarreras=Object.keys(tree).length;
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="background:linear-gradient(135deg,#b45309,#d97706);border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⚠️</div>
+            <div>
+              <p style="font-size:15px;font-weight:800;color:#92400e;margin:0">Puntajes pendientes de carga</p>
+              <p style="font-size:12px;color:#b45309;margin:0">${pend.length} examen${pend.length!==1?'es':''} sin registrar · más de 8 días desde la fecha del examen</p>
             </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-              <span style="font-size:10px;padding:2px 7px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:700;border:1px solid #fde68a">${tlbl[p.tipo]||p.tipo}</span>
-              <span style="font-size:10px;padding:2px 7px;border-radius:8px;background:#fff;color:#6b7280;border:1px solid #e5e7eb">${fmtFecha(p.fecha)}</span>
-              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:#fee2e2;color:#b91c1c;font-weight:700">⏱ ${p.dias_vencido}d</span>
-              <button class="bs" style="font-size:10px;padding:2px 8px;background:#fff;border-color:#16a34a;color:#16a34a" onclick="irANotasAsig('${p.asignacion_id}')">✏ Notas</button>
+          </div>
+        </div>
+        ${Object.entries(tree).map(([carr,secs])=>`
+          <div style="margin-bottom:18px;border:1px solid #fde68a;border-radius:12px;overflow:hidden">
+            <!-- Carrera header -->
+            <div style="background:linear-gradient(90deg,#fef3c7,#fffbeb);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fde68a">
+              <span style="font-size:16px">🏫</span>
+              <span style="font-size:13px;font-weight:800;color:#78350f;text-transform:uppercase;letter-spacing:.04em">${carr}</span>
+              <span style="margin-left:auto;font-size:11px;background:#f59e0b;color:#fff;padding:2px 8px;border-radius:20px;font-weight:700">${Object.values(secs).flatMap(d=>Object.values(d)).flat().length} pendiente${Object.values(secs).flatMap(d=>Object.values(d)).flat().length!==1?'s':''}</span>
             </div>
-          </div>`).join('')}
-        </div>`).join('');
+            <!-- Secciones -->
+            ${Object.entries(secs).map(([sec,docs])=>`
+              <div style="padding:10px 14px 0;background:#fff">
+                <!-- Año / Sección -->
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <div style="width:6px;height:6px;border-radius:50%;background:#d97706;flex-shrink:0"></div>
+                  <span style="font-size:12px;font-weight:700;color:#92400e">${sec}</span>
+                </div>
+                <!-- Docentes -->
+                ${Object.entries(docs).map(([doc,exams])=>`
+                  <div style="margin-left:14px;margin-bottom:12px;border-left:2px solid #fde68a;padding-left:12px">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                      <span style="font-size:13px">👨‍🏫</span>
+                      <span style="font-size:12px;font-weight:700;color:#1c1917">${doc}</span>
+                    </div>
+                    <!-- Exámenes del docente -->
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      ${exams.map(p=>`
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fef3c7;gap:8px;flex-wrap:wrap">
+                          <div style="min-width:0;flex:1">
+                            <div style="font-size:13px;font-weight:700;color:#1c1917">${p.materia_nombre}</div>
+                            <div style="font-size:11px;color:#a16207;margin-top:2px">${p.total_alumnos} alumno${p.total_alumnos!==1?'s':''} · sin notas cargadas</div>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap">
+                            <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:700;border:1px solid #fde68a">${tlbl[p.tipo]||p.tipo}</span>
+                            <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0">${fmtFecha(p.fecha)}</span>
+                            <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#fee2e2;color:#b91c1c;font-weight:700;border:1px solid #fecaca">⏱ ${p.dias_vencido}d</span>
+                            <button class="bs" style="font-size:11px;padding:3px 10px;background:linear-gradient(135deg,#16a34a,#15803d);border:none;color:#fff;font-weight:700" onclick="irANotasAsig('${p.asignacion_id}')">✏ Cargar</button>
+                          </div>
+                        </div>`).join('')}
+                    </div>
+                  </div>`).join('')}
+              </div>`).join('')}
+          </div>`).join('')}`;
     })()}
-  </div>` : ''}`;
+  </div>`;
+  // Ensure panel is hidden on initial render
+  const _pp=el.querySelector('#dash-pend-notas');
+  if(_pp)_pp.style.display='none';
 }
 
 // ── WHATSAPP GESTIÓN ─────────────────────────────────────────────────────────
