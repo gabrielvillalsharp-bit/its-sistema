@@ -1827,9 +1827,11 @@ async function pgDash(el){
   <div class="dash-kpi">
     <div class="kpi-card green"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos activos</div></div>
     <div class="kpi-card blue"><span class="kpi-icon">👨‍🏫</span><div class="kpi-val">${d.total_docentes}</div><div class="kpi-lbl">Docentes</div></div>
-    <div class="kpi-card purple"><span class="kpi-icon">🏫</span><div class="kpi-val">${d.total_carreras}</div><div class="kpi-lbl">Carreras</div></div>
-    <div class="kpi-card green"><span class="kpi-icon">✅</span><div class="kpi-val" style="color:var(--green)">${d.aprobados}</div><div class="kpi-lbl">Aprobados</div></div>
-    <div class="kpi-card red"><span class="kpi-icon">❌</span><div class="kpi-val" style="color:var(--red)">${d.reprobados}</div><div class="kpi-lbl">Reprobados</div></div>
+    <div class="kpi-card ${(exPendDir||[]).length>0?'red':'green'}" style="cursor:pointer" onclick="document.getElementById('dash-pend-notas')?.scrollIntoView({behavior:'smooth'})">
+      <span class="kpi-icon">✏️</span>
+      <div class="kpi-val" style="color:${(exPendDir||[]).length>0?'var(--red)':'var(--green)'}">${(exPendDir||[]).length}</div>
+      <div class="kpi-lbl">Notas pendientes</div>
+    </div>
     ${me.rol==='director'?`
     <div class="kpi-card amber" style="cursor:pointer" onclick="go('deudores')">
       <span class="kpi-icon">💳</span><div class="kpi-val" style="color:${d.deudores>0?'var(--amb)':'var(--green)'}">${d.deudores}</div><div class="kpi-lbl">Deudores</div>
@@ -1869,7 +1871,7 @@ async function pgDash(el){
   </div>
 
   ${(exPendDir||[]).length ? `
-  <div class="card card-p" style="margin-top:16px">
+  <div id="dash-pend-notas" class="card card-p" style="margin-top:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <div style="background:linear-gradient(135deg,#b45309,#d97706);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚠️</div>
