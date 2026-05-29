@@ -1714,12 +1714,13 @@ app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, re
     const col = EXAMEN_NOTA_COL[ex.tipo];
     if (!col) continue;
     const total = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE curso_id=? AND estado='Activo'`).get(ex.curso_id)?.n || 0;
-    if (total === 0) continue;
-    // Si ningún alumno tiene puntaje cargado en esa columna → pendiente
+    // Ignorar cursos con menos de 8 alumnos activos (grupos pequeños / abandonados)
+    if (total < 8) continue;
+    // Pendiente si el docente cargó notas para menos de 8 alumnos
     const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
-    if (cargados === 0) {
+    if (cargados < 8) {
       const dias = Math.floor((new Date(hoy) - new Date(ex.fecha)) / (1000*60*60*24));
-      pendientes.push({ ...ex, col_nota: col, total_alumnos: total, dias_vencido: dias });
+      pendientes.push({ ...ex, col_nota: col, total_alumnos: total, cargados, dias_vencido: dias });
     }
   }
   res.json(pendientes);

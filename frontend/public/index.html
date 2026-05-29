@@ -1948,7 +1948,7 @@ function mostrarPendientesNotas(){
                   <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:#f9fafb;border:1px solid #e5e7eb;flex-wrap:wrap">
                     <div style="flex:1;min-width:140px">
                       <div style="font-size:13px;font-weight:700;color:#111827">${p.materia_nombre}</div>
-                      <div style="font-size:11px;color:#6b7280;margin-top:2px">${p.total_alumnos} alumno${p.total_alumnos!==1?'s':''}</div>
+                      <div style="font-size:11px;color:#6b7280;margin-top:2px">${p.cargados||0} de ${p.total_alumnos} con nota · ${p.total_alumnos-(p.cargados||0)} pendiente${(p.total_alumnos-(p.cargados||0))!==1?'s':''}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                       <span style="font-size:10px;padding:3px 8px;border-radius:6px;background:#e0e7ff;color:#3730a3;font-weight:700">${tlbl[p.tipo]||p.tipo}</span>
