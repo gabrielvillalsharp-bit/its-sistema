@@ -960,6 +960,9 @@ function init() {
   insConf.run('wa_tpl_24h',
     '🔔 *ITS Santísima Trinidad*\nHola Prof. {docente}, *mañana* tiene programado:\n\n📋 *{tipo}* de {materia}\n🎓 {carrera} {curso}\n📅 {fecha}  🕐 {hora}\n\nNo olvide traer el acta de examen y los materiales necesarios. ¡Éxitos!',
     'Mensaje WhatsApp 24 horas antes del examen');
+  insConf.run('wa_tpl_puntajes',
+    '📊 *Aviso — Puntajes Sin Cargar*\n\nEstimado/a Prof. {docente}, le informamos que el *{tipo}* de *{materia}* ({carrera} — {curso}) fue evaluado hace *{dias} días* y aún *no se registró ningún puntaje* en el sistema.\n\nLos alumnos están a la espera de visualizar sus resultados a través del sistema académico institucional.\n\nPor favor, ingrese al portal y cargue los puntajes a la brevedad para que los estudiantes puedan acceder a sus calificaciones.\n\n¡Muchas gracias por su colaboración!\n\n_Mensaje automático — Sistema de Gestión ITS Santísima Trinidad._',
+    'Aviso diario: puntajes sin cargar 8+ días después del examen');
   // Índices honorarios
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_docente ON honorarios(docente_id)'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_honorarios_fecha ON honorarios(fecha)'); } catch {}

@@ -4937,6 +4937,78 @@ cron.schedule('0 * * * *', async () => {
   } catch(e) { console.error('[CRON HORARIO] Error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
+// ── CRON: Aviso diario — puntajes sin cargar ≥8 días ─────────────────────────
+// Corre a las 9:00 AM, lunes a viernes. Si el examen tiene ≥8 días, el curso
+// tiene ≥8 alumnos activos y ningún puntaje cargado → manda aviso al docente.
+// Máximo 1 aviso por examen por día.
+cron.schedule('0 9 * * 1-5', async () => {
+  if (!enHoraPermitida()) return;
+  const regla = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_puntajes_activa'").get();
+  if (regla?.valor === '0') return;
+  try {
+    const py  = pyNow();
+    const hoy = `${py.getFullYear()}-${String(py.getMonth()+1).padStart(2,'0')}-${String(py.getDate()).padStart(2,'0')}`;
+    // Exámenes con ≥8 días de antigüedad
+    const limite = new Date(py.getTime() - 8 * 24 * 60 * 60 * 1000);
+    const flStr  = `${limite.getFullYear()}-${String(limite.getMonth()+1).padStart(2,'0')}-${String(limite.getDate()).padStart(2,'0')}`;
+    const exams  = db.prepare(`
+      SELECT e.id, e.tipo, e.fecha, e.asignacion_id,
+        m.nombre  AS materia_nombre,
+        ca.nombre AS carrera_nombre,
+        cu.anio   AS curso_anio, cu.division AS curso_division, cu.id AS curso_id,
+        u.nombre  AS doc_nombre, u.apellido AS doc_apellido, u.titulo AS doc_titulo,
+        d.id      AS docente_id, d.telefono
+      FROM examenes e
+      JOIN asignaciones a  ON e.asignacion_id = a.id
+      JOIN materias m      ON a.materia_id    = m.id
+      JOIN cursos cu       ON a.curso_id      = cu.id
+      JOIN carreras ca     ON cu.carrera_id   = ca.id
+      JOIN docentes d      ON a.docente_id    = d.id
+      JOIN usuarios u      ON d.usuario_id    = u.id
+      WHERE e.fecha <= ?
+        AND u.activo = 1
+        AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
+      ORDER BY e.fecha ASC
+    `).all(flStr);
+    let enviados = 0;
+    for (const ex of exams) {
+      const col = EXAMEN_NOTA_COL[ex.tipo];
+      if (!col) continue;
+      // Filtrar cursos pequeños / abandonados
+      const total = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE curso_id=? AND estado='Activo'`).get(ex.curso_id)?.n || 0;
+      if (total < 8) continue;
+      // Solo si ningún puntaje fue cargado
+      const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
+      if (cargados > 0) continue;
+      // Anti-duplicado: máximo 1 aviso por examen por día
+      const yaHoy = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='puntajes' AND substr(fecha,1,10)=?`).get(ex.id, hoy);
+      if (yaHoy) continue;
+      const dias  = Math.floor((new Date(hoy) - new Date(ex.fecha)) / (1000 * 60 * 60 * 24));
+      const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
+      const fechaFmt = new Date(ex.fecha + 'T12:00:00').toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const vars = {
+        docente: `${ex.doc_apellido || ''} ${ex.doc_nombre || ''}`.trim(),
+        materia: ex.materia_nombre || '',
+        tipo:    ex.tipo           || '',
+        carrera: ex.carrera_nombre || '',
+        curso,
+        fecha:   fechaFmt,
+        dias:    String(dias),
+      };
+      const msg = buildWaMsg('wa_tpl_puntajes', vars);
+      const { ok } = await sendWhatsApp(ex.telefono, msg);
+      const rid = 'war_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
+      db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'puntajes', ok ? 'enviado' : 'fallido');
+      const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`)
+        .run(wid, 'programado', 'docente', ex.docente_id, `${ex.doc_apellido}, ${ex.doc_nombre}`, ex.telefono, msg, ok ? 'enviado' : 'fallido', 'sistema_auto');
+      if (ok) enviados++;
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
+    }
+    if (enviados > 0) console.log(`[CRON 9AM PUNTAJES] Avisos enviados: ${enviados}`);
+  } catch (e) { console.error('[CRON 9AM PUNTAJES] Error:', e.message); }
+}, { timezone: 'America/Asuncion' });
+
 // ── WHATSAPP: envío manual para un examen ─────────────────────────────────────
 app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
   const ex = db.prepare(`
@@ -4972,8 +5044,9 @@ const WA_REGLAS_DEF = [
   { key:'12h',     label:'12 horas antes del examen',   cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'6h',      label:'6 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'3h',      label:'3 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
-  { key:'aviso24', label:'Aviso: archivo pendiente 24h',cron:'7:00 AM — diario',   tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
-  { key:'urgente', label:'Urgente: sin archivo ≤7h',    cron:'Cada hora',           tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
+  { key:'aviso24',   label:'Aviso: archivo pendiente 24h',  cron:'7:00 AM — diario',   tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'urgente',   label:'Urgente: sin archivo ≤7h',      cron:'Cada hora',           tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
+  { key:'puntajes',  label:'Aviso: puntajes sin cargar ≥8d',cron:'9:00 AM — lun a vie', tipo:'notas',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {dias}' },
 ];
 const WA_TPL_DEFAULTS = {
   '72h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
@@ -4984,7 +5057,8 @@ const WA_TPL_DEFAULTS = {
   '6h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
   '3h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias por su comprensión!\n_Administración — ITS Santísima Trinidad._',
   'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
-  'urgente':'⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
+  'urgente':  '⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
+  'puntajes': '📊 *Aviso — Puntajes Sin Cargar*\n\nEstimado/a Prof. {docente}, le informamos que el *{tipo}* de *{materia}* ({carrera} — {curso}) fue evaluado hace *{dias} días* y aún *no se registró ningún puntaje* en el sistema.\n\nLos alumnos están a la espera de visualizar sus resultados a través del sistema académico institucional.\n\nPor favor, ingrese al portal y cargue los puntajes a la brevedad para que los estudiantes puedan acceder a sus calificaciones.\n\n¡Muchas gracias por su colaboración!\n\n_Mensaje automático — Sistema de Gestión ITS Santísima Trinidad._',
 };
 // ── PLANTILLAS DEL SISTEMA (bienvenida QR, constancia pago) ───────────────
 const WA_SISTEMA_DEFAULTS = {
