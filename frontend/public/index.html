@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260531-BORDER-BEAM-V11 -->
+<!-- build:20260531-BORDER-BEAM-V12 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -789,26 +789,14 @@ body.mob-alumno .ct{padding-bottom:68px}
 
 /* Card centrado */
 /* Wrapper que contiene el borde animado */
-.lp3-card-outer{position:relative;z-index:10;width:100%;max-width:420px;border-radius:30px;padding:3px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.03),0 20px 60px rgba(22,101,52,.18),0 40px 80px rgba(22,101,52,.12)}
-/* Banda verde única girando alrededor del borde */
-.lp3-border-beam{position:absolute;width:200%;height:200%;top:50%;left:50%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(from 0deg at 50% 50%,transparent 0deg,transparent 255deg,rgba(34,197,94,.08) 268deg,rgba(74,222,128,.35) 282deg,rgba(34,197,94,.72) 298deg,rgba(74,222,128,.96) 312deg,rgba(134,239,172,1) 322deg,rgba(74,222,128,.96) 332deg,rgba(34,197,94,.72) 344deg,rgba(74,222,128,.3) 353deg,rgba(34,197,94,.06) 358deg,transparent 360deg);filter:blur(2px);animation:lp3BorderSpin 14s linear infinite;z-index:0}
+.lp3-card-outer{position:relative;z-index:10;width:100%;max-width:420px;border-radius:30px;padding:4px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.03),0 20px 60px rgba(22,101,52,.25),0 40px 80px rgba(22,101,52,.18)}
+/* Banda verde metálica única girando alrededor del borde */
+.lp3-border-beam{position:absolute;width:200%;height:200%;top:50%;left:50%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(from 0deg at 50% 50%,transparent 0deg,transparent 248deg,rgba(0,200,80,.06) 258deg,rgba(0,230,90,.28) 268deg,rgba(0,255,100,.65) 280deg,rgba(57,255,130,.92) 292deg,rgba(0,255,120,1) 302deg,rgba(100,255,160,1) 312deg,rgba(0,255,120,1) 322deg,rgba(57,255,130,.92) 332deg,rgba(0,230,90,.55) 342deg,rgba(0,200,80,.2) 351deg,rgba(0,180,70,.05) 357deg,transparent 360deg);filter:blur(2.5px);animation:lp3BorderSpin 17s linear infinite;z-index:0}
 @keyframes lp3BorderSpin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
 .lp3-card{position:relative;z-index:1;width:100%;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border:none;border-radius:28px;padding:44px 40px 36px;box-shadow:0 0 0 1px rgba(255,255,255,.7) inset;text-align:center;overflow:hidden}
 
-/* Luces internas del card */
-.lp3-card-light{position:absolute;pointer-events:none;border-radius:50%}
-/* Luz superior que va de izquierda a derecha */
-.lp3-cl1{width:280px;height:80px;background:linear-gradient(90deg,transparent,rgba(74,222,128,.22),rgba(34,197,94,.35),rgba(74,222,128,.22),transparent);top:0;left:-280px;filter:blur(18px);animation:cardLightH1 4s ease-in-out infinite}
-/* Luz inferior que va de derecha a izquierda */
-.lp3-cl2{width:240px;height:60px;background:linear-gradient(90deg,transparent,rgba(34,197,94,.18),rgba(22,163,74,.3),rgba(34,197,94,.18),transparent);bottom:0;right:-240px;filter:blur(14px);animation:cardLightH2 5s 1.2s ease-in-out infinite}
-/* Luz diagonal que cruza el card */
-.lp3-cl3{width:120px;height:400px;background:linear-gradient(180deg,transparent,rgba(74,222,128,.12) 40%,rgba(34,197,94,.2) 50%,rgba(74,222,128,.12) 60%,transparent);top:-100%;left:-120px;filter:blur(10px);animation:cardLightV 6s 2s ease-in-out infinite;transform:rotate(20deg)}
-/* Reflejo superior sutil */
-.lp3-cl4{width:100%;height:2px;background:linear-gradient(90deg,transparent 0%,rgba(74,222,128,.0) 10%,rgba(74,222,128,.6) 50%,rgba(74,222,128,.0) 90%,transparent 100%);top:0;left:0;border-radius:0;filter:blur(1px);animation:cardShine 3.5s 0.5s ease-in-out infinite}
-@keyframes cardLightH1{0%{left:-280px;opacity:0}10%{opacity:1}50%{left:calc(100% + 280px);opacity:.8}51%{opacity:0}100%{left:calc(100% + 280px);opacity:0}}
-@keyframes cardLightH2{0%{right:-240px;opacity:0}10%{opacity:1}50%{right:calc(100% + 240px);opacity:.7}51%{opacity:0}100%{right:calc(100% + 240px);opacity:0}}
-@keyframes cardLightV{0%{top:-100%;opacity:0}10%{opacity:1}60%{top:120%;opacity:.6}61%{opacity:0}100%{top:120%;opacity:0}}
-@keyframes cardShine{0%,100%{opacity:0;transform:scaleX(.3) translateX(-80%)}40%{opacity:1;transform:scaleX(1) translateX(0%)}80%{opacity:0;transform:scaleX(.3) translateX(80%)}}
+/* Luces internas eliminadas */
+.lp3-card-light{display:none}
 
 /* Logo en card */
 .lp3-logo-wrap{position:relative;display:inline-block;margin-bottom:20px}
