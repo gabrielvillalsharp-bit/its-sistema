@@ -203,18 +203,15 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
   let autenticado = bcrypt.compareSync(password, u.password_hash);
 
-  // Migración automática: alumno ingresa CI completa pero el hash guardado
-  // es de los últimos 3 dígitos (bug de creación anterior).
-  // Si detectamos ese caso → autenticamos y actualizamos el hash en el acto.
+  // Alumnos: aceptar tanto la CI completa como los últimos 3 dígitos.
+  // Si el alumno ingresa cualquiera de las dos y el hash no coincide
+  // (passwords viejos), se autentica igual y el hash se actualiza a CI completa.
   if (!autenticado && u.rol === 'alumno' && u.ci) {
     const ciLimpia = String(u.ci).replace(/[^0-9]/g, '');
     const ultimos3 = ciLimpia.slice(-3);
-    const alumnoIngresoCICompleta = password === ciLimpia;
-    const hashEsDeUltimos3 = ultimos3.length >= 1 && bcrypt.compareSync(ultimos3, u.password_hash);
-    if (alumnoIngresoCICompleta && hashEsDeUltimos3) {
+    if (password === ciLimpia || password === ultimos3) {
       db.prepare('UPDATE usuarios SET password_hash=? WHERE id=?').run(bcrypt.hashSync(ciLimpia, 10), u.id);
       autenticado = true;
-      console.log(`[LOGIN] Migrado password alumno ${u.id} → CI completa`);
     }
   }
 
