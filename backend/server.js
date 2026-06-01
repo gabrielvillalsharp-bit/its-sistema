@@ -4702,8 +4702,8 @@ async function enviarBienvenidaQR(telefono, nombre, email, ci) {
     const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
     db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?)`)
       .run(wid, 'bienvenida', 'alumno', nombre||'', telefono, msg, ok ? 'enviado' : 'fallido', 'sistema_auto');
-    // Pausa 45–90 segundos para evitar detección de ráfaga por Meta
-    await new Promise(r => setTimeout(r, 45000 + Math.random() * 45000));
+    // Pausa 10–20 segundos para evitar detección de ráfaga por Meta
+    await new Promise(r => setTimeout(r, 10000 + Math.random() * 10000));
   } catch(e) { console.error('[WA] enviarBienvenidaQR error:', e.message); }
 }
 // ── HELPER: hora actual en Paraguay (DST-aware) ───────────────────────────────
