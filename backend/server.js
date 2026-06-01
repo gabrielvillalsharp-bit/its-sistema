@@ -4615,7 +4615,7 @@ function normalizarTelefono(tel) {
   return t;
 }
 // ── ANTI-SPAM: límite diario y variación de texto ────────────────────────────
-const WA_LIMITE_DIARIO = 60; // máximo mensajes por día
+const WA_LIMITE_DIARIO = 150; // máximo mensajes por día (50 alumnos + 20 docentes + margen)
 
 function waMensajesHoy() {
   const hoy = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
@@ -4702,6 +4702,8 @@ async function enviarBienvenidaQR(telefono, nombre, email, ci) {
     const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
     db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?)`)
       .run(wid, 'bienvenida', 'alumno', nombre||'', telefono, msg, ok ? 'enviado' : 'fallido', 'sistema_auto');
+    // Pausa 45–90 segundos para evitar detección de ráfaga por Meta
+    await new Promise(r => setTimeout(r, 45000 + Math.random() * 45000));
   } catch(e) { console.error('[WA] enviarBienvenidaQR error:', e.message); }
 }
 // ── HELPER: hora actual en Paraguay (DST-aware) ───────────────────────────────
