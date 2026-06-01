@@ -5148,8 +5148,7 @@ app.get('/api/whatsapp/grupos', auth(ADM), async (req, res) => {
   try {
     const r = await fetch(`${EVO_URL}/group/fetchAllGroups/${EVO_INSTANCE}?getParticipants=false`, { headers: { apikey: EVO_KEY } });
     const data = await r.json().catch(()=>[]);
-    const grupos = (Array.isArray(data) ? data : []).map(g => ({ id: g.id, nombre: g.subject, participantes: g.size }));
-    res.json(grupos);
+    res.json({ raw: data, http_status: r.status });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
