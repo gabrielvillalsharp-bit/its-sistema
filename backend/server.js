@@ -4686,16 +4686,18 @@ async function enviarBienvenidaQR(telefono, nombre, email, ci) {
     .replace(/\{url\}/g, APP_URL);
   sendWhatsApp(telefono, msg).catch(()=>{});
 }
-// ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
+// ── HELPER: hora actual en Paraguay (DST-aware) ───────────────────────────────
+function pyNow() {
+  const s = new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' });
+  return new Date(s);
+}
+// ── HELPER: verificar horario permitido (08:00 – 21:00 Paraguay, lunes a viernes) ─────────
 function enHoraPermitida() {
-  // Usa el timezone real de Paraguay (PYT UTC-4 / PYST UTC-3 según DST)
-  const ahora = new Date();
-  const pyStr = ahora.toLocaleString('en-US', { timeZone: 'America/Asuncion' });
-  const pyDate = new Date(pyStr);
-  const h   = pyDate.getHours();
-  const dia = pyDate.getDay(); // 0=domingo, 6=sábado
+  const py = pyNow();
+  const h   = py.getHours();
+  const dia = py.getDay(); // 0=domingo, 6=sábado
   if (dia === 0 || dia === 6) return false; // prohibido sábado y domingo
-  return h >= 7 && h < 22;
+  return h >= 8 && h < 21;                 // sólo 08:00–20:59
 }
 
 function buildWaMsg(tplKey, vars) {
@@ -4823,14 +4825,15 @@ const stmtExamSinArch = db.prepare(`
     AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
 `);
 
-cron.schedule('0 7 * * *', async () => {
+cron.schedule('0 8 * * *', async () => {
   if (!enHoraPermitida()) return;
   const reglaAviso = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_aviso24_activa'").get();
   if (reglaAviso?.valor === '0') return;
   try {
-    const manana = new Date();
-    manana.setDate(manana.getDate() + 1);
-    const fechaManana = manana.toISOString().split('T')[0];
+    // Fecha de mañana en hora Paraguay (DST-aware)
+    const pyHoy = pyNow();
+    const manana = new Date(pyHoy.getTime() + 24 * 60 * 60 * 1000);
+    const fechaManana = `${manana.getFullYear()}-${String(manana.getMonth()+1).padStart(2,'0')}-${String(manana.getDate()).padStart(2,'0')}`;
     const examenes = stmtExamSinArch.all(fechaManana);
     let enviados = 0;
     for (const ex of examenes) {
@@ -4888,20 +4891,22 @@ cron.schedule('0 * * * *', async () => {
   if (reglaUrg?.valor === '0') return;
   try {
     const ahora = new Date();
-    // Convertir a hora Paraguay (UTC-4)
-    const py = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
-    const hoy = py.toISOString().split('T')[0];
+    // Hora actual en Paraguay (DST-aware)
+    const py = pyNow();
+    const yy = py.getFullYear();
+    const mo = String(py.getMonth()+1).padStart(2,'0');
+    const dd = String(py.getDate()).padStart(2,'0');
+    const hoy = `${yy}-${mo}-${dd}`;
     const examenes = stmtExamSinArch.all(hoy);
     let enviados = 0;
     for (const ex of examenes) {
       if (!ex.hora) continue;
       const [hh, mm] = ex.hora.split(':').map(Number);
-      // Hora del examen en Paraguay
-      const examDate = new Date(py);
-      examDate.setHours(hh, mm || 0, 0, 0);
-      const diffMs = examDate - py;
-      const diffH = diffMs / (1000 * 60 * 60);
-      if (diffH <= 0 || diffH > 7) continue; // Solo si es en ≤7h y no pasó
+      // Diferencia en horas usando minutos Paraguay puros
+      const examMin = hh * 60 + (mm || 0);
+      const nowMin  = py.getHours() * 60 + py.getMinutes();
+      const diffH   = (examMin - nowMin) / 60;
+      if (diffH <= 0 || diffH > 3) continue; // Solo si faltan ≤3 h y no pasó
       // Evitar enviar más de una vez por hora para el mismo examen
       const hace70min = new Date(ahora.getTime() - 70 * 60 * 1000).toISOString().replace('T',' ').slice(0,19);
       const yaEnviadoHora = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='horario' AND fecha>=?`).get(ex.id, hace70min);
