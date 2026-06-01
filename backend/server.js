@@ -4688,9 +4688,12 @@ async function enviarBienvenidaQR(telefono, nombre, email, ci) {
 }
 // ── HELPER: verificar horario permitido (07:00 – 22:00 Paraguay, lunes a viernes) ─────────
 function enHoraPermitida() {
-  const py = new Date(new Date().getTime() - 4 * 60 * 60 * 1000);
-  const h = py.getUTCHours();
-  const dia = py.getUTCDay(); // 0=domingo, 6=sábado
+  // Usa el timezone real de Paraguay (PYT UTC-4 / PYST UTC-3 según DST)
+  const ahora = new Date();
+  const pyStr = ahora.toLocaleString('en-US', { timeZone: 'America/Asuncion' });
+  const pyDate = new Date(pyStr);
+  const h   = pyDate.getHours();
+  const dia = pyDate.getDay(); // 0=domingo, 6=sábado
   if (dia === 0 || dia === 6) return false; // prohibido sábado y domingo
   return h >= 7 && h < 22;
 }
@@ -5312,6 +5315,7 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
 
 // ── CRON: mensajes programados (corre cada minuto) ────────────────────────────
 cron.schedule('* * * * *', async () => {
+  if (!enHoraPermitida()) return; // prohibido sábado, domingo y fuera de 07:00–22:00
   try {
     const ahora = new Date().toISOString().replace('T',' ').slice(0,16);
     const pendientes = db.prepare("SELECT * FROM wa_programados WHERE estado='pendiente' AND substr(fecha_envio,1,16)<=?").all(ahora);
