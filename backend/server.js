@@ -4965,6 +4965,7 @@ cron.schedule('0 9 * * 1-5', async () => {
       JOIN usuarios u     ON d.usuario_id    = u.id
       WHERE e.fecha <= ?
         AND u.activo = 1
+        AND d.id != 'u_doc_mareco'
         AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
       ORDER BY d.id, ca.nombre, cu.anio, m.nombre
     `).all(flStr);
