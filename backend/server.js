@@ -5139,6 +5139,20 @@ app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
   } catch(e) { res.json({ configurado: true, estado: 'error', mensaje: e.message }); }
 });
 
+// ── WHATSAPP: listar grupos disponibles ───────────────────────────────────────
+app.get('/api/whatsapp/grupos', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.status(500).json({ error: 'Evolution API no configurada' });
+  try {
+    const r = await fetch(`${EVO_URL}/group/fetchAllGroups/${EVO_INSTANCE}?getParticipants=false`, { headers: { apikey: EVO_KEY } });
+    const data = await r.json().catch(()=>[]);
+    const grupos = (Array.isArray(data) ? data : []).map(g => ({ id: g.id, nombre: g.subject, participantes: g.size }));
+    res.json(grupos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── WHATSAPP DIAGNÓSTICO: prueba de envío con detalle de error ────────────────
 app.post('/api/whatsapp/test-envio', auth(ADM), async (req, res) => {
   const { telefono } = req.body;
