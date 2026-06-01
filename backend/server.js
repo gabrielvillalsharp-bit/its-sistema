@@ -4936,9 +4936,9 @@ cron.schedule('0 * * * *', async () => {
 }, { timezone: 'America/Asuncion' });
 
 // ── CRON: Aviso diario — puntajes sin cargar ≥8 días ─────────────────────────
-// Corre a las 9:00 AM, lunes a viernes. Si el examen tiene ≥8 días, el curso
-// tiene ≥8 alumnos activos y ningún puntaje cargado → manda aviso al docente.
-// Máximo 1 aviso por examen por día.
+// Corre a las 9:00 AM, lunes a viernes.
+// Agrupa todas las materias pendientes por docente y envía 1 solo mensaje por docente.
+// Máximo 1 aviso por docente por día.
 cron.schedule('0 9 * * 1-5', async () => {
   if (!enHoraPermitida()) return;
   const regla = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_puntajes_activa'").get();
@@ -4946,61 +4946,78 @@ cron.schedule('0 9 * * 1-5', async () => {
   try {
     const py  = pyNow();
     const hoy = `${py.getFullYear()}-${String(py.getMonth()+1).padStart(2,'0')}-${String(py.getDate()).padStart(2,'0')}`;
-    // Exámenes con ≥8 días de antigüedad
     const limite = new Date(py.getTime() - 8 * 24 * 60 * 60 * 1000);
     const flStr  = `${limite.getFullYear()}-${String(limite.getMonth()+1).padStart(2,'0')}-${String(limite.getDate()).padStart(2,'0')}`;
-    const exams  = db.prepare(`
+
+    const exams = db.prepare(`
       SELECT e.id, e.tipo, e.fecha, e.asignacion_id,
         m.nombre  AS materia_nombre,
         ca.nombre AS carrera_nombre,
         cu.anio   AS curso_anio, cu.division AS curso_division, cu.id AS curso_id,
-        u.nombre  AS doc_nombre, u.apellido AS doc_apellido, u.titulo AS doc_titulo,
+        u.nombre  AS doc_nombre, u.apellido AS doc_apellido,
         d.id      AS docente_id, d.telefono
       FROM examenes e
-      JOIN asignaciones a  ON e.asignacion_id = a.id
-      JOIN materias m      ON a.materia_id    = m.id
-      JOIN cursos cu       ON a.curso_id      = cu.id
-      JOIN carreras ca     ON cu.carrera_id   = ca.id
-      JOIN docentes d      ON a.docente_id    = d.id
-      JOIN usuarios u      ON d.usuario_id    = u.id
+      JOIN asignaciones a ON e.asignacion_id = a.id
+      JOIN materias m     ON a.materia_id    = m.id
+      JOIN cursos cu      ON a.curso_id      = cu.id
+      JOIN carreras ca    ON cu.carrera_id   = ca.id
+      JOIN docentes d     ON a.docente_id    = d.id
+      JOIN usuarios u     ON d.usuario_id    = u.id
       WHERE e.fecha <= ?
         AND u.activo = 1
         AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
-      ORDER BY e.fecha ASC
+      ORDER BY d.id, ca.nombre, cu.anio, m.nombre
     `).all(flStr);
-    let enviados = 0;
+
+    // Filtrar solo los exámenes sin ningún puntaje cargado
+    // y agrupar por docente
+    const porDocente = {};
     for (const ex of exams) {
       const col = EXAMEN_NOTA_COL[ex.tipo];
       if (!col) continue;
-      // Solo si ningún puntaje fue cargado
       const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
       if (cargados > 0) continue;
-      // Anti-duplicado: máximo 1 aviso por examen por día
-      const yaHoy = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='puntajes' AND substr(fecha,1,10)=?`).get(ex.id, hoy);
-      if (yaHoy) continue;
-      const dias  = Math.floor((new Date(hoy) - new Date(ex.fecha)) / (1000 * 60 * 60 * 24));
+      if (!porDocente[ex.docente_id]) porDocente[ex.docente_id] = { info: ex, materias: [] };
+      const dias = Math.floor((new Date(hoy) - new Date(ex.fecha)) / (1000 * 60 * 60 * 24));
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
-      const fechaFmt = new Date(ex.fecha + 'T12:00:00').toLocaleDateString('es-PY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      const vars = {
-        docente: `${ex.doc_apellido || ''} ${ex.doc_nombre || ''}`.trim(),
-        materia: ex.materia_nombre || '',
-        tipo:    ex.tipo           || '',
-        carrera: ex.carrera_nombre || '',
-        curso,
-        fecha:   fechaFmt,
-        dias:    String(dias),
-      };
-      const msg = buildWaMsg('wa_tpl_puntajes', vars);
-      const { ok } = await sendWhatsApp(ex.telefono, msg);
-      const rid = 'war_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
-      db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, 'puntajes', ok ? 'enviado' : 'fallido');
-      const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 4);
+      porDocente[ex.docente_id].materias.push({ materia: ex.materia_nombre, tipo: ex.tipo, carrera: ex.carrera_nombre, curso, dias, examen_id: ex.id });
+    }
+
+    let enviados = 0;
+    for (const [docente_id, { info, materias }] of Object.entries(porDocente)) {
+      // Anti-duplicado: 1 aviso por docente por día
+      const yaHoy = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE docente_id=? AND tipo='puntajes' AND substr(fecha,1,10)=?`).get(docente_id, hoy);
+      if (yaHoy) continue;
+
+      const docNombre = `${info.doc_apellido || ''} ${info.doc_nombre || ''}`.trim();
+
+      // Construir lista de materias pendientes
+      const listaMaterias = materias.map((m, i) =>
+        `${i + 1}. *${m.materia}* (${m.tipo}) — ${m.carrera} ${m.curso} _(hace ${m.dias} días)_`
+      ).join('\n');
+
+      let msg;
+      if (materias.length === 1) {
+        const m = materias[0];
+        msg = `📊 *Aviso — Puntajes Sin Cargar*\n\nEstimado/a Prof. ${docNombre}, le informamos que el *${m.tipo}* de *${m.materia}* (${m.carrera} — ${m.curso}) fue evaluado hace *${m.dias} días* y aún *no se registró ningún puntaje* en el sistema.\n\nLos alumnos están a la espera de visualizar sus resultados a través del sistema académico institucional.\n\nPor favor, ingrese al portal y cargue los puntajes a la brevedad para que los estudiantes puedan acceder a sus calificaciones.\n\n¡Muchas gracias por su colaboración!\n\n_Mensaje automático — Sistema de Gestión ITS Santísima Trinidad._`;
+      } else {
+        msg = `📊 *Aviso — Puntajes Sin Cargar*\n\nEstimado/a Prof. ${docNombre}, le informamos que tiene *${materias.length} materias* con puntajes aún sin registrar en el sistema:\n\n${listaMaterias}\n\nLos alumnos están a la espera de visualizar sus resultados a través del sistema académico institucional.\n\nPor favor, ingrese al portal y cargue los puntajes a la brevedad para que los estudiantes puedan acceder a sus calificaciones.\n\n¡Muchas gracias por su colaboración!\n\n_Mensaje automático — Sistema de Gestión ITS Santísima Trinidad._`;
+      }
+
+      const { ok } = await sendWhatsApp(info.telefono, msg);
+
+      // Registrar un aviso por cada examen del docente
+      for (const m of materias) {
+        const rid = 'war_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+        db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, m.examen_id, docente_id, 'puntajes', ok ? 'enviado' : 'fallido');
+      }
+      const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`)
-        .run(wid, 'programado', 'docente', ex.docente_id, `${ex.doc_apellido}, ${ex.doc_nombre}`, ex.telefono, msg, ok ? 'enviado' : 'fallido', 'sistema_auto');
+        .run(wid, 'programado', 'docente', docente_id, `${info.doc_apellido}, ${info.doc_nombre}`, info.telefono, msg, ok ? 'enviado' : 'fallido', 'sistema_auto');
       if (ok) enviados++;
       await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000));
     }
-    if (enviados > 0) console.log(`[CRON 9AM PUNTAJES] Avisos enviados: ${enviados}`);
+    if (enviados > 0) console.log(`[CRON 9AM PUNTAJES] Avisos enviados a ${enviados} docentes`);
   } catch (e) { console.error('[CRON 9AM PUNTAJES] Error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
