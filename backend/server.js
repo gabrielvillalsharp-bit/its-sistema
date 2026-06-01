@@ -4697,7 +4697,7 @@ function enHoraPermitida() {
   const h   = py.getHours();
   const dia = py.getDay(); // 0=domingo, 6=sábado
   if (dia === 0 || dia === 6) return false; // prohibido sábado y domingo
-  return h >= 8 && h < 22;                 // sólo 08:00–21:59
+  return h >= 8 && h < 17;                 // sólo 08:00–16:59
 }
 
 function buildWaMsg(tplKey, vars) {
