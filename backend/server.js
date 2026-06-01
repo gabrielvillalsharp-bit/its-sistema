@@ -1714,8 +1714,6 @@ app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, re
     const col = EXAMEN_NOTA_COL[ex.tipo];
     if (!col) continue;
     const total = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE curso_id=? AND estado='Activo'`).get(ex.curso_id)?.n || 0;
-    // Ignorar cursos con menos de 8 alumnos activos (grupos pequeños / abandonados)
-    if (total < 8) continue;
     // Pendiente solo si no se cargó ninguna nota (cargados === 0)
     const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
     if (cargados === 0) {
@@ -4974,9 +4972,6 @@ cron.schedule('0 9 * * 1-5', async () => {
     for (const ex of exams) {
       const col = EXAMEN_NOTA_COL[ex.tipo];
       if (!col) continue;
-      // Filtrar cursos pequeños / abandonados
-      const total = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE curso_id=? AND estado='Activo'`).get(ex.curso_id)?.n || 0;
-      if (total < 8) continue;
       // Solo si ningún puntaje fue cargado
       const cargados = db.prepare(`SELECT COUNT(*) as n FROM notas n2 WHERE n2.asignacion_id=? AND n2.${col} IS NOT NULL`).get(ex.asignacion_id)?.n || 0;
       if (cargados > 0) continue;
