@@ -4297,12 +4297,8 @@ async function pgExamenes(el){
 
 // Ir directo a la sección notas con una asignación preseleccionada
 function irANotasAsig(asigId){
+  window._pendingAsigNotas=asigId; // pgNotas lo leerá al terminar de renderizar
   go('notas');
-  // Esperar a que cargue la página de notas y preseleccionar la asignación
-  setTimeout(()=>{
-    const sel=document.getElementById('asigSel')||document.querySelector('select[id*="asig"]');
-    if(sel&&asigId){sel.value=asigId;sel.dispatchEvent(new Event('change'));}
-  },800);
 }
 function exRow(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
@@ -6712,6 +6708,16 @@ async function pgNotas(el){
     </select>
   </div>
   <div id="nc"></div>`;
+  // Si viene desde "Cargar notas pendientes", abrir directamente esa asignación
+  if(window._pendingAsigNotas){
+    const asigId=window._pendingAsigNotas;
+    window._pendingAsigNotas=null;
+    const sel=document.getElementById('selAsigNotas');
+    if(sel){
+      sel.value=asigId;
+      if(sel.value===asigId) cambiarAsigNotas(asigId);
+    }
+  }
 }
 function toggleDropAsist(btn){
   const menu=btn.parentElement.querySelector('.drop-asist-menu');
