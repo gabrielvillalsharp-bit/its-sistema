@@ -61,6 +61,15 @@ const apiLimiter = rateLimit({
 
 app.use(compression());
 app.use(express.json());
+// Forzar UTF-8 en todas las respuestas JSON para evitar CÃ©sar en lugar de César
+app.use((req, res, next) => {
+  const orig = res.json.bind(res);
+  res.json = (body) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return orig(body);
+  };
+  next();
+});
 app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
