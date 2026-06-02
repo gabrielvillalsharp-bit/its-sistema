@@ -10993,52 +10993,7 @@ function renderMisNotas(notas){
       ${n.nota_final!=null?`<div style="text-align:center;margin-top:6px"><span style="font-size:11px;color:#64748b">Nota final: </span><strong style="font-size:15px">${n.nota_final}</strong></div>`:''}
     </div>`;
   }).join('')}</div>`;
-  return`${mobCards}<div class="card mis-notas-table-wrap"><div class="tw notas-scroll-wrap" style="overflow-x:auto"><table class="notas-mobile-table" style="min-width:900px;font-size:11px;border-collapse:collapse;width:100%">
-    <thead>
-      <tr style="background:#166534;color:#fff">
-        <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:left;min-width:140px">Materia</th>
-        <th colspan="6" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#1a7a42">Trabajos Prácticos</th>
-        <th colspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#166534">Parcial</th>
-        <th colspan="3" style="padding:6px 8px;border:1px solid #166534;text-align:center;background:#14532d">Final</th>
-        <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:55px">Ptje.</th>
-        <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:40px">Nota</th>
-        <th rowspan="2" style="padding:6px 8px;border:1px solid #166534;text-align:center;min-width:80px">Estado</th>
-      </tr>
-      <tr style="background:#1a7a42;color:#fff;font-size:10px">
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP1</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP2</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP3</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP4</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">TP5</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center;font-weight:700">Total</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Ord.</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Recup.</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Final</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Recup.</th>
-        <th style="padding:4px 6px;border:1px solid #166534;text-align:center">Compl.</th>
-      </tr>
-    </thead>
-    <tbody>
-    ${notas.map(n=>{
-      const est=n.estado||'Pendiente';
-      return`<tr style="${est==='Aprobado'?'background:#f1fff5':est==='Reprobado'?'background:#fff5f5':''}">
-        <td style="padding:5px 8px;border:1px solid var(--bdr);font-weight:600">${n.materia_nombre||''}</td>
-        ${[n.tp1,n.tp2,n.tp3,n.tp4,n.tp5].map(v=>`<td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-size:11px">${v??'—'}</td>`).join('')}
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center;font-weight:700">${n.tp_total??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.parcial??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.parcial_recuperatorio??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.final_ord??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.final_recuperatorio??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">${n.complementario??'—'}</td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center"><strong>${n.puntaje_total??'—'}</strong></td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center"><strong>${n.nota_final??'—'}</strong></td>
-        <td style="padding:4px 6px;border:1px solid var(--bdr);text-align:center">
-          <span class="bx ${est==='Aprobado'?'bg':est==='Reprobado'?'br':'bgr'}" style="font-size:10px">${est}</span>
-        </td>
-      </tr>`;
-    }).join('')}
-    </tbody>
-  </table></div></div>`;
+  return mobCards;
 }
 
 async function pgMiAsistencia(el){
