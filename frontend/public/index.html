@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-ASISTENCIA-CARD -->
+<!-- build:20260601-ASIST-SECTION -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1802,36 +1802,7 @@ async function pgDash(el){
           </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
       </div>
     </div>
-    <!-- Card Asistencia por día -->
-    ${(()=>{
-      const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-      const conDia=misAsigs.filter(a=>a.dia);
-      if(!conDia.length) return '';
-      const porDia={};
-      conDia.forEach(a=>{if(!porDia[a.dia])porDia[a.dia]=[];porDia[a.dia].push(a);});
-      const diasOrdenados=DIAS.filter(d=>porDia[d]);
-      return `<div class="card card-p" style="margin-top:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <p style="font-size:14px;font-weight:700">✅ Asistencia — Por día</p>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
-          ${diasOrdenados.map(dia=>`
-            <div style="border:1.5px solid #e0f2fe;border-radius:10px;overflow:hidden">
-              <div style="background:#0284c7;padding:6px 12px">
-                <span style="font-size:11px;font-weight:800;color:#fff">${dia}</span>
-              </div>
-              ${porDia[dia].map(a=>`
-                <div onclick="go('asistencia').then(()=>setTimeout(()=>W.loadAsist('${a.id}'),400))" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #e0f2fe;cursor:pointer;transition:background .15s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background=''">
-                  <div style="min-width:0">
-                    <div style="font-size:11px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
-                    <div style="font-size:10px;color:var(--t3)">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':' '+a.curso_division}${a.hora_inicio?' · '+a.hora_inicio:''}</div>
-                  </div>
-                  <span style="font-size:10px;font-weight:700;color:#fff;background:#0284c7;border:1px solid #0369a1;border-radius:6px;padding:3px 8px;white-space:nowrap;flex-shrink:0;margin-left:6px">✓ Tomar</span>
-                </div>`).join('')}
-            </div>`).join('')}
-        </div>
-      </div>`;
-    })()}`;
+    `;
     return;
   }
 
@@ -7830,14 +7801,44 @@ async function pgAsist(el){
   const aniosEnAsigs=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
   const docentesEnAsigs=[...new Map(asigs.filter(a=>a.docente_id).map(a=>[a.docente_id,{id:a.docente_id,nombre:`${a.docente_apellido||''}, ${a.docente_nombre||''}`}])).values()].sort((a,b)=>a.nombre.localeCompare(b.nombre));
 
+  // ── Vista docente: cards por día ──────────────────────────────────────────
+  if(me.rol==='docente'){
+    const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const porDia={};
+    asigs.forEach(a=>{ const d=a.dia; if(d){if(!porDia[d])porDia[d]=[];porDia[d].push(a);} });
+    const diasOrdenados=DIAS.filter(d=>porDia[d]);
+    el.innerHTML=`<div class="ph"><h3>✅ Asistencia</h3></div>
+    <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px">
+      📅 Hoy es <strong>${diaHoy}</strong> — seleccioná una materia para tomar asistencia
+    </div>
+    ${diasOrdenados.length?diasOrdenados.map(dia=>`
+      <div style="margin-bottom:14px;border:1.5px solid ${dia===diaHoy?'#0284c7':'var(--bdr)'};border-radius:12px;overflow:hidden;${dia===diaHoy?'box-shadow:0 2px 10px rgba(2,132,199,.18)':''}">
+        <div style="background:${dia===diaHoy?'#0284c7':'#f1f5f9'};padding:8px 14px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;font-weight:800;color:${dia===diaHoy?'#fff':'var(--t2)'}">${dia}</span>
+          ${dia===diaHoy?'<span style="font-size:10px;background:rgba(255,255,255,.25);color:#fff;border-radius:10px;padding:1px 8px;font-weight:700">HOY</span>':''}
+        </div>
+        ${porDia[dia].map(a=>{
+          const h=horarios.find(x=>x.asignacion_id===a.id);
+          const hora=a.hora_inicio||(h?h.hora_inicio:'');
+          return `<div onclick="asistDocenteSeleccionar('${a.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e0f2fe;cursor:pointer;background:#fff;transition:background .15s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background='#fff'">
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
+              <div style="font-size:11px;color:var(--t3);margin-top:2px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':' '+a.curso_division}${hora?' · '+hora:''}  · ${a.total_alumnos} alumnos</div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:#fff;background:#0284c7;border:1.5px solid #0369a1;border-radius:8px;padding:6px 14px;white-space:nowrap;flex-shrink:0;margin-left:10px;box-shadow:0 1px 4px rgba(2,132,199,.25)">✓ Tomar asistencia</span>
+          </div>`;
+        }).join('')}
+      </div>`).join(''):`<div class="es">No tenés materias con día asignado</div>`}
+    <div id="ac"></div>`;
+    return;
+  }
+
+  // ── Vista director/secretaria ──────────────────────────────────────────────
   el.innerHTML=`<div class="ph"><h3>Registro de asistencia</h3>
-    ${me.rol==='director'?`<div style="display:flex;gap:6px;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="bs o" onclick="mResumenAsist()">📊 Resumen detallado</button>
-    </div>`:''}
+    </div>
   </div>
-  ${me.rol==='docente'?`<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px">
-    📅 Hoy es <strong>${diaHoy}</strong> — mostrando tus materias de hoy (${asigsFiltradas.length} materia${asigsFiltradas.length!==1?'s':''})
-  </div>`:''}
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:4px">
     <select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
       <option value="">Todas las carreras</option>
@@ -7847,10 +7848,10 @@ async function pgAsist(el){
       <option value="">Todos los años</option>
       ${aniosEnAsigs.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    ${me.rol==='director'?`<select id="filtAsistDocente" onchange="filtAsistAsigs()" style="min-width:180px">
+    <select id="filtAsistDocente" onchange="filtAsistAsigs()" style="min-width:180px">
       <option value="">Todos los docentes</option>
       ${docentesEnAsigs.map(d=>`<option value="${d.id}">${d.nombre}</option>`).join('')}
-    </select>`:''}
+    </select>
     <select id="selAsistAsig" onchange="cargarFechasAsist(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigsFiltradas.map(a=>{
@@ -7906,6 +7907,45 @@ function cargarFechasAsist(asigId){
   }
   // Cargar asistencia con la fecha seleccionada
   W.loadAsist(asigId);
+}
+// Selección directa desde card de docente — carga planilla expandida en el mismo panel
+async function asistDocenteSeleccionar(asigId){
+  const asigs=W._asistAsigs||[];
+  const horarios=W._asistHorarios||[];
+  const asig=asigs.find(a=>a.id===asigId);
+  if(!asig)return;
+  const dia=asig.dia||'';
+  const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5,Sábado:6};
+  const numDia=diasNum[dia]||0;
+  const hoy=new Date();
+  const anio=hoy.getFullYear(), mes=hoy.getMonth();
+  const hoyStr=hoy.toISOString().split('T')[0];
+  // Buscar la fecha más reciente del día de esta materia (hoy o última clase)
+  let fechaSel=hoyStr;
+  if(numDia && hoy.getDay()!==numDia){
+    // busca el último día de clase pasado
+    const cursor=new Date(hoy);
+    for(let i=0;i<14;i++){
+      cursor.setDate(cursor.getDate()-1);
+      if(cursor.getDay()===numDia){fechaSel=cursor.toISOString().split('T')[0];break;}
+    }
+  }
+  // Mostrar planilla expandida debajo de los cards
+  const ac=document.getElementById('ac');
+  if(ac){ac.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">⏳ Cargando asistencia...</div>';}
+  W._asistId=asigId;
+  // Inyectar un select oculto con el valor para que loadAsist lo lea
+  let fecEl=document.getElementById('fecAsist');
+  if(!fecEl){
+    fecEl=document.createElement('select');
+    fecEl.id='fecAsist';
+    fecEl.style.display='none';
+    document.body.appendChild(fecEl);
+  }
+  fecEl.innerHTML=`<option value="${fechaSel}" selected>${fechaSel}</option>`;
+  // Scroll al panel de asistencia
+  if(ac)setTimeout(()=>ac.scrollIntoView({behavior:'smooth',block:'start'}),100);
+  await W.loadAsist(asigId);
 }
 function filtAsistAsigs(){
   const carrId=v('filtAsistCarr');
