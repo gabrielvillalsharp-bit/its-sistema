@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-MATERIA-CLICK-V2 -->
+<!-- build:20260601-MATERIA-CLICK-V3 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1782,7 +1782,7 @@ async function pgDash(el){
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
               <div style="font-size:11px;color:var(--t3)">${a.total_alumnos} alumnos</div>
               ${pend>0?`<span style="font-size:10px;color:var(--amb);font-weight:700">${pend} sin nota</span>`:`<span style="font-size:10px;color:var(--green);font-weight:700">✓ Al día</span>`}
-              <span style="font-size:10px;font-weight:700;color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:2px 8px;white-space:nowrap">✏ Cargar notas</span>
+              <span style="font-size:11px;font-weight:700;color:#fff;background:#16a34a;border:1.5px solid #15803d;border-radius:8px;padding:5px 12px;white-space:nowrap;box-shadow:0 1px 4px rgba(22,101,52,.25)">✏ Cargar notas</span>
             </div>
           </div>`;
         }).join(''):`<div class="es" style="padding:20px">Sin materias asignadas en este período</div>`}
