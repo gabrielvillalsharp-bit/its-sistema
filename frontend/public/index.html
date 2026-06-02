@@ -1644,7 +1644,7 @@ async function pgDash(el){
       &&a.destinatario!=='director'&&!(a.tipo==='examen'&&a.autor_id!==me.id));
     const aprobadas=(notas||[]).filter(n=>n.estado==='Aprobado').length;
     const reprobadas=(notas||[]).filter(n=>n.estado==='Reprobado').length;
-    const cursando=(notas||[]).filter(n=>!n.estado||n.estado==='Cursando').length;
+    const cursando=(notas||[]).filter(n=>!n.estado||n.estado==='Cursando'||n.estado==='Pendiente').length;
     const deuda=pagosData?.pagos?.length?0:1; // simplificado: si tiene pagos registrados
     el.innerHTML=`
     ${_dashHero(saludo,me.nombre,fechaCap,'Mi cuenta',[
@@ -1677,29 +1677,19 @@ async function pgDash(el){
         }).join(''):`<div class="es" style="padding:16px">Sin notas registradas</div>`}
         ${notas.length>6?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">+${notas.length-6} más</div>`:''}
       </div>
-      <!-- Próximos exámenes + asistencia -->
-      <div>
-        <div class="card card-p" style="margin-bottom:16px">
-          <p style="font-size:14px;font-weight:700;margin-bottom:12px">📅 Próximos exámenes</p>
-          ${exams.length?exams.slice(0,4).map(e=>`
-            <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--bdr)">
-              <span class="bx ${e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb'}" style="flex-shrink:0">${e.tipo}</span>
-              <div><div style="font-size:12px;font-weight:700">${e.materia_nombre}</div>
-              <div style="font-size:11px;color:var(--t3)"><strong>${fmtFecha(e.fecha)}</strong>${e.hora?' '+e.hora:''}</div></div>
-            </div>`).join(''):`<div class="es" style="padding:12px">Sin exámenes próximos</div>`}
-        </div>
-        <div class="card card-p">
-          <p style="font-size:14px;font-weight:700;margin-bottom:12px">✅ Mi asistencia</p>
-          ${asist.length?asist.slice(0,4).map(a=>{
-            const color=a.pct>=75?'var(--green)':a.pct>=50?'var(--amb)':'var(--red)';
-            return `<div style="margin-bottom:8px">
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-                <span style="font-weight:600">${a.materia}</span><span style="font-weight:700;color:${color}">${a.pct}%</span>
-              </div>
-              <div class="prog-bar"><div class="prog-fill" style="width:${a.pct}%;background:${color}"></div></div>
-            </div>`;
-          }).join(''):`<div class="es" style="padding:12px">Sin registros</div>`}
-        </div>
+      <!-- Asistencia -->
+      <div class="card card-p">
+        <p style="font-size:14px;font-weight:700;margin-bottom:12px">✅ Mi asistencia</p>
+        ${asist.length?asist.slice(0,5).map(a=>{
+          const color=a.pct>=75?'var(--green)':a.pct>=50?'var(--amb)':'var(--red)';
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+              <span style="font-weight:600">${a.materia}</span><span style="font-weight:700;color:${color}">${a.pct}%</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:${a.pct}%;background:${color}"></div></div>
+          </div>`;
+        }).join(''):`<div class="es" style="padding:12px">Sin registros de asistencia</div>`}
+        ${asist.length>5?`<div style="font-size:11px;color:var(--t3);margin-top:6px;text-align:center">+${asist.length-5} más → <span style="cursor:pointer;text-decoration:underline" onclick="go('mi-asistencia')">ver todas</span></div>`:''}
       </div>
     </div>
     ${exams.length>0?`
