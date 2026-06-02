@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-ASIST-MODAL -->
+<!-- build:20260601-ASIST-MODAL-V2 -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -7816,8 +7816,7 @@ async function pgAsist(el){
     <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px">
       📅 Hoy es <strong>${diaHoy}</strong> — seleccioná una materia para tomar asistencia
     </div>
-    ${diasOrdenados.length?diasOrdenados.map(dia=>`
-      <div style="margin-bottom:14px;border:1.5px solid ${dia===diaHoy?'#0284c7':'var(--bdr)'};border-radius:12px;overflow:hidden;${dia===diaHoy?'box-shadow:0 2px 10px rgba(2,132,199,.18)':''}">
+    ${diasOrdenados.length?diasOrdenados.map(dia=>`      <div style="margin-bottom:14px;border:1.5px solid ${dia===diaHoy?'#0284c7':'var(--bdr)'};border-radius:12px;overflow:hidden;${dia===diaHoy?'box-shadow:0 2px 10px rgba(2,132,199,.18)':''}">
         <div style="background:${dia===diaHoy?'#0284c7':'#f1f5f9'};padding:8px 14px;display:flex;align-items:center;gap:8px">
           <span style="font-size:12px;font-weight:800;color:${dia===diaHoy?'#fff':'var(--t2)'}">${dia}</span>
           ${dia===diaHoy?'<span style="font-size:10px;background:rgba(255,255,255,.25);color:#fff;border-radius:10px;padding:1px 8px;font-weight:700">HOY</span>':''}
@@ -7834,7 +7833,7 @@ async function pgAsist(el){
           </div>`;
         }).join('')}
       </div>`).join(''):`<div class="es">No tenés materias con día asignado</div>`}
-    <div id="ac"></div>`;
+    `;
     return;
   }
 
