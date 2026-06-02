@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260531-BORDER-BEAM-V12 -->
+<!-- build:20260601-AUDIT-NAV-FIX -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -4612,9 +4612,13 @@ async function mPreviewRecuperatoriosParciales(btn){
   }
 }
 
-function exportarRecuperatoriosPDF(){
+async function exportarRecuperatoriosPDF(){
   const {resultado=[],sinFecha=[]}=W._prevRecupData||{};
   if(!resultado.length)return toast('No hay datos para exportar','warn');
+
+  // Fetch logo institucional
+  let logoSrc='';
+  try{const lr=await api('GET','/api/logo');if(lr&&lr.logo)logoSrc=lr.logo;}catch(e){}
 
   const DIAS_ES=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const MESES_ES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -4627,8 +4631,8 @@ function exportarRecuperatoriosPDF(){
   const filas=Object.keys(porFecha).sort().map(fecha=>{
     const exs=porFecha[fecha];
     return exs.map((e,i)=>`
-      <tr style="${i===0?'border-top:2px solid #e5e7eb':''}">
-        ${i===0?`<td rowspan="${exs.length}" style="font-weight:700;color:#1e40af;vertical-align:middle;padding:8px 10px;border-right:1px solid #e5e7eb;white-space:nowrap">${fmtF(fecha)}</td>`:''}
+      <tr style="${i===0?'border-top:2px solid #d1fae5':''}">
+        ${i===0?`<td rowspan="${exs.length}" style="font-weight:700;color:#166534;vertical-align:middle;padding:8px 10px;border-right:1px solid #d1fae5;white-space:nowrap">${fmtF(fecha)}</td>`:''}
         <td style="padding:7px 10px">${e.materia}${e.unificado?' <span style="color:#7c3aed;font-size:10px;font-weight:700">[UNIF.]</span>':''}</td>
         <td style="padding:7px 10px">${e.carrera}</td>
         <td style="padding:7px 10px;text-align:center">${e.anio}°${e.division&&e.division!=='U'?' '+e.division:''}</td>
@@ -4644,27 +4648,41 @@ function exportarRecuperatoriosPDF(){
     </div>`:'';
 
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
+  const logoHtml=logoSrc?`<img src="${logoSrc}" style="height:72px;width:auto;object-fit:contain" alt="Logo">`:'';
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Recuperatorios Parciales — ${inst}</title>
   <style>
     @page{size:A4;margin:15mm 12mm}
-    @media print{button{display:none}*{-webkit-print-color-adjust:exact}}
+    @media print{button{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:0;padding:20px}
-    h2{margin:0 0 2px;font-size:16px;color:#1a3a5c}
-    .sub{font-size:11px;color:#6b7280;margin-bottom:18px}
+    .header{display:flex;align-items:center;gap:18px;border-bottom:3px solid #166534;padding-bottom:12px;margin-bottom:16px}
+    .header-text h1{margin:0 0 2px;font-size:17px;color:#14532d;font-weight:800;letter-spacing:.3px}
+    .header-text p{margin:0;font-size:10.5px;color:#6b7280}
+    .sub{font-size:11px;color:#6b7280;margin-bottom:14px;border-left:3px solid #dc2626;padding-left:8px}
     table{width:100%;border-collapse:collapse;margin-top:8px}
-    th{background:#1e40af;color:#fff;padding:8px 10px;text-align:left;font-size:11px}
-    td{font-size:11px;border-bottom:1px solid #f3f4f6}
-    tr:hover td{background:#f0f9ff}
+    th{background:#166534;color:#fff;padding:8px 10px;text-align:left;font-size:11px}
+    td{font-size:11px;border-bottom:1px solid #f0fdf4}
+    tr:nth-child(even) td{background:#f9fafb}
     .badge{display:inline-block;background:#ede9fe;color:#6d28d9;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;vertical-align:middle}
+    .chips{display:flex;gap:10px;margin-bottom:14px;font-size:11px;flex-wrap:wrap}
+    .chip-green{background:#dcfce7;color:#166534;padding:3px 10px;border-radius:5px;font-weight:700;border:1px solid #bbf7d0}
+    .chip-purple{background:#ede9fe;color:#6d28d9;padding:3px 10px;border-radius:5px;font-weight:700;border:1px solid #ddd6fe}
+    .chip-red{background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:5px;font-weight:700;border:1px solid #fecaca}
     .no-print{margin-top:16px;text-align:center}
+    .footer{margin-top:24px;text-align:center;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px}
   </style></head><body>
-  <h2>📅 Cronograma — Recuperatorios Parciales</h2>
-  <div class="sub">${inst} · Período: 10 de junio – 1 de julio de 2025 · Generado: ${new Date().toLocaleDateString('es-PY')}</div>
-  <div style="display:flex;gap:12px;margin-bottom:14px;font-size:11px">
-    <span style="background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:5px;font-weight:600">Total: ${resultado.length} exámenes</span>
-    <span style="background:#ede9fe;color:#6d28d9;padding:3px 10px;border-radius:5px;font-weight:600">Unificados: ${resultado.filter(e=>e.unificado).length}</span>
-    ${sinFecha.length?`<span style="background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:5px;font-weight:600">Sin fecha: ${sinFecha.length}</span>`:''}
+  <div class="header">
+    ${logoHtml}
+    <div class="header-text">
+      <h1>${inst}</h1>
+      <p>Dirección Académica · Sistema de Gestión Institucional</p>
+    </div>
+  </div>
+  <div class="sub">📅 <strong>Cronograma de Recuperatorios Parciales</strong> · Generado: ${new Date().toLocaleDateString('es-PY')}</div>
+  <div class="chips">
+    <span class="chip-green">Total: ${resultado.length} exámenes</span>
+    <span class="chip-purple">Unificados: ${resultado.filter(e=>e.unificado).length}</span>
+    ${sinFecha.length?`<span class="chip-red">Sin fecha: ${sinFecha.length}</span>`:''}
   </div>
   <table>
     <thead><tr>
@@ -4673,10 +4691,11 @@ function exportarRecuperatoriosPDF(){
     <tbody>${filas}</tbody>
   </table>
   ${conflictosHtml}
+  <div class="footer">${inst} — Documento generado automáticamente por el sistema académico</div>
   <div class="no-print">
-    <button onclick="window.print()" style="padding:8px 24px;background:#1a3a5c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button>
+    <button onclick="window.print()" style="padding:8px 24px;background:#166534;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button>
   </div>
-  <script>setTimeout(()=>window.print(),500)<${'/'}script>
+  <script>setTimeout(()=>window.print(),600)<${'/'}script>
   </body></html>`;
 
   const v=window.open('','_blank','width=900,height=700');
@@ -12443,15 +12462,22 @@ async function audNavegar(audId){
     return;
   }
 
-  // ── ALUMNOS / SOLICITUDES ALUMNO ──────────────────────────────────────────
-  if(tabla==='alumnos'||tabla==='alumnos_grupo'||tabla==='solicitudes_alumno'||accion.includes('ALUMNO')){
-    go('alumnos');
+  // ── SOLICITUDES ALUMNO (vinculaciones docente) ────────────────────────────
+  if(tabla==='solicitudes_alumno'||accion==='SOLICITUD_ALUMNO'||accion==='RESOLVER_ALUMNO'){
+    await go('solicitudes');
+    setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},200);
+    return;
+  }
+
+  // ── ALUMNOS ───────────────────────────────────────────────────────────────
+  if(tabla==='alumnos'||tabla==='alumnos_grupo'||accion.includes('ALUMNO')){
+    go('solicitudes');
     return;
   }
 
   // ── SOLICITUDES EGRESO ────────────────────────────────────────────────────
   if(tabla==='solicitudes_egreso'||accion.includes('EGRESO')){
-    go('alumnos');
+    go('solicitudes');
     return;
   }
 
