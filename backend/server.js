@@ -885,8 +885,10 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
         // Sin CI válida → importar igual pero sin usuario y marcar como Pendiente
         if (!ciRaw || ciRaw.length < 5) {
           try {
-            const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
-            const matricula = `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            const _yr1 = nowSys().getFullYear(); const _pfx1 = `${carr.codigo}-${_yr1}-`;
+            const _mats1 = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carrera_id, _pfx1+'%');
+            const _max1 = _mats1.reduce((mx,r)=>{const n=parseInt((r.matricula||'').slice(_pfx1.length))||0;return Math.max(mx,n);},0);
+            const matricula = `${_pfx1}${String(_max1+1).padStart(3,'0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
             db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)').run(aid, null, matricula, carrera_id, curso_id||null, nowDate(), 'Activo', null, nombre, apellido);
             if (curso_id) {
@@ -927,8 +929,10 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
             }
             results.actualizados++;
           } else {
-            const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carrera_id).n;
-            const matricula = `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt + 1).padStart(3, '0')}`;
+            const _yr2 = nowSys().getFullYear(); const _pfx2 = `${carr.codigo}-${_yr2}-`;
+            const _mats2 = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carrera_id, _pfx2+'%');
+            const _max2 = _mats2.reduce((mx,r)=>{const n=parseInt((r.matricula||'').slice(_pfx2.length))||0;return Math.max(mx,n);},0);
+            const matricula = `${_pfx2}${String(_max2+1).padStart(3,'0')}`;
             const aid = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
             // Usuario: nombre.apellido@its.edu.py · Contraseña: CI completo
             let uid = null;
@@ -3334,8 +3338,10 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
           if (!al && ciValida) al = stmtCI.get(ci);
 
           if (!al && carrera_id) {
-            const cnt = stmtCnt.get(carrera_id).n;
-            const matricula = carr ? `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
+            const _yrI1 = nowSys().getFullYear(); const _pfxI1 = carr ? `${carr.codigo}-${_yrI1}-` : null;
+            const _matsI1 = _pfxI1 ? db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carrera_id, _pfxI1+'%') : [];
+            const _maxI1 = _matsI1.reduce((mx,r)=>{const n=parseInt((r.matricula||'').slice((_pfxI1||'').length))||0;return Math.max(mx,n);},0);
+            const matricula = carr ? `${_pfxI1}${String(_maxI1+1).padStart(3,'0')}` : null;
             const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
             let uid = null;
             if (ciValida) {
@@ -3486,8 +3492,10 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
             let emailAuto = `${emailBase}@its.edu.py`;
             if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
 
-            const cnt = stmtCntAlumnos.get(carrera_id).n;
-            const matricula = carr ? `${carr.codigo}-${nowSys().getFullYear()}-${String(cnt+1).padStart(3,'0')}` : null;
+            const _yrI2 = nowSys().getFullYear(); const _pfxI2 = carr ? `${carr.codigo}-${_yrI2}-` : null;
+            const _matsI2 = _pfxI2 ? db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carrera_id, _pfxI2+'%') : [];
+            const _maxI2 = _matsI2.reduce((mx,r)=>{const n=parseInt((r.matricula||'').slice((_pfxI2||'').length))||0;return Math.max(mx,n);},0);
+            const matricula = carr ? `${_pfxI2}${String(_maxI2+1).padStart(3,'0')}` : null;
             const aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
 
             let uid = null;
