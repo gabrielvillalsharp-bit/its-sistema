@@ -6974,6 +6974,72 @@ async function repararNotas(){
     toast(`✅ Reparación completa: ${r.alumnos_reparados} alumno(s) reparado(s), ${r.notas_creadas} nota(s) creada(s)`,'ok',6000);
   }catch(e){toast('Error al reparar: '+(e.message||e),'err',5000);}
 }
+// ── INSCRIPCIÓN AGOSTO 2026 ───────────────────────────────────────────────────
+function insCarreraChange(){
+  const carreraId=v('ins-carrera');
+  const sel=document.getElementById('ins-curso');
+  if(!sel)return;
+  const cursos=(W._insCursos||[]).filter(c=>c.carrera_id===carreraId&&c.activo!==0).sort((a,b)=>a.anio-b.anio);
+  sel.innerHTML=cursos.length
+    ?cursos.map(c=>`<option value="${c.id}">${c.anio}° año${c.division&&c.division!=='U'?' — Secc. '+c.division:''} (${c.turno||''})</option>`).join('')
+    :'<option value="">Sin cursos disponibles</option>';
+}
+function limpiarFormIns(){
+  ['ins-nombre','ins-apellido','ins-ci','ins-tel'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const c=document.getElementById('ins-carrera');if(c)c.value='';
+  const cu=document.getElementById('ins-curso');if(cu)cu.innerHTML='<option value="">— Primero seleccioná carrera —</option>';
+  const m=document.getElementById('ins-msg');if(m)m.innerHTML='';
+  document.getElementById('ins-nombre')?.focus();
+}
+async function inscribirAlumnoAgosto(){
+  const nombre=v('ins-nombre').trim();
+  const apellido=v('ins-apellido').trim();
+  const ci=v('ins-ci').trim();
+  const telefono=v('ins-tel').trim();
+  const carrera_id=v('ins-carrera');
+  const curso_id=v('ins-curso');
+  const msg=document.getElementById('ins-msg');
+  if(!nombre||!apellido){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Nombre y apellido son requeridos</span>';return;}
+  if(!carrera_id){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Seleccioná una carrera</span>';return;}
+  if(!curso_id){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Seleccioná el año/curso</span>';return;}
+  if(msg)msg.innerHTML='<span style="color:var(--t2)">⏳ Registrando...</span>';
+  try{
+    const r=await api('POST','/api/alumnos',{nombre,apellido,ci,telefono,carrera_id,curso_id});
+    // Agregar a la lista de inscritos
+    const lista=document.getElementById('ins-lista');
+    if(lista){
+      if(!lista.querySelector('table')){
+        lista.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">✅ Inscriptos en esta sesión</div>
+        <div style="border:1px solid #d1fae5;border-radius:8px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:12px" id="ins-tabla">
+          <thead><tr style="background:#ecfdf5">
+            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Alumno</th>
+            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">CI</th>
+            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Matrícula</th>
+            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Contraseña</th>
+          </tr></thead>
+          <tbody id="ins-tbody"></tbody>
+        </table></div>`;
+      }
+      const tbody=document.getElementById('ins-tbody');
+      if(tbody){
+        const tr=document.createElement('tr');
+        tr.style.borderTop='1px solid #d1fae5';
+        tr.innerHTML=`<td style="padding:7px 10px"><strong>${apellido}, ${nombre}</strong></td>
+          <td style="padding:7px 10px;font-family:monospace">${ci||'—'}</td>
+          <td style="padding:7px 10px;font-family:monospace;color:#059669;font-weight:700">${r.matricula||'—'}</td>
+          <td style="padding:7px 10px;font-family:monospace;background:#f0fdf4;font-weight:700">${ci||'(sin CI)'}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+    if(msg)msg.innerHTML=`<span style="color:var(--green);font-weight:700">✓ ${apellido}, ${nombre} inscripto — Matrícula: ${r.matricula}</span>`;
+    // Limpiar campos pero mantener carrera/curso para siguiente inscripción
+    ['ins-nombre','ins-apellido','ins-ci','ins-tel'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+    document.getElementById('ins-nombre')?.focus();
+  }catch(e){
+    if(msg)msg.innerHTML=`<span style="color:var(--red)">✗ Error: ${e.message}</span>`;
+  }
+}
 async function resolverRegistroQr(id, accion){
   if(accion==='rechazar'){
     const motivo=prompt('Motivo del rechazo (opcional):');
@@ -7018,16 +7084,73 @@ async function pgSolicitudes(el){
       +'<div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:700;background:'+(hasPend?'#fef3c7;color:#92400e':'rgba(255,255,255,.25);color:#fff')+'">'+badge+'</div>'
       +'</div>';
   }
+  // Cargar carreras y cursos para el formulario de inscripción
+  const [carrerasAll, cursosAll] = await Promise.all([
+    api('GET','/api/carreras').catch(()=>[]),
+    api('GET','/api/cursos').catch(()=>[]),
+  ]);
+  W._insCursos = cursosAll||[];
+
   el.innerHTML=`<div class="ph"><h3>&#x1F465; Gestión de Alumnos</h3>
     <button class="bs" onclick="go('solicitudes')">&#x21BB; Actualizar</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+    ${_gc('inscripcion','🎓','Inscripción Agosto 2026','2do Semestre','linear-gradient(135deg,#065f46,#059669)',false)}
     ${_gc('qr','📱','Registro QR',regsPend.length?(regsPend.length+' pendiente'+(regsPend.length!==1?'s':'')):(regs.length+' total'),'linear-gradient(135deg,#1D4ED8,#2563EB)',regsPend.length>0)}
     ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','linear-gradient(135deg,#0a3d62,#1a7fc4)',totalHistPend>0)}
     ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'linear-gradient(135deg,#1e3a5f,#2563eb)',false)}
     ${_gc('sinasignar','⚠️','Sin asignar',sinAsignar.length+' alumno'+(sinAsignar.length!==1?'s':''),'linear-gradient(135deg,#4c1d95,#7c3aed)',sinAsignar.length>0)}
     ${_gc('habilitados','✅','Habilitados',habsHoy+' registro'+(habsHoy!==1?'s':''),'linear-gradient(135deg,#7f1d1d,#c0392b)',false)}
     ${_gc('qr-cambios','📊','Informe QR',qrCambios.length+' cambio'+(qrCambios.length!==1?'s':''),'linear-gradient(135deg,#0f766e,#14b8a6)',false)}
+  </div>
+  <!-- SECCIÓN INSCRIPCIÓN AGOSTO 2026 -->
+  <div id="gest-sec-inscripcion" style="display:none;margin-bottom:16px">
+    <div style="background:linear-gradient(135deg,#065f46,#059669);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <span style="color:#fff;font-size:14px;font-weight:800">🎓 Inscripción — 2do Semestre Agosto 2026</span>
+        <span style="color:#a7f3d0;font-size:11px;margin-left:10px">Alumnos nuevos</span>
+      </div>
+    </div>
+    <div style="border:1.5px solid #059669;border-top:none;border-radius:0 0 12px 12px;background:#fff;padding:18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Nombre *</label>
+          <input id="ins-nombre" placeholder="Nombre" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Apellido *</label>
+          <input id="ins-apellido" placeholder="Apellido" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Cédula de Identidad *</label>
+          <input id="ins-ci" placeholder="Ej: 5234567" type="number" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Teléfono / Celular</label>
+          <input id="ins-tel" placeholder="Ej: 0981123456" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Carrera *</label>
+          <select id="ins-carrera" onchange="insCarreraChange()" style="width:100%">
+            <option value="">— Seleccionar carrera —</option>
+            ${(carrerasAll||[]).filter(c=>c.activo!==0).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Año / Curso *</label>
+          <select id="ins-curso" style="width:100%">
+            <option value="">— Primero seleccioná carrera —</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="bn" style="background:#059669;border-color:#047857;min-width:160px" onclick="inscribirAlumnoAgosto()">➕ Inscribir alumno</button>
+        <button class="bs" onclick="limpiarFormIns()">🗑 Limpiar</button>
+        <span id="ins-msg" style="font-size:12px"></span>
+      </div>
+      <!-- Lista de inscritos en esta sesión -->
+      <div id="ins-lista" style="margin-top:16px"></div>
+    </div>
   </div>
   <div id="gest-sec-qr" style="display:none;margin-bottom:16px">
     <div style="background:linear-gradient(135deg,#1D4ED8,#2563EB);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between">
