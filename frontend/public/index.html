@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-AVISOS-READONLY -->
+<!-- build:20260601-ASISTENCIA-CARD -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1801,7 +1801,37 @@ async function pgDash(el){
             </div>
           </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
       </div>
-    </div>`;
+    </div>
+    <!-- Card Asistencia por día -->
+    ${(()=>{
+      const DIAS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+      const conDia=misAsigs.filter(a=>a.dia);
+      if(!conDia.length) return '';
+      const porDia={};
+      conDia.forEach(a=>{if(!porDia[a.dia])porDia[a.dia]=[];porDia[a.dia].push(a);});
+      const diasOrdenados=DIAS.filter(d=>porDia[d]);
+      return `<div class="card card-p" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <p style="font-size:14px;font-weight:700">✅ Asistencia — Por día</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">
+          ${diasOrdenados.map(dia=>`
+            <div style="border:1.5px solid #e0f2fe;border-radius:10px;overflow:hidden">
+              <div style="background:#0284c7;padding:6px 12px">
+                <span style="font-size:11px;font-weight:800;color:#fff">${dia}</span>
+              </div>
+              ${porDia[dia].map(a=>`
+                <div onclick="go('asistencia').then(()=>setTimeout(()=>W.loadAsist('${a.id}'),400))" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #e0f2fe;cursor:pointer;transition:background .15s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background=''">
+                  <div style="min-width:0">
+                    <div style="font-size:11px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
+                    <div style="font-size:10px;color:var(--t3)">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':' '+a.curso_division}${a.hora_inicio?' · '+a.hora_inicio:''}</div>
+                  </div>
+                  <span style="font-size:10px;font-weight:700;color:#fff;background:#0284c7;border:1px solid #0369a1;border-radius:6px;padding:3px 8px;white-space:nowrap;flex-shrink:0;margin-left:6px">✓ Tomar</span>
+                </div>`).join('')}
+            </div>`).join('')}
+        </div>
+      </div>`;
+    })()}`;
     return;
   }
 
