@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-ASIST-MOBILE -->
+<!-- build:20260601-ASIST-BYPASS -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -7942,6 +7942,7 @@ async function asistDocenteSeleccionar(asigId){
   let fecEl=document.getElementById('fecAsist');
   if(!fecEl){fecEl=document.createElement('select');fecEl.id='fecAsist';fecEl.style.display='none';document.body.appendChild(fecEl);}
   fecEl.innerHTML=`<option value="${fechaSel}" selected>${fechaSel}</option>`;
+  W._skipDiaVal=true;
   if(ac)setTimeout(()=>ac.scrollIntoView({behavior:'smooth',block:'start'}),200);
   await W.loadAsist(asigId);
 }
@@ -8035,11 +8036,11 @@ W.loadAsist=async(asigId)=>{
   if(sel)sel.value=asigId;
   const fecha=v('fecAsist')||new Date().toISOString().split('T')[0];
 
-  if(me.rol==='docente'){
+  if(me.rol==='docente' && !W._skipDiaVal){
     const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const diaFecha=diasN[new Date(fecha+'T12:00:00').getDay()];
     const hor=W._asistHorarios?.find(h=>h.asignacion_id===asigId);
-    if(hor&&hor.dia!==diaFecha){
+    if(hor&&hor.dia&&hor.dia!==diaFecha){
       const ac=document.getElementById('ac');
       if(ac)ac.innerHTML=`<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-top:8px;font-size:13px">
         ⚠ Esta materia se dicta los <strong>${hor.dia}</strong>. Seleccioná una fecha que corresponda a ese día.
@@ -8047,6 +8048,7 @@ W.loadAsist=async(asigId)=>{
       return;
     }
   }
+  W._skipDiaVal=false;
 
   const [{alumnos},asist]=await Promise.all([
     api('GET','/api/notas/asignacion/'+asigId),
