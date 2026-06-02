@@ -5706,9 +5706,9 @@ app.get('/api/solicitudes-alumno', auth(ADM), (req, res) => {
   res.json(db.prepare(`SELECT s.*, u.nombre as docente_nombre, u.apellido as docente_apellido,
     m.nombre as materia, ca.nombre as carrera
     FROM solicitudes_alumno s
-    JOIN docentes d ON s.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
-    JOIN asignaciones a ON s.asignacion_id=a.id JOIN materias m ON a.materia_id=m.id
-    JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON s.docente_id=d.id LEFT JOIN usuarios u ON d.usuario_id=u.id
+    LEFT JOIN asignaciones a ON s.asignacion_id=a.id LEFT JOIN materias m ON a.materia_id=m.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id
     ORDER BY s.fecha DESC`).all());
 });
 // ── VERIFICAR alumno antes de solicitar ─────────────────────────────────────

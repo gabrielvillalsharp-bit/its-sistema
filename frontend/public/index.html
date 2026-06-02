@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-AUDIT-NAV-FIX -->
+<!-- build:20260601-SOLICITUDES-FIX -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -6951,6 +6951,17 @@ function toggleGestSec(id){
     if(tile){ tile.style.outline='3px solid rgba(255,255,255,.8)'; tile.style.transform='scale(1.04)'; }
   }
 }
+// Abre una sección siempre (sin cerrar si ya estaba abierta) — para navegación desde auditoría
+function abrirGestSec(id){
+  document.querySelectorAll('[id^="gest-sec-"]').forEach(s=>{ s.style.display='none'; });
+  document.querySelectorAll('[id^="gc-tile-"]').forEach(c=>{ c.style.outline='none'; c.style.transform=''; });
+  const sec=document.getElementById('gest-sec-'+id);
+  if(!sec)return;
+  sec.style.display='block';
+  setTimeout(()=>sec.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  const tile=document.getElementById('gc-tile-'+id);
+  if(tile){ tile.style.outline='3px solid rgba(255,255,255,.8)'; tile.style.transform='scale(1.04)'; }
+}
 async function repararNotas(){
   if(!confirm('¿Reparar notas faltantes para todos los alumnos activos con curso asignado?\n\nEsto crea los registros de calificaciones que falten sin modificar notas existentes.'))return;
   try{
@@ -12465,19 +12476,21 @@ async function audNavegar(audId){
   // ── SOLICITUDES ALUMNO (vinculaciones docente) ────────────────────────────
   if(tabla==='solicitudes_alumno'||accion==='SOLICITUD_ALUMNO'||accion==='RESOLVER_ALUMNO'){
     await go('solicitudes');
-    setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},200);
+    setTimeout(()=>abrirGestSec('historial'),250);
     return;
   }
 
   // ── ALUMNOS ───────────────────────────────────────────────────────────────
   if(tabla==='alumnos'||tabla==='alumnos_grupo'||accion.includes('ALUMNO')){
-    go('solicitudes');
+    await go('solicitudes');
+    setTimeout(()=>abrirGestSec('historial'),250);
     return;
   }
 
   // ── SOLICITUDES EGRESO ────────────────────────────────────────────────────
   if(tabla==='solicitudes_egreso'||accion.includes('EGRESO')){
-    go('solicitudes');
+    await go('solicitudes');
+    setTimeout(()=>abrirGestSec('historial'),250);
     return;
   }
 
