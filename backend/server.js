@@ -6431,8 +6431,11 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
         let aid;
         if (!yaAlumno) {
           const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
-          const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(sol.carrera_id).n;
-          const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+          const yr = nowSys().getFullYear();
+          const prefix = `${carr?.codigo||'ALU'}-${yr}-`;
+          const existingMats = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(sol.carrera_id, prefix+'%');
+          const maxNum = existingMats.reduce((mx,r)=>{ const n=parseInt((r.matricula||'').slice(prefix.length))||0; return Math.max(mx,n); },0);
+          const matricula = `${prefix}${String(maxNum+1).padStart(3,'0')}`;
           aid = 'a_'+Date.now();
           db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
             .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
