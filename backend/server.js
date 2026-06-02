@@ -1200,10 +1200,10 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
     const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);
     const campos_q = campos.map(c=>`${c}=?`).join(',');
-    const extra = ',puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=?';
-    db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.puntaje, nota.nota, nota.estado, nota.parcial_efectivo, nota.final_efectivo, req.params.alumno_id, req.params.asig_id);
+    const extra = ',tp_total=?,puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=?';
+    db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.tp_total, nota.puntaje, nota.nota, nota.estado, nota.parcial_ef, nota.final_ef, req.params.alumno_id, req.params.asig_id);
     audit(req.user.id,'UPDATE_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,{campos:req.body});
-    res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_efectivo, final_efectivo: nota.final_efectivo });
+    res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_ef, final_efectivo: nota.final_ef });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

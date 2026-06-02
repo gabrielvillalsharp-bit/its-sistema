@@ -1068,6 +1068,17 @@ function init() {
   migrateMatrixV3();
   migrarMateriasParciales();   // agrega materias/asignaciones faltantes del cronograma
   seedExamenesParciales();     // BACKUP PERMANENTE — siempre restaura exámenes faltantes
+  // Recalcular tp_total en registros donde es NULL pero hay TPs cargados
+  try {
+    const fixed = db.prepare(`
+      UPDATE notas SET tp_total = (
+        COALESCE(tp1,0) + COALESCE(tp2,0) + COALESCE(tp3,0) + COALESCE(tp4,0)
+      )
+      WHERE tp_total IS NULL
+        AND (tp1 IS NOT NULL OR tp2 IS NOT NULL OR tp3 IS NOT NULL OR tp4 IS NOT NULL)
+    `).run();
+    if (fixed.changes > 0) console.log(`[DB] Recalculados tp_total en ${fixed.changes} registros`);
+  } catch(e) { console.warn('[DB] No se pudo recalcular tp_total:', e.message); }
   autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
