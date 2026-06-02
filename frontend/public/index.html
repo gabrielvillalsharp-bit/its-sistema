@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-ASIST-BYPASS -->
+<!-- build:20260601-ASIST-MODAL -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -7943,7 +7943,17 @@ async function asistDocenteSeleccionar(asigId){
   if(!fecEl){fecEl=document.createElement('select');fecEl.id='fecAsist';fecEl.style.display='none';document.body.appendChild(fecEl);}
   fecEl.innerHTML=`<option value="${fechaSel}" selected>${fechaSel}</option>`;
   W._skipDiaVal=true;
-  if(ac)setTimeout(()=>ac.scrollIntoView({behavior:'smooth',block:'start'}),200);
+  // Abrir modal con la planilla de asistencia
+  const asigInfo=asig.materia_nombre||'';
+  const carreraInfo=`${asig.carrera_nombre||''} · ${asig.curso_anio||''}°${asig.curso_division==='U'?'':' '+asig.curso_division}`;
+  modal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h4 style="margin:0;font-size:15px">✅ Tomar asistencia</h4>
+      <div style="font-size:12px;color:var(--t2);margin-top:2px">${asigInfo} · ${carreraInfo}</div>
+    </div>
+    <button class="bs" onclick="cm()">✕ Cerrar</button>
+  </div>
+  <div id="ac" style="overflow-y:auto;max-height:70vh"></div>`, true);
   await W.loadAsist(asigId);
 }
 function filtAsistAsigs(){
