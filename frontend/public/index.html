@@ -1671,7 +1671,7 @@ async function pgDash(el){
         </div>
         ${notas.length?notas.slice(0,6).map(n=>{
           const cls=n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr';
-          const lbl=n.estado||'Cursando';
+          const lbl=(n.estado==='Pendiente'||!n.estado)?'En curso':n.estado;
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
             <span style="font-size:12px;font-weight:600;color:var(--txt)">${n.materia_nombre}</span>
             <span class="bx ${cls}">${lbl}</span>
