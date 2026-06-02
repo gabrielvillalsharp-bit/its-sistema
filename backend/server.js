@@ -5796,8 +5796,11 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
       const curso = db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(asig.curso_id);
       const carreraId = curso?.carrera_id || null;
       const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(carreraId);
-      const cnt = db.prepare('SELECT COUNT(*) as n FROM alumnos WHERE carrera_id=?').get(carreraId||'').n;
-      const matricula = (carr?.codigo||'ALU')+'-'+nowSys().getFullYear()+'-'+String(cnt+1).padStart(3,'0');
+      const _yr = nowSys().getFullYear();
+      const _pfx = (carr?.codigo||'ALU')+'-'+_yr+'-';
+      const _mats = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carreraId||'', _pfx+'%');
+      const _max = _mats.reduce((mx,r)=>{ const n=parseInt((r.matricula||'').slice(_pfx.length))||0; return Math.max(mx,n); },0);
+      const matricula = _pfx+String(_max+1).padStart(3,'0');
       const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
       const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
       const fechaHoy = nowDate();
