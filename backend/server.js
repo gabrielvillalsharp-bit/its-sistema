@@ -6332,33 +6332,53 @@ app.post('/pub/alumno/completar', (req, res) => {
 app.post('/pub/solicitud-registro', (req, res) => {
   const { nombre, apellido, ci, telefono, carrera_id, curso_id, alumno_id, tipo } = req.body;
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
+  if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
   const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const esCambioCarrera = tipo === 'cambio_carrera' && alumno_id;
 
   if (!esCambioCarrera) {
-    // Verificar duplicado por CI en alumnos
+    // Verificar duplicado por CI (LEFT JOIN incluye alumnos sin carrera asignada)
     if (ci) {
       const ciNorm = String(ci).replace(/[^0-9]/g,'');
       if (ciNorm) {
-        const existCI = db.prepare(`SELECT a.apellido,a.nombre,c.nombre as carrera,cu.anio FROM alumnos a JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.ci=?`).get(ciNorm);
+        const existCI = db.prepare(`
+          SELECT a.apellido, a.nombre,
+            COALESCE(c.nombre, 'Sin carrera asignada') as carrera,
+            cu.anio, cu.division
+          FROM alumnos a
+          LEFT JOIN carreras c  ON a.carrera_id = c.id
+          LEFT JOIN cursos   cu ON a.curso_id   = cu.id
+          WHERE a.ci = ?`).get(ciNorm);
         if (existCI) {
-          const detalle = `${existCI.apellido}, ${existCI.nombre} — ${existCI.carrera}${existCI.anio?' · '+existCI.anio+'° año':''}`;
-          return res.status(409).json({ error:`Ya existe un alumno registrado con esa cédula: ${detalle}`, duplicate:true });
+          const sec = existCI.anio ? (' · ' + existCI.anio + '°' + (existCI.division && existCI.division !== 'U' ? ' Secc. ' + existCI.division : '')) : '';
+          const detalle = existCI.apellido + ', ' + existCI.nombre + ' — ' + existCI.carrera + sec;
+          return res.status(409).json({ error: 'Ya existe un alumno registrado con esa cédula: ' + detalle, duplicate: true });
         }
       }
     }
-    // Verificar duplicado por nombre+apellido en la misma carrera
-    const existNombre = db.prepare(`SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? AND carrera_id=? LIMIT 1`).get(normStr(nombre), normStr(apellido), carrera_id);
-    if (existNombre) return res.status(409).json({ error:`Ya existe un alumno con ese nombre en esta carrera. Si ya estás registrado/a, buscá tu nombre en la lista principal.`, duplicate:true });
+    // Verificar duplicado por nombre+apellido en CUALQUIER carrera/sección (incluye sin asignar)
+    const existNombre = db.prepare(`
+      SELECT a.id,
+        COALESCE(c.nombre, 'Sin carrera asignada') as carrera,
+        cu.anio, cu.division
+      FROM alumnos a
+      LEFT JOIN carreras c  ON a.carrera_id = c.id
+      LEFT JOIN cursos   cu ON a.curso_id   = cu.id
+      WHERE lower(a.nombre)=? AND lower(a.apellido)=?
+      LIMIT 1`).get(normStr(nombre), normStr(apellido));
+    if (existNombre) {
+      const sec = existNombre.anio ? (' · ' + existNombre.anio + '°' + (existNombre.division && existNombre.division !== 'U' ? ' Secc. ' + existNombre.division : '')) : '';
+      return res.status(409).json({ error: 'Ya existe un alumno con ese nombre: ' + existNombre.carrera + sec + '. Si ya estás registrado/a, buscá tu nombre en la lista.', duplicate: true });
+    }
   }
-  // Verificar solicitud pendiente duplicada
-  const existSol = db.prepare(`SELECT id FROM solicitudes_registro WHERE carrera_id=? AND estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=? AND lower(apellido)=?)) LIMIT 1`).get(carrera_id, ci||'__', normStr(nombre), normStr(apellido));
-  if (existSol) return res.status(409).json({ error:`Ya enviaste una solicitud para esta carrera. El director la revisará pronto.`, duplicate:true });
+  // Verificar solicitud pendiente duplicada en cualquier carrera
+  const existSol = db.prepare(`SELECT id FROM solicitudes_registro WHERE estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=? AND lower(apellido)=?)) LIMIT 1`).get(ci||'__', normStr(nombre), normStr(apellido));
+  if (existSol) return res.status(409).json({ error: 'Ya enviaste una solicitud de registro. El director la revisará pronto.', duplicate: true });
   const id = 'sreg_'+Date.now();
   db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run(id, nombre, apellido, ci||'', telefono||'', carrera_id, curso_id||null, alumno_id||null, tipo||'nuevo');
+    .run(id, nombre, apellido, ci||'', telefono, carrera_id, curso_id||null, alumno_id||null, tipo||'nuevo');
   res.json({ id, ok: true });
 });
 

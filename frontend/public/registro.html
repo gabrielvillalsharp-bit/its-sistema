@@ -508,13 +508,14 @@ async function guardarDatos() {
   const err      = document.getElementById('err-completar');
   if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Nombre y apellido son obligatorios</div>'; return; }
   if (!ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
+  if (!tel || tel.replace(/\D/g,'').length < 7) { err.innerHTML = '<div class="alert alert-err">El número de teléfono es obligatorio</div>'; return; }
   err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
   try {
     await apiFetch('POST', '/pub/alumno/completar', {
       alumno_id: alumnoSeleccionado.id,
       carrera_id: carreraId,
       nombre, apellido, ci,
-      telefono: tel || undefined,
+      telefono: tel,
       curso_id: cursoSeleccionado?.id || undefined
     });
     renderExito('completar');
