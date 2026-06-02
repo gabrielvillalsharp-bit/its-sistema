@@ -11044,36 +11044,80 @@ function renderMisNotas(notas){
 async function pgMiAsistencia(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
   el.innerHTML='<div class="ph"><h3>Mi asistencia</h3></div>'+skeletonTable(4,5);
-  const [resumen,detalle]=await Promise.all([
-    api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]),
+  const [resp,detalle]=await Promise.all([
+    api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>({})),
     api('GET','/api/asistencia/detalle-alumno/'+me.alumnoId).catch(()=>[])
   ]);
+  const resumen=resp.resumen||[];
+  const meses=resp.meses||[];
   W._miAsistDetalle=detalle||[];
-  const materias=[...new Set((resumen||[]).map(m=>m.materia).filter(Boolean))];
-  const totalP=(resumen||[]).reduce((s,m)=>s+m.P,0);
-  const totalA=(resumen||[]).reduce((s,m)=>s+m.A,0);
-  const totalAll=totalP+totalA;
-  const pctGlobal=totalAll?Math.round(totalP/totalAll*100):0;
+  W._miAsistResumen=resumen;
+  W._miAsistMeses=meses;
+  W._miAsistMesSel='';
+  _renderMiAsistencia(el,resumen,meses,detalle||[],'');
+}
+function _renderMiAsistencia(el,resumen,meses,detalle,mesSel){
+  const MESES_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  function fmtMes(m){if(!m)return''; const [y,mo]=m.split('-'); return MESES_ES[parseInt(mo,10)-1]+' '+y;}
+  // Totales globales o del mes seleccionado
+  const resFiltered=mesSel?resumen.filter(r=>r.mes===mesSel):resumen;
+  const totalP=resFiltered.reduce((s,r)=>s+(r.P||0),0);
+  const totalA=resFiltered.reduce((s,r)=>s+(r.A||0),0);
+  const totalJ=resFiltered.reduce((s,r)=>s+(r.J||0),0);
+  const totalAll=totalP+totalA+totalJ;
+  const pct=totalAll?Math.round((totalP+totalJ)/totalAll*100):0;
+  const materias=[...new Set(resFiltered.map(m=>m.materia).filter(Boolean))];
+  let detalleF=detalle;
+  if(mesSel) detalleF=detalle.filter(r=>(r.fecha||'').slice(0,7)===mesSel);
+  // Tabs de meses
+  const tabsHtml=meses.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    <button onclick="selMiAsistMes('')" style="padding:6px 12px;border-radius:20px;border:1.5px solid ${!mesSel?'var(--primary)':'var(--bdr)'};background:${!mesSel?'var(--primary)':'#fff'};color:${!mesSel?'#fff':'var(--t1)'};font-size:12px;font-weight:600;cursor:pointer">Todo</button>
+    ${meses.map(m=>`<button onclick="selMiAsistMes('${m.mes}')" style="padding:6px 12px;border-radius:20px;border:1.5px solid ${mesSel===m.mes?'var(--primary)':'var(--bdr)'};background:${mesSel===m.mes?'var(--primary)':'#fff'};color:${mesSel===m.mes?'#fff':'var(--t1)'};font-size:12px;font-weight:600;cursor:pointer">
+      ${fmtMes(m.mes)} <span style="font-size:10px;opacity:0.85">· ${m.pct}%</span>
+    </button>`).join('')}
+  </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📅 Mi asistencia</h3></div>
+  ${tabsHtml}
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-    <div class="card card-p" style="flex:1;min-width:120px;text-align:center">
-      <div style="font-size:11px;color:var(--t2)">Asistencia global</div>
-      <div style="font-size:28px;font-weight:900;color:${pctGlobal>=75?'var(--green)':'var(--red)'}">${pctGlobal}%</div>
+    <div class="card card-p" style="flex:1;min-width:110px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">${mesSel?fmtMes(mesSel):'Asistencia global'}</div>
+      <div style="font-size:28px;font-weight:900;color:${pct>=75?'var(--green)':'var(--red)'}">${pct}%</div>
     </div>
-    <div class="card card-p" style="flex:1;min-width:100px;text-align:center">
+    <div class="card card-p" style="flex:1;min-width:80px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Clases</div>
+      <div style="font-size:24px;font-weight:700">${totalAll}</div>
+    </div>
+    <div class="card card-p" style="flex:1;min-width:80px;text-align:center">
       <div style="font-size:11px;color:var(--t2)">Presentes</div>
-      <div style="font-size:28px;font-weight:700;color:var(--green)">${totalP}</div>
+      <div style="font-size:24px;font-weight:700;color:var(--green)">${totalP}</div>
     </div>
-    <div class="card card-p" style="flex:1;min-width:100px;text-align:center">
+    <div class="card card-p" style="flex:1;min-width:80px;text-align:center">
       <div style="font-size:11px;color:var(--t2)">Ausentes</div>
-      <div style="font-size:28px;font-weight:700;color:var(--red)">${totalA}</div>
+      <div style="font-size:24px;font-weight:700;color:var(--red)">${totalA}</div>
     </div>
+    ${totalJ?`<div class="card card-p" style="flex:1;min-width:80px;text-align:center">
+      <div style="font-size:11px;color:var(--t2)">Justif.</div>
+      <div style="font-size:24px;font-weight:700;color:#0ea5e9">${totalJ}</div>
+    </div>`:''}
   </div>
-  <div class="fb" style="gap:8px;margin-bottom:12px">
-    <select id="filtMiAsistMat" onchange="filtMiAsist()" style="min-width:200px">
-      <option value="">Todas las materias</option>
-      ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
-    </select>
+  ${resFiltered.length?`<div class="card card-p" style="margin-bottom:14px">
+    <p style="font-weight:700;font-size:13px;margin-bottom:8px">Por materia${mesSel?' — '+fmtMes(mesSel):''}</p>
+    ${resFiltered.map(r=>{
+      const tot=(r.P||0)+(r.A||0)+(r.J||0);
+      const p=tot?Math.round(((r.P||0)+(r.J||0))/tot*100):0;
+      return`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:12px;font-weight:600">${r.materia||'—'}</span>
+          <span style="font-size:12px;font-weight:700;color:${p>=75?'var(--green)':'var(--red)'}">${p}%</span>
+        </div>
+        <div style="background:#e2e8f0;border-radius:4px;height:7px;overflow:hidden">
+          <div style="background:${p>=75?'var(--green)':'var(--red)'};height:100%;width:${p}%;transition:width .4s"></div>
+        </div>
+        <div style="font-size:10px;color:var(--t2);margin-top:2px">${r.P||0} pres · ${r.A||0} aus${r.J?` · ${r.J} just`:''} de ${tot} clases</div>
+      </div>`;
+    }).join('')}
+  </div>`:''}
+  <div class="fb" style="gap:8px;margin-bottom:10px">
     <select id="filtMiAsistEst" onchange="filtMiAsist()" style="min-width:130px">
       <option value="">Todos los estados</option>
       <option value="P">✓ Presente</option>
@@ -11081,12 +11125,18 @@ async function pgMiAsistencia(el){
       <option value="J">📋 Justificado</option>
     </select>
   </div>
-  <div id="tblMiAsist">${renderMiAsist(detalle||[])}</div>`;
+  <div id="tblMiAsist">${renderMiAsist(detalleF)}</div>`;
+}
+function selMiAsistMes(mes){
+  W._miAsistMesSel=mes;
+  const el=document.getElementById('mc');
+  _renderMiAsistencia(el,W._miAsistResumen,W._miAsistMeses,W._miAsistDetalle,mes);
 }
 function filtMiAsist(){
-  const mat=v('filtMiAsistMat'), est=v('filtMiAsistEst');
+  const est=v('filtMiAsistEst');
+  const mesSel=W._miAsistMesSel||'';
   let d=W._miAsistDetalle||[];
-  if(mat) d=d.filter(r=>r.materia===mat);
+  if(mesSel) d=d.filter(r=>(r.fecha||'').slice(0,7)===mesSel);
   if(est) d=d.filter(r=>r.estado===est);
   const el=document.getElementById('tblMiAsist');
   if(el)el.innerHTML=renderMiAsist(d);
