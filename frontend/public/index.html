@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-SOLICITUDES-FIX -->
+<!-- build:20260601-MATERIA-CLICK -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -1775,14 +1775,15 @@ async function pgDash(el){
         </div>
         ${misAsigs.length?misAsigs.map(a=>{
           const pend=a.total_alumnos-a.notas_cargadas;
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr)">
+          return `<div onclick="go('notas').then(()=>setTimeout(()=>W.loadNotas('${a.id}'),400))" style="display:flex;justify-content:space-between;align-items:center;padding:9px 8px;border-bottom:1px solid var(--bdr);border-radius:8px;cursor:pointer;transition:background .15s" onmouseenter="this.style.background='var(--bl)'" onmouseleave="this.style.background=''">
             <div>
               <div style="font-size:12px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
               <div style="font-size:11px;color:var(--t3)">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</div>
             </div>
-            <div style="text-align:right">
+            <div style="text-align:right;flex-shrink:0;margin-left:8px">
               <div style="font-size:11px;color:var(--t3)">${a.total_alumnos} alumnos</div>
               ${pend>0?`<span style="font-size:10px;color:var(--amb);font-weight:700">${pend} sin nota</span>`:`<span style="font-size:10px;color:var(--green);font-weight:700">✓ Al día</span>`}
+              <div style="font-size:9px;color:var(--blue);font-weight:600;margin-top:1px">↗ Cargar notas</div>
             </div>
           </div>`;
         }).join(''):`<div class="es" style="padding:20px">Sin materias asignadas en este período</div>`}
