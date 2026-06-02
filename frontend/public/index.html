@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Santísima Trinidad — Sistema Académico</title>
-<!-- build:20260601-ASIST-SECTION -->
+<!-- build:20260601-ASIST-MOBILE -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -440,9 +440,16 @@ body.mob-alumno .ct{padding-bottom:68px}
   /* ── ALUMNO MOBILE ── */
   .dash-kpi .kpi-card{padding:12px!important}
   .kpi-val{font-size:24px!important}
-  /* Grid 2 cols alumno home */
+  /* Grid 2 cols → 1 col en mobile */
   #mc [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
   .al-grid-2col{grid-template-columns:1fr!important}
+  /* ── DOCENTE HOME — filas materia ── */
+  .doc-mat-row{flex-wrap:wrap!important;gap:6px!important;padding:10px!important}
+  .doc-mat-row .doc-mat-right{flex-direction:row!important;align-items:center!important;justify-content:space-between!important;width:100%!important;flex-shrink:unset!important}
+  .doc-mat-row .doc-mat-badge{flex:1;text-align:center;padding:7px 10px!important;font-size:12px!important}
+  /* ── DOCENTE ASISTENCIA — cards por día ── */
+  .doc-asist-row{flex-wrap:wrap!important;gap:8px!important;padding:12px 10px!important}
+  .doc-asist-row .doc-asist-btn{width:100%!important;text-align:center!important;padding:8px 10px!important;font-size:12px!important;margin-left:0!important}
   /* ── ALUMNOS TABLE → TARJETAS ── */
   .als-table{display:block!important}
   .als-table thead{display:none!important}
@@ -1773,15 +1780,13 @@ async function pgDash(el){
         </div>
         ${misAsigs.length?misAsigs.map(a=>{
           const pend=a.total_alumnos-a.notas_cargadas;
-          return `<div onclick="go('notas').then(()=>setTimeout(()=>W.loadNotas('${a.id}'),400))" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px;margin-bottom:6px;border:1.5px solid var(--bdr);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s" onmouseenter="this.style.borderColor='var(--blue)';this.style.background='var(--bl)';this.style.boxShadow='0 2px 8px rgba(22,101,52,.1)'" onmouseleave="this.style.borderColor='var(--bdr)';this.style.background='';this.style.boxShadow=''">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:12px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
-              <div style="font-size:11px;color:var(--t3);margin-top:2px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</div>
+          return `<div onclick="go('notas').then(()=>setTimeout(()=>W.loadNotas('${a.id}'),400))" class="doc-mat-row" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px;margin-bottom:6px;border:1.5px solid var(--bdr);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s" onmouseenter="this.style.borderColor='var(--blue)';this.style.background='var(--bl)';this.style.boxShadow='0 2px 8px rgba(22,101,52,.1)'" onmouseleave="this.style.borderColor='var(--bdr)';this.style.background='';this.style.boxShadow=''">
+            <div class="doc-mat-info" style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
+              <div style="font-size:11px;color:var(--t3);margin-top:2px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division} · ${a.total_alumnos} alumnos · ${pend>0?`<strong style="color:var(--amb)">${pend} sin nota</strong>`:'<strong style="color:var(--green)">✓ Al día</strong>'}</div>
             </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-              <div style="font-size:11px;color:var(--t3)">${a.total_alumnos} alumnos</div>
-              ${pend>0?`<span style="font-size:10px;color:var(--amb);font-weight:700">${pend} sin nota</span>`:`<span style="font-size:10px;color:var(--green);font-weight:700">✓ Al día</span>`}
-              <span style="font-size:11px;font-weight:700;color:#fff;background:#16a34a;border:1.5px solid #15803d;border-radius:8px;padding:5px 12px;white-space:nowrap;box-shadow:0 1px 4px rgba(22,101,52,.25)">✏ Cargar notas</span>
+            <div class="doc-mat-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+              <span class="doc-mat-badge" style="font-size:11px;font-weight:700;color:#fff;background:#16a34a;border:1.5px solid #15803d;border-radius:8px;padding:6px 14px;white-space:nowrap;box-shadow:0 1px 4px rgba(22,101,52,.25)">✏ Cargar notas</span>
             </div>
           </div>`;
         }).join(''):`<div class="es" style="padding:20px">Sin materias asignadas en este período</div>`}
@@ -7820,12 +7825,12 @@ async function pgAsist(el){
         ${porDia[dia].map(a=>{
           const h=horarios.find(x=>x.asignacion_id===a.id);
           const hora=a.hora_inicio||(h?h.hora_inicio:'');
-          return `<div onclick="asistDocenteSeleccionar('${a.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e0f2fe;cursor:pointer;background:#fff;transition:background .15s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background='#fff'">
-            <div style="min-width:0">
+          return `<div onclick="asistDocenteSeleccionar('${a.id}')" class="doc-asist-row" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e0f2fe;cursor:pointer;background:#fff;transition:background .15s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background='#fff'">
+            <div style="min-width:0;flex:1">
               <div style="font-size:13px;font-weight:700;color:var(--txt)">${a.materia_nombre}</div>
-              <div style="font-size:11px;color:var(--t3);margin-top:2px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':' '+a.curso_division}${hora?' · '+hora:''}  · ${a.total_alumnos} alumnos</div>
+              <div style="font-size:11px;color:var(--t3);margin-top:2px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division==='U'?'':' '+a.curso_division}${hora?' · '+hora:''} · ${a.total_alumnos} alumnos</div>
             </div>
-            <span style="font-size:11px;font-weight:700;color:#fff;background:#0284c7;border:1.5px solid #0369a1;border-radius:8px;padding:6px 14px;white-space:nowrap;flex-shrink:0;margin-left:10px;box-shadow:0 1px 4px rgba(2,132,199,.25)">✓ Tomar asistencia</span>
+            <span class="doc-asist-btn" style="font-size:11px;font-weight:700;color:#fff;background:#0284c7;border:1.5px solid #0369a1;border-radius:8px;padding:6px 14px;white-space:nowrap;flex-shrink:0;margin-left:10px;box-shadow:0 1px 4px rgba(2,132,199,.25)">✓ Tomar asistencia</span>
           </div>`;
         }).join('')}
       </div>`).join(''):`<div class="es">No tenés materias con día asignado</div>`}
@@ -7914,37 +7919,30 @@ async function asistDocenteSeleccionar(asigId){
   const horarios=W._asistHorarios||[];
   const asig=asigs.find(a=>a.id===asigId);
   if(!asig)return;
-  const dia=asig.dia||'';
+  // Usar dia del horario si existe, sino del asignacion
+  const hor=horarios.find(h=>h.asignacion_id===asigId);
+  const dia=hor?.dia||asig.dia||'';
   const diasNum={Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5,Sábado:6};
   const numDia=diasNum[dia]||0;
   const hoy=new Date();
-  const anio=hoy.getFullYear(), mes=hoy.getMonth();
   const hoyStr=hoy.toISOString().split('T')[0];
-  // Buscar la fecha más reciente del día de esta materia (hoy o última clase)
+  // Buscar la fecha más cercana (hoy si corresponde, sino la última clase pasada)
   let fechaSel=hoyStr;
   if(numDia && hoy.getDay()!==numDia){
-    // busca el último día de clase pasado
     const cursor=new Date(hoy);
-    for(let i=0;i<14;i++){
+    for(let i=1;i<=14;i++){
       cursor.setDate(cursor.getDate()-1);
       if(cursor.getDay()===numDia){fechaSel=cursor.toISOString().split('T')[0];break;}
     }
   }
-  // Mostrar planilla expandida debajo de los cards
   const ac=document.getElementById('ac');
-  if(ac){ac.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">⏳ Cargando asistencia...</div>';}
+  if(ac)ac.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">⏳ Cargando asistencia...</div>';
   W._asistId=asigId;
-  // Inyectar un select oculto con el valor para que loadAsist lo lea
+  // Inyectar select oculto para que loadAsist lea la fecha correcta
   let fecEl=document.getElementById('fecAsist');
-  if(!fecEl){
-    fecEl=document.createElement('select');
-    fecEl.id='fecAsist';
-    fecEl.style.display='none';
-    document.body.appendChild(fecEl);
-  }
+  if(!fecEl){fecEl=document.createElement('select');fecEl.id='fecAsist';fecEl.style.display='none';document.body.appendChild(fecEl);}
   fecEl.innerHTML=`<option value="${fechaSel}" selected>${fechaSel}</option>`;
-  // Scroll al panel de asistencia
-  if(ac)setTimeout(()=>ac.scrollIntoView({behavior:'smooth',block:'start'}),100);
+  if(ac)setTimeout(()=>ac.scrollIntoView({behavior:'smooth',block:'start'}),200);
   await W.loadAsist(asigId);
 }
 function filtAsistAsigs(){
