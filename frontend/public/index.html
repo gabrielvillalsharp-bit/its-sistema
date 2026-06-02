@@ -332,7 +332,9 @@ body.mob-alumno .ct{padding-bottom:68px}
 @media(max-width:768px){
   /* ── MIS NOTAS ALUMNO ── */
   .mis-notas-cards{display:block}
-  .mis-notas-table-wrap{display:none!important}
+  .mis-notas-table-wrap{display:block!important;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .mis-notas-table-wrap table{min-width:700px;font-size:10px}
+  .mis-notas-table-wrap th,.mis-notas-table-wrap td{padding:3px 4px!important}
   /* ── MI ASISTENCIA ALUMNO ── */
   .mi-asist-cards{display:block}
   .mi-asist-table-wrap{display:none!important}
@@ -10964,9 +10966,15 @@ function renderMisNotas(notas){
         <span style="font-weight:700;font-size:14px;color:#1e293b">${n.materia_nombre||''}</span>
         <span class="bx ${estCls}" style="font-size:11px">${est}</span>
       </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px">
+        ${[1,2,3,4].map(i=>`<div style="background:#f0fdf4;border-radius:6px;padding:5px;text-align:center">
+          <div style="font-size:9px;color:#64748b;margin-bottom:1px">TP${i}</div>
+          <div style="font-size:13px;font-weight:800;color:#166534">${n['tp'+i]??'—'}</div>
+        </div>`).join('')}
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
         <div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:10px;color:#64748b;margin-bottom:2px">TPs</div>
+          <div style="font-size:10px;color:#64748b;margin-bottom:2px">Total TPs</div>
           <div style="font-size:16px;font-weight:800;color:#166534">${n.tp_total??'—'}</div>
         </div>
         <div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center">
