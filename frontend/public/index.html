@@ -3767,6 +3767,7 @@ function aRow(a){return `<tr>
   <td><div class="abs">
     <button class="bs i" onclick="mAl(DJ(this.dataset.j))" data-j="${J(a)}">Editar</button>
     ${me.rol==='director'?`<button class="bs o" onclick="imprimirBoletin('${a.id}')" title="Boletín de calificaciones">📋 Boletín</button>`:''}
+    ${me.rol==='director'?`<button class="bs r" onclick="eliminarAlumnoCompleto('${a.id}','${(a.display_apellido||a.apellido||'')+', '+(a.display_nombre||a.nombre||'')}')" title="Eliminar alumno completo" style="background:#fee2e2;color:#dc2626;border-color:#fca5a5">🗑 Eliminar</button>`:''}
   </div></td>
 </tr>`;}
 // Función mRow para materias — también debe ser global
@@ -13646,6 +13647,15 @@ function exportarAnalitico(){
 // ═══════════════════════════════════════════════════════════════════════════
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
+async function eliminarAlumnoCompleto(id, nombre){
+  if(!confirm(`⚠️ ELIMINAR ALUMNO COMPLETO\n\n"${nombre}"\n\nEsto borrará permanentemente:\n• Datos del alumno\n• Notas y calificaciones\n• Asistencia\n• Pagos\n• Cuenta de acceso\n\n¿Estás seguro? Esta acción NO se puede deshacer.`)) return;
+  try{
+    await api('DELETE','/api/alumnos/'+id+'/completo');
+    toast('✅ Alumno eliminado correctamente','ok',4000);
+    go('alumnos');
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+
 async function imprimirBoletin(alId){
   try{
     const {alumno,notas,institucion:inst}=await api('GET','/api/alumnos/'+alId+'/boletin');
