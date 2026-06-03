@@ -6930,7 +6930,7 @@ async function verSolicitudesAlumno(){
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr)">
         <div style="display:flex;gap:4px">
-          <button class="bs i" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓</button>
+          <button class="bs i" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar','${encodeURIComponent(s.nombre||'')}','${encodeURIComponent(s.apellido||'')}','${s.ci||''}','${s.asignacion_id||''}')">✓</button>
           <button class="bs d" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✗</button>
         </div>
       </td>
@@ -6938,7 +6938,30 @@ async function verSolicitudesAlumno(){
     </tbody></table></div>`}
   <div class="mf" style="margin-top:10px"><button class="bs" onclick="cm()">Cerrar</button></div>`,true);
 }
-async function resolverSolicitudAlumno(id,accion){
+async function resolverSolicitudAlumno(id,accion,nombreEnc,apellidoEnc,ci,asigId){
+  if(accion==='aprobar' && nombreEnc){
+    const nombre=decodeURIComponent(nombreEnc), apellido=decodeURIComponent(apellidoEnc||'');
+    try{
+      const v=await api('POST','/api/solicitudes-alumno/verificar',{nombre,apellido,ci:ci||'',asignacion_id:asigId||''}).catch(()=>null);
+      if(v && (v.status==='existe_misma_carrera'||v.status==='existe_otra_carrera')){
+        const a=v.alumno;
+        const warn=v.status==='existe_otra_carrera'?`<div style="background:#fff7ed;border:1.5px solid #fb923c;border-radius:8px;padding:10px;font-size:12px;margin-bottom:10px">⚠️ <strong>Este alumno está registrado en otra carrera:</strong> ${a.carrera_nombre||'—'}</div>`:'';
+        const info=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px">
+          ✅ <strong>Alumno encontrado en el sistema:</strong><br>
+          <span style="margin-top:4px;display:block">${a.apellido||''}, ${a.nombre||''} · CI: ${a.ci||'—'} · Matrícula: ${a.matricula||'—'}</span>
+          <span style="font-size:11px;color:#64748b">Carrera: ${a.carrera_nombre||'—'} · Estado: ${a.estado||'—'}</span>
+        </div>`;
+        return modal(`<h4 style="margin-bottom:12px">Verificación antes de incorporar</h4>
+          ${info}${warn}
+          <p style="font-size:12px;color:#374151;margin-bottom:14px">¿Confirmar la incorporación de este alumno a la nueva materia?</p>
+          <div class="mf"><button class="bs" onclick="cm()">Cancelar</button>
+          <button class="bn" onclick="cm();_confirmarResolver('${id}','aprobar')">✓ Confirmar incorporación</button></div>`,true);
+      }
+    }catch(e){}
+  }
+  await _confirmarResolver(id,accion);
+}
+async function _confirmarResolver(id,accion){
   try{
     await api('PUT','/api/solicitudes-alumno/'+id+'/resolver',{accion});
     toast(accion==='aprobar'?'✓ Alumno incorporado al sistema':'Solicitud rechazada',accion==='aprobar'?'ok':'warn');
