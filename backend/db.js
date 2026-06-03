@@ -1062,6 +1062,20 @@ function init() {
     registrado_por TEXT NOT NULL,
     fecha_registro TEXT NOT NULL DEFAULT (datetime('now'))
   )`); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS actas_examen (
+    id TEXT PRIMARY KEY,
+    asignacion_id TEXT NOT NULL,
+    tipo_examen TEXT NOT NULL,
+    docente_id TEXT NOT NULL,
+    estado TEXT NOT NULL DEFAULT 'cerrada',
+    alumnos_faltantes TEXT,
+    observacion TEXT,
+    desbloqueada_por TEXT,
+    motivo_desbloqueo TEXT,
+    fecha_cierre TEXT NOT NULL DEFAULT (datetime('now')),
+    fecha_desbloqueo TEXT
+  )`); } catch {}
+  try { db.prepare('ALTER TABLE actas_examen ADD COLUMN periodo_id INTEGER').run(); } catch {}
   seedDatos();
   seedHorarios();
   migrateMatrixV2();

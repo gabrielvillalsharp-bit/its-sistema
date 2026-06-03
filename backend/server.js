@@ -1176,6 +1176,21 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
       if (!doc || doc.id !== asig?.docente_id) return res.status(403).json({ error: 'Solo podés cargar notas de tus propias materias' });
     }
+    // Verificar si el campo que se intenta modificar pertenece a un acta cerrada
+    if (req.user.rol === 'docente') {
+      const body = req.body;
+      const tipoMap = {
+        parcial:'Parcial', parcial_recuperatorio:'Recuperatorio',
+        final_ord:'Final', final_recuperatorio:'Final Recuperatorio',
+        complementario:'Complementario', extraordinario:'Extraordinario'
+      };
+      for (const [campo, tipo] of Object.entries(tipoMap)) {
+        if (body[campo] !== undefined && body[campo] !== '' && body[campo] !== null) {
+          const actaCerrada = db.prepare("SELECT id FROM actas_examen WHERE asignacion_id=? AND tipo_examen=? AND estado='cerrada'").get(req.params.asig_id, tipo);
+          if (actaCerrada) return res.status(403).json({ error: `El acta de ${tipo} ya fue cerrada. Solo el director puede desbloquearla para modificaciones.` });
+        }
+      }
+    }
     const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];
     // Validar que todos los valores sean enteros (sin comas ni decimales)
     for (const c of campos) {
@@ -1259,6 +1274,74 @@ app.get('/api/notas/acta/:asig_id', auth(), (req, res) => {
   res.json({ asig, alumnos, inst: db.prepare('SELECT * FROM institucion WHERE id=1').get() });
 });
 
+// ── ACTAS DE EXAMEN ───────────────────────────────────────────────────────────
+// Listar actas (director ve todas, docente ve las suyas)
+app.get('/api/actas-examen', auth(['director','docente']), (req, res) => {
+  try {
+    const doc = req.user.rol === 'docente' ? db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id) : null;
+    let q = `SELECT ae.*,
+      m.nombre as materia_nombre, ca.nombre as carrera_nombre,
+      cu.anio as curso_anio, cu.division as curso_division,
+      u.nombre as docente_nombre, u.apellido as docente_apellido,
+      p.nombre as periodo_nombre
+      FROM actas_examen ae
+      JOIN asignaciones a ON ae.asignacion_id=a.id
+      JOIN materias m ON a.materia_id=m.id
+      JOIN cursos cu ON a.curso_id=cu.id
+      JOIN carreras ca ON cu.carrera_id=ca.id
+      JOIN docentes d ON ae.docente_id=d.id
+      JOIN usuarios u ON d.usuario_id=u.id
+      JOIN periodos p ON a.periodo_id=p.id`;
+    const params = [];
+    if (doc) { q += ' WHERE ae.docente_id=?'; params.push(doc.id); }
+    q += ' ORDER BY ae.fecha_cierre DESC';
+    res.json(db.prepare(q).all(...params));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Verificar si ya existe acta cerrada para (asignacion, tipo)
+app.get('/api/actas-examen/check', auth(['director','docente']), (req, res) => {
+  try {
+    const { asignacion_id, tipo_examen } = req.query;
+    const acta = db.prepare("SELECT id,estado FROM actas_examen WHERE asignacion_id=? AND tipo_examen=?").get(asignacion_id, tipo_examen);
+    res.json({ acta: acta || null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Crear y cerrar acta de examen
+app.post('/api/actas-examen', auth(['director','docente']), (req, res) => {
+  try {
+    const { asignacion_id, tipo_examen, alumnos_faltantes, observacion } = req.body;
+    if (!asignacion_id || !tipo_examen) return res.status(400).json({ error: 'Faltan datos' });
+    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
+    const docId = doc?.id || req.body.docente_id;
+    if (!docId && req.user.rol !== 'director') return res.status(400).json({ error: 'No se identificó al docente' });
+    // Verificar que no exista ya
+    const existe = db.prepare("SELECT id FROM actas_examen WHERE asignacion_id=? AND tipo_examen=?").get(asignacion_id, tipo_examen);
+    if (existe) return res.status(409).json({ error: 'Ya existe un acta cerrada para este examen. Solo el director puede desbloquearla.' });
+    const asig = db.prepare('SELECT periodo_id FROM asignaciones WHERE id=?').get(asignacion_id);
+    const id = 'acta_' + Date.now();
+    db.prepare(`INSERT INTO actas_examen (id,asignacion_id,tipo_examen,docente_id,estado,alumnos_faltantes,observacion,periodo_id,fecha_cierre)
+      VALUES (?,?,?,?,?,?,?,?,datetime('now'))`)
+      .run(id, asignacion_id, tipo_examen, docId || req.user.id, 'cerrada',
+        alumnos_faltantes ? JSON.stringify(alumnos_faltantes) : null, observacion || null, asig?.periodo_id || null);
+    audit(req.user.id, 'CERRAR_ACTA', 'actas_examen', id, { asignacion_id, tipo_examen });
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Director desbloquea acta
+app.put('/api/actas-examen/:id/desbloquear', auth(ADM), (req, res) => {
+  try {
+    const { motivo } = req.body;
+    if (!motivo) return res.status(400).json({ error: 'Se requiere motivo para desbloquear' });
+    db.prepare("UPDATE actas_examen SET estado='desbloqueada', desbloqueada_por=?, motivo_desbloqueo=?, fecha_desbloqueo=datetime('now') WHERE id=?")
+      .run(req.user.id, motivo, req.params.id);
+    audit(req.user.id, 'DESBLOQUEAR_ACTA', 'actas_examen', req.params.id, { motivo });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
 app.get('/api/asistencia/asignacion/:asig_id', auth(), (req, res) => {
   res.json(db.prepare(`
@@ -1301,36 +1384,50 @@ app.get('/api/asistencia/detalle-alumno/:alumno_id', auth(), (req, res) => {
 app.get('/api/asistencia/resumen-alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT id,usuario_id,curso_id FROM alumnos WHERE id=?').get(req.params.alumno_id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
-  // Alumno solo puede ver su propio resumen
   if (req.user.rol === 'alumno' && al.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
+
+  const mes = req.query.mes || null; // formato 'YYYY-MM'
+
+  // Resumen por materia (filtrado por mes si se indica)
+  const mesFilter = mes ? ' AND strftime(\'%Y-%m\', a.fecha) = ?' : '';
+  const mesParam  = mes ? [req.params.alumno_id, mes] : [req.params.alumno_id];
   const registros = db.prepare(`
     SELECT a.estado, m.nombre as materia, COUNT(*) as total
     FROM asistencia a
     JOIN asignaciones asig ON a.asignacion_id=asig.id
     JOIN materias m ON asig.materia_id=m.id
-    WHERE a.alumno_id=?
+    WHERE a.alumno_id=?${mesFilter}
     GROUP BY a.asignacion_id, a.estado
-    ORDER BY m.nombre`).all(req.params.alumno_id);
+    ORDER BY m.nombre`).all(...mesParam);
+
   const todasMaterias = al.curso_id ? db.prepare(`
     SELECT DISTINCT m.nombre as materia
-    FROM asignaciones asig
-    JOIN materias m ON asig.materia_id = m.id
-    WHERE asig.curso_id = ?
-    ORDER BY m.nombre`).all(al.curso_id) : [];
+    FROM asignaciones asig JOIN materias m ON asig.materia_id=m.id
+    WHERE asig.curso_id=? ORDER BY m.nombre`).all(al.curso_id) : [];
+
   const porMateria = {};
-  todasMaterias.forEach(m => {
-    porMateria[m.materia] = { materia: m.materia, P: 0, A: 0, T: 0, J: 0 };
-  });
+  todasMaterias.forEach(m => { porMateria[m.materia] = { materia: m.materia, P: 0, A: 0, T: 0, J: 0 }; });
   registros.forEach(r => {
     if (!porMateria[r.materia]) porMateria[r.materia] = { materia: r.materia, P: 0, A: 0, T: 0, J: 0 };
     porMateria[r.materia][r.estado] = (porMateria[r.materia][r.estado] || 0) + r.total;
   });
   const resumen = Object.values(porMateria).map(m => ({
-    ...m,
-    total: m.P + m.A + m.T + m.J,
-    pct: m.P + m.A + m.T + m.J > 0 ? Math.round(m.P / (m.P + m.A + m.T + m.J) * 100) : 0
+    ...m, total: m.P+m.A+m.T+m.J,
+    pct: m.P+m.A+m.T+m.J > 0 ? Math.round(m.P/(m.P+m.A+m.T+m.J)*100) : 0
   }));
-  res.json(resumen);
+
+  // Meses disponibles (para mostrar tabs)
+  const meses = db.prepare(`
+    SELECT strftime('%Y-%m', a.fecha) as mes, COUNT(*) as clases,
+      SUM(CASE WHEN a.estado='P' THEN 1 ELSE 0 END) as presentes,
+      SUM(CASE WHEN a.estado='A' THEN 1 ELSE 0 END) as ausentes,
+      SUM(CASE WHEN a.estado='J' THEN 1 ELSE 0 END) as justificados
+    FROM asistencia a
+    WHERE a.alumno_id=?
+    GROUP BY mes ORDER BY mes DESC`).all(req.params.alumno_id)
+    .map(m => ({ ...m, pct: m.clases > 0 ? Math.round(m.presentes/m.clases*100) : 0 }));
+
+  res.json({ resumen, meses });
 });
 app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
   const { asignacion_id, fecha, registros } = req.body;

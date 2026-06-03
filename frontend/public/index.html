@@ -7617,6 +7617,334 @@ function filtNotasAsigs(){
   const nc=document.getElementById('nc');if(nc)nc.innerHTML='';
 }
 
+// ── ACTAS DE EXAMEN ───────────────────────────────────────────────────────────
+async function mGenerarActaExamen(asigId){
+  const TIPOS=[
+    {val:'Parcial',lbl:'📋 Parcial Ordinario'},
+    {val:'Recuperatorio',lbl:'🔄 Recuperatorio Parcial'},
+    {val:'Final',lbl:'🎯 Final Ordinario'},
+    {val:'Final Recuperatorio',lbl:'🔁 Final Recuperatorio'},
+    {val:'Complementario',lbl:'➕ Complementario'},
+    {val:'Extraordinario',lbl:'⭐ Extraordinario'},
+  ];
+  // Verificar cuáles ya tienen acta cerrada
+  let actasCerradas={};
+  try{
+    for(const t of TIPOS){
+      const r=await api('GET','/api/actas-examen/check?asignacion_id='+asigId+'&tipo_examen='+encodeURIComponent(t.val));
+      if(r.acta) actasCerradas[t.val]=r.acta;
+    }
+  }catch(e){}
+  modal(`<h4 style="margin-bottom:16px">📋 Generar acta de examen</h4>
+    <p style="font-size:12px;color:#64748b;margin-bottom:14px">Seleccioná el tipo de examen para el cual vas a generar el acta. Una vez cerrada, <strong>solo el director puede desbloquearla</strong>.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    ${TIPOS.map(t=>{
+      const cerrada=actasCerradas[t.val];
+      return cerrada
+        ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f9fafb;opacity:.7">
+            <span style="font-size:13px">${t.lbl}</span>
+            <span class="bx br" style="font-size:10px">🔒 Acta cerrada</span>
+          </div>`
+        : `<button onclick="cm();_iniciarActaExamen('${asigId}','${t.val}','${t.lbl}')"
+            style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1.5px solid #7c3aed;border-radius:8px;background:#faf5ff;cursor:pointer;text-align:left;width:100%">
+            <span style="font-size:13px;font-weight:600;color:#5b21b6">${t.lbl}</span>
+            <span style="font-size:11px;color:#7c3aed">→ Generar acta</span>
+          </button>`;
+    }).join('')}
+    </div>
+    <div class="mf" style="margin-top:14px"><button class="bs" onclick="cm()">Cancelar</button></div>`,true);
+}
+async function _iniciarActaExamen(asigId,tipo,tipoLbl){
+  const CAMPO_MAP={
+    'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio',
+    'Final':'final_ord','Final Recuperatorio':'final_recuperatorio',
+    'Complementario':'complementario','Extraordinario':'extraordinario'
+  };
+  const campo=CAMPO_MAP[tipo];
+  // Cargar datos actuales del acta
+  let actaData={asig:{},alumnos:[]};
+  try{ actaData=await api('GET','/api/notas/acta/'+asigId); }catch(e){}
+  const {asig,alumnos,inst}=actaData;
+  // Filtrar solo alumnos con nota en ese tipo
+  const conNota=alumnos.filter(a=>a[campo]!==null&&a[campo]!==undefined);
+  const sinNota=alumnos.filter(a=>a[campo]===null||a[campo]===undefined);
+  const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy=new Date();
+  const fechaStr=`${hoy.getDate()} de ${MESES[hoy.getMonth()]} de ${hoy.getFullYear()}`;
+  modal(`<div style="max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h4>📋 Acta — ${tipoLbl}</h4>
+      <span class="bx ba">${asig.materia_nombre||''}</span>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px">
+      <div><span style="color:#64748b">Docente:</span> <strong>${asig.docente_nombre||''} ${asig.docente_apellido||''}</strong></div>
+      <div><span style="color:#64748b">Carrera:</span> <strong>${asig.carrera_nombre||''}</strong></div>
+      <div><span style="color:#64748b">Curso:</span> <strong>${asig.curso_anio||''}° ${asig.curso_division!=='U'?asig.curso_division:''}</strong></div>
+      <div><span style="color:#64748b">Fecha:</span> <strong>${fechaStr}</strong></div>
+    </div>
+    ${conNota.length?`
+    <p style="font-weight:700;font-size:12px;margin-bottom:8px">Alumnos con nota cargada (${conNota.length}):</p>
+    <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#f1f5f9">
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">#</th>
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Apellido y Nombre</th>
+        <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">CI</th>
+        <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Nota</th>
+      </tr></thead>
+      <tbody>${conNota.map((a,i)=>`<tr style="${i%2?'background:#f9fafb':''}">
+        <td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#94a3b8">${i+1}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;font-weight:600">${a.apellido||''}, ${a.nombre||''}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#64748b">${a.ci||'—'}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid #f1f5f9;text-align:center;font-weight:800;color:#166534">${a[campo]}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<div class="es" style="margin-bottom:12px">Ningún alumno tiene nota cargada para este tipo de examen</div>'}
+    ${sinNota.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e;margin-bottom:12px">⚠ ${sinNota.length} alumno${sinNota.length!==1?'s':''} sin nota: ${sinNota.slice(0,5).map(a=>a.apellido+', '+a.nombre).join(' · ')}${sinNota.length>5?' y más...':''}</div>`:''}
+    <!-- Alumnos faltantes -->
+    <div style="border:1.5px solid #c4b5fd;border-radius:10px;padding:12px;background:#faf5ff;margin-bottom:14px">
+      <p style="font-weight:700;font-size:12px;color:#5b21b6;margin-bottom:8px">➕ Alumnos faltantes del sistema (opcional)</p>
+      <p style="font-size:11px;color:#64748b;margin-bottom:10px">Si hay alumnos que rindieron pero no están en el sistema, agregalos aquí. Solo quedan en el acta impresa.</p>
+      <div id="faltantesList"></div>
+      <button onclick="_addFaltante()" style="font-size:11px;padding:5px 12px;border:1.5px dashed #7c3aed;background:transparent;color:#7c3aed;border-radius:6px;cursor:pointer;margin-top:6px">+ Agregar alumno faltante</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Observación (opcional)</label>
+      <textarea id="actaObs" rows="2" style="width:100%;font-size:12px;padding:8px;border:1px solid #e2e8f0;border-radius:6px;resize:vertical" placeholder="Alguna observación para el acta..."></textarea>
+    </div>
+    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;font-size:11px;color:#991b1b;margin-bottom:14px">
+      🔒 <strong>Al confirmar, el acta quedará cerrada.</strong> No podrás modificar las notas de este examen sin autorización del director.
+    </div>
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" style="background:#7c3aed" onclick="_cerrarActaExamen('${asigId}','${tipo}','${tipoLbl}')">✓ Confirmar y cerrar acta</button>
+    </div>
+  </div>`,true);
+  W._actaAlumnosConNota=conNota;
+  W._actaCampo=campo;
+}
+function _addFaltante(){
+  const list=document.getElementById('faltantesList');
+  if(!list)return;
+  const idx=list.children.length;
+  const div=document.createElement('div');
+  div.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML=`<input placeholder="Apellido, Nombre *" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px" data-f="nombre" />
+    <input placeholder="Nota *" type="number" min="0" max="50" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px" data-f="nota" />
+    <input placeholder="CI (opcional)" style="padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px" data-f="ci" />
+    <button onclick="this.parentElement.remove()" style="padding:5px 8px;background:#fee2e2;border:none;border-radius:6px;cursor:pointer;color:#dc2626;font-weight:700">✕</button>`;
+  list.appendChild(div);
+}
+async function _cerrarActaExamen(asigId,tipo,tipoLbl){
+  const list=document.getElementById('faltantesList');
+  const obs=document.getElementById('actaObs')?.value||'';
+  const faltantes=[];
+  if(list){
+    list.querySelectorAll('div').forEach(row=>{
+      const nombre=row.querySelector('[data-f="nombre"]')?.value?.trim();
+      const nota=row.querySelector('[data-f="nota"]')?.value?.trim();
+      const ci=row.querySelector('[data-f="ci"]')?.value?.trim();
+      if(nombre&&nota) faltantes.push({nombre,nota:Number(nota),ci:ci||null});
+    });
+  }
+  try{
+    const r=await api('POST','/api/actas-examen',{asignacion_id:asigId,tipo_examen:tipo,alumnos_faltantes:faltantes,observacion:obs||null});
+    if(!r.ok) throw new Error(r.error||'Error al cerrar acta');
+    cm();
+    toast('✓ Acta cerrada correctamente','ok');
+    // Recargar tabla de notas para mostrar estado bloqueado
+    if(W.loadNotas) W.loadNotas(asigId);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── PANEL DIRECTOR: VER E IMPRIMIR ACTAS ─────────────────────────────────────
+async function pgActasExamen(){
+  modal('<div style="text-align:center;padding:30px">⏳ Cargando actas...</div>',true);
+  try{
+    const actas=await api('GET','/api/actas-examen');
+    const TIPO_COLOR={'Parcial':'#1d4ed8','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
+    modal(`<div style="max-height:85vh;overflow-y:auto;min-width:min(700px,90vw)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h4>📋 Actas de examen cerradas</h4>
+        <span class="bx ba">${actas.length} acta${actas.length!==1?'s':''}</span>
+      </div>
+      ${!actas.length?'<div class="es">No hay actas cerradas aún</div>':actas.map(a=>{
+        const falt=a.alumnos_faltantes?JSON.parse(a.alumnos_faltantes):[];
+        const color=TIPO_COLOR[a.tipo_examen]||'#374151';
+        return`<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+            <div>
+              <span style="font-weight:700;font-size:13px">${a.materia_nombre||''}</span>
+              <span style="display:inline-block;margin-left:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${color}22;color:${color}">${a.tipo_examen}</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              ${a.estado==='cerrada'?`<button class="bs" style="font-size:10px;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="imprimirActaExamenCerrada('${a.id}')">🖨 Imprimir</button>
+              <button class="bs d" style="font-size:10px" onclick="desbloquearActa('${a.id}')">🔓 Desbloquear</button>`
+              :`<span class="bx ba" style="font-size:10px">🔓 Desbloqueada</span>`}
+            </div>
+          </div>
+          <div style="font-size:11px;color:#64748b;display:flex;gap:12px;flex-wrap:wrap">
+            <span>👤 ${a.docente_nombre||''} ${a.docente_apellido||''}</span>
+            <span>🏫 ${a.carrera_nombre||''} ${a.curso_anio||''}° ${a.curso_division!=='U'?a.curso_division:''}</span>
+            <span>📅 ${a.fecha_cierre?a.fecha_cierre.slice(0,16).replace('T',' '):''}</span>
+            ${falt.length?`<span style="color:#7c3aed">➕ ${falt.length} faltante${falt.length!==1?'s':''}</span>`:''}
+          </div>
+          ${a.estado==='desbloqueada'?`<div style="font-size:10px;color:#92400e;margin-top:4px;background:#fffbeb;padding:4px 8px;border-radius:4px">🔓 Desbloqueada — Motivo: ${a.motivo_desbloqueo||'—'}</div>`:''}
+        </div>`;
+      }).join('')}
+      <div class="mf" style="margin-top:10px"><button class="bs" onclick="cm()">Cerrar</button></div>
+    </div>`,true);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function desbloquearActa(actaId){
+  modal(`<h4 style="margin-bottom:12px">🔓 Desbloquear acta</h4>
+    <p style="font-size:12px;color:#64748b;margin-bottom:10px">Ingresá el motivo del desbloqueo. Quedará registrado en auditoría.</p>
+    <textarea id="motivoDesbloqueo" rows="3" style="width:100%;font-size:12px;padding:8px;border:1px solid #e2e8f0;border-radius:6px" placeholder="Motivo del desbloqueo..."></textarea>
+    <div class="mf" style="margin-top:10px">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" style="background:#dc2626" onclick="_confirmarDesbloqueo('${actaId}')">🔓 Desbloquear</button>
+    </div>`,true);
+}
+async function _confirmarDesbloqueo(actaId){
+  const motivo=document.getElementById('motivoDesbloqueo')?.value?.trim();
+  if(!motivo){toast('Ingresá un motivo','warn');return;}
+  try{
+    await api('PUT','/api/actas-examen/'+actaId+'/desbloquear',{motivo});
+    toast('✓ Acta desbloqueada','ok');
+    cm();
+    pgActasExamen();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function imprimirActaExamenCerrada(actaId){
+  // Obtener datos del acta y de la asignación
+  try{
+    const actas=await api('GET','/api/actas-examen');
+    const acta=actas.find(a=>a.id===actaId);
+    if(!acta){toast('Acta no encontrada','err');return;}
+    const actaData=await api('GET','/api/notas/acta/'+acta.asignacion_id);
+    const {asig,alumnos,inst}=actaData;
+    const CAMPO_MAP={'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio','Final':'final_ord','Final Recuperatorio':'final_recuperatorio','Complementario':'complementario','Extraordinario':'extraordinario'};
+    const campo=CAMPO_MAP[acta.tipo_examen];
+    const conNota=alumnos.filter(a=>a[campo]!==null&&a[campo]!==undefined);
+    const faltantes=acta.alumnos_faltantes?JSON.parse(acta.alumnos_faltantes):[];
+    const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const fechaCierre=new Date(acta.fecha_cierre);
+    const fechaStr=`${fechaCierre.getDate()} de ${MESES[fechaCierre.getMonth()]} de ${fechaCierre.getFullYear()}`;
+    let logoSrc='';
+    try{const lr=await api('GET','/api/logo');if(lr?.logo)logoSrc=lr.logo;}catch(e){}
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Acta ${acta.tipo_examen} — ${asig.materia_nombre}</title>
+    <style>
+      @page{size:A4 portrait;margin:14mm 16mm}
+      @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#111}
+      .ph{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px}
+      .ph img{height:60px;object-fit:contain}
+      .ph-info h1{font-size:15px;color:#1e3a5f;font-weight:900}
+      .ph-info .sub{font-size:10px;color:#64748b;margin-top:2px}
+      .sello{display:inline-block;padding:3px 12px;border:2px solid #dc2626;color:#dc2626;font-weight:800;font-size:10px;border-radius:4px;letter-spacing:.05em;margin-top:4px}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px}
+      .meta-row{display:flex;gap:6px}<br>.meta-row span:first-child{color:#64748b;min-width:80px}
+      table{width:100%;border-collapse:collapse;margin-bottom:14px}
+      thead th{background:#1e3a5f;color:#fff;padding:7px 10px;font-size:10px;font-weight:700}
+      tbody tr:nth-child(even){background:#f8fafc}
+      tbody td{padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
+      .nota-cell{text-align:center;font-weight:800;font-size:13px;color:#166534}
+      .falt-section{border:1.5px solid #7c3aed;border-radius:8px;padding:10px;margin-bottom:14px}
+      .falt-section h3{font-size:11px;color:#5b21b6;margin-bottom:8px}
+      .firmas{display:flex;justify-content:space-around;margin-top:30px}
+      .firma-box{text-align:center;width:180px}
+      .firma-line{border-top:1.5px solid #374151;margin-bottom:6px}
+      .firma-label{font-size:10px;color:#374151}
+      .obs-box{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;margin-bottom:14px}
+      .no-print{position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;gap:12px;justify-content:center;z-index:999}
+      .spacer{height:60px}
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+    </head><body>
+    <div class="ph">
+      ${logoSrc?`<img src="${logoSrc}" />`:''}
+      <div class="ph-info">
+        <div style="font-size:11px;color:#64748b;font-weight:600">${inst?.nombre||'Instituto Técnico Superior'}</div>
+        <h1>ACTA DE EXAMEN — ${acta.tipo_examen.toUpperCase()}</h1>
+        <div class="sub">${asig.materia_nombre||''} · ${asig.carrera_nombre||''} · ${asig.curso_anio||''}° ${asig.curso_division!=='U'?asig.curso_division:''}</div>
+        <span class="sello">🔒 ACTA CERRADA — NO SE ADMITEN MODIFICACIONES</span>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="meta-row"><span>Docente:</span><strong>${asig.docente_nombre||''} ${asig.docente_apellido||''}</strong></div>
+      <div class="meta-row"><span>Materia:</span><strong>${asig.materia_nombre||''}</strong></div>
+      <div class="meta-row"><span>Carrera:</span><strong>${asig.carrera_nombre||''}</strong></div>
+      <div class="meta-row"><span>Período:</span><strong>${asig.periodo_nombre||''}</strong></div>
+      <div class="meta-row"><span>Fecha:</span><strong>${fechaStr}</strong></div>
+      <div class="meta-row"><span>Tipo:</span><strong>${acta.tipo_examen}</strong></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:8%;text-align:center">#</th>
+        <th style="width:10%;text-align:center">Matr.</th>
+        <th style="width:35%">Apellido y Nombre</th>
+        <th style="width:15%">CI</th>
+        <th style="width:12%;text-align:center">Nota</th>
+        <th style="width:20%">Firma</th>
+      </tr></thead>
+      <tbody>
+      ${conNota.map((a,i)=>`<tr>
+        <td style="text-align:center;color:#94a3b8">${i+1}</td>
+        <td style="text-align:center;font-size:9px;color:#64748b">${a.matricula||'—'}</td>
+        <td><strong>${a.apellido||''}</strong>, ${a.nombre||''}</td>
+        <td style="color:#64748b">${a.ci||'—'}</td>
+        <td class="nota-cell">${a[campo]}</td>
+        <td></td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+    ${faltantes.length?`<div class="falt-section">
+      <h3>➕ Alumnos fuera del sistema (${faltantes.length})</h3>
+      <table>
+        <thead><tr><th style="width:8%;text-align:center">#</th><th style="width:40%">Apellido y Nombre</th><th style="width:18%">CI</th><th style="width:14%;text-align:center">Nota</th><th>Firma</th></tr></thead>
+        <tbody>${faltantes.map((f,i)=>`<tr>
+          <td style="text-align:center;color:#94a3b8">${conNota.length+i+1}</td>
+          <td><strong>${f.nombre}</strong></td>
+          <td style="color:#64748b">${f.ci||'—'}</td>
+          <td class="nota-cell">${f.nota}</td>
+          <td></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`:''}
+    ${acta.observacion?`<div class="obs-box">📝 Observación: ${acta.observacion}</div>`:''}
+    <div class="firmas">
+      <div class="firma-box">
+        <div style="height:40px"></div>
+        <div class="firma-line"></div>
+        <div class="firma-label"><strong>${asig.docente_nombre||''} ${asig.docente_apellido||''}</strong></div>
+        <div class="firma-label">Docente</div>
+      </div>
+      <div class="firma-box">
+        <div style="height:40px"></div>
+        <div class="firma-line"></div>
+        <div class="firma-label">Director/a</div>
+      </div>
+    </div>
+    <div style="font-size:9px;color:#94a3b8;text-align:center;margin-top:20px">
+      Acta generada el ${acta.fecha_cierre?.slice(0,16).replace('T',' ')||''} · Sistema ITS · ID: ${actaId}
+    </div>
+    <div class="spacer"></div>
+    <div class="no-print">
+      <button onclick="window.print()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700">🖨 Imprimir</button>
+      <button onclick="descargarActaPDF()" style="padding:10px 24px;background:#16a34a;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700">💾 Descargar PDF</button>
+      <button onclick="window.close()" style="padding:10px 16px;background:#64748b;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px">✕ Cerrar</button>
+    </div>
+    <script>
+    function descargarActaPDF(){
+      html2pdf().set({margin:[10,12],filename:'acta_${acta.tipo_examen.replace(/ /g,'_')}_${(asig.materia_nombre||'').replace(/ /g,'_')}.pdf',image:{type:'jpeg',quality:.97},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(document.body).save();
+    }
+    <\/script>
+    </body></html>`;
+    const w=window.open('','_blank','width=900,height=700');
+    w.document.write(html);w.document.close();
+  }catch(e){toast('Error al generar acta: '+e.message,'err');}
+}
+
 async function guardarTodasNotas(asigId){
   const btn=document.getElementById('btnGuardarNotas');
   if(btn){btn.disabled=true;btn.textContent='⏳ Guardando...';}
@@ -7710,6 +8038,8 @@ W.loadNotas=async(asigId,_tipo)=>{
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Acta de notas</button>`:''}
       ${me.rol==='director'?`<button class="bs i" onclick="mImprimirAsistDia('${asigId}')">📋 Acta asistencia por día</button>`:''}
+      ${me.rol==='director'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="pgActasExamen()">📋 Ver actas de examen</button>`:''}
+      ${me.rol==='docente'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:700" onclick="mGenerarActaExamen('${asigId}')">📋 Generar acta de examen</button>`:''}
       <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
     </div>
   </div>
