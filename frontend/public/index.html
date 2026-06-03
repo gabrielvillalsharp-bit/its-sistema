@@ -6718,17 +6718,41 @@ async function pgNotas(el){
   const [asigs,carrs,cursos]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos')]);
   W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Registro de notas</h3>
-  </div>
+  // Cards de materias propias para docentes
+  const misMatCards=me.rol==='docente'&&asigs.length?`
+  <div style="margin-bottom:16px">
+    <p style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">📚 Mis materias</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+      ${asigs.map(a=>{
+        const pct=a.total_alumnos?Math.round((a.notas_cargadas||0)/a.total_alumnos*100):0;
+        const color=pct>=80?'#166534':pct>=40?'#92400e':'#1d4ed8';
+        const bg=pct>=80?'#f0fdf4':pct>=40?'#fffbeb':'#eff6ff';
+        const border=pct>=80?'#86efac':pct>=40?'#fde68a':'#bfdbfe';
+        return `<div onclick="selMateriaNota('${a.id}')" style="background:${bg};border:1.5px solid ${border};border-radius:12px;padding:12px 14px;cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.boxShadow='';this.style.transform=''">
+          <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:4px;line-height:1.3">${a.materia_nombre}</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px">${a.carrera_nombre} · ${a.curso_anio}°${a.curso_division!=='U'?a.curso_division:''}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="flex:1;background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;margin-right:8px">
+              <div style="background:${color};height:100%;width:${pct}%;transition:width .4s"></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${color}">${pct}%</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px">${a.notas_cargadas||0} / ${a.total_alumnos} notas cargadas</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:'';
+  el.innerHTML=`<div class="ph"><h3>📝 Registro de notas</h3></div>
+  ${misMatCards}
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
-    <select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
+    ${me.rol!=='docente'?`<select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
       <option value="">Todas las carreras</option>
       ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
     </select>
     <select id="filtNotaAnio" onchange="filtNotasAsigs()" style="min-width:120px">
       <option value="">Todos los años</option>
       ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-    </select>
+    </select>`:''}
     <select id="selAsigNotas" onchange="cambiarAsigNotas(this.value)" style="min-width:240px;flex:1">
       <option value="">— Seleccionar materia —</option>
       ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
@@ -6739,12 +6763,13 @@ async function pgNotas(el){
   if(window._pendingAsigNotas){
     const asigId=window._pendingAsigNotas;
     window._pendingAsigNotas=null;
-    const sel=document.getElementById('selAsigNotas');
-    if(sel){
-      sel.value=asigId;
-      if(sel.value===asigId) cambiarAsigNotas(asigId);
-    }
+    selMateriaNota(asigId);
   }
+}
+function selMateriaNota(asigId){
+  const sel=document.getElementById('selAsigNotas');
+  if(sel){sel.value=asigId;}
+  cambiarAsigNotas(asigId);
 }
 function toggleDropAsist(btn){
   const menu=btn.parentElement.querySelector('.drop-asist-menu');
