@@ -4776,13 +4776,15 @@ function exportarExamenesPDF(tipoForzado){
   </div>
   <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button></div>`,true);
 }
-function _generarExamenesPDF(exs){
+async function _generarExamenesPDF(exs){
   const TIPO_LABEL={'Parcial':'Parcial Ord.','Recuperatorio':'Recuperatorio','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Complementario','Extraordinario':'Extraordinario'};
   const TIPO_COLOR={'Parcial':'#1e40af','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
   const TIPO_BG={'Parcial':'#dbeafe','Recuperatorio':'#ede9fe','Final':'#fee2e2','Final Recuperatorio':'#ffedd5','Complementario':'#d1fae5','Extraordinario':'#f5f3ff'};
   const DIAS_FULL=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
+  let logoSrc='';
+  try{const lr=await api('GET','/api/logo');if(lr&&lr.logo)logoSrc=lr.logo;}catch(e){}
   const getTurno=h=>(!h||h.startsWith('19'))?1:2;
 
   const fmtFechaLarga=f=>{
@@ -4942,12 +4944,15 @@ function _generarExamenesPDF(exs){
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><${'/'}script>
   </head><body>
   <div class="ph">
-    <div>
-      <h1>📅 Cronograma de Exámenes</h1>
-      <div class="ph-sub">${fechasOrdenadas.length} día${fechasOrdenadas.length!==1?'s':''} de exámenes &nbsp;·&nbsp; ${exs.length} exámenes en total &nbsp;·&nbsp; Turno Nocturno 19:00 – 22:00 hs</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      ${logoSrc?`<img src="${logoSrc}" style="height:56px;width:56px;object-fit:contain;border-radius:8px" />`:''}
+      <div>
+        <div style="font-size:11px;color:#6b7280;font-weight:600;margin-bottom:2px">${inst}</div>
+        <h1>📅 Cronograma de Exámenes</h1>
+        <div class="ph-sub">${fechasOrdenadas.length} día${fechasOrdenadas.length!==1?'s':''} de exámenes &nbsp;·&nbsp; ${exs.length} exámenes en total &nbsp;·&nbsp; Turno Nocturno 19:00 – 22:00 hs</div>
+      </div>
     </div>
     <div class="ph-meta">
-      <strong>${inst}</strong><br>
       Generado: ${new Date().toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date().toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit'})}
     </div>
   </div>
