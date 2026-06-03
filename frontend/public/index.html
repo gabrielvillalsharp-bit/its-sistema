@@ -1360,25 +1360,25 @@ function navFor(r){
       {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
       {id:'solicitudes',l:'Gestión de Alumnos',c:'#D85A30',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Carreras',gIco:'🏫',i:[
+    {g:'_modal',gLabel:'Carreras',gIconId:'carreras',i:[
       {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
       {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
       {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
       {id:'periodos',l:'Períodos',c:'#1f8246',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Gestión de Alumnos',gIco:'👥',i:[
+    {g:'_modal',gLabel:'Gestión de Alumnos',gIconId:'alumnos',i:[
       {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
       {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
       {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
       {id:'constancias',l:'Constancias',c:'#1d4ed8',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Académico',gIco:'📚',i:[
+    {g:'_modal',gLabel:'Académico',gIconId:'notas',i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
       {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
       {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
     ]},
-    {g:'_modal',gLabel:'Finanzas y Recursos',gIco:'💰',i:[
+    {g:'_modal',gLabel:'Finanzas y Recursos',gIconId:'pagos',i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
       {id:'honorarios',l:'Honorarios',c:'#D85A30',r:['director']},
       {id:'repositorio-programas',l:'Programas',c:'#1f8246',r:['director','docente']},
@@ -1414,9 +1414,8 @@ function buildNav(){
     </button>`+
   groups.map((g,idx)=>{
     if(g.g==='_modal'){
-      // Un solo botón ni igual al resto, sin header de sección, abre modal central
       return `<div><div class="ng-items" style="max-height:999px;overflow:visible">
-        <button class="ni" id="ni-grp-${idx}" onclick="abrirModalGrupo(${idx})">${_niIco(g.i[0]?.id||'dashboard')}<span class="ni-lbl">${g.gLabel}</span></button>
+        <button class="ni" id="ni-grp-${idx}" onclick="abrirModalGrupo(${idx})">${_niIco(g.gIconId||'dashboard')}<span class="ni-lbl">${g.gLabel}</span></button>
       </div></div>`;
     }
     return `<div>
