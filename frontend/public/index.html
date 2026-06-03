@@ -1343,6 +1343,10 @@ const _NAV_ICO={
   'auditoria':       'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
   'feriados':        'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
   '_default':        'M4 6h16M4 12h16M4 18h16',
+  'hub-carreras':    'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
+  'hub-personas':    'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
+  'hub-academico':   'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  'hub-finanzas':    'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
 };
 const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍'};
 function _niIco(id,emojiOnly){
@@ -1358,31 +1362,18 @@ function navFor(r){
       {id:'calendario-clases',l:'Horario Semanal',c:'#1f8246',r:['director','docente']},
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
       {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
-      {id:'solicitudes',l:'Gestión de Alumnos',c:'#D85A30',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Carreras',gIconId:'carreras',i:[
-      {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
-      {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
-      {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
-      {id:'periodos',l:'Períodos',c:'#1f8246',r:['director']},
+    {g:'Estructura',i:[
+      {id:'hub-carreras',l:'Carreras',c:'#7F77DD',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Gestión de Alumnos',gIconId:'alumnos',i:[
-      {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
-      {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
-      {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
-      {id:'constancias',l:'Constancias',c:'#1d4ed8',r:['director']},
+    {g:'Personas',i:[
+      {id:'hub-personas',l:'Gestión de Alumnos',c:'#E24B4A',r:['director']},
     ]},
-    {g:'_modal',gLabel:'Académico',gIconId:'notas',i:[
-      {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
-      {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
-      {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
-      {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
+    {g:'Académico',i:[
+      {id:'hub-academico',l:'Académico',c:'#1f8246',r:['director','docente']},
     ]},
-    {g:'_modal',gLabel:'Finanzas y Recursos',gIconId:'pagos',i:[
-      {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
-      {id:'honorarios',l:'Honorarios',c:'#D85A30',r:['director']},
-      {id:'repositorio-programas',l:'Programas',c:'#1f8246',r:['director','docente']},
-      {id:'repositorio-contenidos',l:'Contenidos',c:'#1f8246',r:['director','docente','alumno']},
+    {g:'Finanzas',i:[
+      {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director','docente','alumno']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#1f8246',r:['docente']},
@@ -1391,13 +1382,13 @@ function navFor(r){
       {id:'mi-asistencia',l:'Mi asistencia',c:'#1f8246',r:['alumno']},
       {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
     ]},
-    {g:'Cuenta',i:[
-      {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
-    ]},
     {g:'Configuración',i:[
       {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
       {id:'institucion',l:'Institución',c:'#888780',r:['director']},
       {id:'auditoria',l:'Auditoría',c:'#c0392b',r:['director']},
+    ]},
+    {g:'Cuenta',i:[
+      {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
     ]},
   ].map(g=>({...g,i:g.i.filter(x=>x.r.includes(r))})).filter(g=>g.i.length);
 }
@@ -1413,11 +1404,6 @@ function buildNav(){
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
     </button>`+
   groups.map((g,idx)=>{
-    if(g.g==='_modal'){
-      return `<div><div class="ng-items" style="max-height:999px;overflow:visible">
-        <button class="ni" id="ni-grp-${idx}" onclick="abrirModalGrupo(${idx})">${_niIco(g.gIconId||'dashboard')}<span class="ni-lbl">${g.gLabel}</span></button>
-      </div></div>`;
-    }
     return `<div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
         <span>${g.g}</span>${chevron}
@@ -1462,24 +1448,7 @@ function toggleNavGrp(idx){
     if(hdr) hdr.querySelector('svg').style.transform='rotate(-90deg)';
   }
 }
-function abrirModalGrupo(idx){
-  const groups=window._navGroups||[];
-  const g=groups[idx];
-  if(!g||g.g!=='_modal') return;
-  const html=`<div style="padding:4px 0">
-    <div style="font-size:12px;font-weight:700;color:#64748b;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">${g.gIco} ${g.gLabel}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px">
-      ${g.i.map(i=>`
-        <button onclick="cm();go('${i.id}')" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px 10px;border-radius:14px;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;transition:all .18s;box-shadow:0 1px 4px rgba(0,0,0,.06)"
-          onmouseenter="this.style.borderColor='${i.c}';this.style.background='${i.c}14';this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,.1)'"
-          onmouseleave="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.transform='';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
-          <span style="font-size:28px;line-height:1">${_NAV_EMO[i.id]||'📌'}</span>
-          <span style="font-size:12px;font-weight:700;color:#1e293b;text-align:center;line-height:1.3">${i.l}</span>
-        </button>`).join('')}
-    </div>
-  </div>`;
-  modal(html,false);
-}
+
 
 let cur='';
 function go(p, _fromHistory){
@@ -1499,6 +1468,7 @@ function go(p, _fromHistory){
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
+    'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
     solicitudes:pgSolicitudes,
     whatsapp:pgWhatsApp,
     'repositorio-programas':pgRepProgramas,
@@ -7152,6 +7122,60 @@ async function resolverRegistroQr(id, accion){
   await go('solicitudes');
   setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},150);
 }
+// ── HUB PAGES ─────────────────────────────────────────────────────────────────
+function _hubCard(id,icon,title,subtitle,grad){
+  return `<div onclick="go('${id}')" style="cursor:pointer;border-radius:14px;padding:20px 14px 18px;text-align:center;background:${grad};color:#fff;user-select:none;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:120px;box-shadow:0 2px 10px rgba(0,0,0,.15)" onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.15)'">
+    <div style="font-size:32px;line-height:1">${icon}</div>
+    <div style="font-size:12px;font-weight:800;line-height:1.3;padding:0 4px">${title}</div>
+    ${subtitle?`<div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.22);color:#fff">${subtitle}</div>`:''}
+  </div>`;
+}
+function pgHubCarreras(el){
+  el.innerHTML=`<div class="ph"><h3>🏫 Carreras</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
+    ${_hubCard('carreras','🏫','Carreras','Gestionar carreras','linear-gradient(135deg,#1e3a5f,#2563eb)')}
+    ${_hubCard('cursos','🚪','Cursos','Por carrera','linear-gradient(135deg,#065f46,#059669)')}
+    ${_hubCard('materias','📖','Materias','Catálogo','linear-gradient(135deg,#4c1d95,#7c3aed)')}
+    ${_hubCard('periodos','📅','Períodos','Ciclos académicos','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+    ${_hubCard('repositorio-programas','📁','Programas','Repositorio','linear-gradient(135deg,#0f766e,#14b8a6)')}
+  </div>`;
+}
+function pgHubPersonas(el){
+  el.innerHTML=`<div class="ph"><h3>👥 Gestión de Personas</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
+    ${_hubCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','linear-gradient(135deg,#065f46,#059669)')}
+    ${_hubCard('docentes','👨‍🏫','Docentes','Gestionar plantel','linear-gradient(135deg,#1e3a5f,#2563eb)')}
+    ${_hubCard('constancias','📄','Constancias','Generar constancias','linear-gradient(135deg,#4c1d95,#7c3aed)')}
+    ${_hubCard('usuarios','🔑','Usuarios','Accesos al sistema','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+  </div>`;
+}
+function pgHubAcademico(el){
+  const esDirec=me.rol==='director';
+  el.innerHTML=`<div class="ph"><h3>✏️ Académico</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
+    ${_hubCard('notas','✏️','Registro de Notas','Calificaciones','linear-gradient(135deg,#1e3a5f,#2563eb)')}
+    ${_hubCard('asistencia','✅','Asistencia','Control de asistencia','linear-gradient(135deg,#065f46,#059669)')}
+    ${_hubCard('examenes','📋','Cronograma','Exámenes','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+    ${esDirec?_hubCard('asignaciones','🔗','Asignaciones','Docente-materia','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
+    ${esDirec?_hubCard('reemplazos','🔄','Reemplazos','Sustituciones','linear-gradient(135deg,#0a3d62,#1a7fc4)'):''}
+    ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
+    ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
+    ${_hubCard('repositorio-contenidos','📂','Contenidos','Repositorio','linear-gradient(135deg,#1d4ed8,#60a5fa)')}
+  </div>`;
+}
+function pgHubFinanzas(el){
+  const esDirec=me.rol==='director';
+  el.innerHTML=`<div class="ph"><h3>💰 Finanzas y Recursos</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
+    ${esDirec?_hubCard('pagos','💳','Pagos','Registros de pago','linear-gradient(135deg,#065f46,#059669)'):''}
+    ${esDirec?_hubCard('aranceles','💲','Aranceles','Configurar cuotas','linear-gradient(135deg,#1e3a5f,#2563eb)'):''}
+    ${esDirec?_hubCard('deudores','⚠️','Deudores','Alumnos con deuda','linear-gradient(135deg,#7f1d1d,#c0392b)'):''}
+    ${esDirec?_hubCard('becas','⭐','Becas','Gestión de becas','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
+    ${_hubCard('honorarios','💵','Honorarios','Docentes','linear-gradient(135deg,#0f766e,#14b8a6)')}
+    ${me.rol==='docente'?_hubCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','linear-gradient(135deg,#78350f,#d97706)'):''}
+  </div>`;
+}
+// ──────────────────────────────────────────────────────────────────────────────
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
   const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios,auditAlumnos]=await Promise.all([
