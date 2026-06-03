@@ -1344,7 +1344,9 @@ const _NAV_ICO={
   'feriados':        'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
   '_default':        'M4 6h16M4 12h16M4 18h16',
 };
-function _niIco(id){
+const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍'};
+function _niIco(id,emojiOnly){
+  if(emojiOnly) return _NAV_EMO[id]||'📌';
   const d=_NAV_ICO[id]||_NAV_ICO['_default'];
   return `<svg class="ni-ico" viewBox="0 0 24 24"><path d="${d}"/></svg>`;
 }
@@ -1358,27 +1360,29 @@ function navFor(r){
       {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
       {id:'solicitudes',l:'Gestión de Alumnos',c:'#D85A30',r:['director']},
     ]},
-    {g:'Estructura',i:[
+    {g:'Carreras',collapsed:true,i:[
       {id:'carreras',l:'Carreras',c:'#7F77DD',r:['director']},
       {id:'cursos',l:'Secciones',c:'#D85A30',r:['director']},
       {id:'materias',l:'Materias',c:'#BA7517',r:['director']},
       {id:'periodos',l:'Períodos',c:'#1f8246',r:['director']},
     ]},
-    {g:'Personas',i:[
+    {g:'Gestión de Alumnos',collapsed:true,i:[
       {id:'docentes',l:'Docentes',c:'#BA7517',r:['director']},
       {id:'alumnos',l:'Alumnos',c:'#E24B4A',r:['director']},
       {id:'asignaciones',l:'Asignaciones',c:'#888780',r:['director']},
       {id:'constancias',l:'Constancias',c:'#1d4ed8',r:['director']},
     ]},
-    {g:'Académico',i:[
+    {g:'Académico',collapsed:true,i:[
       {id:'examenes',l:'Exámenes',c:'#D85A30',r:['director','docente']},
       {id:'notas',l:'Notas',c:'#1f8246',r:['director','docente']},
       {id:'asistencia',l:'Asistencia',c:'#1f8246',r:['director','docente']},
       {id:'reemplazos',l:'Reemplazos',c:'#BA7517',r:['director','docente']},
     ]},
-    {g:'Finanzas',i:[
+    {g:'Finanzas y Recursos',collapsed:true,i:[
       {id:'pagos',l:'Pagos',c:'#7F77DD',r:['director']},
       {id:'honorarios',l:'Honorarios',c:'#D85A30',r:['director']},
+      {id:'repositorio-programas',l:'Programas',c:'#1f8246',r:['director','docente']},
+      {id:'repositorio-contenidos',l:'Contenidos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Mi área',i:[
       {id:'mis-materias',l:'Mis materias',c:'#1f8246',r:['docente']},
@@ -1386,10 +1390,6 @@ function navFor(r){
       {id:'mis-notas',l:'Mis calificaciones',c:'#1f8246',r:['alumno']},
       {id:'mi-asistencia',l:'Mi asistencia',c:'#1f8246',r:['alumno']},
       {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
-    ]},
-    {g:'Recursos',i:[
-      {id:'repositorio-programas',l:'Programas',c:'#1f8246',r:['director','docente']},
-      {id:'repositorio-contenidos',l:'Contenidos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
@@ -1412,15 +1412,43 @@ function buildNav(){
       <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
     </button>`+
-  groups.map((g,idx)=>`
-    <div>
+  groups.map((g,idx)=>{
+    if(g.collapsed){
+      // Grupo colapsable con cards internas
+      const GRP_ICON={'Carreras':'🏫','Gestión de Alumnos':'👥','Académico':'📚','Finanzas y Recursos':'💰'};
+      const GRP_COLOR={'Carreras':'#7c3aed','Gestión de Alumnos':'#e24b4a','Académico':'#1f8246','Finanzas y Recursos':'#4f46e5'};
+      const icon=GRP_ICON[g.g]||'📁';
+      const color=GRP_COLOR[g.g]||'#64748b';
+      return `<div class="ng-collapsed-wrap" id="ngw-${idx}">
+        <button class="ng-collapsed-hdr" id="ngh-${idx}" onclick="toggleNavGrpCard(${idx})"
+          style="width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,${color}18,${color}08);border:1.5px solid ${color}30;margin-bottom:4px;transition:all .2s;text-align:left"
+          onmouseenter="this.style.background='linear-gradient(135deg,${color}28,${color}15)'" onmouseleave="this.style.background='linear-gradient(135deg,${color}18,${color}08)'">
+          <span style="font-size:18px;line-height:1">${icon}</span>
+          <span class="ni-lbl" style="font-size:12px;font-weight:700;color:#1e293b;flex:1">${g.g}</span>
+          <svg id="ngchev-${idx}" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s;flex-shrink:0"><polyline points="2,4 6,8 10,4"/></svg>
+        </button>
+        <div id="ngi-${idx}" style="max-height:0;overflow:hidden;transition:max-height .3s ease">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:2px 2px 8px">
+            ${g.i.map((i,j)=>`<button class="ni ng-card-item" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')"
+              style="flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 6px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;min-height:64px;font-size:11px;font-weight:600;color:#374151;cursor:pointer;transition:all .15s;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)"
+              onmouseenter="this.style.borderColor='${i.c}';this.style.background='${i.c}12';this.style.color='${i.c}'"
+              onmouseleave="this.style.borderColor='#e2e8f0';this.style.background='#fff';this.style.color='#374151'">
+              <span style="font-size:18px;line-height:1">${_niIco(i.id,true)}</span>
+              <span class="ni-lbl" style="line-height:1.2">${i.l}</span>
+            </button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
         ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
       </div>
-    </div>`).join('')+`
+    </div>`;
+  }).join('')+`
   <div class="sb-toggle">
     <button class="sb-toggle-btn" id="sb-toggle-btn" onclick="toggleSidebar()" title="Colapsar menú">
       ${toggleIco}<span class="sb-toggle-lbl">Reducir</span>
@@ -1456,6 +1484,19 @@ function toggleNavGrp(idx){
     if(hdr) hdr.querySelector('svg').style.transform='rotate(-90deg)';
   }
 }
+function toggleNavGrpCard(idx){
+  const items=document.getElementById('ngi-'+idx);
+  const chev=document.getElementById('ngchev-'+idx);
+  if(!items) return;
+  const closed=items.style.maxHeight==='0px'||!items.style.maxHeight;
+  if(closed){
+    items.style.maxHeight=items.scrollHeight+200+'px';
+    if(chev) chev.style.transform='rotate(180deg)';
+  } else {
+    items.style.maxHeight='0px';
+    if(chev) chev.style.transform='rotate(0deg)';
+  }
+}
 
 let cur='';
 function go(p, _fromHistory){
@@ -1465,6 +1506,15 @@ function go(p, _fromHistory){
   closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
+  // Si el item está dentro de un grupo colapsable, abrirlo automáticamente
+  const niBtn=document.getElementById('ni-'+p);
+  if(niBtn){
+    const wrap=niBtn.closest('[id^="ngi-"]');
+    if(wrap&&(wrap.style.maxHeight==='0px'||!wrap.style.maxHeight)){
+      const idx=wrap.id.replace('ngi-','');
+      toggleNavGrpCard(Number(idx));
+    }
+  }
   // Sync bottom nav
   document.querySelectorAll('.mbn-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('mbn-'+p)?.classList.add('active');
@@ -6744,19 +6794,32 @@ async function pgNotas(el){
   </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📝 Registro de notas</h3></div>
   ${misMatCards}
-  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
-    ${me.rol!=='docente'?`<select id="filtNotaCarr" onchange="filtNotasCursos()" style="min-width:180px">
-      <option value="">Todas las carreras</option>
-      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>
-    <select id="filtNotaAnio" onchange="filtNotasAsigs()" style="min-width:120px">
-      <option value="">Todos los años</option>
-      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-    </select>`:''}
-    <select id="selAsigNotas" onchange="cambiarAsigNotas(this.value)" style="min-width:240px;flex:1">
-      <option value="">— Seleccionar materia —</option>
-      ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
-    </select>
+  <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">🔍 Filtrar por materia</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+      ${me.rol!=='docente'?`
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:180px;flex:1">
+        <label style="font-size:11px;font-weight:600;color:#64748b">Carrera</label>
+        <select id="filtNotaCarr" onchange="filtNotasCursos()" style="padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e2e8f0'">
+          <option value="">Todas las carreras</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:110px">
+        <label style="font-size:11px;font-weight:600;color:#64748b">Año</label>
+        <select id="filtNotaAnio" onchange="filtNotasAsigs()" style="padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e2e8f0'">
+          <option value="">Todos los años</option>
+          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+        </select>
+      </div>`:''}
+      <div style="display:flex;flex-direction:column;gap:4px;flex:2;min-width:220px">
+        <label style="font-size:11px;font-weight:600;color:#64748b">Materia</label>
+        <select id="selAsigNotas" onchange="cambiarAsigNotas(this.value)" style="padding:9px 12px;border:1.5px solid #166534;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)" onfocus="this.style.boxShadow='0 0 0 3px rgba(22,101,52,.15)'" onblur="this.style.boxShadow='0 1px 3px rgba(0,0,0,.08)'">
+          <option value="">— Seleccionar materia —</option>
+          ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
+        </select>
+      </div>
+    </div>
   </div>
   <div id="nc"></div>`;
   // Si viene desde "Cargar notas pendientes", abrir directamente esa asignación
