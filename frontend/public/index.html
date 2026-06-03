@@ -7137,7 +7137,6 @@ function pgHubCarreras(el){
     ${_hubCard('cursos','🚪','Cursos','Por carrera','linear-gradient(135deg,#065f46,#059669)')}
     ${_hubCard('materias','📖','Materias','Catálogo','linear-gradient(135deg,#4c1d95,#7c3aed)')}
     ${_hubCard('periodos','📅','Períodos','Ciclos académicos','linear-gradient(135deg,#7f1d1d,#c0392b)')}
-    ${_hubCard('repositorio-programas','📁','Programas','Repositorio','linear-gradient(135deg,#0f766e,#14b8a6)')}
   </div>`;
 }
 function pgHubPersonas(el){
@@ -7160,7 +7159,6 @@ function pgHubAcademico(el){
     ${esDirec?_hubCard('reemplazos','🔄','Reemplazos','Sustituciones','linear-gradient(135deg,#0a3d62,#1a7fc4)'):''}
     ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
     ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
-    ${_hubCard('repositorio-contenidos','📂','Contenidos','Repositorio','linear-gradient(135deg,#1d4ed8,#60a5fa)')}
   </div>`;
 }
 function pgHubFinanzas(el){
@@ -7173,6 +7171,8 @@ function pgHubFinanzas(el){
     ${esDirec?_hubCard('becas','⭐','Becas','Gestión de becas','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
     ${_hubCard('honorarios','💵','Honorarios','Docentes','linear-gradient(135deg,#0f766e,#14b8a6)')}
     ${me.rol==='docente'?_hubCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','linear-gradient(135deg,#78350f,#d97706)'):''}
+    ${esDirec?_hubCard('repositorio-programas','📁','Programas','Repositorio','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
+    ${esDirec?_hubCard('repositorio-contenidos','📂','Contenidos','Repositorio','linear-gradient(135deg,#1d4ed8,#60a5fa)'):''}
   </div>`;
 }
 // ──────────────────────────────────────────────────────────────────────────────
