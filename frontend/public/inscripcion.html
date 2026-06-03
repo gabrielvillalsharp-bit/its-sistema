@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Inscripción 2do Semestre 2026 — ITS Santísima Trinidad</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#1a202c}
+.wrap{max-width:480px;margin:0 auto;padding:16px 14px 40px}
+
+.header{background:linear-gradient(160deg,#1f8246 0%,#166534 60%,#14532d 100%);color:#fff;border-radius:18px;padding:24px 20px 20px;margin-bottom:16px;text-align:center;box-shadow:0 6px 24px rgba(22,101,52,.35)}
+.header-logo{width:60px;height:60px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 12px}
+.header h1{font-size:19px;font-weight:900;letter-spacing:-.3px;margin-bottom:4px}
+.header-sub{font-size:13px;opacity:.9;font-weight:600}
+.badge{display:inline-block;margin-top:10px;background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.4);border-radius:20px;padding:5px 16px;font-size:12px;font-weight:800;letter-spacing:.04em}
+
+.card{background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:12px}
+.card-title{font-size:16px;font-weight:800;color:#1a202c;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.card-sub{font-size:13px;color:#718096;margin-bottom:18px}
+
+.field{margin-bottom:16px}
+label{font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;display:block;text-transform:uppercase;letter-spacing:.04em}
+input,select{width:100%;padding:13px 14px;border:2px solid #e2e8f0;border-radius:12px;font-size:15px;outline:none;transition:border .2s,box-shadow .2s;background:#fafafa;color:#1a202c;-webkit-appearance:none;appearance:none}
+input:focus,select:focus{border-color:#166534;background:#fff;box-shadow:0 0 0 3px rgba(22,101,52,.12)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+
+.btn{width:100%;padding:15px;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.01em}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:linear-gradient(160deg,#1f8246,#166534);color:#fff;box-shadow:0 4px 16px rgba(22,101,52,.38)}
+.btn-primary:hover{box-shadow:0 6px 22px rgba(22,101,52,.48)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+.alert{padding:13px 15px;border-radius:10px;font-size:13px;margin-bottom:14px;line-height:1.5}
+.alert-err{background:#fee2e2;color:#991b1b;border:1.5px solid #fecaca}
+.alert-ok{background:#dcfce7;color:#166534;border:1.5px solid #bbf7d0}
+.alert-warn{background:#fef9c3;color:#713f12;border:1.5px solid #fde047}
+
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;color:#718096;font-size:14px}
+.spinner{width:20px;height:20px;border:2.5px solid #e2e8f0;border-top-color:#166534;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.success-screen{text-align:center;padding:28px 12px}
+.success-icon{font-size:70px;margin-bottom:14px;animation:pop .4s ease}
+@keyframes pop{0%{transform:scale(.5)}80%{transform:scale(1.12)}100%{transform:scale(1)}}
+.success-title{font-size:22px;font-weight:900;color:#166534;margin-bottom:10px}
+.success-sub{font-size:14px;color:#4a5568;line-height:1.75}
+.success-detail{margin-top:18px;background:#f0fff4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px 16px;text-align:left;font-size:13px;color:#166534;line-height:1.7}
+.success-detail strong{display:block;font-weight:800;margin-bottom:6px;font-size:14px}
+
+.info-row{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#f0fff4;border:1.5px solid #bbf7d0;border-radius:12px;margin-bottom:16px;font-size:13px;color:#166534;line-height:1.5}
+.info-icon{font-size:20px;flex-shrink:0;margin-top:-1px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:360px){.grid2{grid-template-columns:1fr}}
+
+.req{color:#dc2626;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading"><div class="spinner"></div> Cargando...</div>
+</div>
+
+<script>
+let carreras = [];
+
+async function init() {
+  try {
+    carreras = await fetch('/pub/carreras').then(r => r.json());
+    renderForm();
+  } catch(e) {
+    document.getElementById('app').innerHTML = `<div class="card"><div class="alert alert-err">❌ Error al cargar. Intentá de nuevo en unos segundos.</div><button onclick="init()" style="margin-top:12px;padding:10px 20px;border:none;border-radius:8px;background:#166534;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Reintentar</button></div>`;
+  }
+}
+
+function renderForm() {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎓</div>
+      <h1>ITS Santísima Trinidad</h1>
+      <div class="header-sub">Inscripción de Alumnos</div>
+      <div class="badge">📅 2do Semestre 2026</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📝 Formulario de inscripción</div>
+      <div class="card-sub">Completá todos los campos para registrar tu solicitud.</div>
+
+      <div class="info-row">
+        <span class="info-icon">ℹ️</span>
+        <span>Una vez enviado, el director revisará tu solicitud y te avisará cuando esté aprobada.</span>
+      </div>
+
+      <div id="err-form"></div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Nombre<span class="req">*</span></label>
+          <input id="inp-nombre" type="text" placeholder="Tu nombre" autocomplete="given-name" autocapitalize="words"/>
+        </div>
+        <div class="field">
+          <label>Apellido<span class="req">*</span></label>
+          <input id="inp-apellido" type="text" placeholder="Tu apellido" autocomplete="family-name" autocapitalize="words"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Cédula de identidad<span class="req">*</span></label>
+        <input id="inp-ci" type="tel" inputmode="numeric" placeholder="Solo números, sin puntos ni guiones"/>
+      </div>
+
+      <div class="field">
+        <label>Teléfono / WhatsApp<span class="req">*</span></label>
+        <input id="inp-tel" type="tel" inputmode="tel" placeholder="Ej: 0981 123456"/>
+      </div>
+
+      <div class="field">
+        <label>Carrera a inscribirse<span class="req">*</span></label>
+        <select id="inp-carrera">
+          <option value="">— Seleccioná tu carrera —</option>
+          ${carreras.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="btn-enviar" onclick="enviar()">
+        📤 Enviar solicitud de inscripción
+      </button>
+    </div>`;
+}
+
+async function enviar() {
+  const nombre   = document.getElementById('inp-nombre').value.trim();
+  const apellido = document.getElementById('inp-apellido').value.trim();
+  const ci       = document.getElementById('inp-ci').value.replace(/[^0-9]/g, '');
+  const telefono = document.getElementById('inp-tel').value.trim();
+  const carrera_id = document.getElementById('inp-carrera').value;
+  const err = document.getElementById('err-form');
+
+  if (!nombre)      { err.innerHTML = '<div class="alert alert-err">⚠️ Ingresá tu nombre.</div>'; return; }
+  if (!apellido)    { err.innerHTML = '<div class="alert alert-err">⚠️ Ingresá tu apellido.</div>'; return; }
+  if (!ci)          { err.innerHTML = '<div class="alert alert-err">⚠️ Ingresá tu número de cédula.</div>'; return; }
+  if (!telefono || telefono.replace(/\D/g,'').length < 7) {
+    err.innerHTML = '<div class="alert alert-err">⚠️ Ingresá un número de teléfono válido.</div>'; return;
+  }
+  if (!carrera_id)  { err.innerHTML = '<div class="alert alert-err">⚠️ Seleccioná la carrera.</div>'; return; }
+
+  err.innerHTML = '';
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="border-top-color:#fff"></div> Enviando...';
+
+  try {
+    const res = await fetch('/pub/solicitud-registro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, apellido, ci, telefono, carrera_id })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      btn.disabled = false;
+      btn.innerHTML = '📤 Enviar solicitud de inscripción';
+      if (data.duplicate) {
+        err.innerHTML = `<div class="alert alert-warn">⚠️ ${data.error}<br/><span style="font-size:12px;margin-top:4px;display:block">Si creés que es un error, comunicate con el director.</span></div>`;
+      } else {
+        err.innerHTML = `<div class="alert alert-err">❌ ${data.error}</div>`;
+      }
+      return;
+    }
+    renderExito(nombre, apellido, carreras.find(c => c.id === carrera_id)?.nombre || '');
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '📤 Enviar solicitud de inscripción';
+    err.innerHTML = '<div class="alert alert-err">❌ Error de conexión. Verificá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function renderExito(nombre, apellido, carrera) {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎓</div>
+      <h1>ITS Santísima Trinidad</h1>
+      <div class="header-sub">Inscripción de Alumnos</div>
+      <div class="badge">📅 2do Semestre 2026</div>
+    </div>
+    <div class="card">
+      <div class="success-screen">
+        <div class="success-icon">📬</div>
+        <div class="success-title">¡Solicitud enviada!</div>
+        <div class="success-sub">Tu solicitud de inscripción fue recibida correctamente.<br/>El director la revisará y te contactará para confirmar.</div>
+        <div class="success-detail">
+          <strong>📋 Resumen de tu solicitud:</strong>
+          👤 ${apellido}, ${nombre}<br/>
+          🎓 Carrera: ${carrera}<br/>
+          📅 Período: 2do Semestre 2026
+        </div>
+      </div>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>

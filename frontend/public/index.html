@@ -8248,8 +8248,13 @@ W.loadNotas=async(asigId,_tipo)=>{
     </td>`:'';
     return `<tr class="nota-row" id="nr-${a.id}" data-al-id="${a.id}" style="background:${rowBase}" onmouseover="this.style.background='${rowHover}'" onmouseout="this.style.background='${rowBase}'">
       <td style="${cellBase}padding:8px 14px;background:${rowBase};white-space:nowrap;border-right:1px solid #cbd5e1">
-        <div style="font-weight:700;color:#0f172a;font-size:12.5px">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span></div>
-        ${a.alumno_ci?`<div style="font-size:9px;color:#94a3b8;margin-top:1px;font-family:monospace">${a.alumno_ci}</div>`:''}
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="min-width:20px;font-size:11px;font-weight:800;color:#94a3b8;text-align:right;flex-shrink:0">${idx+1}</span>
+          <div>
+            <div style="font-weight:700;color:#0f172a;font-size:12.5px">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span></div>
+            ${a.alumno_ci?`<div style="font-size:9px;color:#94a3b8;margin-top:1px;font-family:monospace">${a.alumno_ci}</div>`:''}
+          </div>
+        </div>
       </td>
       ${inp('tp1',5,a.tp1,'#ffffff',disabledBase,'#15803d')}
       ${inp('tp2',5,a.tp2,'#ffffff',disabledBase,'#15803d')}

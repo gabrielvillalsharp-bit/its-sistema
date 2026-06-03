@@ -6336,6 +6336,11 @@ try {
 const pubLimiter = rateLimit({ windowMs: 60*1000, max: 80 });
 app.use('/pub', pubLimiter);
 
+app.get('/pub/carreras', (req, res) => {
+  const rows = db.prepare('SELECT id, nombre, codigo FROM carreras WHERE activa=1 ORDER BY nombre').all();
+  res.json(rows);
+});
+
 app.get('/pub/carrera/:id', (req, res) => {
   const c = db.prepare('SELECT id, nombre, codigo FROM carreras WHERE id=?').get(req.params.id);
   if (!c) return res.status(404).json({ error: 'Carrera no encontrada' });
@@ -6691,6 +6696,7 @@ app.get('/pub/buscar-alumno', (req, res) => {
 });
 
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
+app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {
