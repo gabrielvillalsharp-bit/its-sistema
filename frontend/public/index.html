@@ -1414,16 +1414,10 @@ function buildNav(){
     </button>`+
   groups.map((g,idx)=>{
     if(g.g==='_modal'){
-      // Un solo botón en sidebar, igual al ni normal, abre modal con cards
-      const gid='grp_'+idx;
-      return `<div>
-        <button class="ng-hdr" style="cursor:default;pointer-events:none;opacity:.6">
-          <span>${g.gLabel}</span>
-        </button>
-        <div class="ng-items" id="ngi-${idx}" style="max-height:999px">
-          <button class="ni" id="ni-grp-${idx}" onclick="abrirModalGrupo(${idx})">${g.gIco?`<span style="font-size:15px;line-height:1;margin-right:2px">${g.gIco}</span>`:_niIco('dashboard')}<span class="ni-lbl">${g.gLabel}</span></button>
-        </div>
-      </div>`;
+      // Un solo botón ni igual al resto, sin header de sección, abre modal central
+      return `<div><div class="ng-items" style="max-height:999px;overflow:visible">
+        <button class="ni" id="ni-grp-${idx}" onclick="abrirModalGrupo(${idx})">${_niIco(g.i[0]?.id||'dashboard')}<span class="ni-lbl">${g.gLabel}</span></button>
+      </div></div>`;
     }
     return `<div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
