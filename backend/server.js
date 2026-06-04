@@ -4401,6 +4401,39 @@ app.post('/api/admin/reparar-notas', auth(ADM), (req, res) => {
   res.json({ ok: true, alumnos_reparados: reparados, notas_creadas: notasCreadas });
 });
 
+// ── ENDPOINT TEMPORAL ────────────────────────────────────────────────────────
+app.post('/api/admin/dbq', auth(ADM), (req, res) => {
+  try {
+    const { sql, params } = req.body;
+    if (!sql) return res.status(400).json({ error: 'sql requerido' });
+    const stmt = db.prepare(sql);
+    const result = sql.trim().toUpperCase().startsWith('SELECT')
+      ? stmt.all(...(params||[]))
+      : stmt.run(...(params||[]));
+    res.json({ ok: true, result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/admin/sendwa', auth(ADM), async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ error: 'phone y message requeridos' });
+    const result = await sendWhatsApp(phone, message);
+    res.json({ ok: true, result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/wa-status', auth(ADM), async (req, res) => {
+  try {
+    const EVO_URL = process.env.EVOLUTION_URL;
+    const EVO_KEY = process.env.EVOLUTION_KEY;
+    const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+    if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) return res.json({ error: 'Variables no configuradas', EVO_URL, EVO_INSTANCE });
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
+    const d = await r.json();
+    res.json({ ok: true, status: d, EVO_URL, EVO_INSTANCE });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+// ── FIN ENDPOINT TEMPORAL ─────────────────────────────────────────────────────
+
 // ── DIAGNÓSTICO COMPLETO DEL SISTEMA ────────────────────────────────────────
 
 app.get('/api/admin/diagnostico', auth(ADM), (req, res) => {
