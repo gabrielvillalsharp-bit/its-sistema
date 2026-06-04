@@ -784,8 +784,14 @@ app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
       db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
       db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(a.id);
       db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(a.id);
-      // Solicitudes de incorporación asociadas al usuario
-      if (a.usuario_id) db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id);
+      db.prepare('DELETE FROM qr_cambios WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM informes_asistencia WHERE alumno_id=?').run(a.id);
+      // Solicitudes de alumno donde figura como alumno_id
+      try { db.prepare('DELETE FROM solicitudes_alumno WHERE alumno_id=?').run(a.id); } catch {}
+      // Solicitudes de incorporación registradas por este usuario
+      if (a.usuario_id) { try { db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id); } catch {} }
+      // Solicitudes de registro vinculadas
+      try { db.prepare('DELETE FROM solicitudes_registro WHERE alumno_id=?').run(a.id); } catch {}
       db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
       if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
     })();
