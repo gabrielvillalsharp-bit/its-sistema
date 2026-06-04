@@ -775,26 +775,29 @@ app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
   try {
     const a = db.prepare('SELECT id, usuario_id, nombre, apellido, ci FROM alumnos WHERE id=?').get(req.params.id);
     if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
-    db.transaction(() => {
-      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM qr_cambios WHERE alumno_id=?').run(a.id);
-      db.prepare('DELETE FROM informes_asistencia WHERE alumno_id=?').run(a.id);
-      // Solicitudes de alumno donde figura como alumno_id
-      try { db.prepare('DELETE FROM solicitudes_alumno WHERE alumno_id=?').run(a.id); } catch {}
-      // Solicitudes de incorporación registradas por este usuario
-      if (a.usuario_id) { try { db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id); } catch {} }
-      // Solicitudes de registro vinculadas
-      try { db.prepare('DELETE FROM solicitudes_registro WHERE alumno_id=?').run(a.id); } catch {}
-      db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
-      if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
-    })();
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        // Buscar dinámicamente todas las tablas que tienen columna alumno_id y borrar
+        const tablas = db.prepare(`
+          SELECT m.name FROM sqlite_master m
+          WHERE m.type='table'
+            AND m.sql LIKE '%alumno_id%'
+            AND m.name NOT IN ('alumnos')
+        `).all().map(r => r.name);
+        tablas.forEach(t => {
+          try { db.prepare(`DELETE FROM ${t} WHERE alumno_id=?`).run(a.id); } catch {}
+        });
+        // Solicitudes de incorporación registradas por este usuario
+        if (a.usuario_id) {
+          try { db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id); } catch {}
+        }
+        db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
+        if (a.usuario_id) db.prepare("DELETE FROM usuarios WHERE id=? AND rol='alumno'").run(a.usuario_id);
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
     audit(req.user.id,'DELETE_COMPLETO','alumnos',a.id,{ nombre: a.nombre, apellido: a.apellido, ci: a.ci });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
