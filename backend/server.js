@@ -4402,27 +4402,6 @@ app.post('/api/admin/reparar-notas', auth(ADM), (req, res) => {
 });
 
 // ── DIAGNÓSTICO COMPLETO DEL SISTEMA ────────────────────────────────────────
-// ── ENDPOINT TEMPORAL DB ─────────────────────────────────────────────────────
-app.post('/api/admin/dbq', auth(ADM), (req, res) => {
-  try {
-    const { sql, params } = req.body;
-    if (!sql) return res.status(400).json({ error: 'sql requerido' });
-    const stmt = db.prepare(sql);
-    const result = sql.trim().toUpperCase().startsWith('SELECT')
-      ? stmt.all(...(params||[]))
-      : stmt.run(...(params||[]));
-    res.json({ ok: true, result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-app.post('/api/admin/sendwa', auth(ADM), async (req, res) => {
-  try {
-    const { phone, message } = req.body;
-    if (!phone || !message) return res.status(400).json({ error: 'phone y message requeridos' });
-    const result = await sendWhatsApp(phone, message);
-    res.json({ ok: true, result });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-// ── FIN ENDPOINT TEMPORAL ─────────────────────────────────────────────────────
 
 app.get('/api/admin/diagnostico', auth(ADM), (req, res) => {
   const problemas = [];
