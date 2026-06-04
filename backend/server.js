@@ -605,12 +605,25 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     db.transaction(() => {
       let userId = null;
       if (ciRaw) {
-        // Si ya existe un usuario con esa CI, usar su ID en vez de crear uno nuevo
+        // Si ya existe un usuario con esa CI, reusar su cuenta
         const usuExiste = db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw);
         if (usuExiste) {
           userId = usuExiste.id;
+          // Asegurar que el email sea el generado si no tiene uno aún
+          db.prepare("UPDATE usuarios SET nombre=?,apellido=?,email=COALESCE(NULLIF(email,''),?),activo=1 WHERE id=?").run(nombre,apellido,emailAuto,usuExiste.id);
         } else {
-          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,bcrypt.hashSync(ciRaw||'123456',10),'alumno');
+          const passHash = bcrypt.hashSync(ciRaw, 10);
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,ciRaw,emailAuto,passHash,'alumno');
+          userId = uid;
+        }
+      } else {
+        // Sin CI: crear cuenta con contraseña temporal "123456"
+        const emailExiste = db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailAuto);
+        if (emailExiste) {
+          userId = emailExiste.id;
+        } else {
+          const passHash = bcrypt.hashSync('123456', 10);
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(uid,nombre,apellido,null,emailAuto,passHash,'alumno');
           userId = uid;
         }
       }
@@ -625,7 +638,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
       }
     })();
     audit(req.user.id,'CREATE','alumnos',id,{nombre,apellido,carrera_id});
-    const credencial = ciRaw ? { email: emailAuto, password: ciRaw } : null;
+    const credencial = { email: emailAuto, password: ciRaw || '123456' };
     res.json({ id, matricula, credencial });
   } catch(e) { res.status(500).json({ error: 'Error al crear alumno: '+e.message }); }
 });

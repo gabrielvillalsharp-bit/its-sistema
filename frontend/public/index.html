@@ -3956,8 +3956,8 @@ async function svAlForzado(){
       <div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:10px;padding:14px;text-align:left">
         <p style="font-weight:700;font-size:12px;color:#2e7d32;margin-bottom:8px">🔑 Credenciales de acceso:</p>
         <p style="font-size:13px;margin:5px 0"><b>Usuario:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.email||''}</code></p>
-        <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.password||o.ci}</code></p>
-        <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. La contraseña es su N° de cédula.</p>
+        <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.password||o.ci||'123456'}</code></p>
+        <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. ${r.credencial?.password&&r.credencial.password!=='123456'?'La contraseña es su N° de cédula.':'Contraseña temporal: <b>123456</b> — el alumno debe cambiarla.'}</p>
       </div>
       <div class="mf" style="margin-top:12px"><button class="bn" onclick="cm();go('alumnos')">Aceptar</button></div>
     </div>`);
@@ -4024,8 +4024,8 @@ async function svAl(id){
         <div style="background:#e8f5e9;border:2px solid #4caf50;border-radius:10px;padding:14px;text-align:left">
           <p style="font-weight:700;font-size:12px;color:#2e7d32;margin-bottom:8px">🔑 Credenciales de acceso:</p>
           <p style="font-size:13px;margin:5px 0"><b>Usuario:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.email||''}</code></p>
-          <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.password||o.ci}</code></p>
-          <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. La contraseña es su N° de cédula.</p>
+          <p style="font-size:13px;margin:5px 0"><b>Contraseña:</b> <code style="background:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${r.credencial?.password||o.ci||'123456'}</code></p>
+          <p style="font-size:11px;color:#777;margin-top:8px">📋 Entregá estas credenciales al alumno. ${r.credencial?.password&&r.credencial.password!=='123456'?'La contraseña es su N° de cédula.':'Contraseña temporal: <b>123456</b> — el alumno debe cambiarla.'}</p>
         </div>
         <div class="mf" style="margin-top:12px"><button class="bn" onclick="cm();go('alumnos')">Aceptar</button></div>
       </div>`);
