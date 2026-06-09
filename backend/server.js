@@ -6590,8 +6590,11 @@ app.get('/pub/carrera/:id/alumnos', (req, res) => {
 app.post('/pub/alumno/completar', (req, res) => {
   const { alumno_id, ci, telefono, carrera_id, nombre, apellido, curso_id } = req.body;
   if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
-  const alumno = db.prepare('SELECT * FROM alumnos WHERE id=? AND carrera_id=?').get(alumno_id, carrera_id);
-  if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado en esta carrera' });
+  const alumno = db.prepare('SELECT * FROM alumnos WHERE id=?').get(alumno_id);
+  if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
+  if (!db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id)) {
+    return res.status(400).json({ error: 'Carrera no válida' });
+  }
   const logQR = (campo, anterior, nuevo) => {
     const a = String(anterior||'').trim(), n = String(nuevo||'').trim();
     if (a !== n && n !== '') {
@@ -6642,6 +6645,11 @@ app.post('/pub/alumno/completar', (req, res) => {
     if (curso_id && !alumno.curso_id) {
       const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
       if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
+    }
+    // Asignar carrera si el alumno no tenía ninguna (tipo sin_asignar)
+    if (!alumno.carrera_id && carrera_id) {
+      db.prepare('UPDATE alumnos SET carrera_id=? WHERE id=?').run(carrera_id, alumno_id);
+      logQR('carrera_id', '', carrera_id);
     }
     // Enviar WhatsApp de bienvenida con credenciales
     const alumnoActual = db.prepare('SELECT a.*, u.email FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id WHERE a.id=?').get(alumno_id);
