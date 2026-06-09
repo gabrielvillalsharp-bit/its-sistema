@@ -11658,30 +11658,6 @@ async function pgMiEstadoCuenta(el){
         <div style="font-size:11px;color:var(--t2)">Total pagado</div>
         <div style="font-size:24px;font-weight:900;color:#2e7d32">Gs. ${totalPagado.toLocaleString()}</div>
       </div>
-      <div class="card card-p" style="flex:1;min-width:150px;text-align:center">
-        <div style="font-size:11px;color:var(--t2)">Deuda pendiente</div>
-        <div style="font-size:24px;font-weight:900;color:${totalDeuda>0?'#c62828':'#2e7d32'}">${totalDeuda>0?'Gs. '+totalDeuda.toLocaleString():'✓ Al día'}</div>
-      </div>
-    </div>
-    <div class="card card-p" style="margin-bottom:12px">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px">Estado de cuotas — ${periodo?.nombre||'Período activo'}</p>
-      <table class="cuotas-table" style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:#f0f4f8">
-          <th style="padding:6px 10px;border:1px solid var(--bdr)">Concepto</th>
-          <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:right">Pagado</th>
-          <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:right">Deuda</th>
-          <th style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
-        </tr></thead><tbody>
-        ${resumenCuotas.map(c=>`<tr>
-          <td style="padding:6px 10px;border:1px solid var(--bdr)">${c.concepto}</td>
-          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right">${c.pagado?'Gs. '+c.pagado.toLocaleString():'—'}</td>
-          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right;color:${c.deuda>0?'#c62828':'#2e7d32'};font-weight:${c.deuda>0?700:400}">${c.deuda>0?'Gs. '+c.deuda.toLocaleString():'—'}</td>
-          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center">
-            <span class="bx ${c.estado==='pagado'?'bg':c.estado==='parcial'?'ba':'br'}" style="font-size:10px">${c.estado==='pagado'?'✓ Pagado':c.estado==='parcial'?'⚠ Parcial':'Pendiente'}</span>
-          </td>
-        </tr>`).join('')}
-        </tbody>
-      </table>
     </div>
     <div class="card card-p">
       <p style="font-weight:700;font-size:13px;margin-bottom:8px">Historial de pagos</p>

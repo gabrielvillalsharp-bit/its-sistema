@@ -4280,7 +4280,7 @@ app.get('/api/admin/auditoria', auth(ADM), (req, res) => {
   const { tabla, accion, usuario_id, rol, desde, hasta, limite } = req.query;
   let where = 'WHERE 1=1'; const params = [];
   if (tabla)      { where += ' AND a.tabla=?';       params.push(tabla); }
-  if (accion)     { where += ' AND a.accion=?';      params.push(accion); }
+  if (accion)     { where += ' AND (a.accion=? OR a.accion LIKE ?)'; params.push(accion, accion+'%'); }
   if (usuario_id) { where += ' AND a.usuario_id=?';  params.push(usuario_id); }
   if (rol)        { where += ' AND u.rol=?';         params.push(rol); }
   if (desde)      { where += ' AND a.fecha>=?';      params.push(desde); }
