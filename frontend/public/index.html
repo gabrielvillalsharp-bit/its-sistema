@@ -1368,11 +1368,9 @@ function navFor(r){
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
     ]},
-    {g:'Finanzas',i:[
-      {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director','docente']},
-    ]},
     {g:'Administración',i:[
       {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
+      {id:'usuarios',l:'Usuarios & Accesos',c:'#dc2626',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mi-portal',l:'Mi portal',c:'#1f8246',r:['docente','alumno']},
@@ -1813,7 +1811,7 @@ async function pgDash(el){
       <div style="font-size:15px;font-weight:800;color:#1e293b">⚡ Accesos rápidos</div>
       <div style="font-size:12px;color:var(--t3);margin-top:2px">Navegá directamente a las secciones más usadas</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
       <button onclick="go('solicitudes')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid #bbf7d0;border-radius:12px;background:#f0fdf4;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='#dcfce7';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='#f0fdf4';this.style.transform=''">
         <span style="font-size:24px">👥</span>
         <div style="font-size:12px;font-weight:700;color:#166534">Alumnos</div>
@@ -1828,29 +1826,25 @@ async function pgDash(el){
         <div style="font-size:12px;font-weight:700;color:${(exPendDir||[]).length>0?'#dc2626':'#166534'}">Notas</div>
         ${(exPendDir||[]).length>0?`<div style="font-size:18px;font-weight:900;color:#dc2626;line-height:1">${(exPendDir||[]).length}</div>`:'<div style="font-size:11px;color:#16a34a;font-weight:600">Al día ✓</div>'}
       </button>
-      <button onclick="go('whatsapp')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid #bbf7d0;border-radius:12px;background:#f0fdf4;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='#dcfce7';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='#f0fdf4';this.style.transform=''">
-        <span style="font-size:24px">💬</span>
-        <div style="font-size:12px;font-weight:700;color:#166534">WhatsApp</div>
-      </button>
     </div>
-  </div>
-  ${me.rol==='director'?`
-  <div class="card card-p" style="margin-bottom:16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:28px">📲</span>
-        <div>
-          <div style="font-size:14px;font-weight:800;color:#166534">Inscripción 2do Semestre 2026</div>
-          <div style="font-size:12px;color:#4ade80;margin-top:2px">Compartí este link por WhatsApp con los alumnos nuevos</div>
+    ${me.rol==='director'?`
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:22px">📲</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#166534">Inscripción 2do Semestre 2026</div>
+            <div style="font-size:11px;color:#16a34a;margin-top:1px">Compartí el link por WhatsApp con los alumnos nuevos</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="copiarLinkInscripcion()" class="bs" style="background:#f0fdf4;border-color:#86efac;color:#166534;font-size:12px">📋 Copiar</button>
+          <button onclick="abrirLinkInscripcion()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="copiarLinkInscripcion()" class="bs" style="background:#fff;border-color:#86efac;color:#166534;font-weight:700;font-size:13px">📋 Copiar link</button>
-        <button onclick="abrirLinkInscripcion()" class="bn" style="font-size:13px">🔗 Abrir formulario</button>
-      </div>
-    </div>
-    <div id="link-inscripcion-toast" style="display:none;margin-top:10px;font-size:12px;color:#166534;font-weight:700;background:#fff;border:1px solid #86efac;border-radius:8px;padding:8px 12px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
-  </div>`:''}
+      <div id="link-inscripcion-toast" style="display:none;margin-top:8px;font-size:12px;color:#166534;font-weight:700;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
+    </div>`:''}
+  </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div class="card card-p" style="padding:0;overflow:hidden">
@@ -6353,7 +6347,12 @@ function descargarCalendarioAulas(){
 // ── AGENDA UNIFICADA (Calendario + Horario) ──────────────────────────────────
 async function pgAgenda(el){
   const esDocente=me.rol==='docente', esDirec=me.rol==='director';
-  el.innerHTML=`<div class="ph"><h3>📅 Agenda</h3></div>
+  el.innerHTML=`<div class="ph"><h3>📅 Agenda</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${esDirec?`<button class="bs" onclick="go('examenes')" style="font-size:12px">📋 Cronograma de Exámenes</button>`:''}
+      ${esDirec?`<button class="bs" onclick="go('feriados')" style="font-size:12px">🏖️ Feriados</button>`:''}
+    </div>
+  </div>
   <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
     <button id="agTab1Btn" onclick="agendaTab('calendario')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #D85A30;background:transparent;cursor:pointer;color:#D85A30">📅 Calendario de Exámenes</button>
     ${(esDocente||esDirec)?`<button id="agTab2Btn" onclick="agendaTab('horario')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🕐 Horario Semanal</button>`:''}
@@ -7308,121 +7307,114 @@ async function resolverRegistroQr(id, accion){
   setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},150);
 }
 // ── HUB PAGES ─────────────────────────────────────────────────────────────────
-function _hubCard(id,icon,title,subtitle,grad){
-  return `<div onclick="go('${id}')" style="cursor:pointer;border-radius:16px;padding:22px 12px 18px;text-align:center;background:${grad};color:#fff;user-select:none;transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;box-shadow:0 4px 16px rgba(0,0,0,.13);position:relative;overflow:hidden"
-    onmouseenter="this.style.transform='translateY(-5px) scale(1.04)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.22)';this.querySelector('.hc-ico').style.transform='scale(1.18) rotate(-6deg)'"
-    onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(0,0,0,.13)';this.querySelector('.hc-ico').style.transform=''">
-    <div class="hc-ico" style="font-size:30px;line-height:1;transition:transform .18s cubic-bezier(.34,1.56,.64,1)">${icon}</div>
-    <div style="font-size:11px;font-weight:800;line-height:1.3;padding:0 4px;letter-spacing:.2px">${title}</div>
-    ${subtitle?`<div style="font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.2);color:rgba(255,255,255,.9)">${subtitle}</div>`:''}
+function _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr){
+  const act=onclickStr?`onclick="${onclickStr}"`:`onclick="go('${id}')"`;
+  return `<div ${act} style="background:#fff;border-radius:20px;padding:28px 14px 22px;text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.06);border:1px solid #f1f5f9;user-select:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s"
+    onmouseenter="this.style.transform='translateY(-5px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.11)'"
+    onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 14px rgba(0,0,0,.06)'">
+    <div style="width:78px;height:78px;border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;margin-bottom:16px;transition:transform .22s cubic-bezier(.34,1.56,.64,1)">
+      <span style="font-size:32px;line-height:1">${emoji}</span>
+    </div>
+    <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:5px;line-height:1.3">${title}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;line-height:1.4;padding:0 4px">${subtitle||''}</div>
+    <div style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:14px;color:${iconColor};margin-top:auto;transition:border-color .18s,color .18s">→</div>
   </div>`;
 }
-function _secTitulo(icon,titulo){
-  return `<div style="display:flex;align-items:center;gap:8px;margin:18px 0 10px"><div style="width:4px;height:22px;background:#1f8246;border-radius:4px"></div><span style="font-size:13px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.5px">${icon} ${titulo}</span></div>`;
+function _mSecTitulo(emoji,titulo,color){
+  return `<div style="display:flex;align-items:center;gap:8px;margin:22px 0 14px"><div style="width:4px;height:20px;background:${color||'#1f8246'};border-radius:4px"></div><span style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.8px">${emoji} ${titulo}</span></div>`;
 }
 function pgHubPrincipal(el){
   const esDirec=me.rol==='director';
   el.innerHTML=`<div class="ph"><h3>🏛️ Gestión Institucional</h3></div>
 
-  ${esDirec?_secTitulo('🏫','Estructura Académica'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
-    ${_hubCard('carreras','🏫','Carreras','Gestionar carreras','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('cursos','🚪','Cursos','Por carrera','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('materias','📖','Materias','Catálogo','linear-gradient(135deg,#4c1d95,#7c3aed)')}
-    ${_hubCard('periodos','📅','Períodos','Ciclos académicos','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+  ${esDirec?_mSecTitulo('🏫','Estructura Académica','#2563eb'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
+    ${_mCard('carreras','🏫','Carreras','Gestionar carreras','#2563eb','#eff6ff')}
+    ${_mCard('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
+    ${_mCard('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
+    ${_mCard('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
   </div>`:''}
 
-  ${esDirec?_secTitulo('👥','Personas'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
-    ${_hubCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('docentes','👨‍🏫','Docentes','Gestionar plantel','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('constancias','📄','Constancias','Generar constancias','linear-gradient(135deg,#4c1d95,#7c3aed)')}
-    ${_hubCard('usuarios','🔑','Usuarios','Accesos al sistema','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+  ${esDirec?_mSecTitulo('👥','Personas','#059669'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
+    ${_mCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
+    ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
+    ${_mCard('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
+    ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
   </div>`:''}
 
-  ${_secTitulo('✏️','Académico')}
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
-    ${_hubCard('notas','✏️','Registro de Notas','Calificaciones','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('asistencia','✅','Asistencia','Control de asistencia','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('examenes','📋','Cronograma','Exámenes','linear-gradient(135deg,#7f1d1d,#c0392b)')}
-    ${esDirec?_hubCard('asignaciones','🔗','Asignaciones','Docente-materia','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
-    ${esDirec?_hubCard('reemplazos','🔄','Reemplazos','Sustituciones','linear-gradient(135deg,#0a3d62,#1a7fc4)'):''}
-    ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
-    ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
-    ${_hubCard('repositorio','📁','Repositorio','Programas y contenidos','linear-gradient(135deg,#0f766e,#14b8a6)')}
+  ${_mSecTitulo('✏️','Académico','#7c3aed')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
+    ${_mCard('notas','✏️','Registro de Notas','Calificaciones','#2563eb','#eff6ff')}
+    ${_mCard('asistencia','✅','Asistencia','Control de asistencia','#059669','#f0fdf4')}
+    ${esDirec?_mCard('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
+    ${esDirec?_mCard('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
+    ${esDirec?_mCard('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
+    ${me.rol==='docente'?_mCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','#d97706','#fffbeb'):''}
+    ${_mCard('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
   </div>
 
-  ${esDirec?_secTitulo('💰','Finanzas y Recursos'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
-    ${_hubCard('pagos','💳','Pagos','Registros de pago','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('aranceles','💲','Aranceles','Configurar cuotas','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('deudores','⚠️','Deudores','Alumnos con deuda','linear-gradient(135deg,#7f1d1d,#c0392b)')}
-    ${_hubCard('becas','⭐','Becas','Gestión de becas','linear-gradient(135deg,#4c1d95,#7c3aed)')}
-    ${_hubCard('honorarios','💵','Honorarios','Docentes','linear-gradient(135deg,#0f766e,#14b8a6)')}
-    <div onclick="abrirPanelFinanciero(this)" style="cursor:pointer;border-radius:16px;padding:22px 12px 18px;text-align:center;background:linear-gradient(135deg,#1a3a2a,#166534);color:#fff;user-select:none;transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;box-shadow:0 4px 16px rgba(0,0,0,.13);overflow:hidden"
-      onmouseenter="this.style.transform='translateY(-5px) scale(1.04)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.22)';this.querySelector('.hc-ico').style.transform='scale(1.18) rotate(-6deg)'"
-      onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(0,0,0,.13)';this.querySelector('.hc-ico').style.transform=''">
-      <div class="hc-ico" style="font-size:30px;line-height:1;transition:transform .18s cubic-bezier(.34,1.56,.64,1)">📊</div>
-      <div style="font-size:11px;font-weight:800;letter-spacing:.2px">Panel Financiero</div>
-      <div style="font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.2)">Ingresos y egresos</div>
-    </div>
+  ${esDirec?_mSecTitulo('💰','Finanzas y Recursos','#7F77DD'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
+    ${_mCard('pagos','💳','Pagos','Registros de pago','#059669','#f0fdf4')}
+    ${_mCard('aranceles','💲','Aranceles','Configurar cuotas','#2563eb','#eff6ff')}
+    ${_mCard('deudores','⚠️','Deudores','Alumnos con deuda','#ea580c','#fff7ed')}
+    ${_mCard('becas','⭐','Becas','Gestión de becas','#7c3aed','#f5f3ff')}
+    ${_mCard('honorarios','💵','Honorarios','Docentes','#0d9488','#f0fdfa')}
+    ${_mCard('','📊','Panel Financiero','Ingresos y egresos','#d97706','#fffbeb','abrirPanelFinanciero(this)')}
   </div>
   <div id="rfPanel" style="display:none"></div>`:''}
 
-  ${esDirec?_secTitulo('⚙️','Configuración'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
-    ${_hubCard('usuarios','🔑','Usuarios','Accesos al sistema','linear-gradient(135deg,#7f1d1d,#c0392b)')}
-    ${_hubCard('institucion','🏛️','Institución','Datos del instituto','linear-gradient(135deg,#374151,#6b7280)')}
-    ${_hubCard('auditoria','🔍','Auditoría','Registro de acciones','linear-gradient(135deg,#4c1d95,#6d28d9)')}
+  ${esDirec?_mSecTitulo('⚙️','Configuración','#64748b'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
+    ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
+    ${_mCard('institucion','🏛️','Institución','Datos del instituto','#64748b','#f8fafc')}
+    ${_mCard('auditoria','🔍','Auditoría','Registro de acciones','#6d28d9','#f5f3ff')}
   </div>`:''}`;
 }
 function pgHubCarreras(el){
   el.innerHTML=`<div class="ph"><h3>🏫 Carreras</h3></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
-    ${_hubCard('carreras','🏫','Carreras','Gestionar carreras','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('cursos','🚪','Cursos','Por carrera','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('materias','📖','Materias','Catálogo','linear-gradient(135deg,#4c1d95,#7c3aed)')}
-    ${_hubCard('periodos','📅','Períodos','Ciclos académicos','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
+    ${_mCard('carreras','🏫','Carreras','Gestionar carreras','#2563eb','#eff6ff')}
+    ${_mCard('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
+    ${_mCard('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
+    ${_mCard('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
   </div>`;
 }
 function pgHubPersonas(el){
   el.innerHTML=`<div class="ph"><h3>👥 Gestión de Personas</h3></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
-    ${_hubCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('docentes','👨‍🏫','Docentes','Gestionar plantel','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('constancias','📄','Constancias','Generar constancias','linear-gradient(135deg,#4c1d95,#7c3aed)')}
-    ${_hubCard('usuarios','🔑','Usuarios','Accesos al sistema','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
+    ${_mCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
+    ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
+    ${_mCard('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
+    ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
   </div>`;
 }
 function pgHubAcademico(el){
   const esDirec=me.rol==='director';
   el.innerHTML=`<div class="ph"><h3>✏️ Académico</h3></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
-    ${_hubCard('notas','✏️','Registro de Notas','Calificaciones','linear-gradient(135deg,#1e3a5f,#2563eb)')}
-    ${_hubCard('asistencia','✅','Asistencia','Control de asistencia','linear-gradient(135deg,#065f46,#059669)')}
-    ${_hubCard('examenes','📋','Cronograma','Exámenes','linear-gradient(135deg,#7f1d1d,#c0392b)')}
-    ${esDirec?_hubCard('asignaciones','🔗','Asignaciones','Docente-materia','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
-    ${esDirec?_hubCard('reemplazos','🔄','Reemplazos','Sustituciones','linear-gradient(135deg,#0a3d62,#1a7fc4)'):''}
-    ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
-    ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
-    ${_hubCard('repositorio','📁','Repositorio','Programas y contenidos','linear-gradient(135deg,#0f766e,#14b8a6)')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
+    ${_mCard('notas','✏️','Registro de Notas','Calificaciones','#2563eb','#eff6ff')}
+    ${_mCard('asistencia','✅','Asistencia','Control de asistencia','#059669','#f0fdf4')}
+    ${_mCard('examenes','📋','Cronograma','Exámenes','#dc2626','#fef2f2')}
+    ${esDirec?_mCard('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
+    ${esDirec?_mCard('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
+    ${esDirec?_mCard('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
+    ${esDirec?_mCard('feriados','📅','Feriados','Calendario','#d97706','#fffbeb'):''}
+    ${_mCard('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
   </div>`;
 }
 function pgHubFinanzas(el){
   const esDirec=me.rol==='director';
   el.innerHTML=`<div class="ph"><h3>💰 Finanzas y Recursos</h3></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:20px">
-    ${esDirec?_hubCard('pagos','💳','Pagos','Registros de pago','linear-gradient(135deg,#065f46,#059669)'):''}
-    ${esDirec?_hubCard('aranceles','💲','Aranceles','Configurar cuotas','linear-gradient(135deg,#1e3a5f,#2563eb)'):''}
-    ${esDirec?_hubCard('deudores','⚠️','Deudores','Alumnos con deuda','linear-gradient(135deg,#7f1d1d,#c0392b)'):''}
-    ${esDirec?_hubCard('becas','⭐','Becas','Gestión de becas','linear-gradient(135deg,#4c1d95,#7c3aed)'):''}
-    ${_hubCard('honorarios','💵','Honorarios','Docentes','linear-gradient(135deg,#0f766e,#14b8a6)')}
-    ${me.rol==='docente'?_hubCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','linear-gradient(135deg,#78350f,#d97706)'):''}
-    ${esDirec?`<div onclick="abrirPanelFinanciero(this)" style="cursor:pointer;border-radius:14px;padding:20px 14px 18px;text-align:center;background:linear-gradient(135deg,#1a3a2a,#166534);color:#fff;user-select:none;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:120px;box-shadow:0 2px 10px rgba(0,0,0,.15)" onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.15)'">
-      <div style="font-size:32px;line-height:1">📊</div>
-      <div style="font-size:12px;font-weight:800;line-height:1.3;padding:0 4px">Panel Financiero</div>
-      <div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.22);color:#fff">Ingresos y egresos</div>
-    </div>`:''}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
+    ${esDirec?_mCard('pagos','💳','Pagos','Registros de pago','#059669','#f0fdf4'):''}
+    ${esDirec?_mCard('aranceles','💲','Aranceles','Configurar cuotas','#2563eb','#eff6ff'):''}
+    ${esDirec?_mCard('deudores','⚠️','Deudores','Alumnos con deuda','#ea580c','#fff7ed'):''}
+    ${esDirec?_mCard('becas','⭐','Becas','Gestión de becas','#7c3aed','#f5f3ff'):''}
+    ${_mCard('honorarios','💵','Honorarios','Docentes','#0d9488','#f0fdfa')}
+    ${me.rol==='docente'?_mCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','#d97706','#fffbeb'):''}
+    ${esDirec?_mCard('','📊','Panel Financiero','Ingresos y egresos','#d97706','#fffbeb','abrirPanelFinanciero(this)'):''}
   </div>
   <div id="rfPanel" style="display:none"></div>`;
 }
@@ -7715,12 +7707,16 @@ async function pgSolicitudes(el){
   const totalHistPend=pend.length+regsPend.length;
   const asistPend=(informesPend.length+ausencias.length);
   const habsHoy=(habs||[]).length;
-  function _gc(id,icon,title,badge,grad,hasPend){
-    return '<div id="gc-tile-'+id+'" onclick="toggleGestSec(\''+id+'\')" style="cursor:pointer;border-radius:14px;padding:16px 10px 14px;text-align:center;background:'+grad+';color:#fff;user-select:none;transition:transform .2s,outline .15s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:115px;box-shadow:0 2px 8px rgba(0,0,0,.15)" onmouseenter="this.style.transform=\'scale(1.05)\'" onmouseleave="this.style.transform=\'\'">'
-      +'<div style="font-size:30px;line-height:1">'+icon+'</div>'
-      +'<div style="font-size:11px;font-weight:800;line-height:1.3;padding:0 4px">'+title+'</div>'
-      +'<div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:700;background:'+(hasPend?'#fef3c7;color:#92400e':'rgba(255,255,255,.25);color:#fff')+'">'+badge+'</div>'
-      +'</div>';
+  function _gc(id,icon,title,badge,iconColor,iconBg,hasPend){
+    return `<div id="gc-tile-${id}" onclick="toggleGestSec('${id}')" style="background:#fff;border-radius:20px;padding:22px 12px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.06);border:1.5px solid ${hasPend?'#fde68a':'#f1f5f9'};user-select:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s"
+      onmouseenter="this.style.transform='translateY(-5px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.11)'"
+      onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 14px rgba(0,0,0,.06)'">
+      <div style="width:66px;height:66px;border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+        <span style="font-size:28px;line-height:1">${icon}</span>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:6px;line-height:1.3">${title}</div>
+      <div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:700;${hasPend?'background:#fef3c7;color:#92400e':'background:#f1f5f9;color:#64748b'}">${badge}</div>
+    </div>`;
   }
   // Cargar carreras y cursos para el formulario de inscripción
   const [carrerasAll, cursosAll] = await Promise.all([
@@ -7732,14 +7728,14 @@ async function pgSolicitudes(el){
   el.innerHTML=`<div class="ph"><h3>&#x1F465; Gestión de Alumnos</h3>
     <button class="bs" onclick="go('solicitudes')">&#x21BB; Actualizar</button>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">
-    ${_gc('inscripcion','🎓','Inscripción Agosto 2026','2do Semestre','linear-gradient(135deg,#065f46,#059669)',false)}
-    ${_gc('qr','📱','Registro QR',regsPend.length?(regsPend.length+' pendiente'+(regsPend.length!==1?'s':'')):(regs.length+' total'),'linear-gradient(135deg,#1D4ED8,#2563EB)',regsPend.length>0)}
-    ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','linear-gradient(135deg,#0a3d62,#1a7fc4)',totalHistPend>0)}
-    ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'linear-gradient(135deg,#1e3a5f,#2563eb)',false)}
-    ${_gc('sinasignar','⚠️','Sin asignar',sinAsignar.length+' alumno'+(sinAsignar.length!==1?'s':''),'linear-gradient(135deg,#4c1d95,#7c3aed)',sinAsignar.length>0)}
-    ${_gc('habilitados','✅','Habilitados',habsHoy+' registro'+(habsHoy!==1?'s':''),'linear-gradient(135deg,#7f1d1d,#c0392b)',false)}
-    ${_gc('qr-cambios','📊','Informe QR',qrCambios.length+' cambio'+(qrCambios.length!==1?'s':''),'linear-gradient(135deg,#0f766e,#14b8a6)',false)}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
+    ${_gc('inscripcion','🎓','Inscripción Agosto 2026','2do Semestre','#059669','#f0fdf4',false)}
+    ${_gc('qr','📱','Registro QR',regsPend.length?(regsPend.length+' pendiente'+(regsPend.length!==1?'s':'')):(regs.length+' total'),'#2563eb','#eff6ff',regsPend.length>0)}
+    ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','#0369a1','#e0f2fe',totalHistPend>0)}
+    ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'#64748b','#f1f5f9',false)}
+    ${_gc('sinasignar','⚠️','Sin asignar',sinAsignar.length+' alumno'+(sinAsignar.length!==1?'s':''),'#7c3aed','#f5f3ff',sinAsignar.length>0)}
+    ${_gc('habilitados','✅','Habilitados',habsHoy+' registro'+(habsHoy!==1?'s':''),'#dc2626','#fef2f2',false)}
+    ${_gc('qr-cambios','📊','Informe QR',qrCambios.length+' cambio'+(qrCambios.length!==1?'s':''),'#0d9488','#f0fdfa',false)}
   </div>
   <!-- SECCIÓN INSCRIPCIÓN AGOSTO 2026 -->
   <div id="gest-sec-inscripcion" style="display:none;margin-bottom:16px">

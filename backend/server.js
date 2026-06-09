@@ -2232,8 +2232,10 @@ app.get('/api/avisos', auth(), (req, res) => {
     // Docente SOLO ve: sus propios avisos + avisos del director
     // NUNCA ve avisos de otros docentes
     whereDestino = `AND (av.usuario_id='${uid}' OR (u.rol='director' AND av.destinatario IN ('todos','docentes')))`;
+  } else if (rol === 'director') {
+    // Director no ve avisos destinados solo a docentes (recordatorios automáticos de exámenes)
+    whereDestino = `AND (av.destinatario != 'docentes' OR av.usuario_id='${uid}')`;
   }
-  // director ve todos
   res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido,u.rol as autor_rol
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
