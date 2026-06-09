@@ -2499,43 +2499,39 @@ app.get('/api/finanzas/resumen', auth(ADM), (req, res) => {
 
     const totalEgresos = honorarios.reduce((s, h) => s + (h.monto || 0), 0);
 
-    // ── ESTIMADO HONORARIOS: basado en asignaciones del período activo ───────
+    // ── HONORARIOS ACUMULADOS: clases reales donde el docente pasó asistencia ──
+    // Cuenta fechas DISTINTAS de asistencia por asignación en el mes consultado
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
     let estimadoHonorarios = 0;
     let clasesEstimadas = [];
     if (periodo) {
-      const asigs = db.prepare(`
-        SELECT a.id, a.dia, a.docente_id, a.hora_inicio, a.hora_fin,
+      const filas = db.prepare(`
+        SELECT a.id as asig_id,
           u.nombre as docente_nombre, u.apellido as docente_apellido,
           m.nombre as materia_nombre,
+          COUNT(DISTINCT at2.fecha) as clases,
           COALESCE(ar.monto, 80000) as monto_por_clase
         FROM asignaciones a
         LEFT JOIN docentes d ON a.docente_id = d.id
         LEFT JOIN usuarios u ON d.usuario_id = u.id
         LEFT JOIN materias m ON a.materia_id = m.id
         LEFT JOIN aranceles ar ON ar.tipo='honorario' AND ar.activo=1
+        LEFT JOIN asistencia at2 ON at2.asignacion_id = a.id
+          AND at2.fecha >= ? AND at2.fecha <= ?
         WHERE a.periodo_id=?
-      `).all(periodo.id);
+        GROUP BY a.id
+        HAVING clases > 0
+      `).all(desde, hasta, periodo.id);
 
-      // Contar cuántas veces cae cada día de semana en el mes
-      const diasDelMes = new Date(a, m, 0).getDate();
-      const diasCount = { 'Lunes':0,'Martes':0,'Miércoles':0,'Jueves':0,'Viernes':0,'Sábado':0,'Domingo':0 };
-      const diasMap = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-      for (let d2 = 1; d2 <= diasDelMes; d2++) {
-        const dow = new Date(a, m-1, d2).getDay();
-        diasCount[diasMap[dow]] = (diasCount[diasMap[dow]] || 0) + 1;
-      }
-
-      asigs.forEach(asig => {
-        const clases = diasCount[asig.dia] || 0;
-        const monto = clases * (asig.monto_por_clase || 80000);
+      filas.forEach(fila => {
+        const monto = fila.clases * (fila.monto_por_clase || 80000);
         estimadoHonorarios += monto;
-        if (clases > 0) clasesEstimadas.push({
-          docente: `${asig.docente_apellido||''}, ${asig.docente_nombre||''}`,
-          materia: asig.materia_nombre,
-          dia: asig.dia,
-          clases,
-          monto_por_clase: asig.monto_por_clase || 80000,
+        clasesEstimadas.push({
+          docente: `${fila.docente_apellido||''}, ${fila.docente_nombre||''}`,
+          materia: fila.materia_nombre,
+          dia: '—',
+          clases: fila.clases,
+          monto_por_clase: fila.monto_por_clase || 80000,
           total: monto
         });
       });

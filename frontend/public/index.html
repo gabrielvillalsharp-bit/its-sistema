@@ -7382,21 +7382,19 @@ async function cargarResumenFinanciero(){
         <thead><tr style="background:#f0f4f8">
           <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:left">Docente</th>
           <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:left">Materia</th>
-          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Día</th>
-          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Clases est.</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Clases dictadas</th>
           <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right">Por clase</th>
-          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:900">Total est.</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:900">Total a pagar</th>
         </tr></thead><tbody>
         ${d.estimado_honorarios.detalle.map(r=>`<tr>
           <td style="padding:6px 10px;border:1px solid #e2e8f0">${r.docente}</td>
           <td style="padding:6px 10px;border:1px solid #e2e8f0">${r.materia||'—'}</td>
-          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">${r.dia}</td>
-          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">${r.clases}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center;font-weight:700">${r.clases}</td>
           <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right">Gs. ${r.monto_por_clase.toLocaleString()}</td>
           <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:800;color:#c2410c">Gs. ${r.total.toLocaleString()}</td>
         </tr>`).join('')}
         <tr style="background:#fff7ed;font-weight:900">
-          <td colspan="5" style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right">TOTAL ESTIMADO:</td>
+          <td colspan="4" style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right">TOTAL A PAGAR:</td>
           <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#c2410c;font-size:14px">Gs. ${d.estimado_honorarios.total.toLocaleString()}</td>
         </tr>
       </tbody></table></div>`;
