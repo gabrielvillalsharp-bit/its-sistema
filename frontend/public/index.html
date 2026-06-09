@@ -7220,23 +7220,23 @@ function pgHubFinanzas(el){
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
       <div>
         <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">MES</label>
-        <select id="rfMes" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+        <select id="rfMes" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('')}
         </select>
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">AÑO</label>
-        <input id="rfAnio" type="number" value="${new Date().getFullYear()}" onchange="cargarResumenFinanciero()" style="width:80px;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+        <input id="rfAnio" type="number" value="${new Date().getFullYear()}" style="width:80px;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px"/>
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">CARRERA</label>
-        <select id="rfCarrera" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:160px">
+        <select id="rfCarrera" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:160px">
           <option value="">Todas las carreras</option>
         </select>
       </div>
       <div>
         <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">MEDIO DE PAGO</label>
-        <select id="rfMedio" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+        <select id="rfMedio" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           <option value="">Todos</option>
         </select>
       </div>
@@ -7249,15 +7249,16 @@ function pgHubFinanzas(el){
         </select>
       </div>
     </div>
-    <div id="rfKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px">
-      <div style="text-align:center;padding:14px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
-        <div style="font-size:11px;color:#166534;font-weight:700">CARGANDO...</div>
-      </div>
+    <div style="margin-bottom:12px">
+      <button class="bn" onclick="cargarResumenFinanciero()" style="padding:10px 24px;font-size:14px;font-weight:700">🔍 Consultar</button>
     </div>
+    <div id="rfKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px"></div>
     <div id="rfAlerta" style="display:none"></div>
     <div style="margin-bottom:10px">
-      <div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:8px">📋 Movimientos del mes</div>
-      <div id="rfTabla"><div style="text-align:center;padding:20px;color:#718096;font-size:13px">Cargando...</div></div>
+      <div id="rfTablaWrap" style="display:none">
+        <div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:8px">📋 Movimientos del mes</div>
+        <div id="rfTabla"></div>
+      </div>
     </div>
     <div id="rfEstimado" style="margin-top:14px"></div>
   </div>`:''}`;
@@ -7266,7 +7267,6 @@ function pgHubFinanzas(el){
       const sel=document.getElementById('rfCarrera');
       if(sel)cs.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nombre;sel.appendChild(o);});
     }).catch(()=>{});
-    cargarResumenFinanciero();
   }
 }
 
@@ -7282,6 +7282,8 @@ async function cargarResumenFinanciero(){
   if(!kpis)return;
   kpis.innerHTML='<div style="text-align:center;padding:14px;color:#718096;font-size:13px">Cargando...</div>';
   if(tabla)tabla.innerHTML='';
+  const tablaWrap=document.getElementById('rfTablaWrap');
+  if(tablaWrap)tablaWrap.style.display='none';
   try{
     let url=`/api/finanzas/resumen?mes=${mes}&anio=${anio}`;
     if(carrera)url+=`&carrera_id=${carrera}`;
@@ -7331,6 +7333,8 @@ async function cargarResumenFinanciero(){
       } else { alerta.style.display='none'; }
     }
     // Tabla movimientos
+    const tablaWrapEl=document.getElementById('rfTablaWrap');
+    if(tablaWrapEl)tablaWrapEl.style.display='block';
     rfFiltrarTabla();
     // Estimado docentes
     if(estimado&&d.estimado_honorarios.detalle.length){
