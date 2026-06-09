@@ -2452,6 +2452,111 @@ app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── RESUMEN FINANCIERO MENSUAL ───────────────────────────────────────────────
+app.get('/api/finanzas/resumen', auth(ADM), (req, res) => {
+  try {
+    const { mes, anio, carrera_id, medio_pago } = req.query;
+    const hoy = nowSys();
+    const m = parseInt(mes) || (hoy.getMonth() + 1);
+    const a = parseInt(anio) || hoy.getFullYear();
+    const desde = `${a}-${String(m).padStart(2,'0')}-01`;
+    const hasta = `${a}-${String(m).padStart(2,'0')}-${new Date(a, m, 0).getDate()}`;
+
+    // ── INGRESOS: pagos del mes ──────────────────────────────────────────────
+    let pagosWhere = "WHERE p.estado='Pagado' AND p.fecha_pago>=? AND p.fecha_pago<=?";
+    const pagosParams = [desde, hasta];
+    if (carrera_id) { pagosWhere += ' AND al.carrera_id=?'; pagosParams.push(carrera_id); }
+    if (medio_pago) { pagosWhere += ' AND p.medio_pago=?'; pagosParams.push(medio_pago); }
+
+    const pagos = db.prepare(`
+      SELECT p.id, p.fecha_pago as fecha, p.concepto, p.monto, p.medio_pago,
+        al.nombre as alumno_nombre, al.apellido as alumno_apellido,
+        c.nombre as carrera_nombre
+      FROM pagos p
+      LEFT JOIN alumnos al ON p.alumno_id = al.id
+      LEFT JOIN carreras c ON al.carrera_id = c.id
+      ${pagosWhere}
+      ORDER BY p.fecha_pago DESC
+    `).all(...pagosParams);
+
+    const totalIngresos = pagos.reduce((s, p) => s + (p.monto || 0), 0);
+
+    // ── EGRESOS: honorarios del mes ──────────────────────────────────────────
+    const honorarios = db.prepare(`
+      SELECT h.id, h.fecha, h.monto, h.tipo, h.estado,
+        u.nombre as docente_nombre, u.apellido as docente_apellido,
+        m.nombre as materia_nombre, ca.nombre as carrera_nombre
+      FROM honorarios h
+      LEFT JOIN docentes d ON h.docente_id = d.id
+      LEFT JOIN usuarios u ON d.usuario_id = u.id
+      LEFT JOIN asignaciones a ON h.asignacion_id = a.id
+      LEFT JOIN materias m ON a.materia_id = m.id
+      LEFT JOIN cursos cu ON a.curso_id = cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id = ca.id
+      WHERE h.fecha>=? AND h.fecha<=? AND h.estado!='anulado'
+      ORDER BY h.fecha DESC
+    `).all(desde, hasta);
+
+    const totalEgresos = honorarios.reduce((s, h) => s + (h.monto || 0), 0);
+
+    // ── ESTIMADO HONORARIOS: basado en asignaciones del período activo ───────
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    let estimadoHonorarios = 0;
+    let clasesEstimadas = [];
+    if (periodo) {
+      const asigs = db.prepare(`
+        SELECT a.id, a.dia, a.docente_id, a.hora_inicio, a.hora_fin,
+          u.nombre as docente_nombre, u.apellido as docente_apellido,
+          m.nombre as materia_nombre,
+          COALESCE(ar.monto, 80000) as monto_por_clase
+        FROM asignaciones a
+        LEFT JOIN docentes d ON a.docente_id = d.id
+        LEFT JOIN usuarios u ON d.usuario_id = u.id
+        LEFT JOIN materias m ON a.materia_id = m.id
+        LEFT JOIN aranceles ar ON ar.tipo='honorario' AND ar.activo=1
+        WHERE a.periodo_id=?
+      `).all(periodo.id);
+
+      // Contar cuántas veces cae cada día de semana en el mes
+      const diasDelMes = new Date(a, m, 0).getDate();
+      const diasCount = { 'Lunes':0,'Martes':0,'Miércoles':0,'Jueves':0,'Viernes':0,'Sábado':0,'Domingo':0 };
+      const diasMap = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+      for (let d2 = 1; d2 <= diasDelMes; d2++) {
+        const dow = new Date(a, m-1, d2).getDay();
+        diasCount[diasMap[dow]] = (diasCount[diasMap[dow]] || 0) + 1;
+      }
+
+      asigs.forEach(asig => {
+        const clases = diasCount[asig.dia] || 0;
+        const monto = clases * (asig.monto_por_clase || 80000);
+        estimadoHonorarios += monto;
+        if (clases > 0) clasesEstimadas.push({
+          docente: `${asig.docente_apellido||''}, ${asig.docente_nombre||''}`,
+          materia: asig.materia_nombre,
+          dia: asig.dia,
+          clases,
+          monto_por_clase: asig.monto_por_clase || 80000,
+          total: monto
+        });
+      });
+    }
+
+    // ── MEDIOS DE PAGO disponibles ───────────────────────────────────────────
+    const medios = db.prepare("SELECT DISTINCT medio_pago FROM pagos WHERE medio_pago IS NOT NULL ORDER BY medio_pago").all().map(r => r.medio_pago);
+
+    res.json({
+      mes: m, anio: a, desde, hasta,
+      ingresos: { total: totalIngresos, detalle: pagos },
+      egresos: { total: totalEgresos, detalle: honorarios },
+      estimado_honorarios: { total: estimadoHonorarios, detalle: clasesEstimadas },
+      balance: totalIngresos - totalEgresos,
+      balance_estimado: totalIngresos - estimadoHonorarios,
+      alerta_egresos: totalEgresos > totalIngresos * 0.8,
+      medios_disponibles: medios
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Deudores — alumnos sin pago de matrícula o cuotas en el período activo
 app.get('/api/pagos/deudores', auth(ADM), (req, res) => {
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();

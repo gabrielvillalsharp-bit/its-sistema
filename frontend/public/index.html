@@ -7205,7 +7205,265 @@ function pgHubFinanzas(el){
     ${me.rol==='docente'?_hubCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','linear-gradient(135deg,#78350f,#d97706)'):''}
     ${esDirec?_hubCard('repositorio-programas','📁','Programas','Repositorio','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
     ${esDirec?_hubCard('repositorio-contenidos','📂','Contenidos','Repositorio','linear-gradient(135deg,#1d4ed8,#60a5fa)'):''}
-  </div>`;
+  </div>
+  ${esDirec?`<div id="resumen-financiero-card" class="card card-p" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#1a202c">📊 Resumen Financiero</div>
+        <div style="font-size:12px;color:#718096">Ingresos, egresos y balance mensual</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="bs o" onclick="exportarReporteFinanciero()" style="font-size:12px">📥 Excel</button>
+        <button class="bn" onclick="generarPDFFinanciero()" style="font-size:12px">📄 PDF</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">MES</label>
+        <select id="rfMes" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">AÑO</label>
+        <input id="rfAnio" type="number" value="${new Date().getFullYear()}" onchange="cargarResumenFinanciero()" style="width:80px;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px"/>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">CARRERA</label>
+        <select id="rfCarrera" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;min-width:160px">
+          <option value="">Todas las carreras</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">MEDIO DE PAGO</label>
+        <select id="rfMedio" onchange="cargarResumenFinanciero()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">VER</label>
+        <select id="rfTipo" onchange="rfFiltrarTabla()" style="padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          <option value="">Todos</option>
+          <option value="ingreso">Solo ingresos</option>
+          <option value="egreso">Solo egresos</option>
+        </select>
+      </div>
+    </div>
+    <div id="rfKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+      <div style="text-align:center;padding:14px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
+        <div style="font-size:11px;color:#166534;font-weight:700">CARGANDO...</div>
+      </div>
+    </div>
+    <div id="rfAlerta" style="display:none"></div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:8px">📋 Movimientos del mes</div>
+      <div id="rfTabla"><div style="text-align:center;padding:20px;color:#718096;font-size:13px">Cargando...</div></div>
+    </div>
+    <div id="rfEstimado" style="margin-top:14px"></div>
+  </div>`:''}`;
+  if(esDirec){
+    api('GET','/api/carreras').then(cs=>{
+      const sel=document.getElementById('rfCarrera');
+      if(sel)cs.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nombre;sel.appendChild(o);});
+    }).catch(()=>{});
+    cargarResumenFinanciero();
+  }
+}
+
+async function cargarResumenFinanciero(){
+  const mes=document.getElementById('rfMes')?.value||new Date().getMonth()+1;
+  const anio=document.getElementById('rfAnio')?.value||new Date().getFullYear();
+  const carrera=document.getElementById('rfCarrera')?.value||'';
+  const medio=document.getElementById('rfMedio')?.value||'';
+  const kpis=document.getElementById('rfKpis');
+  const tabla=document.getElementById('rfTabla');
+  const alerta=document.getElementById('rfAlerta');
+  const estimado=document.getElementById('rfEstimado');
+  if(!kpis)return;
+  kpis.innerHTML='<div style="text-align:center;padding:14px;color:#718096;font-size:13px">Cargando...</div>';
+  if(tabla)tabla.innerHTML='';
+  try{
+    let url=`/api/finanzas/resumen?mes=${mes}&anio=${anio}`;
+    if(carrera)url+=`&carrera_id=${carrera}`;
+    if(medio)url+=`&medio_pago=${encodeURIComponent(medio)}`;
+    const d=await api('GET',url);
+    W._rfData=d;
+    // Poblar medios de pago
+    const selMedio=document.getElementById('rfMedio');
+    if(selMedio&&d.medios_disponibles?.length){
+      const curr=selMedio.value;
+      selMedio.innerHTML='<option value="">Todos</option>'+d.medios_disponibles.map(m=>`<option value="${m}" ${m===curr?'selected':''}>${m}</option>`).join('');
+    }
+    // KPIs
+    const bal=d.balance;
+    const balEst=d.balance_estimado;
+    kpis.innerHTML=`
+      <div style="text-align:center;padding:14px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
+        <div style="font-size:10px;color:#166534;font-weight:700;margin-bottom:4px">💰 INGRESOS</div>
+        <div style="font-size:20px;font-weight:900;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</div>
+        <div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:#fff7ed;border-radius:12px;border:1.5px solid #fed7aa">
+        <div style="font-size:10px;color:#c2410c;font-weight:700;margin-bottom:4px">💸 EGRESOS REALES</div>
+        <div style="font-size:20px;font-weight:900;color:#c2410c">Gs. ${d.egresos.total.toLocaleString()}</div>
+        <div style="font-size:10px;color:#fb923c">${d.egresos.detalle.length} honorarios</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:#fef3c7;border-radius:12px;border:1.5px solid #fde68a">
+        <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px">📊 EGRESOS ESTIMADOS</div>
+        <div style="font-size:20px;font-weight:900;color:#92400e">Gs. ${d.estimado_honorarios.total.toLocaleString()}</div>
+        <div style="font-size:10px;color:#f59e0b">Basado en asignaciones</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:${bal>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${bal>=0?'#86efac':'#fca5a5'}">
+        <div style="font-size:10px;color:${bal>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📈 BALANCE REAL</div>
+        <div style="font-size:20px;font-weight:900;color:${bal>=0?'#166534':'#dc2626'}">${bal>=0?'+':''}Gs. ${bal.toLocaleString()}</div>
+        <div style="font-size:10px;color:${bal>=0?'#4ade80':'#f87171'}">${bal>=0?'Superávit':'Déficit'}</div>
+      </div>
+      <div style="text-align:center;padding:14px;background:${balEst>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${balEst>=0?'#86efac':'#fca5a5'}">
+        <div style="font-size:10px;color:${balEst>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📉 BALANCE ESTIMADO</div>
+        <div style="font-size:20px;font-weight:900;color:${balEst>=0?'#166534':'#dc2626'}">${balEst>=0?'+':''}Gs. ${balEst.toLocaleString()}</div>
+        <div style="font-size:10px;color:${balEst>=0?'#4ade80':'#f87171'}">${balEst>=0?'Superávit est.':'Déficit est.'}</div>
+      </div>`;
+    // Alerta
+    if(alerta){
+      if(d.alerta_egresos){
+        alerta.style.display='block';
+        alerta.innerHTML='<div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:10px 14px;font-size:12px;color:#92400e;font-weight:700;margin-bottom:12px">⚠️ Los egresos superan el 80% de los ingresos este mes. Revisá la situación financiera.</div>';
+      } else { alerta.style.display='none'; }
+    }
+    // Tabla movimientos
+    rfFiltrarTabla();
+    // Estimado docentes
+    if(estimado&&d.estimado_honorarios.detalle.length){
+      estimado.innerHTML=`<div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:8px">📅 Estimado honorarios por docente (${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][mes-1]} ${anio})</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f0f4f8">
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:left">Docente</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:left">Materia</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Día</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Clases est.</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right">Por clase</th>
+          <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:900">Total est.</th>
+        </tr></thead><tbody>
+        ${d.estimado_honorarios.detalle.map(r=>`<tr>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0">${r.docente}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0">${r.materia||'—'}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">${r.dia}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">${r.clases}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right">Gs. ${r.monto_por_clase.toLocaleString()}</td>
+          <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:800;color:#c2410c">Gs. ${r.total.toLocaleString()}</td>
+        </tr>`).join('')}
+        <tr style="background:#fff7ed;font-weight:900">
+          <td colspan="5" style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right">TOTAL ESTIMADO:</td>
+          <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#c2410c;font-size:14px">Gs. ${d.estimado_honorarios.total.toLocaleString()}</td>
+        </tr>
+      </tbody></table></div>`;
+    } else if(estimado){ estimado.innerHTML=''; }
+  }catch(e){ if(kpis)kpis.innerHTML=`<div style="color:#dc2626;font-size:13px">Error: ${e.message}</div>`; }
+}
+
+function rfFiltrarTabla(){
+  const d=W._rfData;
+  if(!d)return;
+  const tipo=document.getElementById('rfTipo')?.value||'';
+  const tabla=document.getElementById('rfTabla');
+  if(!tabla)return;
+  // Combinar ingresos y egresos
+  let rows=[];
+  if(tipo!=='egreso') d.ingresos.detalle.forEach(p=>rows.push({fecha:p.fecha,tipo:'ingreso',desc:`${p.concepto} — ${p.alumno_apellido||''} ${p.alumno_nombre||''}`,sub:p.carrera_nombre||'',monto:p.monto,extra:p.medio_pago||'Efectivo'}));
+  if(tipo!=='ingreso') d.egresos.detalle.forEach(h=>rows.push({fecha:h.fecha,tipo:'egreso',desc:`Honorario — ${h.docente_apellido||''} ${h.docente_nombre||''}`,sub:h.materia_nombre||'',monto:h.monto,extra:h.tipo||'clase'}));
+  rows.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(!rows.length){tabla.innerHTML='<div style="text-align:center;padding:20px;color:#718096;font-size:13px">Sin movimientos para los filtros seleccionados</div>';return;}
+  tabla.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f0f4f8">
+      <th style="padding:7px 10px;border:1px solid #e2e8f0;white-space:nowrap">Fecha</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Tipo</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0">Descripción</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0">Detalle</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right">Monto</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0">Medio/Tipo</th>
+    </tr></thead><tbody>
+    ${rows.map(r=>`<tr style="background:${r.tipo==='ingreso'?'#f0fdf4':'#fff7ed'}">
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;white-space:nowrap">${r.fecha}</td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">
+        <span style="padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${r.tipo==='ingreso'?'#dcfce7;color:#166534':'#ffedd5;color:#c2410c'}">${r.tipo==='ingreso'?'↑ Ingreso':'↓ Egreso'}</span>
+      </td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:600">${r.desc}</td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;color:#718096;font-size:11px">${r.sub}</td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:800;color:${r.tipo==='ingreso'?'#166534':'#c2410c'}">Gs. ${r.monto.toLocaleString()}</td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:11px;color:#718096">${r.extra}</td>
+    </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function exportarReporteFinanciero(){
+  const d=W._rfData;
+  if(!d){toast('Cargá primero el resumen','err');return;}
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const nombre=`Reporte_Financiero_${meses[d.mes-1]}_${d.anio}`;
+  let csv='Fecha,Tipo,Descripción,Carrera/Detalle,Monto,Medio\n';
+  d.ingresos.detalle.forEach(p=>{ csv+=`"${p.fecha}","Ingreso","${p.concepto} - ${p.alumno_apellido||''} ${p.alumno_nombre||''}","${p.carrera_nombre||''}","${p.monto}","${p.medio_pago||'Efectivo'}"\n`; });
+  d.egresos.detalle.forEach(h=>{ csv+=`"${h.fecha}","Egreso","Honorario - ${h.docente_apellido||''} ${h.docente_nombre||''}","${h.materia_nombre||''}","${h.monto}","${h.tipo||'clase'}"\n`; });
+  csv+=`\n"","","","TOTAL INGRESOS","${d.ingresos.total}",""\n`;
+  csv+=`"","","","TOTAL EGRESOS","${d.egresos.total}",""\n`;
+  csv+=`"","","","BALANCE NETO","${d.balance}",""\n`;
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre+'.csv';a.click();
+  toast('✅ Reporte exportado','ok');
+}
+
+function generarPDFFinanciero(){
+  const d=W._rfData;
+  if(!d){toast('Cargá primero el resumen','err');return;}
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mesNombre=meses[d.mes-1]+' '+d.anio;
+  const bal=d.balance;
+  const balEst=d.balance_estimado;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte Financiero ${mesNombre}</title>
+  <style>body{font-family:Arial,sans-serif;padding:30px;color:#1a202c;max-width:900px;margin:0 auto}
+  h1{color:#166534;border-bottom:3px solid #166534;padding-bottom:10px}
+  h2{color:#374151;font-size:14px;margin-top:20px}
+  .kpi{display:flex;gap:15px;flex-wrap:wrap;margin:15px 0}
+  .kpi-box{flex:1;min-width:150px;padding:12px;border-radius:8px;text-align:center}
+  .ing{background:#f0fdf4;border:1px solid #86efac}.egr{background:#fff7ed;border:1px solid #fed7aa}
+  .bal{background:${bal>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${bal>=0?'#86efac':'#fca5a5'}}
+  .est{background:#fef3c7;border:1px solid #fde68a}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  th{background:#f0f4f8;padding:7px 10px;border:1px solid #e2e8f0;text-align:left}
+  td{padding:6px 10px;border:1px solid #e2e8f0}
+  .ing-row{background:#f0fdf4}.egr-row{background:#fff7ed}
+  .total-row{font-weight:900;background:#f8fafc}
+  @media print{button{display:none}}</style></head><body>
+  <h1>📊 Reporte Financiero — ${mesNombre}</h1>
+  <p style="color:#718096;font-size:12px">Generado el ${new Date().toLocaleDateString('es-PY')} — Instituto Técnico Superior Santísima Trinidad</p>
+  <div class="kpi">
+    <div class="kpi-box ing"><div style="font-size:11px;font-weight:700;color:#166534">INGRESOS</div><div style="font-size:22px;font-weight:900;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</div><div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos</div></div>
+    <div class="kpi-box egr"><div style="font-size:11px;font-weight:700;color:#c2410c">EGRESOS REALES</div><div style="font-size:22px;font-weight:900;color:#c2410c">Gs. ${d.egresos.total.toLocaleString()}</div></div>
+    <div class="kpi-box est"><div style="font-size:11px;font-weight:700;color:#92400e">EGRESOS ESTIMADOS</div><div style="font-size:22px;font-weight:900;color:#92400e">Gs. ${d.estimado_honorarios.total.toLocaleString()}</div></div>
+    <div class="kpi-box bal"><div style="font-size:11px;font-weight:700;color:${bal>=0?'#166534':'#dc2626'}">BALANCE REAL</div><div style="font-size:22px;font-weight:900;color:${bal>=0?'#166534':'#dc2626'}">${bal>=0?'+':''}Gs. ${bal.toLocaleString()}</div></div>
+    <div class="kpi-box" style="background:${balEst>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${balEst>=0?'#86efac':'#fca5a5'}"><div style="font-size:11px;font-weight:700;color:${balEst>=0?'#166534':'#dc2626'}">BALANCE ESTIMADO</div><div style="font-size:22px;font-weight:900;color:${balEst>=0?'#166534':'#dc2626'}">${balEst>=0?'+':''}Gs. ${balEst.toLocaleString()}</div></div>
+  </div>
+  <h2>💰 Ingresos (${d.ingresos.detalle.length} pagos)</h2>
+  <table><thead><tr><th>Fecha</th><th>Alumno</th><th>Concepto</th><th>Carrera</th><th style="text-align:right">Monto</th><th>Medio</th></tr></thead><tbody>
+  ${d.ingresos.detalle.map(p=>`<tr class="ing-row"><td>${p.fecha}</td><td>${p.alumno_apellido||''} ${p.alumno_nombre||''}</td><td>${p.concepto}</td><td>${p.carrera_nombre||''}</td><td style="text-align:right;font-weight:700">Gs. ${p.monto.toLocaleString()}</td><td>${p.medio_pago||'Efectivo'}</td></tr>`).join('')}
+  <tr class="total-row"><td colspan="4" style="text-align:right">TOTAL INGRESOS:</td><td style="text-align:right;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</td><td></td></tr>
+  </tbody></table>
+  <h2>💸 Egresos reales (${d.egresos.detalle.length} honorarios)</h2>
+  <table><thead><tr><th>Fecha</th><th>Docente</th><th>Materia</th><th>Tipo</th><th style="text-align:right">Monto</th></tr></thead><tbody>
+  ${d.egresos.detalle.map(h=>`<tr class="egr-row"><td>${h.fecha}</td><td>${h.docente_apellido||''} ${h.docente_nombre||''}</td><td>${h.materia_nombre||''}</td><td>${h.tipo||'clase'}</td><td style="text-align:right;font-weight:700">Gs. ${h.monto.toLocaleString()}</td></tr>`).join('')}
+  <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL EGRESOS:</td><td></td><td style="text-align:right;color:#c2410c">Gs. ${d.egresos.total.toLocaleString()}</td></tr>
+  </tbody></table>
+  ${d.estimado_honorarios.detalle.length?`<h2>📅 Estimado de honorarios por asignaciones</h2>
+  <table><thead><tr><th>Docente</th><th>Materia</th><th>Día</th><th style="text-align:center">Clases est.</th><th style="text-align:right">Por clase</th><th style="text-align:right">Total est.</th></tr></thead><tbody>
+  ${d.estimado_honorarios.detalle.map(r=>`<tr><td>${r.docente}</td><td>${r.materia||'—'}</td><td>${r.dia}</td><td style="text-align:center">${r.clases}</td><td style="text-align:right">Gs. ${r.monto_por_clase.toLocaleString()}</td><td style="text-align:right;font-weight:700">Gs. ${r.total.toLocaleString()}</td></tr>`).join('')}
+  <tr class="total-row"><td colspan="4" style="text-align:right">TOTAL ESTIMADO:</td><td></td><td style="text-align:right;color:#c2410c">Gs. ${d.estimado_honorarios.total.toLocaleString()}</td></tr>
+  </tbody></table>`:''}
+  <div style="margin-top:30px;padding-top:15px;border-top:1px solid #e2e8f0;font-size:11px;color:#718096;text-align:center">
+    ITS Santísima Trinidad — Reporte financiero ${mesNombre} — Confidencial
+  </div>
+  <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
+  </body></html>`);
+  w.document.close();
 }
 // ──────────────────────────────────────────────────────────────────────────────
 async function pgSolicitudes(el){
