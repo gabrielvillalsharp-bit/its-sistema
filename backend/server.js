@@ -47,9 +47,9 @@ app.use(cors({
 
 // ── SEGURIDAD: Rate limiting ──────────────────────────────────────────────────
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10,
-  message: { error: 'Demasiados intentos de login. Esperá 15 minutos.' },
+  windowMs: 60 * 1000, // 1 minuto
+  max: 50,
+  message: { error: 'Demasiados intentos de login. Esperá un momento.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
