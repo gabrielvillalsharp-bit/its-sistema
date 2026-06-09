@@ -7341,33 +7341,25 @@ async function cargarResumenFinanciero(){
       selMedio.innerHTML='<option value="">Todos</option>'+d.medios_disponibles.map(m=>`<option value="${m}" ${m===curr?'selected':''}>${m}</option>`).join('');
     }
     // KPIs
-    const bal=d.balance;
+    const mesesNom=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const nomMes=mesesNom[mes-1];
+    const mesPago=mesesNom[mes%12]; // mes siguiente
     const balEst=d.balance_estimado;
     kpis.innerHTML=`
-      <div style="text-align:center;padding:14px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
-        <div style="font-size:10px;color:#166534;font-weight:700;margin-bottom:4px">💰 INGRESOS</div>
-        <div style="font-size:20px;font-weight:900;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</div>
-        <div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos</div>
+      <div style="text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
+        <div style="font-size:10px;color:#166534;font-weight:700;margin-bottom:4px">💰 INGRESOS ${nomMes.toUpperCase()}</div>
+        <div style="font-size:22px;font-weight:900;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</div>
+        <div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos registrados</div>
       </div>
-      <div style="text-align:center;padding:14px;background:#fff7ed;border-radius:12px;border:1.5px solid #fed7aa">
-        <div style="font-size:10px;color:#c2410c;font-weight:700;margin-bottom:4px">💸 EGRESOS REALES</div>
-        <div style="font-size:20px;font-weight:900;color:#c2410c">Gs. ${d.egresos.total.toLocaleString()}</div>
-        <div style="font-size:10px;color:#fb923c">${d.egresos.detalle.length} honorarios</div>
+      <div style="text-align:center;padding:16px;background:#fef3c7;border-radius:12px;border:1.5px solid #fde68a">
+        <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px">📋 HONORARIOS ${nomMes.toUpperCase()}</div>
+        <div style="font-size:22px;font-weight:900;color:#92400e">Gs. ${d.estimado_honorarios.total.toLocaleString()}</div>
+        <div style="font-size:10px;color:#d97706;font-weight:600">A pagar el 10 de ${mesPago}</div>
       </div>
-      <div style="text-align:center;padding:14px;background:#fef3c7;border-radius:12px;border:1.5px solid #fde68a">
-        <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px">📊 EGRESOS ESTIMADOS</div>
-        <div style="font-size:20px;font-weight:900;color:#92400e">Gs. ${d.estimado_honorarios.total.toLocaleString()}</div>
-        <div style="font-size:10px;color:#f59e0b">Basado en asignaciones</div>
-      </div>
-      <div style="text-align:center;padding:14px;background:${bal>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${bal>=0?'#86efac':'#fca5a5'}">
-        <div style="font-size:10px;color:${bal>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📈 BALANCE REAL</div>
-        <div style="font-size:20px;font-weight:900;color:${bal>=0?'#166534':'#dc2626'}">${bal>=0?'+':''}Gs. ${bal.toLocaleString()}</div>
-        <div style="font-size:10px;color:${bal>=0?'#4ade80':'#f87171'}">${bal>=0?'Superávit':'Déficit'}</div>
-      </div>
-      <div style="text-align:center;padding:14px;background:${balEst>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${balEst>=0?'#86efac':'#fca5a5'}">
-        <div style="font-size:10px;color:${balEst>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📉 BALANCE ESTIMADO</div>
-        <div style="font-size:20px;font-weight:900;color:${balEst>=0?'#166534':'#dc2626'}">${balEst>=0?'+':''}Gs. ${balEst.toLocaleString()}</div>
-        <div style="font-size:10px;color:${balEst>=0?'#4ade80':'#f87171'}">${balEst>=0?'Superávit est.':'Déficit est.'}</div>
+      <div style="text-align:center;padding:16px;background:${balEst>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${balEst>=0?'#86efac':'#fca5a5'}">
+        <div style="font-size:10px;color:${balEst>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📊 BALANCE ${nomMes.toUpperCase()}</div>
+        <div style="font-size:22px;font-weight:900;color:${balEst>=0?'#166534':'#dc2626'}">${balEst>=0?'+':''}Gs. ${balEst.toLocaleString()}</div>
+        <div style="font-size:10px;color:${balEst>=0?'#4ade80':'#f87171'}">${balEst>=0?'Superávit':'Déficit'}</div>
       </div>`;
     // Alerta
     if(alerta){
@@ -7382,7 +7374,10 @@ async function cargarResumenFinanciero(){
     rfFiltrarTabla();
     // Estimado docentes
     if(estimado&&d.estimado_honorarios.detalle.length){
-      estimado.innerHTML=`<div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:8px">📅 Estimado honorarios por docente (${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][mes-1]} ${anio})</div>
+      const _mn2=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const _nomM=_mn2[mes-1], _pagM=_mn2[mes%12];
+      estimado.innerHTML=`<div style="font-size:13px;font-weight:800;color:#1a202c;margin-bottom:4px">📅 Honorarios ${_nomM} ${anio} — a pagar el 10 de ${_pagM}</div>
+      <div style="font-size:11px;color:#718096;margin-bottom:10px">Estimado basado en el calendario de asignaciones (1 ${_nomM} → 10 ${_pagM})</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:#f0f4f8">
           <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:left">Docente</th>
