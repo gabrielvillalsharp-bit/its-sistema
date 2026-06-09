@@ -1361,11 +1361,18 @@ function navFor(r){
       {id:'dashboard',l:'Inicio',c:'#1f8246',r:['director','docente','alumno','secretaria']},
       {id:'agenda',l:'Agenda',c:'#D85A30',r:['director','docente','alumno']},
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
+    ]},
+    {g:'Comunicación',i:[
       {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
+    ]},
+    {g:'Finanzas',i:[
       {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director','docente']},
+    ]},
+    {g:'Administración',i:[
+      {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mi-portal',l:'Mi portal',c:'#1f8246',r:['docente','alumno']},
@@ -1795,26 +1802,37 @@ async function pgDash(el){
   const _solTotalPend = _solQRPend.length + _solDocPend.length;
   const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
   const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
-  const qa=me.rol==='director'
-    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}]
-    :[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}];
+  const qa=[];
   el.innerHTML=`
   ${_dashHero(saludo,me.nombre,fechaCap,d.periodo_activo,qa)}
 
   ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
 
-  <div class="dash-kpi">
-    <div class="kpi-card green" style="cursor:pointer" onclick="go('solicitudes')"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos</div></div>
-    <div class="kpi-card blue" style="cursor:pointer" onclick="go('pagos')"><span class="kpi-icon">💳</span><div class="kpi-val">${d.total_pagos_mes??0}</div><div class="kpi-lbl">Pagos este mes</div></div>
-    <div class="kpi-card ${(exPendDir||[]).length>0?'red':'green'}" style="cursor:pointer" onclick="mostrarPendientesNotas()">
-      <span class="kpi-icon">✏️</span>
-      <div class="kpi-val" style="color:${(exPendDir||[]).length>0?'var(--red)':'var(--green)'}">${(exPendDir||[]).length}</div>
-      <div class="kpi-lbl">Notas pendientes</div>
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:18px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm)">
+    <div style="margin-bottom:12px">
+      <div style="font-size:15px;font-weight:800;color:#1e293b">⚡ Accesos rápidos</div>
+      <div style="font-size:12px;color:var(--t3);margin-top:2px">Navegá directamente a las secciones más usadas</div>
     </div>
-    ${me.rol==='director'?`
-    <div class="kpi-card amber" style="cursor:pointer" onclick="go('calendario')">
-      <span class="kpi-icon">📅</span><div class="kpi-val" style="color:var(--amb)">${d.examenes_hoy}</div><div class="kpi-lbl">Exámenes hoy</div>
-    </div>`:''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px">
+      <button onclick="go('solicitudes')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid #bbf7d0;border-radius:12px;background:#f0fdf4;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='#dcfce7';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='#f0fdf4';this.style.transform=''">
+        <span style="font-size:24px">👥</span>
+        <div style="font-size:12px;font-weight:700;color:#166534">Alumnos</div>
+        <div style="font-size:18px;font-weight:900;color:#15803d;line-height:1">${d.total_alumnos}</div>
+      </button>
+      <button onclick="go('pagos')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid #bfdbfe;border-radius:12px;background:#eff6ff;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='#dbeafe';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='#eff6ff';this.style.transform=''">
+        <span style="font-size:24px">💳</span>
+        <div style="font-size:12px;font-weight:700;color:#1d4ed8">Pagos</div>
+      </button>
+      <button onclick="mostrarPendientesNotas()" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid ${(exPendDir||[]).length>0?'#fca5a5':'#bbf7d0'};border-radius:12px;background:${(exPendDir||[]).length>0?'#fef2f2':'#f0fdf4'};cursor:pointer;transition:all .18s" onmouseenter="this.style.transform='translateY(-2px)'" onmouseleave="this.style.transform=''">
+        <span style="font-size:24px">✏️</span>
+        <div style="font-size:12px;font-weight:700;color:${(exPendDir||[]).length>0?'#dc2626':'#166534'}">Notas</div>
+        ${(exPendDir||[]).length>0?`<div style="font-size:18px;font-weight:900;color:#dc2626;line-height:1">${(exPendDir||[]).length}</div>`:'<div style="font-size:11px;color:#16a34a;font-weight:600">Al día ✓</div>'}
+      </button>
+      <button onclick="go('whatsapp')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1.5px solid #bbf7d0;border-radius:12px;background:#f0fdf4;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='#dcfce7';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='#f0fdf4';this.style.transform=''">
+        <span style="font-size:24px">💬</span>
+        <div style="font-size:12px;font-weight:700;color:#166534">WhatsApp</div>
+      </button>
+    </div>
   </div>
   ${me.rol==='director'?`
   <div class="card card-p" style="margin-bottom:16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac">
@@ -1844,19 +1862,38 @@ async function pgDash(el){
         </div>
         <button class="bs" style="font-size:11px" onclick="go('solicitudes').then(()=>setTimeout(()=>abrirGestSec('historial'),300))">Ver todas →</button>
       </div>
-      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto">
+      <div style="display:flex;flex-direction:column;gap:0;max-height:280px;overflow-y:auto">
         ${(()=>{
-          const todos=[..._solQRPend.map(s=>({...s,_origen:'QR'})),..._solDocPend.map(s=>({...s,_origen:'Docente'}))];
+          const qr=_solQRPend.map(s=>({...s,_origen:'QR'}));
+          const doc=_solDocPend.map(s=>({...s,_origen:'Docente'}));
+          const todos=[...qr,...doc];
           if(!todos.length) return `<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:13px">✅ Sin solicitudes pendientes</div>`;
-          return todos.slice(0,8).map(s=>`
-            <div style="display:flex;align-items:center;gap:8px;padding:7px 8px;background:${s._origen==='QR'?'#fffbeb':'#f0f9ff'};border-radius:8px;border:1px solid ${s._origen==='QR'?'#fde68a':'#bae6fd'}">
-              <span style="font-size:14px">${s._origen==='QR'?'📱':'👨‍🏫'}</span>
-              <div style="flex:1;min-width:0">
-                <div style="font-size:12px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.apellido||''}, ${s.nombre||''}</div>
-                <div style="font-size:10px;color:var(--t2)">${s.carrera_nombre||s.materia||''}${s.curso_anio?' · '+s.curso_anio+'°'+(s.curso_division&&s.curso_division!=='U'?' Secc. '+s.curso_division:''):''}</div>
-              </div>
-              <span style="font-size:9px;padding:2px 6px;border-radius:8px;background:${s._origen==='QR'?'#fef3c7':'#e0f2fe'};color:${s._origen==='QR'?'#92400e':'#0369a1'};font-weight:700;white-space:nowrap">${s._origen==='QR'?'QR':'Docente'}</span>
-            </div>`).join('')+(todos.length>8?`<div style="text-align:center;font-size:11px;color:var(--t3);padding:4px 0">+${todos.length-8} más</div>`:'');
+          let html='';
+          if(qr.length){
+            html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#92400e;background:#fffbeb;border-bottom:1px solid #fde68a;letter-spacing:.05em">📱 REGISTRO QR — ${qr.length}</div>`;
+            html+=qr.slice(0,4).map(s=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #fef3c7;transition:background .12s" onmouseenter="this.style.background='#fffbeb'" onmouseleave="this.style.background=''">
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''}${s.curso_anio?' · '+s.curso_anio+'°'+(s.curso_division&&s.curso_division!=='U'?' '+s.curso_division:''):''}</div>
+                </div>
+                <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:800;white-space:nowrap;flex-shrink:0">NUEVO</span>
+              </div>`).join('')+(qr.length>4?`<div style="padding:5px 14px;font-size:10px;color:#92400e;font-weight:600">+${qr.length-4} más</div>`:'');
+          }
+          if(doc.length){
+            html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#0369a1;background:#f0f9ff;border-top:1px solid #e0f2fe;border-bottom:1px solid #bae6fd;letter-spacing:.05em">👨‍🏫 SOLICITUD DOCENTE — ${doc.length}</div>`;
+            html+=doc.slice(0,4).map(s=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #e0f2fe;transition:background .12s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background=''">
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.materia||s.carrera_nombre||''}</div>
+                </div>
+                <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#dbeafe;color:#1e40af;font-weight:800;white-space:nowrap;flex-shrink:0">PENDIENTE</span>
+              </div>`).join('')+(doc.length>4?`<div style="padding:5px 14px;font-size:10px;color:#0369a1;font-weight:600">+${doc.length-4} más</div>`:'');
+          }
+          return html;
         })()}
       </div>
     </div>
@@ -2752,10 +2789,14 @@ async function pgAvisos(el){
     if(card){card.style.opacity='0';card.style.transform='translateY(-6px)';card.style.transition='all 0.25s';setTimeout(()=>{card.remove();checkNotifAvisos();},260);}
     else{checkNotifAvisos();}
   }
+  const avisosLeidos=avisos.filter(a=>vistos.has(a.id));
   function renderAvisoCard(a,leido=false){
-    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" style="${leido?'opacity:0.55;':''}cursor:pointer" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
-      <span class="aviso-titulo">${a.fijado?'📌 ':''}${leido?'':'🔵 '}${a.titulo}</span>
+    const tipoIco={urgente:'🔴',examen:'🔵',administrativo:'🟡',info:'🟢'};
+    const ico=tipoIco[a.tipo]||'⚪';
+    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" data-tipo="${a.tipo}" style="${leido?'opacity:0.6;border-left-style:dashed;':''}cursor:pointer;position:relative" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
+    ${!leido?'<div style="position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#3b82f6"></div>':''}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;padding-right:${!leido?'16px':'0'}">
+      <span class="aviso-titulo">${a.fijado?'📌 ':''}${ico} ${a.titulo}</span>
       <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
         ${esDirector?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#f0f0f0;color:#555">${destLabel[a.destinatario||'todos']}</span>`:''}
         <span class="bx ${a.tipo==='urgente'?'br':a.tipo==='examen'?'bb':a.tipo==='administrativo'?'ba':'bg'}">${a.tipo}</span>
@@ -2763,9 +2804,19 @@ async function pgAvisos(el){
       </div>
     </div>
     <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
-    <div class="aviso-meta">Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''} · <em style="color:var(--t3)">Clic para marcar como leído</em></div>
+    <div class="aviso-meta" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+      <span>Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''}</span>
+      ${!leido?'<em style="color:#3b82f6;font-size:10px;font-weight:600">● Clic para marcar como leído</em>':'<em style="color:var(--t3)">✓ Leído</em>'}
+    </div>
   </div>`;
   }
+  W.filtrarAvisosTipo=function(tipo){
+    document.querySelectorAll('.aviso-tipo-btn').forEach(b=>b.style.background=b.dataset.tipo===tipo?'var(--green)':'#f1f5f9');
+    document.querySelectorAll('.aviso-tipo-btn').forEach(b=>b.style.color=b.dataset.tipo===tipo?'#fff':'var(--t2)');
+    document.querySelectorAll('[data-tipo]').forEach(c=>{
+      c.style.display=(!tipo||c.dataset.tipo===tipo)?'block':'none';
+    });
+  };
   W.marcarAvisoLeido=marcarAvisoLeido;
 
   async function limpiarAvisosLeidos(){
@@ -2890,20 +2941,33 @@ async function pgAvisos(el){
     </div>`).join('')}
   </div>`:''}
 
-  ${avisosSinLeer.length?`
-  <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,#e53935,#ef5350);color:#fff;border-radius:12px;padding:12px 18px;margin-bottom:16px;box-shadow:0 3px 10px rgba(229,57,53,.35);animation:fadeInQ .3s ease">
-    <span style="font-size:24px;animation:pulse-bell 1s infinite">🔔</span>
-    <div style="flex:1">
-      <div style="font-size:14px;font-weight:800">Tenés ${avisosSinLeer.length} aviso${avisosSinLeer.length!==1?'s':''} sin leer</div>
-      <div style="font-size:12px;opacity:.85;margin-top:2px">Hacé clic en cada uno para marcarlo como leído</div>
-    </div>
-    ${esDirector&&avisosSinLeer.length?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Marcar todos</button>`:''}
-  </div>`:''}
-
-  ${!avisosSinLeer.length&&!(exPendAviso||[]).length?`<div class="es">✅ No tenés avisos pendientes${vistos.size?` · <span style="color:#94a3b8;font-size:12px">${vistos.size} ya leído${vistos.size!==1?'s':''}</span>`:''}</div>`:''}
-  ${!avisosSinLeer.length&&(exPendAviso||[]).length?`<div class="es" style="margin-bottom:8px">✅ Sin avisos nuevos${vistos.size?` · ${vistos.size} ya leído${vistos.size!==1?'s':''}`:''}</div>`:''}
-  ${avisosSinLeer.length?`<p style="font-size:11px;font-weight:700;color:var(--t2);margin-bottom:8px">📬 Sin leer (${avisosSinLeer.length})</p>`:''}
-  ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}
+  ${avisos.length?`
+  <!-- Filtros por tipo -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    <span style="font-size:12px;font-weight:700;color:var(--t2);white-space:nowrap">Filtrar:</span>
+    <button class="aviso-tipo-btn" data-tipo="" onclick="filtrarAvisosTipo('')" style="padding:4px 12px;border:1px solid var(--bdr);border-radius:20px;font-size:12px;cursor:pointer;background:var(--green);color:#fff;font-weight:600;transition:all .15s">Todos (${avisos.length})</button>
+    ${avisosSinLeer.length?`<button class="aviso-tipo-btn" data-tipo="sinleer" onclick="document.querySelectorAll('[data-tipo]').forEach(c=>c.style.display=!vistos.has(Number(c.id.replace('av-','')))?'block':'none')" style="padding:4px 12px;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;cursor:pointer;background:#eff6ff;color:#1d4ed8;font-weight:600">🔵 Sin leer (${avisosSinLeer.length})</button>`:''}
+    ${avisos.filter(a=>a.tipo==='urgente').length?`<button class="aviso-tipo-btn" data-tipo="urgente" onclick="filtrarAvisosTipo('urgente')" style="padding:4px 12px;border:1px solid #fca5a5;border-radius:20px;font-size:12px;cursor:pointer;background:#fef2f2;color:#dc2626;font-weight:600">🔴 Urgente (${avisos.filter(a=>a.tipo==='urgente').length})</button>`:''}
+    ${avisos.filter(a=>a.tipo==='examen').length?`<button class="aviso-tipo-btn" data-tipo="examen" onclick="filtrarAvisosTipo('examen')" style="padding:4px 12px;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;cursor:pointer;background:#eff6ff;color:#1e40af;font-weight:600">📅 Examen (${avisos.filter(a=>a.tipo==='examen').length})</button>`:''}
+    ${avisos.filter(a=>a.tipo==='administrativo').length?`<button class="aviso-tipo-btn" data-tipo="administrativo" onclick="filtrarAvisosTipo('administrativo')" style="padding:4px 12px;border:1px solid #fde68a;border-radius:20px;font-size:12px;cursor:pointer;background:#fffbeb;color:#92400e;font-weight:600">🟡 Admin (${avisos.filter(a=>a.tipo==='administrativo').length})</button>`:''}
+    ${avisos.filter(a=>a.tipo==='info').length?`<button class="aviso-tipo-btn" data-tipo="info" onclick="filtrarAvisosTipo('info')" style="padding:4px 12px;border:1px solid #bbf7d0;border-radius:20px;font-size:12px;cursor:pointer;background:#f0fdf4;color:#166534;font-weight:600">🟢 Info (${avisos.filter(a=>a.tipo==='info').length})</button>`:''}
+  </div>
+  <!-- Sin leer -->
+  ${avisosSinLeer.length?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="flex:1;height:1px;background:#bfdbfe"></div>
+    <span style="font-size:11px;font-weight:800;color:#1d4ed8;white-space:nowrap">🔵 SIN LEER — ${avisosSinLeer.length}</span>
+    <div style="flex:1;height:1px;background:#bfdbfe"></div>
+    ${puedeEditar?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="padding:4px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Leer todos</button>`:''}
+  </div>
+  ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}`:''}
+  <!-- Leídos -->
+  ${avisosLeidos.length?`<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px">
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+    <span style="font-size:11px;font-weight:700;color:var(--t3);white-space:nowrap">✓ YA LEÍDOS — ${avisosLeidos.length}</span>
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+  </div>
+  ${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
+  ${!avisosSinLeer.length&&!avisosLeidos.length?`<div class="es">✅ No hay avisos disponibles</div>`:''}`:'<div class="es">✅ No hay avisos disponibles</div>'}
   `;
 }
 function mAvisoDirector(){
@@ -7748,101 +7812,126 @@ async function pgSolicitudes(el){
   <div id="gest-sec-historial" style="display:none;margin-bottom:16px">
     ${(()=>{ W._auditArr=Array.isArray(auditAlumnos)?auditAlumnos:Array.isArray(auditAlumnos?.registros)?auditAlumnos.registros:[]; return ''; })()}
     <div style="background:linear-gradient(135deg,#0a3d62,#1a7fc4);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-      <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones, Seguimiento & Asignaciones</span>
+      <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones & Historial</span>
       <span style="color:#bfdbfe;font-size:11px">${regs.length+sols.length} incorporaciones · ${informes.length+ausencias.length} alertas · ${W._auditArr.length} acciones</span>
     </div>
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
-      <!-- Contador resumen -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));text-align:center;border-bottom:1px solid #e2e8f0">
-        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--amb)">${pend.length+regsPend.length}</div><div style="font-size:10px;color:var(--t2)">Pendientes</div></div>
-        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--green)">${regs.filter(r=>r.estado==='aprobado').length+sols.filter(s=>s.estado==='aprobado').length}</div><div style="font-size:10px;color:var(--t2)">Aprobados</div></div>
-        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:var(--red)">${regs.filter(r=>r.estado==='rechazado').length+sols.filter(s=>s.estado==='rechazado').length}</div><div style="font-size:10px;color:var(--t2)">Rechazados</div></div>
-        <div style="padding:10px 6px;border-right:1px solid #e2e8f0"><div style="font-size:20px;font-weight:900;color:#b45309">${informesPend.length}</div><div style="font-size:10px;color:var(--t2)">Informes</div></div>
-        <div style="padding:10px 6px"><div style="font-size:20px;font-weight:900;color:#dc2626">${ausencias.length}</div><div style="font-size:10px;color:var(--t2)">Ausencias</div></div>
-      </div>
-      <!-- Filtros -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#f8fafb;border-bottom:1px solid #e2e8f0">
-        <input id="histBus" placeholder="🔍 Nombre o CI..." oninput="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;min-width:160px"/>
-        <select id="histTipo" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
-          <option value="">Todos los tipos</option>
-          <option value="qr">📱 Registro QR</option>
-          <option value="solicitud">📋 Solicitud docente</option>
-          <option value="asignacion">↕️ Asignación carrera</option>
-          <option value="asistencia">📊 Alerta asistencia</option>
-          <option value="sistema">⚙️ Acción sistema</option>
-        </select>
-        <select id="histEstado" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
-          <option value="">Todos los estados</option>
-          <option value="aprobado">✅ Aprobado</option>
-          <option value="pendiente">⏳ Pendiente</option>
-          <option value="rechazado">❌ Rechazado</option>
-        </select>
-      </div>
-      <!-- Sección 1: Incorporaciones QR + Solicitudes -->
       ${(()=>{
-        const items=[
+        const allItems=[
           ...regs.map(r=>({key:'qr-'+r.id,tipo:'qr',icono:'📱',tipLabel:'QR',
             alumno:`${r.apellido||''}, ${r.nombre||''}`,ci:r.ci||'—',
             carrera:r.carrera_nombre||'—',
             seccion:r.curso_anio?(r.curso_anio+'°'+(r.curso_division&&r.curso_division!=='U'?' '+r.curso_division:'')+(r.turno?' T'+r.turno:'')):'—',
-            matricula:r.matricula||'',tel:r.telefono||'',email:r.email||'',
-            fecha:r.fecha||'',estado:r.estado||'',
-            extra:r.motivo_rechazo?'Motivo rechazo: '+r.motivo_rechazo:'',
-            acciones:r.estado==='pendiente'?`<button class="bn" style="font-size:10px;padding:3px 10px" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="font-size:10px;padding:3px 8px" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''
+            tel:r.telefono||'',fecha:r.fecha||'',estado:r.estado||'',
+            extra:r.motivo_rechazo?'Motivo: '+r.motivo_rechazo:'',
+            acciones:r.estado==='pendiente'?`<button class="bn" style="flex:1;font-size:12px;padding:8px 0;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="flex:1;font-size:12px;padding:8px 0;border-radius:8px;cursor:pointer" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''
           })),
-          ...sols.map(s=>{let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}const esConflicto=obs?.tipo==='conflicto';return{key:'sol-'+s.id,tipo:'solicitud',icono:'📋',tipLabel:'Solicitud',
-            alumno:`${s.apellido||''}, ${s.nombre||''}`,ci:s.ci||'—',
-            carrera:s.materia||'—',seccion:'—',matricula:'',tel:'',email:'',
-            fecha:s.fecha||'',estado:s.estado||'',
-            extra:[s.materia?'📚 '+s.materia:'',s.docente_apellido?'👤 '+s.docente_apellido+' '+s.docente_nombre:'',esConflicto&&obs?.comentario?'💬 '+obs.comentario:''].filter(Boolean).join(' · '),
-            acciones:s.estado==='pendiente'?`<button class="bn" style="font-size:10px;padding:3px 10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="font-size:10px;padding:3px 8px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>`:''
-          };}),
-          // Eventos ASIGNAR del audit log
+          ...sols.map(s=>{
+            let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}
+            return{key:'sol-'+s.id,tipo:'solicitud',icono:'📋',tipLabel:'Solicitud',
+              alumno:`${s.apellido||''}, ${s.nombre||''}`,ci:s.ci||'—',
+              carrera:s.materia||'—',seccion:'—',tel:'',fecha:s.fecha||'',estado:s.estado||'',
+              extra:[s.materia?'📚 '+s.materia:'',s.docente_apellido?'👤 '+s.docente_apellido+' '+s.docente_nombre:'',obs?.comentario?'💬 '+obs.comentario:''].filter(Boolean).join(' · '),
+              acciones:s.estado==='pendiente'?`<button class="bn" style="flex:1;font-size:12px;padding:8px 0;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resolverSolicitudAlumno('${s.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="flex:1;font-size:12px;padding:8px 0;border-radius:8px;cursor:pointer" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✕ Rechazar</button>`:''};
+          }),
           ...W._auditArr.filter(a=>a.accion==='ASIGNAR').map(a=>{
-            let det={}; try{det=a.detalle?JSON.parse(a.detalle):{};}catch{}
+            let det={};try{det=a.detalle?JSON.parse(a.detalle):{};}catch{}
             return{key:'asig-'+a.id,tipo:'asignacion',icono:'↕️',tipLabel:'Asignación',
               alumno:det.alumno||a.registro_id||'—',ci:'—',
-              carrera:det.carrera_nombre||'—',
-              seccion:det.curso_desc||'—',
-              matricula:'',tel:'',email:'',
-              fecha:a.fecha||'',estado:'aprobado',
+              carrera:det.carrera_nombre||'—',seccion:det.curso_desc||'—',
+              tel:'',fecha:a.fecha||'',estado:'aprobado',
               extra:[det.carrera_nombre?'🏫 '+det.carrera_nombre:'',det.curso_desc?'📚 '+det.curso_desc:''].filter(Boolean).join(' · '),
-              acciones:''};})
+              acciones:''};
+          })
         ].sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
-        const stC={aprobado:'background:#dcfce7;color:#166534',pendiente:'background:#fef3c7;color:#92400e',rechazado:'background:#fee2e2;color:#991b1b'};
-        const stL={aprobado:'✅ Aprobado',pendiente:'⏳ Pendiente',rechazado:'❌ Rechazado'};
+        const pendItems=allItems.filter(i=>i.estado==='pendiente');
+        const procItems=allItems.filter(i=>i.estado!=='pendiente');
         const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)',asignacion:'linear-gradient(135deg,#065f46,#059669)'};
         const borderMap={qr:'#2563EB',solicitud:'#D85A30',asignacion:'#059669'};
-        const rows=items.map((it,idx)=>{
-          const detalle=[
-            `<span style="font-size:10px;padding:1px 7px;border-radius:8px;font-weight:700;${stC[it.estado]||'background:#f1f5f9;color:#475569'}">${stL[it.estado]||it.estado}</span>`,
-            `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:#e0e7ff;color:#3730a3;font-weight:600">${it.icono} ${it.tipLabel}</span>`,
-            `<span style="color:#94a3b8">·</span>`,
-            `<span>CI: <strong style="color:#334155">${it.ci}</strong></span>`,
-            it.carrera&&it.carrera!=='—'?`<span style="color:#94a3b8">·</span><span>🏫 ${it.carrera}</span>`:'',
-            it.seccion&&it.seccion!=='—'?`<span style="color:#94a3b8">·</span><span>📚 ${it.seccion}</span>`:'',
-            it.tel?`<span style="color:#94a3b8">·</span><span>📞 ${it.tel}</span>`:'',
-            it.extra?`<span style="color:#94a3b8">·</span><span style="color:#64748b">${it.extra}</span>`:''
-          ].filter(Boolean).join(' ');
-          return `<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:10px;align-items:center;padding:11px 16px;border-bottom:4px solid #1e293b;${idx%2===1?'background:#f8fafc':''};border-left:5px solid ${borderMap[it.tipo]||'#64748b'}">
-            <div style="width:34px;height:34px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
-            <div style="flex:1;min-width:0;overflow:hidden">
-              <div style="font-weight:700;font-size:13px;color:#1e293b;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.alumno}</div>
-              <div style="display:flex;gap:5px;align-items:center;flex-wrap:nowrap;overflow:hidden;font-size:11px;color:#64748b;white-space:nowrap">${detalle}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
-              <span style="font-size:10px;color:var(--t3);white-space:nowrap">${(it.fecha||'').replace('T',' ').slice(0,10)}</span>
-              ${it.acciones?`<div style="display:flex;gap:4px">${it.acciones}</div>`:''}
-            </div>
+        const bgMap={qr:'#eff6ff',solicitud:'#fff7ed',asignacion:'#f0fdf4'};
+        const stC={aprobado:'background:#dcfce7;color:#166534',rechazado:'background:#fee2e2;color:#991b1b',pendiente:'background:#fef3c7;color:#92400e'};
+        const stL={aprobado:'✅ Aprobado',rechazado:'❌ Rechazado',pendiente:'⏳ Pendiente'};
+        let html='';
+        if(pendItems.length){
+          html+=`<div style="padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">⚡</span>
+            <strong style="font-size:13px;color:#92400e">Pendientes de acción</strong>
+            <span style="background:#f59e0b;color:#fff;font-size:11px;padding:2px 9px;border-radius:10px;font-weight:700">${pendItems.length}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;padding:16px">
+            ${pendItems.map(it=>`<div style="border:2px solid ${borderMap[it.tipo]||'#94a3b8'};border-radius:14px;background:${bgMap[it.tipo]||'#f8fafc'};overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.1)">
+              <div style="background:${gradMap[it.tipo]||'#64748b'};padding:8px 14px;display:flex;align-items:center;justify-content:space-between">
+                <span style="color:#fff;font-size:11px;font-weight:800">${it.icono} ${it.tipLabel}</span>
+                <span style="background:rgba(255,255,255,.2);color:#fff;font-size:10px;padding:1px 8px;border-radius:7px">${(it.fecha||'').replace('T',' ').slice(0,10)}</span>
+              </div>
+              <div style="padding:14px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                  <div style="width:42px;height:42px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
+                  <div style="min-width:0">
+                    <div style="font-size:14px;font-weight:900;color:#0f172a;line-height:1.3">${it.alumno}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px">CI: ${it.ci}</div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;margin-bottom:13px">
+                  ${it.carrera&&it.carrera!=='—'?`<div>🏫 <strong style="color:#1e293b">${it.carrera}</strong></div>`:''}
+                  ${it.seccion&&it.seccion!=='—'?`<div>📚 ${it.seccion}</div>`:''}
+                  ${it.tel?`<div>📞 ${it.tel}</div>`:''}
+                  ${it.extra?`<div style="color:#64748b">💬 ${it.extra}</div>`:''}
+                </div>
+                ${it.acciones?`<div style="display:flex;gap:8px">${it.acciones}</div>`:''}
+              </div>
+            </div>`).join('')}
           </div>`;
-        }).join('');
-        return items.length
-          ? `<div style="padding:8px 14px;background:#eff6ff;border-bottom:1px solid #bfdbfe"><strong style="font-size:12px;color:#1e40af">📥 Incorporaciones · ${items.length} registro${items.length!==1?'s':''}</strong></div>${rows}`
-          : '<div style="padding:18px;text-align:center;color:var(--t3)">Sin registros de incorporación</div>';
+        } else {
+          html+=`<div style="padding:12px 16px;background:#f0fdf4;display:flex;align-items:center;gap:8px;border-bottom:1px solid #bbf7d0"><span style="font-size:16px">✅</span><strong style="font-size:13px;color:#166534">Sin pendientes de incorporación</strong></div>`;
+        }
+        if(procItems.length){
+          html+=`<div onclick="const d=document.getElementById('histProcList');const a=this.querySelector('.harr');if(d.style.display==='none'){d.style.display='block';a.textContent='▲';}else{d.style.display='none';a.textContent='▼';}" style="cursor:pointer;padding:10px 14px;background:#f1f5f9;border-top:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background='#e8edf5'" onmouseleave="this.style.background='#f1f5f9'">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px">📁</span><strong style="font-size:12px;color:#475569">Historial procesado</strong><span style="background:#94a3b8;color:#fff;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:700">${procItems.length}</span></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 7px;border-radius:6px;font-weight:700">✅ ${procItems.filter(i=>i.estado==='aprobado').length}</span>
+              <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:6px;font-weight:700">❌ ${procItems.filter(i=>i.estado==='rechazado').length}</span>
+              <span class="harr" style="font-size:12px;color:#64748b;margin-left:4px">▼</span>
+            </div>
+          </div>
+          <div id="histProcList" style="display:none">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#f8fafb;border-bottom:1px solid #e2e8f0">
+              <input id="histBus" placeholder="🔍 Nombre o CI..." oninput="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;min-width:160px"/>
+              <select id="histTipo" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+                <option value="">Todos los tipos</option>
+                <option value="qr">📱 QR</option>
+                <option value="solicitud">📋 Solicitud</option>
+                <option value="asignacion">↕️ Asignación</option>
+              </select>
+              <select id="histEstado" onchange="filtrarHistorialGA()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
+                <option value="">Todos</option>
+                <option value="aprobado">✅ Aprobado</option>
+                <option value="rechazado">❌ Rechazado</option>
+              </select>
+            </div>
+            ${procItems.map(it=>`<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9;border-left:4px solid ${borderMap[it.tipo]||'#94a3b8'}">
+              <div style="width:30px;height:30px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:12px;color:#1e293b">${it.alumno} <span style="font-size:10px;font-weight:400;color:#94a3b8">CI: ${it.ci}</span></div>
+                <div style="font-size:11px;color:#64748b;display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+                  <span style="font-size:10px;padding:1px 6px;border-radius:6px;background:#e0e7ff;color:#3730a3;font-weight:600">${it.icono} ${it.tipLabel}</span>
+                  ${it.carrera&&it.carrera!=='—'?`<span>🏫 ${it.carrera}</span>`:''}
+                  ${it.seccion&&it.seccion!=='—'?`<span>📚 ${it.seccion}</span>`:''}
+                  ${it.extra?`<span>💬 ${it.extra.slice(0,50)}</span>`:''}
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+                <span style="font-size:10px;padding:2px 8px;border-radius:8px;font-weight:700;${stC[it.estado]||''}">${stL[it.estado]||it.estado}</span>
+                <span style="font-size:10px;color:#94a3b8">${(it.fecha||'').replace('T',' ').slice(0,10)}</span>
+              </div>
+            </div>`).join('')}
+          </div>`;
+        }
+        return html;
       })()}
-      <!-- Sección 2: Alertas de asistencia -->
+      <!-- Alertas de asistencia -->
       ${(informes.length||ausencias.length)?`<div style="padding:8px 14px;background:#fffbeb;border-top:2px solid #fde68a;border-bottom:1px solid #fde68a"><strong style="font-size:12px;color:#92400e">📊 Alertas de asistencia · ${informes.length+ausencias.length} alerta${(informes.length+ausencias.length)!==1?'s':''}</strong></div>
-      ${informes.map((i,idx)=>`<div class="hist-row" data-busq="${((i.alumno_apellido||'')+(i.alumno_nombre||'')+(i.alumno_ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="${i.estado||'pendiente'}" style="display:flex;gap:8px;align-items:flex-start;padding:18px 14px;border-bottom:3px solid #fde68a;border-left:4px solid #f59e0b;${idx%2===1?'background:#fffdf0':''}${i.estado!=='pendiente'?';opacity:0.55':''}">
+      ${informes.map((i,idx)=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:18px 14px;border-bottom:3px solid #fde68a;border-left:4px solid #f59e0b;${idx%2===1?'background:#fffdf0':''}${i.estado!=='pendiente'?';opacity:0.55':''}">
         <span style="font-size:20px;flex-shrink:0">🔔</span>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px">${i.alumno_apellido||''}, ${i.alumno_nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${i.alumno_ci||'—'}</span></div>
@@ -7853,7 +7942,7 @@ async function pgSolicitudes(el){
         </div>
         <span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;flex-shrink:0;${i.estado==='pendiente'?'background:#fef3c7;color:#92400e':i.estado==='visto'?'background:#dbeafe;color:#1e40af':'background:#d1fae5;color:#065f46'}">${i.estado==='pendiente'?'⏳ PENDIENTE':i.estado==='visto'?'👁 VISTO':'✓ RESUELTO'}</span>
       </div>`).join('')}
-      ${ausencias.map((a,idx)=>`<div class="hist-row" data-busq="${((a.apellido||'')+(a.nombre||'')+(a.ci||'')).toLowerCase()}" data-tipo="asistencia" data-estado="pendiente" style="display:flex;gap:8px;align-items:center;padding:18px 14px;border-bottom:3px solid #fca5a5;border-left:4px solid #dc2626;${idx%2===1?'background:#fff5f5':''}">
+      ${ausencias.map((a,idx)=>`<div style="display:flex;gap:8px;align-items:center;padding:18px 14px;border-bottom:3px solid #fca5a5;border-left:4px solid #dc2626;${idx%2===1?'background:#fff5f5':''}">
         <span style="font-size:20px;flex-shrink:0">⚠️</span>
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${a.ci||'—'}</span></div>
@@ -7864,16 +7953,19 @@ async function pgSolicitudes(el){
         <div style="text-align:center;min-width:70px;flex-shrink:0"><div style="font-size:26px;font-weight:900;color:#dc2626;line-height:1">${a.ausencias_consecutivas}</div><div style="font-size:10px;color:#991b1b;font-weight:600">sin asistir</div></div>
       </div>`).join('')}`:''
       }
-      <!-- Sección 3: Acciones del sistema sobre alumnos -->
-      ${W._auditArr.length?`<div style="padding:8px 14px;background:#f0f4ff;border-top:2px solid #c7d2fe;border-bottom:1px solid #c7d2fe"><strong style="font-size:12px;color:#1e40af">⚙️ Registro de acciones · ${W._auditArr.length} entrada${W._auditArr.length!==1?'s':''}</strong></div>
+      <!-- Registro de acciones (colapsado) -->
+      ${W._auditArr.length?`<div onclick="const d=document.getElementById('auditLogSec');const a=this.querySelector('.aarr');if(d.style.display==='none'){d.style.display='block';a.textContent='▲';}else{d.style.display='none';a.textContent='▼';}" style="cursor:pointer;padding:10px 14px;background:#f0f4ff;border-top:2px solid #c7d2fe;display:flex;align-items:center;justify-content:space-between" onmouseenter="this.style.background='#e6ebff'" onmouseleave="this.style.background='#f0f4ff'">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px">⚙️</span><strong style="font-size:12px;color:#1e40af">Registro de acciones del sistema</strong><span style="background:#6366f1;color:#fff;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:700">${W._auditArr.length}</span></div>
+        <span class="aarr" style="font-size:12px;color:#6366f1">▼</span>
+      </div>
+      <div id="auditLogSec" style="display:none">
       ${W._auditArr.slice(0,100).map(a=>{
         const acIco={'INSERT':'➕','CREATE':'➕','DELETE':'🗑️','UPDATE':'✏️','ASIGNAR':'↕️','IMPORTAR':'📥','HABILITAR':'✅','REACTIVAR':'↩️'};
         const ico=Object.entries(acIco).find(([k])=>String(a.accion||'').toUpperCase().includes(k))?.[1]||'⚙️';
         const fec=(a.fecha_hora||a.created_at||'').replace('T',' ').slice(0,16);
         let det='';try{const d=typeof a.detalle==='string'?JSON.parse(a.detalle):a.detalle||{};det=d.nombre?(d.apellido||'')+', '+(d.nombre||''):d.descripcion||JSON.stringify(d).slice(0,80);}catch{det=String(a.detalle||'').slice(0,80);}
-        const busqStr=((a.accion||'')+' '+(a.usuario_nombre||'')+' '+det).toLowerCase();
-        return `<div class="hist-row" data-busq="${busqStr}" data-tipo="sistema" data-estado="" style="display:flex;gap:10px;align-items:flex-start;padding:16px 16px;border-bottom:3px solid #c7d2fe;border-left:4px solid #6366f1">
-          <span style="font-size:18px;flex-shrink:0;margin-top:1px">${ico}</span>
+        return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #e0e7ff;border-left:4px solid #6366f1">
+          <span style="font-size:16px;flex-shrink:0;margin-top:1px">${ico}</span>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:12px;color:#1e3a8a">${a.accion||'Acción'}</div>
             ${det?`<div style="font-size:11px;color:#374151;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${det}</div>`:''}
@@ -7882,8 +7974,8 @@ async function pgSolicitudes(el){
           <div style="flex-shrink:0;color:var(--t3);font-size:11px;text-align:right">${fec}</div>
         </div>`;
       }).join('')}
-      ${W._auditArr.length>100?`<div style="padding:8px;text-align:center;font-size:11px;color:var(--t3)">+${W._auditArr.length-100} registros más (ver Auditoría completa)</div>`:''}
-      `:''}
+      ${W._auditArr.length>100?`<div style="padding:8px;text-align:center;font-size:11px;color:var(--t3)">+${W._auditArr.length-100} registros más</div>`:''}
+      </div>`:''}
     </div>
   </div>
   <div id="gest-sec-inactivos" style="display:none;margin-bottom:16px">
