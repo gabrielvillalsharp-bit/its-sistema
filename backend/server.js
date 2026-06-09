@@ -2628,6 +2628,7 @@ app.get('/api/dashboard', auth(), (req, res) => {
     return {
       total_alumnos:  db.prepare("SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo'").get().n,
       total_docentes: db.prepare("SELECT COUNT(*) as n FROM usuarios WHERE rol='docente' AND activo=1").get().n,
+      total_pagos_mes: db.prepare("SELECT COUNT(*) as n FROM pagos WHERE strftime('%Y-%m',fecha_pago)=strftime('%Y-%m','now') AND estado='Pagado'").get().n,
       total_carreras: db.prepare("SELECT COUNT(*) as n FROM carreras WHERE activa=1").get().n,
       total_cursos:   db.prepare("SELECT COUNT(*) as n FROM cursos WHERE activo=1").get().n,
       periodo_activo: periodo?.nombre || 'Sin período activo',

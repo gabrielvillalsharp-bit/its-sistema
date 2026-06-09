@@ -1002,14 +1002,11 @@ body.mob-alumno .ct{padding-bottom:68px}
   <button class="mbn-btn" id="mbn-dashboard" onclick="go('dashboard')">
     <span class="mbn-ico">🏠</span><span class="mbn-lbl">Inicio</span>
   </button>
-  <button class="mbn-btn" id="mbn-mis-notas" onclick="go('mis-notas')">
-    <span class="mbn-ico">📖</span><span class="mbn-lbl">Notas</span>
+  <button class="mbn-btn" id="mbn-mi-portal" onclick="go('mi-portal')">
+    <span class="mbn-ico">🎓</span><span class="mbn-lbl">Mi Portal</span>
   </button>
-  <button class="mbn-btn" id="mbn-mi-asistencia" onclick="go('mi-asistencia')">
-    <span class="mbn-ico">✅</span><span class="mbn-lbl">Asistencia</span>
-  </button>
-  <button class="mbn-btn" id="mbn-calendario" onclick="go('calendario')">
-    <span class="mbn-ico">📅</span><span class="mbn-lbl">Exámenes</span>
+  <button class="mbn-btn" id="mbn-agenda" onclick="go('agenda')">
+    <span class="mbn-ico">📅</span><span class="mbn-lbl">Agenda</span>
   </button>
   <button class="mbn-btn" id="mbn-mas" onclick="toggleMobMenu()">
     <span class="mbn-ico">☰</span><span class="mbn-lbl">Más</span>
@@ -1308,6 +1305,8 @@ function startApp(){
 
 const _NAV_ICO={
   'dashboard':       'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10',
+  'agenda':          'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+  'mi-portal':       'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
   'calendario':      'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
   'calendario-clases':'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
   'avisos':          'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
@@ -1360,28 +1359,15 @@ function navFor(r){
   return [
     {g:'General',i:[
       {id:'dashboard',l:'Inicio',c:'#1f8246',r:['director','docente','alumno','secretaria']},
-      {id:'calendario',l:'Calendario Exámenes',c:'#D85A30',r:['director','docente','alumno']},
-      {id:'calendario-clases',l:'Horario Semanal',c:'#1f8246',r:['director','docente']},
+      {id:'agenda',l:'Agenda',c:'#D85A30',r:['director','docente','alumno']},
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
       {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
     ]},
-    {g:'Finanzas',i:[
-      {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director','docente']},
-    ]},
     {g:'Mi área',i:[
-      {id:'mis-materias',l:'Mis materias',c:'#1f8246',r:['docente']},
-      {id:'mis-honorarios',l:'Mis honorarios',c:'#D85A30',r:['docente']},
-      {id:'mis-notas',l:'Mis calificaciones',c:'#1f8246',r:['alumno']},
-      {id:'mi-asistencia',l:'Mi asistencia',c:'#1f8246',r:['alumno']},
-      {id:'mi-estado-cuenta',l:'Estado de cuenta',c:'#7F77DD',r:['alumno']},
-    ]},
-    {g:'Configuración',i:[
-      {id:'usuarios',l:'Usuarios y accesos',c:'#7F77DD',r:['director']},
-      {id:'institucion',l:'Institución',c:'#888780',r:['director']},
-      {id:'auditoria',l:'Auditoría',c:'#c0392b',r:['director']},
+      {id:'mi-portal',l:'Mi portal',c:'#1f8246',r:['docente','alumno']},
     ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
@@ -1473,7 +1459,8 @@ function go(p, _fromHistory){
     'registro-habilitados':pgRegistroHabilitados,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
-    'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta};
+    'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta,
+    'agenda':pgAgenda,'mi-portal':pgMiPortal};
   // Retorna la promesa para que llamadores puedan hacer await go(p)
   return Promise.resolve(pages[p]?.(el));
 }
@@ -1808,7 +1795,7 @@ async function pgDash(el){
   const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
   const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
   const qa=me.rol==='director'
-    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'⚠️ Deudores',p:'deudores'},{l:'📅 Calendario',p:'calendario'},{l:'📢 Avisos',p:'avisos'}]
+    ?[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}]
     :[{l:'👥 Alumnos',p:'alumnos'},{l:'💳 Pagos',p:'pagos'},{l:'📄 Constancias',p:'constancias'},{l:'📢 Avisos',p:'avisos'}];
   el.innerHTML=`
   ${_dashHero(saludo,me.nombre,fechaCap,d.periodo_activo,qa)}
@@ -1816,17 +1803,14 @@ async function pgDash(el){
   ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
 
   <div class="dash-kpi">
-    <div class="kpi-card green"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos activos</div></div>
-    <div class="kpi-card blue"><span class="kpi-icon">👨‍🏫</span><div class="kpi-val">${d.total_docentes}</div><div class="kpi-lbl">Docentes</div></div>
+    <div class="kpi-card green" style="cursor:pointer" onclick="go('solicitudes')"><span class="kpi-icon">🎓</span><div class="kpi-val">${d.total_alumnos}</div><div class="kpi-lbl">Alumnos</div></div>
+    <div class="kpi-card blue" style="cursor:pointer" onclick="go('pagos')"><span class="kpi-icon">💳</span><div class="kpi-val">${d.total_pagos_mes??0}</div><div class="kpi-lbl">Pagos este mes</div></div>
     <div class="kpi-card ${(exPendDir||[]).length>0?'red':'green'}" style="cursor:pointer" onclick="mostrarPendientesNotas()">
       <span class="kpi-icon">✏️</span>
       <div class="kpi-val" style="color:${(exPendDir||[]).length>0?'var(--red)':'var(--green)'}">${(exPendDir||[]).length}</div>
       <div class="kpi-lbl">Notas pendientes</div>
     </div>
     ${me.rol==='director'?`
-    <div class="kpi-card amber" style="cursor:pointer" onclick="go('deudores')">
-      <span class="kpi-icon">💳</span><div class="kpi-val" style="color:${d.deudores>0?'var(--amb)':'var(--green)'}">${d.deudores}</div><div class="kpi-lbl">Deudores</div>
-    </div>
     <div class="kpi-card amber" style="cursor:pointer" onclick="go('calendario')">
       <span class="kpi-icon">📅</span><div class="kpi-val" style="color:var(--amb)">${d.examenes_hoy}</div><div class="kpi-lbl">Exámenes hoy</div>
     </div>`:''}
@@ -6301,6 +6285,84 @@ function descargarCalendarioAulas(){
 }
 
 // ── CALENDARIO DE EXÁMENES ────────────────────────────────────────────────────
+// ── AGENDA UNIFICADA (Calendario + Horario) ──────────────────────────────────
+async function pgAgenda(el){
+  const esDocente=me.rol==='docente', esDirec=me.rol==='director';
+  el.innerHTML=`<div class="ph"><h3>📅 Agenda</h3></div>
+  <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+    <button id="agTab1Btn" onclick="agendaTab('calendario')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #D85A30;background:transparent;cursor:pointer;color:#D85A30">📅 Calendario de Exámenes</button>
+    ${(esDocente||esDirec)?`<button id="agTab2Btn" onclick="agendaTab('horario')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🕐 Horario Semanal</button>`:''}
+  </div>
+  <div id="agTabCal"></div>
+  <div id="agTabHor" style="display:none"></div>`;
+  agendaTab('calendario');
+}
+async function agendaTab(tab){
+  const b1=document.getElementById('agTab1Btn'), b2=document.getElementById('agTab2Btn');
+  const d1=document.getElementById('agTabCal'), d2=document.getElementById('agTabHor');
+  if(!d1)return;
+  if(tab==='calendario'){
+    if(b1){b1.style.borderBottomColor='#D85A30';b1.style.color='#D85A30';}
+    if(b2){b2.style.borderBottomColor='transparent';b2.style.color='#64748b';}
+    d1.style.display=''; if(d2)d2.style.display='none';
+    if(!d1.dataset.loaded){d1.dataset.loaded='1'; await pgCalendario(d1);}
+  } else {
+    if(b2){b2.style.borderBottomColor='#D85A30';b2.style.color='#D85A30';}
+    if(b1){b1.style.borderBottomColor='transparent';b1.style.color='#64748b';}
+    if(d2)d2.style.display=''; d1.style.display='none';
+    if(d2&&!d2.dataset.loaded){d2.dataset.loaded='1'; await pgCalClases(d2);}
+  }
+}
+
+// ── MI PORTAL UNIFICADO (alumno: notas+asistencia+cuenta / docente: materias+honorarios) ──
+async function pgMiPortal(el){
+  if(me.rol==='alumno'){
+    el.innerHTML=`<div class="ph"><h3>🎓 Mi Portal</h3></div>
+    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+      <button id="mpTab1Btn" onclick="miPortalTab('notas')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1f8246;background:transparent;cursor:pointer;color:#1f8246">✏️ Calificaciones</button>
+      <button id="mpTab2Btn" onclick="miPortalTab('asistencia')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">✅ Asistencia</button>
+      <button id="mpTab3Btn" onclick="miPortalTab('cuenta')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💳 Estado de cuenta</button>
+    </div>
+    <div id="mpTab1"></div>
+    <div id="mpTab2" style="display:none"></div>
+    <div id="mpTab3" style="display:none"></div>`;
+    miPortalTab('notas');
+  } else if(me.rol==='docente'){
+    el.innerHTML=`<div class="ph"><h3>👨‍🏫 Mi Portal</h3></div>
+    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+      <button id="mpTab1Btn" onclick="miPortalTab('materias')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1f8246;background:transparent;cursor:pointer;color:#1f8246">📚 Mis Materias</button>
+      <button id="mpTab2Btn" onclick="miPortalTab('honorarios')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💵 Mis Honorarios</button>
+    </div>
+    <div id="mpTab1"></div>
+    <div id="mpTab2" style="display:none"></div>`;
+    miPortalTab('materias');
+  }
+}
+async function miPortalTab(tab){
+  const activar=(id,color)=>{
+    ['mpTab1Btn','mpTab2Btn','mpTab3Btn'].forEach(b=>{const el=document.getElementById(b);if(el){el.style.borderBottomColor='transparent';el.style.color='#64748b';}});
+    const btn=document.getElementById(id);
+    if(btn){btn.style.borderBottomColor=color||'#1f8246';btn.style.color=color||'#1f8246';}
+  };
+  if(me.rol==='alumno'){
+    const tabs={notas:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisNotas},asistencia:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMiAsistencia},cuenta:{btn:'mpTab3Btn',div:'mpTab3',fn:pgMiEstadoCuenta}};
+    const t=tabs[tab]; if(!t)return;
+    activar(t.btn,'#1f8246');
+    ['mpTab1','mpTab2','mpTab3'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    const div=document.getElementById(t.div); if(!div)return;
+    div.style.display='';
+    if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
+  } else if(me.rol==='docente'){
+    const tabs={materias:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisMat},honorarios:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMisHonorarios}};
+    const t=tabs[tab]; if(!t)return;
+    activar(t.btn,'#1f8246');
+    ['mpTab1','mpTab2'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    const div=document.getElementById(t.div); if(!div)return;
+    div.style.display='';
+    if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
+  }
+}
+
 async function pgCalendario(el){
   const hoy=new Date();
   W._calFecha={anio:hoy.getFullYear(),mes:hoy.getMonth()};
@@ -7182,10 +7244,12 @@ async function resolverRegistroQr(id, accion){
 }
 // ── HUB PAGES ─────────────────────────────────────────────────────────────────
 function _hubCard(id,icon,title,subtitle,grad){
-  return `<div onclick="go('${id}')" style="cursor:pointer;border-radius:14px;padding:20px 14px 18px;text-align:center;background:${grad};color:#fff;user-select:none;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:120px;box-shadow:0 2px 10px rgba(0,0,0,.15)" onmouseenter="this.style.transform='scale(1.05)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.15)'">
-    <div style="font-size:32px;line-height:1">${icon}</div>
-    <div style="font-size:12px;font-weight:800;line-height:1.3;padding:0 4px">${title}</div>
-    ${subtitle?`<div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.22);color:#fff">${subtitle}</div>`:''}
+  return `<div onclick="go('${id}')" style="cursor:pointer;border-radius:16px;padding:22px 12px 18px;text-align:center;background:${grad};color:#fff;user-select:none;transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;box-shadow:0 4px 16px rgba(0,0,0,.13);position:relative;overflow:hidden"
+    onmouseenter="this.style.transform='translateY(-5px) scale(1.04)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.22)';this.querySelector('.hc-ico').style.transform='scale(1.18) rotate(-6deg)'"
+    onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(0,0,0,.13)';this.querySelector('.hc-ico').style.transform=''">
+    <div class="hc-ico" style="font-size:30px;line-height:1;transition:transform .18s cubic-bezier(.34,1.56,.64,1)">${icon}</div>
+    <div style="font-size:11px;font-weight:800;line-height:1.3;padding:0 4px;letter-spacing:.2px">${title}</div>
+    ${subtitle?`<div style="font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.2);color:rgba(255,255,255,.9)">${subtitle}</div>`:''}
   </div>`;
 }
 function _secTitulo(icon,titulo){
@@ -7221,7 +7285,31 @@ function pgHubPrincipal(el){
     ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
     ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
     ${_hubCard('repositorio','📁','Repositorio','Programas y contenidos','linear-gradient(135deg,#0f766e,#14b8a6)')}
-  </div>`;
+  </div>
+
+  ${esDirec?_secTitulo('💰','Finanzas y Recursos'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
+    ${_hubCard('pagos','💳','Pagos','Registros de pago','linear-gradient(135deg,#065f46,#059669)')}
+    ${_hubCard('aranceles','💲','Aranceles','Configurar cuotas','linear-gradient(135deg,#1e3a5f,#2563eb)')}
+    ${_hubCard('deudores','⚠️','Deudores','Alumnos con deuda','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+    ${_hubCard('becas','⭐','Becas','Gestión de becas','linear-gradient(135deg,#4c1d95,#7c3aed)')}
+    ${_hubCard('honorarios','💵','Honorarios','Docentes','linear-gradient(135deg,#0f766e,#14b8a6)')}
+    <div onclick="abrirPanelFinanciero(this)" style="cursor:pointer;border-radius:16px;padding:22px 12px 18px;text-align:center;background:linear-gradient(135deg,#1a3a2a,#166534);color:#fff;user-select:none;transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;box-shadow:0 4px 16px rgba(0,0,0,.13);overflow:hidden"
+      onmouseenter="this.style.transform='translateY(-5px) scale(1.04)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.22)';this.querySelector('.hc-ico').style.transform='scale(1.18) rotate(-6deg)'"
+      onmouseleave="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(0,0,0,.13)';this.querySelector('.hc-ico').style.transform=''">
+      <div class="hc-ico" style="font-size:30px;line-height:1;transition:transform .18s cubic-bezier(.34,1.56,.64,1)">📊</div>
+      <div style="font-size:11px;font-weight:800;letter-spacing:.2px">Panel Financiero</div>
+      <div style="font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(255,255,255,.2)">Ingresos y egresos</div>
+    </div>
+  </div>
+  <div id="rfPanel" style="display:none"></div>`:''}
+
+  ${esDirec?_secTitulo('⚙️','Configuración'):''}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-bottom:8px">
+    ${_hubCard('usuarios','🔑','Usuarios','Accesos al sistema','linear-gradient(135deg,#7f1d1d,#c0392b)')}
+    ${_hubCard('institucion','🏛️','Institución','Datos del instituto','linear-gradient(135deg,#374151,#6b7280)')}
+    ${_hubCard('auditoria','🔍','Auditoría','Registro de acciones','linear-gradient(135deg,#4c1d95,#6d28d9)')}
+  </div>`:''}`;
 }
 function pgHubCarreras(el){
   el.innerHTML=`<div class="ph"><h3>🏫 Carreras</h3></div>
