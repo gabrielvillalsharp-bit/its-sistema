@@ -1118,7 +1118,26 @@ app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
   db.prepare('UPDATE asignaciones SET docente_id=? WHERE id=?').run(docente_id, req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM asignaciones WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => {
+  const id = req.params.id;
+  const del = db.transaction(() => {
+    db.prepare('DELETE FROM notas WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM asistencia WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM honorarios WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM actas_examen WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM habilitaciones_examen WHERE asignacion_id=?').run(id);
+    const exams = db.prepare('SELECT id FROM examenes WHERE asignacion_id=?').all(id);
+    exams.forEach(e => {
+      db.prepare('DELETE FROM wa_recordatorios_examen WHERE examen_id=?').run(e.id);
+      db.prepare('DELETE FROM notif_wa_enviadas WHERE examen_id=?').run(e.id);
+    });
+    db.prepare('DELETE FROM examenes WHERE asignacion_id=?').run(id);
+    db.prepare('DELETE FROM asignaciones WHERE id=?').run(id);
+  });
+  del();
+  res.json({ ok: true });
+});
 
 // Asignaciones por docente — para vista director con estado de carga
 app.get('/api/asignaciones/docente/:docente_id', auth(ADM), (req, res) => {
