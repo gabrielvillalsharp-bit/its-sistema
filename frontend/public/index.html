@@ -644,6 +644,7 @@ body.mob-alumno .ct{padding-bottom:68px}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes liveGlow{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.3)}60%{box-shadow:0 0 0 7px rgba(34,197,94,0)}}
 @keyframes cuota3d{0%,100%{transform:translateY(0) rotateX(0deg) scale(1)}50%{transform:translateY(-3px) rotateX(4deg) scale(1.03)}}
+@keyframes icon3dFloat{0%,100%{transform:rotateX(0deg) rotateY(0deg)}25%{transform:rotateX(9deg) rotateY(-7deg)}75%{transform:rotateX(-7deg) rotateY(9deg)}}
 .cuota-btn-unpaid{animation:none;transition:all .15s;perspective:600px}
 .cuota-btn-unpaid:hover{animation:cuota3d .6s ease-in-out infinite}
 .ni{animation:navSlideIn .22s ease both}
@@ -1367,6 +1368,7 @@ function navFor(r){
     ]},
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
+      {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director']},
     ]},
     {g:'Administración',i:[
       {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
@@ -3659,28 +3661,7 @@ async function doEliminarGrupo(){
 }
 
 async function pgAlumnos(el){
-  const [als,carrs,cursos]=await Promise.all([api('GET','/api/alumnos'),api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  W._als=als;W._carrs=carrs;W._cursos=cursos;W._alsPag=0;
-  const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Alumnos (<span id="alTotal">${als.length}</span>)</h3>
-    <div class="ph-right">
-      <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
-      <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
-      <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
-      <button class="bs o" onclick="exportarListaPDF()" title="Exportar lista actual como PDF">📄 Exportar PDF</button>
-      <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
-    </div></div>
-  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
-    <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px"/>
-    <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">📌 Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
-    <select id="filtAlAnio" onchange="fAlAll()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
-    <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
-    <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
-  </div>
-  <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
-  <tbody id="altb"></tbody></table></div>
-  <div id="alsPagNav" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;font-size:13px"></div></div>`;
-  fAlAll();
+  return pgUsuarios(el,'alumnos');
 }
 function filtAlCursos(){
   const carrId=v('filtAlCarr');
@@ -7307,18 +7288,31 @@ async function resolverRegistroQr(id, accion){
   setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},150);
 }
 // ── HUB PAGES ─────────────────────────────────────────────────────────────────
-function _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr){
+function _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr,sm){
   const act=onclickStr?`onclick="${onclickStr}"`:`onclick="go('${id}')"`;
-  return `<div ${act} style="background:#fff;border-radius:20px;padding:28px 14px 22px;text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.06);border:1px solid #f1f5f9;user-select:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s"
+  const circSz=sm?'50px':'78px';
+  const emSz=sm?'21px':'32px';
+  const pad=sm?'14px 10px 12px':'28px 14px 22px';
+  const mbIco=sm?'9px':'16px';
+  const mbSub=sm?'10px':'20px';
+  const arrowSz=sm?'24px':'30px';
+  const arrowFs=sm?'11px':'14px';
+  const titleFs=sm?'12px':'14px';
+  const radius=sm?'14px':'20px';
+  const ani=sm?';animation:icon3dFloat 4s ease-in-out infinite;transform-style:preserve-3d':'';
+  return `<div ${act} style="background:#fff;border-radius:${radius};padding:${pad};text-align:center;display:flex;flex-direction:column;align-items:center;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.06);border:1px solid #f1f5f9;user-select:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s"
     onmouseenter="this.style.transform='translateY(-5px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,.11)'"
     onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 14px rgba(0,0,0,.06)'">
-    <div style="width:78px;height:78px;border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;margin-bottom:16px;transition:transform .22s cubic-bezier(.34,1.56,.64,1)">
-      <span style="font-size:32px;line-height:1">${emoji}</span>
+    <div style="width:${circSz};height:${circSz};border-radius:50%;background:${iconBg};display:flex;align-items:center;justify-content:center;margin-bottom:${mbIco};transition:transform .22s cubic-bezier(.34,1.56,.64,1)${ani}">
+      <span style="font-size:${emSz};line-height:1">${emoji}</span>
     </div>
-    <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:5px;line-height:1.3">${title}</div>
-    <div style="font-size:11px;color:#94a3b8;margin-bottom:20px;line-height:1.4;padding:0 4px">${subtitle||''}</div>
-    <div style="width:30px;height:30px;border-radius:50%;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:14px;color:${iconColor};margin-top:auto;transition:border-color .18s,color .18s">→</div>
+    <div style="font-size:${titleFs};font-weight:700;color:#1e293b;margin-bottom:5px;line-height:1.3">${title}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:${mbSub};line-height:1.4;padding:0 4px">${subtitle||''}</div>
+    <div style="width:${arrowSz};height:${arrowSz};border-radius:50%;border:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:${arrowFs};color:${iconColor};margin-top:auto;transition:border-color .18s,color .18s">→</div>
   </div>`;
+}
+function _mCardSm(id,emoji,title,subtitle,iconColor,iconBg,onclickStr){
+  return _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr,true);
 }
 function _mSecTitulo(emoji,titulo,color){
   return `<div style="display:flex;align-items:center;gap:8px;margin:22px 0 14px"><div style="width:4px;height:20px;background:${color||'#1f8246'};border-radius:4px"></div><span style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.8px">${emoji} ${titulo}</span></div>`;
@@ -7328,48 +7322,37 @@ function pgHubPrincipal(el){
   el.innerHTML=`<div class="ph"><h3>🏛️ Gestión Institucional</h3></div>
 
   ${esDirec?_mSecTitulo('🏫','Estructura Académica','#2563eb'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
-    ${_mCard('carreras','🏫','Carreras','Gestionar carreras','#2563eb','#eff6ff')}
-    ${_mCard('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
-    ${_mCard('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
-    ${_mCard('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:8px">
+    ${_mCardSm('carreras','🏫','Carreras','Gestionar carreras','#2563eb','#eff6ff')}
+    ${_mCardSm('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
+    ${_mCardSm('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
+    ${_mCardSm('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
   </div>`:''}
 
   ${esDirec?_mSecTitulo('👥','Personas','#059669'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
-    ${_mCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
-    ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
-    ${_mCard('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
-    ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:8px">
+    ${_mCardSm('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
+    ${_mCardSm('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
+    ${_mCardSm('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
+    ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
   </div>`:''}
 
   ${_mSecTitulo('✏️','Académico','#7c3aed')}
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
-    ${_mCard('notas','✏️','Registro de Notas','Calificaciones','#2563eb','#eff6ff')}
-    ${_mCard('asistencia','✅','Asistencia','Control de asistencia','#059669','#f0fdf4')}
-    ${esDirec?_mCard('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
-    ${esDirec?_mCard('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
-    ${esDirec?_mCard('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
-    ${me.rol==='docente'?_mCard('mis-honorarios','💵','Mis honorarios','Ver mis pagos','#d97706','#fffbeb'):''}
-    ${_mCard('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:8px">
+    ${_mCardSm('notas','✏️','Registro de Notas','Calificaciones','#2563eb','#eff6ff')}
+    ${_mCardSm('asistencia','✅','Asistencia','Control de asistencia','#059669','#f0fdf4')}
+    ${esDirec?_mCardSm('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
+    ${esDirec?_mCardSm('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
+    ${esDirec?_mCardSm('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
+    ${me.rol==='docente'?_mCardSm('mis-honorarios','💵','Mis honorarios','Ver mis pagos','#d97706','#fffbeb'):''}
+    ${_mCardSm('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
   </div>
-
-  ${esDirec?_mSecTitulo('💰','Finanzas y Recursos','#7F77DD'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
-    ${_mCard('pagos','💳','Pagos','Registros de pago','#059669','#f0fdf4')}
-    ${_mCard('aranceles','💲','Aranceles','Configurar cuotas','#2563eb','#eff6ff')}
-    ${_mCard('deudores','⚠️','Deudores','Alumnos con deuda','#ea580c','#fff7ed')}
-    ${_mCard('becas','⭐','Becas','Gestión de becas','#7c3aed','#f5f3ff')}
-    ${_mCard('honorarios','💵','Honorarios','Docentes','#0d9488','#f0fdfa')}
-    ${_mCard('','📊','Panel Financiero','Ingresos y egresos','#d97706','#fffbeb','abrirPanelFinanciero(this)')}
-  </div>
-  <div id="rfPanel" style="display:none"></div>`:''}
 
   ${esDirec?_mSecTitulo('⚙️','Configuración','#64748b'):''}
-  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:8px">
-    ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCard('institucion','🏛️','Institución','Datos del instituto','#64748b','#f8fafc')}
-    ${_mCard('auditoria','🔍','Auditoría','Registro de acciones','#6d28d9','#f5f3ff')}
+  ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:8px">
+    ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
+    ${_mCardSm('institucion','🏛️','Institución','Datos del instituto','#64748b','#f8fafc')}
+    ${_mCardSm('auditoria','🔍','Auditoría','Registro de acciones','#6d28d9','#f5f3ff')}
   </div>`:''}`;
 }
 function pgHubCarreras(el){
@@ -14581,7 +14564,8 @@ W.mInst=d=>{modal(`<h4>Editar institución</h4><div class="fg">
 async function svInst(){await api('PUT','/api/institucion',{nombre:v('in'),telefono:v('it'),email:v('ie'),direccion:v('id2'),mision:v('im')});cm();go('institucion');}
 
 // ── USUARIOS ──────────────────────────────────────────────────────────────────
-async function pgUsuarios(el){
+async function pgUsuarios(el,initialTab){
+  initialTab=initialTab||'staff';
   const [data,als,carrs,cursos]=await Promise.all([
     api('GET','/api/usuarios/directores'),
     api('GET','/api/alumnos'),
@@ -14589,44 +14573,84 @@ async function pgUsuarios(el){
     api('GET','/api/cursos')
   ]);
   W._usData={data,als,carrs,cursos};
+  W._als=als;W._carrs=carrs;W._cursos=cursos;W._alsPag=0;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  // Marcar qué alumnos tienen usuario
-  const userEmails=new Set(data.map(u=>u.email));
-  el.innerHTML=`<div class="ph"><h3>Usuarios y accesos</h3>
-    <div class="ph-right">
+  el.innerHTML=`<div class="ph"><h3>Alumnos & Usuarios</h3></div>
+  <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:18px">
+    <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .18s,border-color .18s">🎓 Alumnos</button>
+    <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .18s,border-color .18s">🔑 Staff & Accesos</button>
+  </div>
+  <div id="panel-alumnos" style="display:none">
+    <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px;justify-content:flex-end">
+      <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
+      <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
+      <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
+      <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
+      <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
+    </div>
+    <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px"/>
+      <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">📌 Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+      <select id="filtAlAnio" onchange="fAlAll()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
+      <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+      <select id="filtAlTurno" onchange="fAlAll()"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
+    </div>
+    <div style="font-size:13px;color:#64748b;margin-bottom:8px">Total: <strong><span id="alTotal">${als.length}</span></strong> alumnos</div>
+    <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
+    <tbody id="altb"></tbody></table></div>
+    <div id="alsPagNav" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;font-size:13px"></div></div>
+  </div>
+  <div id="panel-staff" style="display:none">
+    <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px;justify-content:flex-end">
       <button class="bs o" onclick="crearAccesosAlumnos()" title="Crear accesos para alumnos sin usuario">👥 Crear accesos alumnos</button>
-      <button class="bs o" onclick="reseedDocentes()" title="Crear usuarios para docentes">🔄 Crear accesos docentes</button>
+      <button class="bs o" onclick="reseedDocentes()">🔄 Crear accesos docentes</button>
       <button class="bn" onclick="mUsuario()">+ Nuevo usuario</button>
-    </div></div>
-  <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
-    ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
-    Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
-  </div>
-  <!-- FILTROS -->
-  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
-    <select id="filtUsRol" onchange="filtUs()" style="min-width:140px">
-      <option value="">Todos los roles</option>
-      <option value="director">Director</option>
-      <option value="docente">Docentes</option>
-      <option value="alumno">Alumnos</option>
-    </select>
-    <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="min-width:160px">
-      <option value="">Todas las carreras</option>
-      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>
-    <select id="filtUsAnio" onchange="filtUs()" style="min-width:110px">
-      <option value="">Todos los años</option>
-      ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-    </select>
-    <select id="filtUsCurso" onchange="filtUs()" style="min-width:150px">
-      <option value="">Todas las secciones</option>
-      ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
-    </select>
-    <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px"/>
-  </div>
-  <div id="tbUsuarios">
-  ${renderTbUsuarios(data)}
+    </div>
+    <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
+      ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
+      Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
+    </div>
+    <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <select id="filtUsRol" onchange="filtUs()" style="min-width:140px">
+        <option value="">Todos los roles</option>
+        <option value="director">Director</option>
+        <option value="docente">Docentes</option>
+        <option value="alumno">Alumnos</option>
+      </select>
+      <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="min-width:160px">
+        <option value="">Todas las carreras</option>
+        ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+      </select>
+      <select id="filtUsAnio" onchange="filtUs()" style="min-width:110px">
+        <option value="">Todos los años</option>
+        ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
+      </select>
+      <select id="filtUsCurso" onchange="filtUs()" style="min-width:150px">
+        <option value="">Todas las secciones</option>
+        ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
+      </select>
+      <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px"/>
+    </div>
+    <div id="tbUsuarios">${renderTbUsuarios(data)}</div>
   </div>`;
+  switchUsTab(initialTab);
+}
+function switchUsTab(tab){
+  const pA=document.getElementById('panel-alumnos');
+  const pS=document.getElementById('panel-staff');
+  const bA=document.getElementById('tab-btn-alumnos');
+  const bS=document.getElementById('tab-btn-staff');
+  if(!pA||!pS)return;
+  if(tab==='alumnos'){
+    pA.style.display='';pS.style.display='none';
+    if(bA){bA.style.color='#1f8246';bA.style.borderBottomColor='#1f8246';}
+    if(bS){bS.style.color='#64748b';bS.style.borderBottomColor='transparent';}
+    fAlAll();
+  }else{
+    pA.style.display='none';pS.style.display='';
+    if(bS){bS.style.color='#dc2626';bS.style.borderBottomColor='#dc2626';}
+    if(bA){bA.style.color='#64748b';bA.style.borderBottomColor='transparent';}
+  }
 }
 function filtUsCursos(){
   const carrId=v('filtUsCarr');
