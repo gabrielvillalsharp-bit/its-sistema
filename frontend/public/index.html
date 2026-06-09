@@ -1334,6 +1334,7 @@ const _NAV_ICO={
   'mis-notas':       'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
   'mi-asistencia':   'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
   'mi-estado-cuenta':'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+  'repositorio':'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
   'repositorio-programas':'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
   'repositorio-contenidos':'M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z',
   'registro-habilitados':'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
@@ -1471,6 +1472,7 @@ function go(p, _fromHistory){
     'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
     solicitudes:pgSolicitudes,
     whatsapp:pgWhatsApp,
+    'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
@@ -5437,6 +5439,35 @@ async function imprimirActaEgreso(alId){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 // ── REPOSITORIO: PROGRAMAS DE MATERIAS ────────────────────────────────────────
+async function pgRepositorio(el){
+  el.innerHTML=`<div class="ph"><h3>📁 Repositorio</h3></div>
+  <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+    <button id="tabProgBtn" onclick="repoTab('programas')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #0f766e;background:transparent;cursor:pointer;color:#0f766e">📁 Programas de Materias</button>
+    <button id="tabContBtn" onclick="repoTab('contenidos')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">📚 Contenidos de Clase</button>
+  </div>
+  <div id="repoTabProg"></div>
+  <div id="repoTabCont" style="display:none"></div>`;
+  W._repoEl=el;
+  repoTab('programas');
+}
+async function repoTab(tab){
+  const btnP=document.getElementById('tabProgBtn');
+  const btnC=document.getElementById('tabContBtn');
+  const divP=document.getElementById('repoTabProg');
+  const divC=document.getElementById('repoTabCont');
+  if(!divP)return;
+  if(tab==='programas'){
+    btnP.style.borderBottomColor='#0f766e'; btnP.style.color='#0f766e';
+    btnC.style.borderBottomColor='transparent'; btnC.style.color='#64748b';
+    divP.style.display=''; divC.style.display='none';
+    if(!divP.dataset.loaded){divP.dataset.loaded='1'; await pgRepProgramas(divP);}
+  } else {
+    btnC.style.borderBottomColor='#0f766e'; btnC.style.color='#0f766e';
+    btnP.style.borderBottomColor='transparent'; btnP.style.color='#64748b';
+    divC.style.display=''; divP.style.display='none';
+    if(!divC.dataset.loaded){divC.dataset.loaded='1'; await pgRepContenidos(divC);}
+  }
+}
 async function pgRepProgramas(el){
   const [carrs,mats,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')]);
   W._repCarrs=carrs; W._repMats=mats; W._repCursos=cursos;
@@ -7191,8 +7222,7 @@ function pgHubAcademico(el){
     ${esDirec?_hubCard('reemplazos','🔄','Reemplazos','Sustituciones','linear-gradient(135deg,#0a3d62,#1a7fc4)'):''}
     ${esDirec?_hubCard('escala','📊','Escala de notas','Configurar','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
     ${esDirec?_hubCard('feriados','📅','Feriados','Calendario','linear-gradient(135deg,#78350f,#d97706)'):''}
-    ${esDirec?_hubCard('repositorio-programas','📁','Programas','Repositorio','linear-gradient(135deg,#0f766e,#14b8a6)'):''}
-    ${esDirec?_hubCard('repositorio-contenidos','📂','Contenidos','Repositorio','linear-gradient(135deg,#1d4ed8,#60a5fa)'):''}
+    ${_hubCard('repositorio','📁','Repositorio','Programas y contenidos','linear-gradient(135deg,#0f766e,#14b8a6)')}
   </div>`;
 }
 function pgHubFinanzas(el){
