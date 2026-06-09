@@ -12260,6 +12260,7 @@ function verHonDocente(docId){
 function renderHonorariosDocente(el, r){
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const mesNombre=meses[parseInt(r.mes)-1];
+  const feriadoMap=r.feriadoMap||{};
   // Construir mapa de honorarios por fecha
   const honMap={};
   r.honorarios.forEach(h=>{
@@ -12272,7 +12273,11 @@ function renderHonorariosDocente(el, r){
     if(!repMap[rep.fecha])repMap[rep.fecha]=[];
     repMap[rep.fecha].push(rep);
   });
+  // Lista completa: días hábiles + feriados de días de semana, ordenados
+  const feriadoFechas=Object.keys(feriadoMap).filter(f=>{const d=new Date(f+'T12:00:00').getDay();return d>=1&&d<=5;});
+  const todasFechas=[...new Set([...r.diasHabiles,...feriadoFechas])].sort();
   const estColor={generado:'#e8f5e9',pagado:'#dcfce7',anulado:'#fff3f3'};
+  const feriadosCount=Object.keys(feriadoMap).filter(f=>{const d=new Date(f+'T12:00:00').getDay();return d>=1&&d<=5;}).length;
   el.innerHTML=`
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
     <div style="background:#166534;color:#fff;border-radius:10px;padding:12px 18px;min-width:180px">
@@ -12289,6 +12294,10 @@ function renderHonorariosDocente(el, r){
       <div style="font-size:11px;color:#2e7d32">Días con honorario</div>
       <div style="font-size:26px;font-weight:700;color:#2e7d32">${[...new Set(r.honorarios.map(h=>h.fecha))].length}</div>
     </div>
+    ${feriadosCount>0?`<div style="background:#f3e8ff;border-radius:10px;padding:12px 18px;min-width:150px">
+      <div style="font-size:11px;color:#7c3aed">Días feriado (sem.)</div>
+      <div style="font-size:26px;font-weight:700;color:#7c3aed">${feriadosCount}</div>
+    </div>`:''}
   </div>
   <div class="card"><div class="tw" style="overflow-x:auto"><table style="min-width:700px;font-size:12px;border-collapse:collapse;width:100%">
     <thead><tr style="background:#f0f4f8">
@@ -12301,10 +12310,20 @@ function renderHonorariosDocente(el, r){
       <th style="padding:7px 10px;border:1px solid var(--bdr);text-align:center">Estado</th>
     </tr></thead>
     <tbody>
-    ${r.diasHabiles.map(fecha=>{
+    ${todasFechas.map(fecha=>{
       const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
       const diaNum=new Date(fecha+'T12:00:00').getDay();
       const dNombre=diasN[diaNum];
+      // Feriado → fila especial
+      if(feriadoMap[fecha]){
+        return `<tr style="background:#f3e8ff">
+          <td style="padding:6px 10px;border:1px solid var(--bdr);font-weight:600;color:#7c3aed">${fmtFecha(fecha)}</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);color:#7c3aed">${dNombre}</td>
+          <td colspan="3" style="padding:6px 10px;border:1px solid var(--bdr);color:#7c3aed;font-style:italic">🎌 FERIADO — ${feriadoMap[fecha]}</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:right;color:#a78bfa">Gs. 0</td>
+          <td style="padding:6px 10px;border:1px solid var(--bdr);text-align:center"><span class="bx" style="font-size:10px;background:#ede9fe;color:#7c3aed;border-color:#c4b5fd">Feriado</span></td>
+        </tr>`;
+      }
       const honsDelDia=honMap[fecha]||[];
       const repsDelDia=repMap[fecha]||[];
       if(!honsDelDia.length&&!repsDelDia.length){
@@ -12341,7 +12360,11 @@ async function imprimirInformeHon(){
   const inst=await api('GET','/api/institucion').catch(()=>({}));
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const diasN={0:'Dom',1:'Lun',2:'Mar',3:'Mié',4:'Jue',5:'Vie',6:'Sáb'};
+  const feriadoMap=r.feriadoMap||{};
   const honMap={};r.honorarios.forEach(h=>{if(!honMap[h.fecha])honMap[h.fecha]=[];honMap[h.fecha].push(h);});
+  // Lista completa: días hábiles + feriados en día de semana, ordenados
+  const feriadoFechas=Object.keys(feriadoMap).filter(f=>{const d=new Date(f+'T12:00:00').getDay();return d>=1&&d<=5;});
+  const todasFechas=[...new Set([...r.diasHabiles,...feriadoFechas])].sort();
   const ventana=window.open('','_blank','width=900,height=720');
   ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Informe Honorarios — ${r.docente?.nombre} ${r.docente?.apellido}</title>
@@ -12355,6 +12378,7 @@ async function imprimirInformeHon(){
     th{background:#e0e0e0;border:1px solid #333;padding:4px 6px;text-align:center;font-weight:bold}
     td{border:1px solid #555;padding:4px 6px}
     .ausente{color:#999;font-style:italic}
+    .feriado-row{background:#ede9fe;color:#6d28d9;font-style:italic}
     .total-row{background:#d4edda;font-weight:bold}
     .firmas{display:flex;justify-content:space-between;margin-top:36px;text-align:center}
     .firma-box{min-width:180px}.firma-line{border-top:1px solid #000;margin:4px auto;width:160px}
@@ -12367,21 +12391,22 @@ async function imprimirInformeHon(){
   </div>
   <div class="titulo">Informe Mensual de Honorarios Profesionales — ${meses[parseInt(r.mes)-1]} ${r.anio}</div>
   <div class="info-line">Docente: <strong>${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</strong></div>
-  <div class="info-line">Período: <strong>${r.desde} al ${r.hasta}</strong> &nbsp;·&nbsp; Monto por turno: <strong>Gs. 80.000</strong></div>
+  <div class="info-line">Período: <strong>${r.desde} al ${r.hasta}</strong> &nbsp;·&nbsp; Monto por turno: <strong>Gs. 40.000</strong></div>
   <table>
     <thead><tr>
       <th>Fecha</th><th>Día</th><th>Carrera</th><th>Materia</th><th>Año</th><th>Turno</th><th>Tipo</th><th style="text-align:right">Monto Gs.</th>
     </tr></thead>
     <tbody>
-    ${r.diasHabiles.map(fecha=>{
+    ${todasFechas.map(fecha=>{
       const dNombre=diasN[new Date(fecha+'T12:00:00').getDay()];
+      if(feriadoMap[fecha])return`<tr class="feriado-row"><td>${fecha}</td><td>${dNombre}</td><td colspan="5">🎌 FERIADO — ${feriadoMap[fecha]}</td><td style="text-align:right">0</td></tr>`;
       const hons=honMap[fecha]||[];
       if(!hons.length)return`<tr class="ausente"><td>${fecha}</td><td>${dNombre}</td><td colspan="4">Sin asistencia registrada</td><td>—</td><td style="text-align:right">—</td></tr>`;
       return hons.map(h=>`<tr>
         <td>${fecha}</td><td>${dNombre}</td><td>${h.carrera_nombre||''}</td><td>${h.materia_nombre||''}</td>
         <td style="text-align:center">${h.curso_anio||''}°</td>
         <td style="text-align:center">${h.turno===1?'T1 (19:00)':'T2 (20:40)'}</td>
-        <td style="text-align:center">${h.tipo==='reemplazo'?'🔄 Reemplazo':'Clase'}</td>
+        <td style="text-align:center">${h.tipo==='reemplazo'?'Reemplazo':'Clase'}</td>
         <td style="text-align:right">${h.monto.toLocaleString()}</td>
       </tr>`).join('');
     }).join('')}
@@ -12392,7 +12417,7 @@ async function imprimirInformeHon(){
     </tbody>
   </table>
   <div class="info-line" style="margin-top:10px;font-size:10px;color:#555">
-    Generado el ${new Date().toLocaleDateString('es-PY')} — Sistema ITS | Clases registradas: ${r.honorarios.length} | Días hábiles: ${r.diasHabiles.length}
+    Generado el ${new Date().toLocaleDateString('es-PY')} — Sistema ITS | Clases registradas: ${r.honorarios.length} | Días hábiles: ${r.diasHabiles.length}${Object.keys(feriadoMap).length>0?' | Feriados: '+Object.keys(feriadoMap).length:''}
   </div>
   <div class="firmas">
     <div class="firma-box"><div class="firma-line"></div><div>${r.docente?.titulo||''} ${r.docente?.nombre||''} ${r.docente?.apellido||''}</div><div style="font-size:9px;color:#666">Firma del Docente</div></div>
@@ -12809,8 +12834,56 @@ function mFeriado(){
 async function svFeriado(){
   const o={fecha:v('ferFec'),nombre:v('ferNom'),tipo:v('ferTip')};
   if(!o.fecha||!o.nombre)return alert('Completar fecha y nombre');
-  try{await api('POST','/api/feriados',o);toast('✓ Feriado agregado','ok');cm();go('feriados');}
-  catch(e){toast('Error: '+e.message,'err');}
+  try{
+    const res=await api('POST','/api/feriados',o);
+    if(res.examenes_conflicto&&res.examenes_conflicto.length>0){
+      mFeriadoConflicto(res.id,res.examenes_conflicto,o.fecha);
+    }else{
+      toast('✓ Feriado agregado','ok');cm();go('feriados');
+    }
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+function mFeriadoConflicto(ferId,examenes,fechaFeriado){
+  const d=new Date(fechaFeriado+'T12:00:00');d.setDate(d.getDate()+7);
+  const defFecha=d.toISOString().split('T')[0];
+  cm();
+  modal(`<h4>⚠️ Exámenes en día feriado</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Hay <strong>${examenes.length}</strong> examen(es) programado(s) para ese día. Elegí una nueva fecha para cada uno o marcalo para no reprogramar.</p>
+  <div style="display:flex;flex-direction:column;gap:8px;max-height:48vh;overflow-y:auto;padding-right:4px">
+  ${examenes.map(e=>`<div style="background:#fff8e7;border:1px solid #f59e0b;border-radius:8px;padding:10px">
+    <div style="font-weight:600;font-size:12px">📝 ${e.materia} · ${e.carrera} ${e.anio_curso}° · <span style="text-transform:capitalize">${(e.tipo||'').replace(/_/g,' ')}</span></div>
+    <div style="font-size:11px;color:var(--t2)">Docente: ${e.docente_nombre} ${e.docente_apellido}${e.hora?' · '+e.hora:''}${e.aula?' · Aula '+e.aula:''}</div>
+    <div style="margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <input type="date" id="exFec_${e.id}" value="${defFecha}" style="font-size:12px;border-radius:5px;border:1px solid var(--bdr);padding:3px 7px"/>
+      <button class="bs" style="font-size:11px;padding:3px 9px" onclick="document.getElementById('exFec_${e.id}').value='${defFecha}'">+7 días</button>
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer">
+        <input type="checkbox" id="exSkip_${e.id}"/> No reprogramar
+      </label>
+    </div>
+  </div>`).join('')}
+  </div>
+  <div class="mf" style="margin-top:14px">
+    <button class="bs" onclick="cm();go('feriados')">Omitir y cerrar</button>
+    <button class="bn" onclick="svReprogramarExamenes('${ferId}',[${examenes.map(e=>`'${e.id}'`).join(',')}])">✓ Reprogramar seleccionados</button>
+  </div>`);
+}
+async function svReprogramarExamenes(ferId,examenIds){
+  const cambios=[];
+  examenIds.forEach(eid=>{
+    if(!document.getElementById('exSkip_'+eid)?.checked){
+      const nf=document.getElementById('exFec_'+eid)?.value;
+      if(nf)cambios.push({examen_id:eid,nueva_fecha:nf});
+    }
+  });
+  try{
+    if(cambios.length){
+      await api('POST',`/api/feriados/${ferId}/reprogramar-examenes`,cambios);
+      toast(`✓ ${cambios.length} examen(es) reprogramados`,'ok');
+    }else{
+      toast('Sin exámenes seleccionados para reprogramar','warn');
+    }
+    cm();go('feriados');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 // ── REGISTRO DE HABILITADOS (solo Director) ───────────────────────────────────

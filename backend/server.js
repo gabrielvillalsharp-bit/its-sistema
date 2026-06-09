@@ -1664,7 +1664,37 @@ app.post('/api/feriados', auth(ADM), (req, res) => {
   if (!fecha || !nombre) return res.status(400).json({ error: 'Fecha y nombre requeridos' });
   const id = 'fer_'+Date.now();
   db.prepare('INSERT OR IGNORE INTO feriados (id,fecha,nombre,tipo) VALUES (?,?,?,?)').run(id, fecha, nombre, tipo||'institucional');
-  res.json({ id });
+  // Detectar exámenes programados en esa fecha
+  const examenes_conflicto = db.prepare(`
+    SELECT e.id, e.tipo, e.fecha, e.hora, e.aula,
+      m.nombre as materia, ca.nombre as carrera, cu.anio as anio_curso,
+      u.nombre as docente_nombre, u.apellido as docente_apellido
+    FROM examenes e
+    JOIN asignaciones a ON e.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN docentes d ON a.docente_id=d.id
+    JOIN usuarios u ON d.usuario_id=u.id
+    WHERE e.fecha=?
+    ORDER BY e.hora
+  `).all(fecha);
+  res.json({ id, examenes_conflicto });
+});
+app.post('/api/feriados/:id/reprogramar-examenes', auth(ADM), (req, res) => {
+  const cambios = req.body; // [{examen_id, nueva_fecha}]
+  if (!Array.isArray(cambios) || !cambios.length) return res.status(400).json({ error: 'Se requiere array [{examen_id, nueva_fecha}]' });
+  const stmt = db.prepare('UPDATE examenes SET fecha=? WHERE id=?');
+  const tx = db.transaction(() => {
+    cambios.forEach(c => {
+      if (c.examen_id && c.nueva_fecha) {
+        stmt.run(c.nueva_fecha, c.examen_id);
+        audit(req.user.id, 'REPROGRAMAR_EXAMEN', 'examenes', c.examen_id, { nueva_fecha: c.nueva_fecha, motivo: 'feriado_'+req.params.id });
+      }
+    });
+  });
+  tx();
+  res.json({ ok: true, actualizados: cambios.length });
 });
 app.delete('/api/feriados/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE feriados SET activo=0 WHERE id=?').run(req.params.id);
@@ -1693,7 +1723,10 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
   const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(parseInt(anio),parseInt(mes),0).getDate()}`;
 
   // Feriados del mes
-  const feriados = new Set(db.prepare("SELECT fecha FROM feriados WHERE fecha>=? AND fecha<=? AND activo=1").all(desde, hasta).map(f=>f.fecha));
+  const feriadosRows = db.prepare("SELECT fecha, nombre FROM feriados WHERE fecha>=? AND fecha<=? AND activo=1").all(desde, hasta);
+  const feriados = new Set(feriadosRows.map(f=>f.fecha));
+  const feriadoMap = {};
+  feriadosRows.forEach(f => feriadoMap[f.fecha] = f.nombre);
 
   // Días donde el docente fue reemplazado (titular ausente → no cobra)
   const diasReemplazado = new Set(db.prepare(`
@@ -1774,7 +1807,7 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
 
   res.json({
     docente: docInfo, diasHabiles, honorarios: hons, asignaciones: asigs,
-    reemplazos, totalGanado, desde, hasta, mes, anio,
+    reemplazos, totalGanado, desde, hasta, mes, anio, feriadoMap,
     resumen: { clasesEsperadas, clasesReemplazadas, clasesFeriado, clasesEfectivas: clasesEsperadas - clasesReemplazadas }
   });
 });
