@@ -5089,8 +5089,12 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
+// ⏸ Cambiar a false para reactivar todos los crons automáticos de WA a docentes
+const WA_AUTO_PAUSADO = true;
+
 // ── CRON: Recordatorio 24h — corre a las 8:00 AM lunes a viernes ────────────
 cron.schedule('0 8 * * 1-5', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
@@ -5104,6 +5108,7 @@ cron.schedule('0 8 * * 1-5', async () => {
 // Usa ventana ±30 min sobre la hora del examen para no perder ninguno.
 // La tabla notif_wa_enviadas previene duplicados aunque el cron corra varias veces.
 cron.schedule('0 * * * 1-5', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
@@ -5139,6 +5144,7 @@ const stmtExamSinArch = db.prepare(`
 `);
 
 cron.schedule('0 8 * * *', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   const reglaAviso = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_aviso24_activa'").get();
   if (reglaAviso?.valor === '0') return;
@@ -5199,6 +5205,7 @@ cron.schedule('*/15 * * * *', async () => {
 });
 
 cron.schedule('0 * * * *', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   const reglaUrg = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_urgente_activa'").get();
   if (reglaUrg?.valor === '0') return;
@@ -5323,6 +5330,7 @@ async function enviarAvisosPuntajesPendientes(forzar = false) {
 
 // ── CRON: Aviso diario — puntajes sin cargar ≥8 días (9:00 AM lun-vie) ───────
 cron.schedule('0 9 * * 1-5', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   const regla = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_puntajes_activa'").get();
   if (regla?.valor === '0') return;
@@ -5738,6 +5746,7 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
 
 // ── CRON: mensajes programados (corre cada minuto) ────────────────────────────
 cron.schedule('* * * * *', async () => {
+  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return; // prohibido sábado, domingo y fuera de 07:00–22:00
   try {
     const ahora = new Date().toISOString().replace('T',' ').slice(0,16);
