@@ -142,6 +142,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ng-hdr{display:flex;align-items:center;justify-content:space-between;width:100%;padding:9px 10px 4px;background:none;border:none;cursor:pointer;font-size:9px;font-weight:800;color:#7a7870;letter-spacing:.13em;text-transform:uppercase;border-radius:6px;transition:color .15s;margin-top:2px;text-align:left;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(255,255,255,.9),0 -1px 0 rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.06)}
 .ng-hdr:hover{color:#166534;text-shadow:0 1px 0 rgba(255,255,255,.95),0 1px 4px rgba(22,101,52,.15)}
 .ng-hdr svg{flex-shrink:0;transition:transform .22s ease;opacity:.45;color:#7a7870}
+.ni-children{overflow:hidden;transition:max-height .22s ease;padding-left:6px}
+.ni-child{font-size:11px!important;padding:5px 8px 5px 26px!important;opacity:.82;font-weight:500!important;margin-bottom:0!important}
+.ni-child:hover{opacity:1}
+.ni-child.active{opacity:1;font-weight:700!important}
+.ni-sub-arr{width:10px;height:10px;margin-left:auto;flex-shrink:0;transition:transform .2s;opacity:.5;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ng-items{overflow:hidden;transition:max-height .24s ease}
 .sb.col .ng-hdr{display:none}
 .sb.col .ng-items{max-height:none!important}
@@ -1364,14 +1369,20 @@ function navFor(r){
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Comunicación',i:[
-      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
+      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director'],sub:[
+        {id:'wa-chat',l:'💬 Chat',r:['director']},
+        {id:'interesados',l:'📩 Interesados',r:['director']},
+      ]},
     ]},
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
       {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director']},
     ]},
     {g:'Administración',i:[
-      {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
+      {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director'],sub:[
+        {id:'papelera',l:'🗑️ Papelera',r:['director']},
+        {id:'limpieza',l:'🧹 Limpieza',r:['director']},
+      ]},
       {id:'usuarios',l:'Usuarios & Accesos',c:'#dc2626',r:['director']},
     ]},
     {g:'Mi área',i:[
@@ -1394,12 +1405,19 @@ function buildNav(){
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
     </button>`+
   groups.map((g,idx)=>{
+    const subArr=`<svg class="ni-sub-arr" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>`;
     return `<div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
-        ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
+        ${g.i.map((i,j)=>{
+          if(i.sub&&i.sub.length){
+            const children=i.sub.map(s=>`<button class="ni ni-child" id="ni-${s.id}" data-l="${s.l}" onclick="go('${s.id}')">${s.l}</button>`).join('');
+            return `<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="toggleNavSub('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span>${subArr}</button><div class="ni-children" id="nisub-${i.id}" style="max-height:0">${children}</div>`;
+          }
+          return `<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`;
+        }).join('')}
       </div>
     </div>`;
   }).join('')+`
@@ -1438,6 +1456,20 @@ function toggleNavGrp(idx){
     if(hdr) hdr.querySelector('svg').style.transform='rotate(-90deg)';
   }
 }
+function toggleNavSub(id, forceOpen){
+  const sub=document.getElementById('nisub-'+id);
+  const btn=document.getElementById('ni-'+id);
+  if(!sub) return;
+  const isOpen=sub.style.maxHeight!=='0px'&&sub.style.maxHeight!=='';
+  const open = forceOpen!==undefined ? forceOpen : !isOpen;
+  sub.style.maxHeight=open ? sub.scrollHeight+'px' : '0px';
+  if(btn){ const arr=btn.querySelector('.ni-sub-arr'); if(arr) arr.style.transform=open?'rotate(180deg)':'rotate(0deg)'; }
+  // expand parent ng-items so sub items are visible
+  if(open){
+    const parentNgi=sub.closest('.ng-items');
+    if(parentNgi) parentNgi.style.maxHeight=parentNgi.scrollHeight+200+'px';
+  }
+}
 
 
 let cur='';
@@ -1448,6 +1480,12 @@ function go(p, _fromHistory){
   closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
+  // Auto-expand sub-nav if navigating to a child page
+  const _subParents={
+    'wa-chat':'whatsapp','interesados':'whatsapp',
+    'papelera':'auditoria','limpieza':'auditoria'
+  };
+  if(_subParents[p]) toggleNavSub(_subParents[p], true);
   // Sync bottom nav
   document.querySelectorAll('.mbn-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('mbn-'+p)?.classList.add('active');
@@ -1459,7 +1497,7 @@ function go(p, _fromHistory){
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
-    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,interesados:pgInteresados,papelera:pgPapelera,
+    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,limpieza:pgLimpieza,interesados:pgInteresados,papelera:pgPapelera,
     whatsapp:pgWhatsApp,'wa-chat':pgWaChat,
     'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
@@ -7341,8 +7379,7 @@ function pgHubPrincipal(el){
     ${_mCardSm('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
     ${_mCardSm('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
     ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCardSm('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
-    ${_mCardSm('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
+    ${_mCardSm('limpieza','🧹','Limpieza','Inactivos y duplicados','#b91c1c','#fff1f2')}
     ${_mCardSm('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
     ${_mCardSm('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
     ${_mCardSm('wa-chat','💬','WhatsApp Chat','Conversaciones WA','#25D366','#f0fdf4')}
@@ -7382,8 +7419,7 @@ function pgHubPersonas(el){
     ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
     ${_mCard('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
     ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCard('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
-    ${_mCard('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
+    ${_mCard('limpieza','🧹','Limpieza','Inactivos y duplicados','#b91c1c','#fff1f2')}
     ${_mCard('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
     ${_mCard('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
     ${_mCard('wa-chat','💬','WhatsApp Chat','Conversaciones en vivo','#25D366','#f0fdf4')}
@@ -7431,6 +7467,7 @@ function abrirPanelFinanciero(cardEl){
         <div style="font-size:12px;color:#718096">Ingresos, egresos y balance mensual</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="bn" onclick="rfAbrirRegistrar()" style="font-size:12px;background:linear-gradient(135deg,#059669,#10b981)">➕ Registrar movimiento</button>
         <button class="bs o" onclick="exportarReporteFinanciero()" style="font-size:12px">📥 Excel</button>
         <button class="bn" onclick="generarPDFFinanciero()" style="font-size:12px">📄 PDF</button>
         <button onclick="document.getElementById('rfPanel').style.display='none'" style="padding:6px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;font-size:12px;color:#64748b">✕ Cerrar</button>
@@ -7519,17 +7556,25 @@ async function cargarResumenFinanciero(){
     const nomMes=mesesNom[mes-1];
     const mesPago=mesesNom[mes%12]; // mes siguiente
     const balEst=d.balance_estimado;
+    const nExtra=(d.movimientos_extra||[]).length;
+    const ingExtra=d.ingresos_extra||0;
+    const egExtra=d.egresos_extra||0;
     kpis.innerHTML=`
       <div style="text-align:center;padding:16px;background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac">
         <div style="font-size:10px;color:#166534;font-weight:700;margin-bottom:4px">💰 INGRESOS ${nomMes.toUpperCase()}</div>
         <div style="font-size:22px;font-weight:900;color:#166534">Gs. ${d.ingresos.total.toLocaleString()}</div>
-        <div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos registrados</div>
+        <div style="font-size:10px;color:#4ade80">${d.ingresos.detalle.length} pagos${ingExtra>0?` + Gs. ${ingExtra.toLocaleString()} extras`:''}</div>
       </div>
       <div style="text-align:center;padding:16px;background:#fef3c7;border-radius:12px;border:1.5px solid #fde68a">
         <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px">📋 HONORARIOS ${nomMes.toUpperCase()}</div>
         <div style="font-size:22px;font-weight:900;color:#92400e">Gs. ${d.estimado_honorarios.total.toLocaleString()}</div>
         <div style="font-size:10px;color:#d97706;font-weight:600">A pagar el 10 de ${mesPago}</div>
       </div>
+      ${nExtra>0?`<div style="text-align:center;padding:16px;background:#f5f3ff;border-radius:12px;border:1.5px solid #ddd6fe">
+        <div style="font-size:10px;color:#6d28d9;font-weight:700;margin-bottom:4px">➕ MOVIMIENTOS EXTRA</div>
+        <div style="font-size:18px;font-weight:900;color:#6d28d9">${nExtra} registros</div>
+        <div style="font-size:10px;color:#7c3aed">${ingExtra>0?'↑ Gs. '+ingExtra.toLocaleString():''}${ingExtra>0&&egExtra>0?' · ':''}${egExtra>0?'↓ Gs. '+egExtra.toLocaleString():''}</div>
+      </div>`:''}
       <div style="text-align:center;padding:16px;background:${balEst>=0?'#f0fdf4':'#fef2f2'};border-radius:12px;border:1.5px solid ${balEst>=0?'#86efac':'#fca5a5'}">
         <div style="font-size:10px;color:${balEst>=0?'#166534':'#dc2626'};font-weight:700;margin-bottom:4px">📊 BALANCE ${nomMes.toUpperCase()}</div>
         <div style="font-size:22px;font-weight:900;color:${balEst>=0?'#166534':'#dc2626'}">${balEst>=0?'+':''}Gs. ${balEst.toLocaleString()}</div>
@@ -7584,8 +7629,15 @@ function rfFiltrarTabla(){
   if(!tabla)return;
   // Combinar ingresos y egresos
   let rows=[];
-  if(tipo!=='egreso') d.ingresos.detalle.forEach(p=>rows.push({fecha:p.fecha,tipo:'ingreso',desc:`${p.concepto} — ${p.alumno_apellido||''} ${p.alumno_nombre||''}`,sub:p.carrera_nombre||'',monto:p.monto,extra:p.medio_pago||'Efectivo'}));
-  if(tipo!=='ingreso') d.egresos.detalle.forEach(h=>rows.push({fecha:h.fecha,tipo:'egreso',desc:`Honorario — ${h.docente_apellido||''} ${h.docente_nombre||''}`,sub:h.materia_nombre||'',monto:h.monto,extra:h.tipo||'clase'}));
+  if(tipo!=='egreso') d.ingresos.detalle.forEach(p=>rows.push({fecha:p.fecha,tipo:'ingreso',origen:'pago',desc:`${p.concepto} — ${p.alumno_apellido||''} ${p.alumno_nombre||''}`,sub:p.carrera_nombre||'',monto:p.monto,extra:p.medio_pago||'Efectivo',id:null}));
+  if(tipo!=='ingreso') d.egresos.detalle.forEach(h=>rows.push({fecha:h.fecha,tipo:'egreso',origen:'honorario',desc:`Honorario — ${h.docente_apellido||''} ${h.docente_nombre||''}`,sub:h.materia_nombre||'',monto:h.monto,extra:h.tipo||'clase',id:null}));
+  // Movimientos extra
+  if(d.movimientos_extra){
+    d.movimientos_extra.forEach(mx=>{
+      if(tipo&&mx.tipo!==tipo)return;
+      rows.push({fecha:mx.fecha,tipo:mx.tipo,origen:'extra',desc:mx.descripcion,sub:mx.categoria||'',monto:mx.monto,extra:mx.referencia||'—',id:mx.id});
+    });
+  }
   rows.sort((a,b)=>b.fecha.localeCompare(a.fecha));
   if(!rows.length){tabla.innerHTML='<div style="text-align:center;padding:20px;color:#718096;font-size:13px">Sin movimientos para los filtros seleccionados</div>';return;}
   tabla.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -7593,9 +7645,11 @@ function rfFiltrarTabla(){
       <th style="padding:7px 10px;border:1px solid #e2e8f0;white-space:nowrap">Fecha</th>
       <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Tipo</th>
       <th style="padding:7px 10px;border:1px solid #e2e8f0">Descripción</th>
-      <th style="padding:7px 10px;border:1px solid #e2e8f0">Detalle</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0">Detalle/Categoría</th>
       <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right">Monto</th>
-      <th style="padding:7px 10px;border:1px solid #e2e8f0">Medio/Tipo</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0">Medio/Ref.</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">Origen</th>
+      <th style="padding:7px 10px;border:1px solid #e2e8f0"></th>
     </tr></thead><tbody>
     ${rows.map(r=>`<tr style="background:${r.tipo==='ingreso'?'#f0fdf4':'#fff7ed'}">
       <td style="padding:6px 10px;border:1px solid #e2e8f0;white-space:nowrap">${r.fecha}</td>
@@ -7606,8 +7660,91 @@ function rfFiltrarTabla(){
       <td style="padding:6px 10px;border:1px solid #e2e8f0;color:#718096;font-size:11px">${r.sub}</td>
       <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:800;color:${r.tipo==='ingreso'?'#166534':'#c2410c'}">Gs. ${r.monto.toLocaleString()}</td>
       <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:11px;color:#718096">${r.extra}</td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">
+        <span style="padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${r.origen==='extra'?'#f5f3ff;color:#6d28d9':r.origen==='honorario'?'#fff7ed;color:#c2410c':'#f0f9ff;color:#0369a1'}">${r.origen==='extra'?'Extra':r.origen==='honorario'?'Honorario':'Pago'}</span>
+      </td>
+      <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center">
+        ${r.id?`<button onclick="rfEliminarExtra('${r.id}')" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:14px;padding:2px 4px" title="Eliminar">🗑</button>`:''}
+      </td>
     </tr>`).join('')}
   </tbody></table></div>`;
+}
+async function rfEliminarExtra(id){
+  if(!confirm('¿Eliminar este movimiento extra?')) return;
+  try{
+    await api('DELETE',`/api/movimientos-extra/${id}`);
+    toast('Movimiento eliminado','ok');
+    cargarResumenFinanciero();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+function rfAbrirRegistrar(){
+  const today=new Date().toISOString().slice(0,10);
+  const cats=['Mantenimiento','Servicios básicos','Equipamiento','Materiales','Limpieza','Multa/Recargo','Donación','Reembolso','Subsidio','Alquiler','Publicidad','Otro'];
+  modal(`
+    <div style="font-size:16px;font-weight:900;color:#1a202c;margin-bottom:16px">➕ Registrar Movimiento Extra</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">TIPO *</label>
+        <select id="mxTipo" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px">
+          <option value="ingreso">↑ Ingreso</option>
+          <option value="egreso">↓ Egreso / Costo</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">MONTO (Gs.) *</label>
+        <input id="mxMonto" type="number" min="1" placeholder="0" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box"/>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">DESCRIPCIÓN *</label>
+        <input id="mxDesc" type="text" placeholder="Descripción del movimiento" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">FECHA *</label>
+        <input id="mxFecha" type="date" value="${today}" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">CATEGORÍA</label>
+        <select id="mxCat" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px">
+          ${cats.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">N° COMPROBANTE / FACTURA</label>
+        <input id="mxRef" type="text" placeholder="Opcional" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box"/>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">RESPONSABLE</label>
+        <input id="mxResp" type="text" placeholder="Nombre del responsable" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box"/>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:4px">OBSERVACIONES</label>
+        <textarea id="mxObs" rows="2" placeholder="Notas adicionales..." style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+      <button onclick="cm()" class="bs o" style="padding:10px 20px">Cancelar</button>
+      <button onclick="rfGuardarExtra()" class="bn" style="padding:10px 24px">💾 Guardar</button>
+    </div>
+  `);}
+
+async function rfGuardarExtra(){
+  const tipo=document.getElementById('mxTipo')?.value;
+  const monto=parseFloat(document.getElementById('mxMonto')?.value||'0');
+  const desc=(document.getElementById('mxDesc')?.value||'').trim();
+  const fecha=document.getElementById('mxFecha')?.value;
+  const cat=document.getElementById('mxCat')?.value||'Otro';
+  const ref=(document.getElementById('mxRef')?.value||'').trim();
+  const obs=(document.getElementById('mxObs')?.value||'').trim();
+  if(!desc){toast('Ingresá una descripción','warn');return;}
+  if(!monto||monto<=0){toast('El monto debe ser mayor a 0','warn');return;}
+  if(!fecha){toast('Seleccioná la fecha','warn');return;}
+  try{
+    await api('POST','/api/movimientos-extra',{tipo,monto,descripcion:desc,fecha,categoria:cat,referencia:ref||null,observacion:obs||null});
+    toast('✓ Movimiento registrado','ok');
+    cm();
+    cargarResumenFinanciero();
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 function exportarReporteFinanciero(){
@@ -8302,6 +8439,134 @@ async function dupEliminar(id, nombre){
   confirm2('🗑 Eliminar duplicado',`¿Eliminar completamente a <strong>${nombre}</strong>?<br/><small style="color:#6b7280">Esta acción no se puede deshacer.</small>`,
     async function(){
       try{await api('DELETE',`/api/alumnos/${id}/completo`);toast('✓ '+nombre+' eliminado','ok');pgDuplicados(document.getElementById('mc'));}
+      catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+
+// ── LIMPIEZA (unifica Depuración + Duplicados) ────────────────────────────────
+async function pgLimpieza(el){
+  el.innerHTML=`
+  <div class="ph"><h3>🧹 Limpieza de Datos</h3></div>
+  <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:18px">
+    <button id="lim-tab-dep" onclick="limTab('dep')" style="padding:10px 22px;background:none;border:none;border-bottom:3px solid #dc2626;font-size:13px;font-weight:700;color:#dc2626;cursor:pointer;margin-bottom:-2px">🧹 Depuración de Inactivos</button>
+    <button id="lim-tab-dup" onclick="limTab('dup')" style="padding:10px 22px;background:none;border:none;border-bottom:3px solid transparent;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:-2px">👥 Detección de Duplicados</button>
+  </div>
+  <div id="lim-pane-dep"></div>
+  <div id="lim-pane-dup" style="display:none"></div>`;
+  await limRenderDep();
+}
+function limTab(t){
+  ['dep','dup'].forEach(k=>{
+    const btn=document.getElementById('lim-tab-'+k);
+    const pane=document.getElementById('lim-pane-'+k);
+    const active=k===t;
+    if(btn){btn.style.borderBottomColor=active?(k==='dep'?'#dc2626':'#7c3aed'):'transparent';btn.style.color=active?(k==='dep'?'#dc2626':'#7c3aed'):'#6b7280';btn.style.fontWeight=active?'700':'600';}
+    if(pane) pane.style.display=active?'block':'none';
+  });
+  if(t==='dep') limRenderDep();
+  if(t==='dup') limRenderDup();
+}
+async function limRenderDep(){
+  const pane=document.getElementById('lim-pane-dep');
+  if(!pane) return;
+  const [carreras, cursos] = await Promise.all([
+    api('GET','/api/carreras').catch(()=>[]),
+    api('GET','/api/cursos').catch(()=>[])
+  ]);
+  const cursosJ = JSON.stringify(cursos).replace(/"/g,'&quot;');
+  pane.innerHTML=`<div class="card mb12">
+    <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:11px 14px;font-size:13px;color:#991b1b;margin-bottom:14px">
+      <strong>⚠️ Criterio:</strong> Alumnos con <strong>12 o más ausencias consecutivas</strong> sumando todas sus materias (~2 semanas sin presentarse).
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:4px">
+      <div style="flex:1;min-width:160px">
+        <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Carrera</label>
+        <select id="dep-carrera" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px" onchange="depCambiarCarrera('${cursosJ}')">
+          <option value="">— Seleccionar carrera —</option>
+          ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Sección</label>
+        <select id="dep-curso" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px">
+          <option value="">— Todas —</option>
+        </select>
+      </div>
+      <button class="bn" style="padding:9px 20px;white-space:nowrap" onclick="depBuscar()">🔍 Buscar inactivos</button>
+    </div>
+  </div>
+  <div id="dep-results"></div>`;
+}
+async function limRenderDup(){
+  const pane=document.getElementById('lim-pane-dup');
+  if(!pane) return;
+  pane.innerHTML=`<div class="card">
+    <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:11px 14px;font-size:13px;color:#5b21b6;margin-bottom:14px">
+      <strong>🔎 Detecta:</strong> alumnos con la misma CI, o nombres muy similares que podrían ser el mismo alumno cargado dos veces. Los que tienen pagos o puntaje se marcan para que puedas decidir cuál conservar.
+    </div>
+    <div id="dup-contenido"><div class="es">Analizando alumnos...</div></div>
+  </div>`;
+  // reuse pgDuplicados logic — call it with a virtual el that has dup-contenido
+  try{
+    const todos=await api('GET','/api/alumnos/duplicados');
+    const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'').trim();
+    const grupos=new Map();
+    const porCI={};
+    todos.forEach(a=>{const ci=(a.ci||'').replace(/\D/g,'');if(ci.length>=5){(porCI[ci]=porCI[ci]||[]).push(a);}});
+    Object.entries(porCI).forEach(([ci,lista])=>{if(lista.length>=2)grupos.set('ci_'+ci,{tipo:'ci',key:'CI: '+ci,lista});});
+    const porApe={};
+    todos.forEach(a=>{const k=norm(a.apellido).slice(0,7);if(k.length>=4)(porApe[k]=porApe[k]||[]).push(a);});
+    Object.entries(porApe).forEach(([,lista])=>{
+      if(lista.length<2)return;
+      for(let i=0;i<lista.length;i++)for(let j=i+1;j<lista.length;j++){
+        const a=lista[i],b=lista[j];
+        if((a.ci||'').replace(/\D/g,'').length>=5 && (a.ci||'').replace(/\D/g,'')===(b.ci||'').replace(/\D/g,''))continue;
+        const na=norm(a.nombre+a.apellido),nb=norm(b.nombre+b.apellido);
+        if(na===nb||na.startsWith(nb.slice(0,8))||nb.startsWith(na.slice(0,8))){
+          const k='nom_'+[a.id,b.id].sort().join('_');
+          if(!grupos.has(k))grupos.set(k,{tipo:'nombre',key:(a.apellido||a.nombre)+' / '+(b.apellido||b.nombre),lista:[a,b]});
+        }
+      }
+    });
+    const lista=[...grupos.values()];
+    const cont=document.getElementById('dup-contenido');
+    if(!cont) return;
+    if(!lista.length){cont.innerHTML='<div style="text-align:center;padding:32px;color:#059669;font-size:14px">✅ No se detectaron duplicados aparentes.</div>';return;}
+    const renderAlumno=a=>{
+      const curso=a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''}`:null;
+      const esRecomendado=a.cnt_pagos>0||a.cnt_puntaje>0;
+      return `<div style="padding:10px 14px;border-top:1px solid #ede9fe;background:${esRecomendado?'#f0fdf4':'#fff'};display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-weight:700;font-size:13px">${a.apellido}, ${a.nombre} ${esRecomendado?'<span style="background:#059669;color:#fff;padding:1px 7px;border-radius:8px;font-size:10px;margin-left:4px">✓ CONSERVAR</span>':''}</div>
+          <div style="font-size:11px;color:#6b7280">CI: ${a.ci||'—'} · ${a.carrera_nombre||'Sin carrera'}${curso?' · '+curso:''}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${a.cnt_pagos>0?`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 ${a.cnt_pagos} pagos</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin pagos</span>'}
+          ${a.cnt_puntaje>0?`<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📊 Con puntaje</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin puntaje</span>'}
+          <span style="background:${a.estado==='Activo'?'#dcfce7':'#f1f5f9'};color:${a.estado==='Activo'?'#166534':'#94a3b8'};padding:2px 8px;border-radius:8px;font-size:11px">${a.estado}</span>
+        </div>
+        <button style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer"
+          onclick="limDupEliminar('${a.id}','${(a.apellido+', '+a.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+      </div>`;
+    };
+    const badgeTipo=t=>t==='ci'
+      ?'<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">⚠ Misma CI</span>'
+      :'<span style="background:#7c3aed;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">Nombre similar</span>';
+    cont.innerHTML=
+      `<div style="font-size:13px;color:#6b7280;margin-bottom:14px">Se detectaron <strong>${lista.length} grupo(s)</strong> con posibles duplicados.</div>`+
+      lista.map(g=>`<div style="border:2px solid #ddd6fe;border-radius:12px;margin-bottom:12px;overflow:hidden">
+        <div style="background:#f5f3ff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-weight:800;font-size:13px;color:#5b21b6">${g.key} ${badgeTipo(g.tipo)}</div>
+          <span style="font-size:11px;color:#7c3aed">${g.lista.length} registros</span>
+        </div>
+        ${g.lista.map(renderAlumno).join('')}
+      </div>`).join('');
+  }catch(e){const c=document.getElementById('dup-contenido');if(c)c.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`;}
+}
+async function limDupEliminar(id, nombre){
+  confirm2('🗑 Eliminar duplicado',`¿Eliminar completamente a <strong>${nombre}</strong>?<br/><small style="color:#6b7280">Esta acción no se puede deshacer.</small>`,
+    async function(){
+      try{await api('DELETE',`/api/alumnos/${id}/completo`);toast('✓ '+nombre+' eliminado','ok');limRenderDup();}
       catch(e){toast('Error: '+e.message,'err');}
     },null);
 }

@@ -117,6 +117,22 @@ try {
   )`).run();
 } catch(e) { console.warn('[Migración] papelera:', e.message); }
 
+// ── MIGRACIÓN: tabla movimientos_extra ───────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS movimientos_extra (
+    id            TEXT PRIMARY KEY,
+    tipo          TEXT NOT NULL,
+    monto         REAL NOT NULL,
+    descripcion   TEXT NOT NULL,
+    fecha         TEXT NOT NULL,
+    categoria     TEXT DEFAULT 'Otro',
+    referencia    TEXT,
+    observacion   TEXT,
+    registrado_por TEXT,
+    created_at    TEXT DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) { console.warn('[Migración] movimientos_extra:', e.message); }
+
 // ── HELPER PAPELERA ───────────────────────────────────────────────────────────
 function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
   try {
@@ -3000,16 +3016,66 @@ app.get('/api/finanzas/resumen', auth(ADM), (req, res) => {
     // ── MEDIOS DE PAGO disponibles ───────────────────────────────────────────
     const medios = db.prepare("SELECT DISTINCT medio_pago FROM pagos WHERE medio_pago IS NOT NULL ORDER BY medio_pago").all().map(r => r.medio_pago);
 
+    // ── MOVIMIENTOS EXTRA del mes ─────────────────────────────────────────────
+    const movExtras = db.prepare(`
+      SELECT * FROM movimientos_extra
+      WHERE fecha >= ? AND fecha <= ?
+      ORDER BY fecha DESC
+    `).all(desde, hasta);
+    const totalIngresosExtra = movExtras.filter(r=>r.tipo==='ingreso').reduce((s,r)=>s+(r.monto||0),0);
+    const totalEgresosExtra  = movExtras.filter(r=>r.tipo==='egreso').reduce((s,r)=>s+(r.monto||0),0);
+    const totalIngresosTotal = totalIngresos + totalIngresosExtra;
+    const totalEgresosTotal  = totalEgresos  + totalEgresosExtra;
+
     res.json({
       mes: m, anio: a, desde, hasta,
-      ingresos: { total: totalIngresos, detalle: pagos },
-      egresos: { total: totalEgresos, detalle: honorarios },
+      ingresos: { total: totalIngresosTotal, detalle: pagos },
+      egresos: { total: totalEgresosTotal, detalle: honorarios },
       estimado_honorarios: { total: estimadoHonorarios, detalle: clasesEstimadas },
-      balance: totalIngresos - totalEgresos,
-      balance_estimado: totalIngresos - estimadoHonorarios,
-      alerta_egresos: totalEgresos > totalIngresos * 0.8,
+      movimientos_extra: movExtras,
+      ingresos_extra: totalIngresosExtra,
+      egresos_extra: totalEgresosExtra,
+      balance: totalIngresosTotal - totalEgresosTotal,
+      balance_estimado: totalIngresosTotal - estimadoHonorarios,
+      alerta_egresos: totalEgresosTotal > totalIngresosTotal * 0.8,
       medios_disponibles: medios
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── MOVIMIENTOS EXTRA (ingresos/costos adicionales) ──────────────────────────
+app.get('/api/movimientos-extra', auth(ADM), (req, res) => {
+  try {
+    const { desde, hasta, tipo } = req.query;
+    let where = '1=1';
+    const params = [];
+    if (desde) { where += ' AND fecha >= ?'; params.push(desde); }
+    if (hasta) { where += ' AND fecha <= ?'; params.push(hasta); }
+    if (tipo)  { where += ' AND tipo = ?';   params.push(tipo);  }
+    res.json(db.prepare(`SELECT * FROM movimientos_extra WHERE ${where} ORDER BY fecha DESC, created_at DESC`).all(...params));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/movimientos-extra', auth(ADM), (req, res) => {
+  try {
+    const { tipo, monto, descripcion, fecha, categoria, referencia, observacion } = req.body;
+    if (!tipo || !['ingreso','egreso'].includes(tipo)) return res.status(400).json({ error: 'tipo inválido' });
+    if (!monto || isNaN(monto) || monto <= 0) return res.status(400).json({ error: 'monto inválido' });
+    if (!descripcion?.trim()) return res.status(400).json({ error: 'descripcion requerida' });
+    if (!fecha) return res.status(400).json({ error: 'fecha requerida' });
+    const id = 'mx_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+    db.prepare(`INSERT INTO movimientos_extra (id,tipo,monto,descripcion,fecha,categoria,referencia,observacion,registrado_por)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(id, tipo, parseFloat(monto), descripcion.trim(), fecha, categoria||'Otro', referencia||null, observacion||null, req.user?.id||null);
+    audit(req.user?.id, 'crear_movimiento_extra', 'movimientos_extra', id, `${tipo}: Gs. ${monto} — ${descripcion}`);
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/movimientos-extra/:id', auth(ADM), (req, res) => {
+  try {
+    db.prepare('DELETE FROM movimientos_extra WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
