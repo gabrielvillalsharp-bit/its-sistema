@@ -87,6 +87,13 @@ try {
   )`).run();
 } catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
 
+// ── LIMPIEZA: purgar mensajes de grupos mal guardados en wa_recibidos ────────
+try {
+  // Eliminar entradas cuyo número tiene formato de grupo (>15 dígitos) o es conocidamente un grupo
+  const purgados = db.prepare(`DELETE FROM wa_recibidos WHERE length(replace(replace(numero,'-',''),' ','')) > 15`).run();
+  if (purgados.changes > 0) console.log(`[Limpieza] wa_recibidos: ${purgados.changes} mensajes de grupos eliminados`);
+} catch(e) {}
+
 // ── MIGRACIÓN: tabla wa_consultas ─────────────────────────────────────────────
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS wa_consultas (
@@ -6229,7 +6236,12 @@ app.post('/api/whatsapp/webhook', (req, res) => {
     if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
       const msg = data?.message || data?.messages?.[0];
       if (msg && !msg?.key?.fromMe) {
-        const numero = (msg?.key?.remoteJid || '').replace('@s.whatsapp.net','').replace('@g.us','');
+        const remoteJid = msg?.key?.remoteJid || '';
+        // Ignorar grupos (@g.us), broadcast, newsletter y status
+        if (remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter') || remoteJid === 'status@broadcast') {
+          res.json({ ok: true }); return;
+        }
+        const numero = remoteJid.replace('@s.whatsapp.net','');
         const texto = msg?.message?.conversation
           || msg?.message?.extendedTextMessage?.text
           || msg?.message?.imageMessage?.caption
@@ -6350,23 +6362,34 @@ app.get('/api/whatsapp/chats/:numero/mensajes', auth(ADM), async (req, res) => {
         signal: AbortSignal.timeout(6000)
       });
       const data = await r.json();
-      if (Array.isArray(data))                      msgs = data;
-      else if (Array.isArray(data?.messages))        msgs = data.messages;
-      else if (Array.isArray(data?.messages?.records)) msgs = data.messages.records;
-      else if (Array.isArray(data?.records))         msgs = data.records;
+      let raw = [];
+      if (Array.isArray(data))                        raw = data;
+      else if (Array.isArray(data?.messages))          raw = data.messages;
+      else if (Array.isArray(data?.messages?.records)) raw = data.messages.records;
+      else if (Array.isArray(data?.records))           raw = data.records;
+      // Filtrar estrictamente por remoteJid del número pedido (la API a veces devuelve todo)
+      msgs = raw.filter(m => {
+        const rjid = m?.key?.remoteJid || '';
+        return rjid === jid || rjid.startsWith(numero+'@');
+      });
     } catch(e) { /* fallback */ }
   }
 
   // 2) Fallback: construir mensajes desde wa_recibidos + wa_mensajes
   if (msgs.length === 0) {
+    // Buscar coincidencia exacta primero; si no, por sufijo del número sin 0
     const recibidos = db.prepare(`
       SELECT id, numero, mensaje, fecha, 0 as fromMe, nombre_contacto as pushName
-      FROM wa_recibidos WHERE numero LIKE ? ORDER BY fecha ASC LIMIT 60
-    `).all('%'+numSin0);
+      FROM wa_recibidos
+      WHERE numero = ? OR numero = ? OR numero = ?
+      ORDER BY fecha ASC LIMIT 60
+    `).all(numero, '0'+numSin0, numSin0);
     const enviados = db.prepare(`
       SELECT id, destinatario_telefono as numero, mensaje, fecha, 1 as fromMe, NULL as pushName
-      FROM wa_mensajes WHERE destinatario_telefono LIKE ? ORDER BY fecha ASC LIMIT 60
-    `).all('%'+numSin0);
+      FROM wa_mensajes
+      WHERE destinatario_telefono = ? OR destinatario_telefono = ? OR destinatario_telefono = ?
+      ORDER BY fecha ASC LIMIT 60
+    `).all(numero, '0'+numSin0, numSin0);
     // Combinar y ordenar cronológicamente
     msgs = [...recibidos, ...enviados]
       .sort((a,b) => a.fecha > b.fecha ? 1 : -1)
