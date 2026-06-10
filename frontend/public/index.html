@@ -1460,7 +1460,7 @@ function go(p, _fromHistory){
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
     solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,interesados:pgInteresados,papelera:pgPapelera,
-    whatsapp:pgWhatsApp,
+    whatsapp:pgWhatsApp,'wa-chat':pgWaChat,
     'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
     'repositorio-contenidos':pgRepContenidos,
@@ -7345,6 +7345,7 @@ function pgHubPrincipal(el){
     ${_mCardSm('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
     ${_mCardSm('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
     ${_mCardSm('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
+    ${_mCardSm('wa-chat','💬','WhatsApp Chat','Conversaciones WA','#25D366','#f0fdf4')}
   </div>`:''}
 
   ${_mSecTitulo('✏️','Académico','#7c3aed')}
@@ -7385,6 +7386,7 @@ function pgHubPersonas(el){
     ${_mCard('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
     ${_mCard('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
     ${_mCard('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
+    ${_mCard('wa-chat','💬','WhatsApp Chat','Conversaciones en vivo','#25D366','#f0fdf4')}
   </div>`;
 }
 function pgHubAcademico(el){
@@ -7868,6 +7870,217 @@ async function intEliminar(id, nombre){
 async function intMarcarLeidos(){
   try{await api('PUT','/api/whatsapp/recibidos/leer-todos');pgInteresados(document.getElementById('mc'));}
   catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── WHATSAPP CHAT INTERNO ─────────────────────────────────────────────────────
+let _wacNumeroActivo = null;
+let _wacTimerLista   = null;
+let _wacTimerMsgs    = null;
+let _wacChats        = [];
+
+async function pgWaChat(el){
+  // Limpiar timers previos
+  clearInterval(_wacTimerLista); clearInterval(_wacTimerMsgs);
+  _wacNumeroActivo = null;
+
+  el.innerHTML=`
+  <div class="ph" style="display:flex;align-items:center;justify-content:space-between">
+    <h3>💬 WhatsApp Chat</h3>
+    <span id="wac-status" style="font-size:12px;color:#64748b">Cargando chats...</span>
+  </div>
+  <div style="display:flex;height:calc(100vh - 160px);border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff">
+    <!-- Panel izquierdo: lista de chats -->
+    <div style="width:300px;flex-shrink:0;border-right:1.5px solid #e2e8f0;display:flex;flex-direction:column;background:#f8fafc">
+      <div style="padding:10px 12px;border-bottom:1px solid #e2e8f0">
+        <input id="wac-search" type="text" placeholder="🔍 Buscar..." oninput="wacFiltrar(this.value)"
+          style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff">
+      </div>
+      <div id="wac-lista" style="overflow-y:auto;flex:1;padding:4px 0">
+        <div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px">⏳ Cargando...</div>
+      </div>
+    </div>
+    <!-- Panel derecho: chat activo -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+      <div id="wac-header" style="padding:12px 16px;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;min-height:56px">
+        <div style="color:#94a3b8;font-size:13px;padding-top:6px">← Seleccioná una conversación</div>
+      </div>
+      <div id="wac-mensajes" style="flex:1;overflow-y:auto;padding:16px;background:#e8edf2;display:flex;flex-direction:column;gap:6px">
+      </div>
+      <div id="wac-input-area" style="padding:10px 12px;background:#fff;border-top:1.5px solid #e2e8f0;display:none;gap:8px;align-items:flex-end">
+        <textarea id="wac-texto" placeholder="Escribir mensaje..." rows="1"
+          style="flex:1;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:20px;resize:none;font-size:14px;line-height:1.4;outline:none;max-height:100px;overflow-y:auto"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();wacEnviar();}"></textarea>
+        <button onclick="wacEnviar()" style="background:#25D366;color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">▶</button>
+      </div>
+    </div>
+  </div>`;
+
+  await wacCargarLista();
+  // Actualizar lista cada 30 segundos
+  _wacTimerLista = setInterval(wacCargarLista, 30000);
+}
+
+async function wacCargarLista(){
+  try{
+    const data = await api('GET','/api/whatsapp/chats');
+    _wacChats = data;
+    wacRenderLista(data);
+    document.getElementById('wac-status').textContent = `${data.length} conversaciones · ${new Date().toLocaleTimeString('es')}`;
+    // Si hay uno activo, refrescar sin perder scroll
+    if(_wacNumeroActivo) wacCargarMensajes(_wacNumeroActivo, false);
+  }catch(e){
+    const st = document.getElementById('wac-status');
+    if(st) st.textContent = '❌ Error: '+e.message;
+  }
+}
+
+function wacRenderLista(chats){
+  const lista = document.getElementById('wac-lista');
+  if(!lista) return;
+  const filtro = (document.getElementById('wac-search')?.value||'').toLowerCase();
+  const visible = filtro ? chats.filter(c=>{
+    const n = (c.name||c.pushName||c.numero||'').toLowerCase();
+    return n.includes(filtro) || c.numero?.includes(filtro);
+  }) : chats;
+
+  if(!visible.length){
+    lista.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px">Sin conversaciones</div>';
+    return;
+  }
+  lista.innerHTML = visible.map(c=>{
+    const nombre    = c.name || c.pushName || c.alumno?.nombre || c.numero;
+    const lastMsg   = c.lastMessage?.message?.conversation || c.lastMessage?.message?.extendedTextMessage?.text || '';
+    const esAlumno  = !!c.alumno;
+    const pendiente = c.consultas_pendientes > 0;
+    const activo    = c.numero === _wacNumeroActivo;
+    const hora      = c._ts ? new Date(c._ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div onclick="wacSeleccionar('${c.numero}')"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:flex-start;
+             background:${activo?'#dcfce7':'#fff'};transition:background .15s"
+      onmouseover="if('${c.numero}'!==_wacNumeroActivo)this.style.background='#f8fafc'"
+      onmouseout="if('${c.numero}'!==_wacNumeroActivo)this.style.background='#fff'">
+      <!-- Avatar -->
+      <div style="width:40px;height:40px;border-radius:50%;background:${esAlumno?'#dcfce7':'#e2e8f0'};
+                  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">
+        ${esAlumno?'👤':'👤'}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+          <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${nombre}</span>
+          <span style="font-size:11px;color:#94a3b8;white-space:nowrap">${hora}</span>
+        </div>
+        <div style="font-size:11px;color:${esAlumno?'#15803d':'#64748b'};margin-top:1px;font-weight:${esAlumno?700:400}">
+          ${esAlumno ? (c.alumno.carrera_nombre||'Alumno') : '📱 '+c.numero}
+        </div>
+        <div style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;margin-top:2px">
+          ${lastMsg || ''}
+        </div>
+        ${pendiente?`<span style="background:#fef9c3;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px">⏳ consulta pendiente</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function wacFiltrar(val){
+  wacRenderLista(_wacChats);
+}
+
+async function wacSeleccionar(numero){
+  _wacNumeroActivo = numero;
+  clearInterval(_wacTimerMsgs);
+  // Marcar activo visualmente
+  wacRenderLista(_wacChats);
+  // Mostrar input
+  const ia = document.getElementById('wac-input-area');
+  if(ia) ia.style.display='flex';
+  // Mostrar header loading
+  const header = document.getElementById('wac-header');
+  if(header) header.innerHTML='<div style="color:#94a3b8;font-size:13px">⏳ Cargando mensajes...</div>';
+  await wacCargarMensajes(numero, true);
+  // Refrescar mensajes cada 8 segundos
+  _wacTimerMsgs = setInterval(()=>{ if(_wacNumeroActivo===numero) wacCargarMensajes(numero, false); }, 8000);
+}
+
+async function wacCargarMensajes(numero, scrollBottom){
+  try{
+    const data = await api('GET',`/api/whatsapp/chats/${numero}/mensajes`);
+    const { mensajes, alumno, consultas } = data;
+    const header = document.getElementById('wac-header');
+    const msgsEl = document.getElementById('wac-mensajes');
+    if(!header || !msgsEl) return;
+
+    // Header con info del contacto
+    const nombre = alumno ? `${alumno.nombre||''} ${alumno.apellido||''}`.trim() : numero;
+    header.innerHTML=`
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;border-radius:50%;background:${alumno?'#dcfce7':'#e2e8f0'};
+                    display:flex;align-items:center;justify-content:center;font-size:20px">👤</div>
+        <div>
+          <div style="font-weight:800;font-size:14px">${nombre}</div>
+          <div style="font-size:12px;color:${alumno?'#15803d':'#64748b'}">
+            ${alumno ? `✅ Alumno/a · ${alumno.carrera_nombre||''} · CI: ${alumno.ci||'—'}` : '📱 '+numero}
+          </div>
+        </div>
+        ${consultas.length?`<div style="margin-left:auto"><span style="background:#fef9c3;color:#92400e;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700">⏳ ${consultas.filter(c=>c.estado==='pendiente').length} consulta(s) pendiente(s)</span></div>`:''}
+      </div>`;
+
+    // Mensajes
+    const prevScrollTop = msgsEl.scrollTop;
+    const prevScrollH   = msgsEl.scrollHeight;
+    msgsEl.innerHTML = mensajes.length===0
+      ? '<div style="text-align:center;color:#94a3b8;font-size:13px;padding:30px">Sin mensajes registrados aún.</div>'
+      : mensajes.map(m=>{
+          const fromMe = m.key?.fromMe || m.fromMe || false;
+          const texto  = m.message?.conversation
+                      || m.message?.extendedTextMessage?.text
+                      || m.message?.imageMessage?.caption
+                      || m.text || m.body || '';
+          if(!texto) return '';
+          const ts   = m.messageTimestamp || m.key?.timestamp || 0;
+          const hora = ts ? new Date(ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}) : '';
+          return `<div style="display:flex;justify-content:${fromMe?'flex-end':'flex-start'}">
+            <div style="max-width:70%;padding:9px 13px;border-radius:${fromMe?'16px 4px 16px 16px':'4px 16px 16px 16px'};
+                        background:${fromMe?'#dcfce7':'#fff'};box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:14px;line-height:1.4">
+              ${texto}
+              <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${fromMe?' ✓✓':''}</div>
+            </div>
+          </div>`;
+        }).join('');
+
+    // Scroll: si es carga inicial o el usuario estaba al fondo → scroll al fondo
+    if(scrollBottom || prevScrollTop + prevScrollH + 100 >= msgsEl.scrollHeight)
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    // Mostrar consultas pendientes debajo si las hay
+    if(consultas.length && scrollBottom){
+      const pendientes = consultas.filter(c=>c.estado==='pendiente');
+      if(pendientes.length){
+        msgsEl.innerHTML += `<div style="margin-top:12px;padding:10px 14px;background:#fef9c3;border-radius:10px;border:1.5px solid #fde68a">
+          <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:6px">⏳ Consultas recibidas por el bot</div>
+          ${pendientes.map(c=>`<div style="font-size:13px;margin-bottom:4px">
+            <span style="color:#64748b;font-size:11px">${(c.fecha||'').slice(0,16)}</span> — ${c.consulta}
+            <button onclick="consCambiarEstado('${c.id}','atendido')" style="margin-left:8px;font-size:10px;background:#059669;color:#fff;border:none;border-radius:6px;padding:2px 7px;cursor:pointer">✅ Marcar atendida</button>
+          </div>`).join('')}
+        </div>`;
+      }
+    }
+  }catch(e){
+    const msgsEl=document.getElementById('wac-mensajes');
+    if(msgsEl) msgsEl.innerHTML=`<div style="color:#dc2626;font-size:13px;padding:20px">❌ Error: ${e.message}</div>`;
+  }
+}
+
+async function wacEnviar(){
+  const input  = document.getElementById('wac-texto');
+  const texto  = (input?.value||'').trim();
+  if(!texto || !_wacNumeroActivo) return;
+  input.value = '';
+  input.style.height = 'auto';
+  try{
+    await api('POST',`/api/whatsapp/chats/${_wacNumeroActivo}/enviar`,{ mensaje: texto });
+    await wacCargarMensajes(_wacNumeroActivo, true);
+  }catch(e){ toast('Error al enviar: '+e.message,'err'); }
 }
 
 // ── PAPELERA DE RECICLAJE ─────────────────────────────────────────────────────

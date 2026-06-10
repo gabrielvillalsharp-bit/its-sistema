@@ -6191,6 +6191,93 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+// ── WHATSAPP CHAT: lista de conversaciones ────────────────────────────────────
+app.get('/api/whatsapp/chats', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INST = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.status(503).json({ error: 'Evolution API no configurada' });
+  try {
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findChats/${EVO_INST}`, {
+      headers: { apikey: EVO_KEY }
+    });
+    let raw = await r.json();
+    let chats = Array.isArray(raw) ? raw : (raw?.chats || raw?.data || []);
+    // Solo chats individuales (excluir grupos que tienen '-' en el número)
+    chats = chats.filter(c => {
+      const id = (c.id || c.remoteJid || '');
+      return id.includes('@s.whatsapp.net') && !id.includes('-');
+    });
+    // Enriquecer con datos de alumno y consultas pendientes
+    const enriched = chats.slice(0, 120).map(chat => {
+      const rawNum = (chat.id || chat.remoteJid || '').split('@')[0];
+      const numSin0 = rawNum.replace(/^595/,'');
+      const alumno = db.prepare(`
+        SELECT a.nombre, a.apellido, c.nombre as carrera_nombre
+        FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
+        WHERE (a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo' LIMIT 1
+      `).get('%'+numSin0, '%0'+numSin0);
+      const pendientes = db.prepare("SELECT COUNT(*) as n FROM wa_consultas WHERE numero LIKE ? AND estado='pendiente'").get('%'+numSin0)?.n || 0;
+      const lastTs = chat.updatedAt || chat.lastMsgTimestamp || chat.lastMessageTimestamp || 0;
+      return { ...chat, numero: rawNum, alumno: alumno||null, consultas_pendientes: pendientes, _ts: lastTs };
+    });
+    enriched.sort((a,b) => (b._ts > a._ts ? 1 : -1));
+    res.json(enriched);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WHATSAPP CHAT: mensajes de una conversación ───────────────────────────────
+app.get('/api/whatsapp/chats/:numero/mensajes', auth(ADM), async (req, res) => {
+  const EVO_URL = process.env.EVOLUTION_URL;
+  const EVO_KEY = process.env.EVOLUTION_KEY;
+  const EVO_INST = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.status(503).json({ error: 'Evolution API no configurada' });
+  try {
+    const numero = req.params.numero;
+    const jid    = `${numero}@s.whatsapp.net`;
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findMessages/${EVO_INST}`, {
+      method:  'POST',
+      headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ where: { key: { remoteJid: jid } }, limit: 60 })
+    });
+    const data = await r.json();
+    // Normalizar distintos formatos de respuesta de Evolution API
+    let msgs = [];
+    if (Array.isArray(data))               msgs = data;
+    else if (Array.isArray(data?.messages)) msgs = data.messages;
+    else if (Array.isArray(data?.messages?.records)) msgs = data.messages.records;
+    else if (Array.isArray(data?.records)) msgs = data.records;
+    // Ordenar cronológicamente
+    msgs.sort((a,b) => ((a.messageTimestamp||a.key?.timestamp||0) - (b.messageTimestamp||b.key?.timestamp||0)));
+    // Enriquecer con info del alumno y consultas
+    const numSin0 = numero.replace(/^595/,'');
+    const alumno = db.prepare(`
+      SELECT a.nombre, a.apellido, a.ci, c.nombre as carrera_nombre, a.telefono, a.id as alumno_id
+      FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
+      WHERE (a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo' LIMIT 1
+    `).get('%'+numSin0, '%0'+numSin0);
+    const consultas = db.prepare("SELECT * FROM wa_consultas WHERE numero LIKE ? ORDER BY fecha DESC LIMIT 10").all('%'+numSin0);
+    res.json({ mensajes: msgs, alumno, consultas });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WHATSAPP CHAT: enviar mensaje desde el chat interno ───────────────────────
+app.post('/api/whatsapp/chats/:numero/enviar', auth(ADM), async (req, res) => {
+  const { mensaje } = req.body;
+  if (!mensaje?.trim()) return res.status(400).json({ error: 'Mensaje vacío' });
+  try {
+    const result = await sendWhatsApp(req.params.numero, mensaje.trim());
+    if (!result.ok) return res.status(500).json({ error: result.error || 'Error al enviar' });
+    // Guardar en historial local
+    try {
+      db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha)
+        VALUES (?,?,?,?,?,?)`)
+        .run('wam_'+Date.now(),'manual',req.params.numero,mensaje.trim(),'enviado',nowStr());
+    } catch {}
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CRON: mensajes programados (corre cada minuto) ────────────────────────────
 cron.schedule('* * * * *', async () => {
   if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
