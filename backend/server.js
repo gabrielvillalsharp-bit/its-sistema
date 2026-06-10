@@ -162,11 +162,11 @@ async function procesarMensajeBot(numero, texto) {
   // Palabras clave para reiniciar siempre
   const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola'].some(p=>txtn.startsWith(p));
 
-  // Límite 24h: si ya completó flujo y no han pasado 24h → silencio (salvo MENU)
+  // Límite 24h absoluto: si ya completó flujo y no han pasado 24h → silencio total
   const estadosCompletados = ['completado_alumno','completado_externo'];
-  if (estadosCompletados.includes(est.estado) && !esReinicio) {
+  if (estadosCompletados.includes(est.estado)) {
     const hace24h = Date.now() - 24*60*60*1000;
-    if ((est.completadoTs||0) > hace24h) return;
+    if ((est.completadoTs||0) > hace24h) return; // silencio absoluto
     est.estado = 'inicio'; // pasaron 24h → reiniciar
   }
 
