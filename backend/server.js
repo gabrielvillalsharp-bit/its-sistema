@@ -6731,6 +6731,91 @@ app.get('/api/qr-cambios', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── DEPURACIÓN DE ALUMNOS INACTIVOS ──────────────────────────────────────────
+app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, curso_id } = req.query;
+    if (!carrera_id) return res.status(400).json({ error: 'carrera_id requerido' });
+    let q = `SELECT a.id, COALESCE(a.nombre,u.nombre,'') as nombre,
+      COALESCE(a.apellido,u.apellido,'') as apellido,
+      COALESCE(a.ci,u.ci,'') as ci, a.telefono, a.carrera_id, a.curso_id,
+      c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+      FROM alumnos a
+      LEFT JOIN usuarios u ON a.usuario_id=u.id
+      LEFT JOIN carreras c ON a.carrera_id=c.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id
+      WHERE a.estado='Activo' AND a.carrera_id=?`;
+    const params = [carrera_id];
+    if (curso_id) { q += ' AND a.curso_id=?'; params.push(curso_id); }
+    const alumnos = db.prepare(q).all(...params);
+
+    const resultado = [];
+    for (const al of alumnos) {
+      // Últimas N asistencias ordenadas más reciente primero
+      const asistencias = db.prepare(
+        `SELECT estado FROM asistencia WHERE alumno_id=? ORDER BY fecha DESC, id DESC LIMIT 20`
+      ).all(al.id);
+
+      if (asistencias.length < 12) continue; // no tiene suficientes registros
+
+      // Contar racha de ausencias desde el más reciente
+      let racha = 0;
+      for (const r of asistencias) {
+        if (r.estado === 'A') racha++;
+        else break;
+      }
+      if (racha < 12) continue;
+
+      // Pagos (no anulados)
+      const { cnt_pagos } = db.prepare(
+        `SELECT COUNT(*) as cnt_pagos FROM pagos WHERE alumno_id=? AND estado != 'Anulado'`
+      ).get(al.id);
+
+      // Puntaje cargado en alguna materia
+      const { cnt_puntaje } = db.prepare(
+        `SELECT COUNT(*) as cnt_puntaje FROM notas WHERE alumno_id=? AND puntaje_total > 0`
+      ).get(al.id);
+
+      const tienePagos   = cnt_pagos   > 0;
+      const tienePuntaje = cnt_puntaje > 0;
+
+      // Grupo: 1=eliminable, 2=tiene pagos, 3=tiene puntaje sin pagos
+      let grupo;
+      if (!tienePagos && !tienePuntaje) grupo = 1;
+      else if (tienePagos)              grupo = 2;
+      else                              grupo = 3;
+
+      resultado.push({ ...al, racha_ausencias: racha, tienePagos, tienePuntaje, grupo });
+    }
+
+    // Ordenar: grupo 1 primero, luego por racha descendente
+    resultado.sort((a, b) => a.grupo - b.grupo || b.racha_ausencias - a.racha_ausencias);
+    res.json(resultado);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DETECCIÓN DE ALUMNOS DUPLICADOS ──────────────────────────────────────────
+app.get('/api/alumnos/duplicados', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT a.id, COALESCE(a.nombre,u.nombre,'') as nombre,
+        COALESCE(a.apellido,u.apellido,'') as apellido,
+        COALESCE(a.ci,u.ci,'') as ci,
+        a.telefono, a.carrera_id, a.curso_id, a.estado, u.email,
+        c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division,
+        (SELECT COUNT(*) FROM pagos  WHERE alumno_id=a.id AND estado!='Anulado') as cnt_pagos,
+        (SELECT COUNT(*) FROM notas  WHERE alumno_id=a.id AND puntaje_total>0)  as cnt_puntaje
+      FROM alumnos a
+      LEFT JOIN usuarios u  ON a.usuario_id = u.id
+      LEFT JOIN carreras c  ON a.carrera_id  = c.id
+      LEFT JOIN cursos   cu ON a.curso_id    = cu.id
+      WHERE a.estado NOT IN ('Retirado','Inactivo')
+      ORDER BY COALESCE(a.apellido,u.apellido), COALESCE(a.nombre,u.nombre)
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   try {
     const rows = db.prepare(`
