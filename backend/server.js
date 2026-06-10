@@ -181,18 +181,21 @@ const BOT_MENU_PRINCIPAL =
   `1️⃣ Soy alumno/a de la institución\n` +
   `2️⃣ No soy alumno/a - deseo realizar consultas`;
 
-async function procesarMensajeBot(numero, texto) {
-  // Bot activo desde el 11 de junio de 2026
-  const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' }));
-  const activacion = new Date('2026-06-11T00:00:00');
-  if (hoy < activacion) return;
+// ── BOT: modo solo-lectura (procesa y registra, no envía mensajes) ─────────────
+// Cambiar a false cuando se quiera activar respuestas automáticas
+const BOT_SOLO_LECTURA = true;
 
+async function procesarMensajeBot(numero, texto) {
   const EVO_URL  = process.env.EVOLUTION_URL;
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
 
   const enviar = async (msg) => {
+    if (BOT_SOLO_LECTURA) {
+      console.log(`[BOT LECTURA] → ${numero}: ${msg.slice(0,80)}...`);
+      return; // no envía nada
+    }
     try {
       await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
         method: 'POST',
