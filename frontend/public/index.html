@@ -1459,7 +1459,7 @@ function go(p, _fromHistory){
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
-    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,
+    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,interesados:pgInteresados,
     whatsapp:pgWhatsApp,
     'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
@@ -7343,6 +7343,7 @@ function pgHubPrincipal(el){
     ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
     ${_mCardSm('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
     ${_mCardSm('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
+    ${_mCardSm('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
   </div>`:''}
 
   ${_mSecTitulo('✏️','Académico','#7c3aed')}
@@ -7381,6 +7382,7 @@ function pgHubPersonas(el){
     ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
     ${_mCard('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
     ${_mCard('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
+    ${_mCard('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
   </div>`;
 }
 function pgHubAcademico(el){
@@ -7675,6 +7677,78 @@ function generarPDFFinanciero(){
   w.document.close();
 }
 // ──────────────────────────────────────────────────────────────────────────────
+// ── PANEL DE INTERESADOS (bot de admisiones) ─────────────────────────────────
+const _INT_ESTADOS = { nuevo:'nuevo', contactado:'contactado', inscripto:'inscripto', descartado:'descartado' };
+const _INT_BADGE = {
+  nuevo:      ['#0891b2','#ecfeff','🆕 Nuevo'],
+  contactado: ['#d97706','#fffbeb','📞 Contactado'],
+  inscripto:  ['#059669','#dcfce7','✅ Inscripto'],
+  descartado: ['#6b7280','#f1f5f9','🚫 Descartado'],
+};
+async function pgInteresados(el){
+  el.innerHTML='<div class="ph"><h3>📩 Interesados — Bot de Admisiones</h3></div>'+skeletonTable(4,5);
+  try{
+    const data = await api('GET','/api/interesados');
+    const total=data.length, nuevos=data.filter(d=>d.estado==='nuevo').length;
+    const carreras=[...new Set(data.map(d=>d.carrera_nombre))].filter(Boolean);
+    el.innerHTML=`<div class="ph"><h3>📩 Interesados — Bot de Admisiones</h3></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+      <div style="background:#ecfeff;border:2px solid #a5f3fc;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#0891b2">${total}</div>
+        <div style="font-size:11px;color:#0e7490;font-weight:700">TOTAL INTERESADOS</div>
+      </div>
+      <div style="background:#fef9c3;border:2px solid #fde68a;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#d97706">${nuevos}</div>
+        <div style="font-size:11px;color:#92400e;font-weight:700">SIN CONTACTAR</div>
+      </div>
+    </div>
+    ${carreras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="bs" style="font-size:12px;background:#0891b2;color:#fff" onclick="intFiltrar('')">Todas</button>
+      ${carreras.map(c=>`<button class="bs" style="font-size:12px" onclick="intFiltrar('${c.replace(/'/g,"\\'")}')">📚 ${c}</button>`).join('')}
+    </div>`:''}
+    ${data.length===0
+      ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">📭 Aún no hay interesados registrados por el bot.</div>'
+      :`<div style="overflow-x:auto"><table class="tbl" id="int-tabla">
+        <thead><tr><th>Nombre</th><th>Teléfono</th><th>Carrera de interés</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
+        <tbody>${data.map(d=>{
+          const [bg,bgL,label]=_INT_BADGE[d.estado]||_INT_BADGE.nuevo;
+          return `<tr data-carrera="${d.carrera_nombre||''}">
+            <td style="font-weight:700">${d.nombre||'—'}</td>
+            <td><a href="https://wa.me/${d.telefono}" target="_blank" style="color:#25D366;font-weight:700">📱 ${d.telefono||'—'}</a></td>
+            <td>${d.carrera_nombre||'—'}</td>
+            <td style="font-size:12px;color:#6b7280">${(d.fecha||'').slice(0,16)}</td>
+            <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                ${d.estado!=='contactado'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="intCambiarEstado('${d.id}','contactado')">📞</button>`:''}
+                ${d.estado!=='inscripto'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="intCambiarEstado('${d.id}','inscripto')">✅</button>`:''}
+                ${d.estado!=='descartado'?`<button class="bs" style="font-size:11px" onclick="intCambiarEstado('${d.id}','descartado')">🚫</button>`:''}
+                <button class="bs d" style="font-size:11px" onclick="intEliminar('${d.id}','${(d.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
+              </div>
+            </td>
+          </tr>`;}).join('')}
+        </tbody></table></div>`}`;
+  }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Interesados</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+}
+function intFiltrar(carrera){
+  document.querySelectorAll('#int-tabla tbody tr').forEach(tr=>{
+    tr.style.display=(!carrera||tr.dataset.carrera===carrera)?'':'none';
+  });
+}
+async function intCambiarEstado(id, estado){
+  try{
+    await api('PUT',`/api/interesados/${id}/estado`,{estado});
+    pgInteresados(document.getElementById('mc'));
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function intEliminar(id, nombre){
+  confirm2('🗑 Eliminar interesado',`¿Eliminar a <strong>${nombre}</strong> de la lista?`,
+    async function(){
+      try{await api('DELETE',`/api/interesados/${id}`);toast('✓ Eliminado','ok');pgInteresados(document.getElementById('mc'));}
+      catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+
 // ── DEPURACIÓN DE ALUMNOS INACTIVOS ──────────────────────────────────────────
 async function pgDepuracion(el){
   const [carreras, cursos] = await Promise.all([

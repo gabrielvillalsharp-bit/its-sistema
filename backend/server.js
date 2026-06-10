@@ -74,6 +74,135 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 
+// ── MIGRACIÓN: tabla interesados_bot ─────────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS interesados_bot (
+    id           TEXT PRIMARY KEY,
+    nombre       TEXT,
+    telefono     TEXT,
+    carrera_id   TEXT,
+    carrera_nombre TEXT,
+    fecha        TEXT DEFAULT (datetime('now','localtime')),
+    estado       TEXT DEFAULT 'nuevo'
+  )`).run();
+} catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
+
+// ── BOT DE ADMISIONES ─────────────────────────────────────────────────────────
+const _botEstados = new Map(); // numero → { estado, carrera_id, carrera_nombre, carrera_anos, ts }
+setInterval(() => {
+  const lim = Date.now() - 2*60*60*1000;
+  _botEstados.forEach((v,k) => { if(v.ts < lim) _botEstados.delete(k); });
+}, 30*60*1000);
+
+const BOT_CARRERAS = [
+  {num:'1', id:'cosA',  nombre:'Cosmiatría',                    anos:3},
+  {num:'2', id:'enf',   nombre:'Enfermería',                    anos:2},
+  {num:'3', id:'farm',  nombre:'Farmacia',                      anos:2},
+  {num:'4', id:'instr', nombre:'Instrumentación Quirúrgica',    anos:2},
+  {num:'5', id:'rad',   nombre:'Radiología',                    anos:2},
+  {num:'6', id:'agro',  nombre:'Agropecuaria',                  anos:2},
+  {num:'7', id:'elec',  nombre:'Electricidad',                  anos:2},
+  {num:'8', id:'crim',  nombre:'Criminalística',                anos:2},
+  {num:'9', id:'cont',  nombre:'Contabilidad',                  anos:2},
+];
+
+const BOT_MENU = `👋 ¡Bienvenido/a al *ITS Santísima Trinidad*!\n\nSomos un Instituto Técnico Superior comprometido con tu futuro profesional. 🎓\n\n¿En qué carrera estás interesado/a? Escribí el *número* de tu elección:\n\n1️⃣ Cosmiatría\n2️⃣ Enfermería\n3️⃣ Farmacia\n4️⃣ Instrumentación Quirúrgica\n5️⃣ Radiología\n6️⃣ Agropecuaria\n7️⃣ Electricidad\n8️⃣ Criminalística\n9️⃣ Contabilidad`;
+
+async function procesarMensajeBot(numero, texto) {
+  const EVO_URL  = process.env.EVOLUTION_URL;
+  const EVO_KEY  = process.env.EVOLUTION_KEY;
+  const EVO_INST = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
+
+  const enviar = async (msg) => {
+    try {
+      await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
+        method: 'POST',
+        headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: numero, text: msg })
+      });
+    } catch(e) { console.error('[BOT] enviar error:', e.message); }
+  };
+
+  const txt  = (texto||'').trim();
+  const txtn = txt.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
+  const est  = _botEstados.get(numero) || { estado: 'inicio' };
+  est.ts     = Date.now();
+
+  // Palabras clave para reiniciar
+  const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola'].some(p=>txtn.startsWith(p));
+
+  if (est.estado === 'inicio' || esReinicio) {
+    await enviar(BOT_MENU);
+    _botEstados.set(numero, { estado: 'esperando_carrera', ts: Date.now() });
+    return;
+  }
+
+  if (est.estado === 'esperando_carrera') {
+    const carrera = BOT_CARRERAS.find(c => c.num === txt || txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6)));
+    if (!carrera) {
+      await enviar(`Por favor escribí el *número* de la carrera que te interesa (del 1 al 9).\n\nEscribí *MENU* para ver las opciones de nuevo. 📋`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.carrera_id   = carrera.id;
+    est.carrera_nombre = carrera.nombre;
+    est.carrera_anos = carrera.anos;
+    est.estado       = 'esperando_nombre';
+    _botEstados.set(numero, est);
+    await enviar(`¡Excelente elección! 🎓 *${carrera.nombre}* es una de nuestras carreras más destacadas.\n\nPara brindarte información personalizada, ¿podrías decirme tu *nombre completo*?`);
+    return;
+  }
+
+  if (est.estado === 'esperando_nombre') {
+    if (txt.length < 3) {
+      await enviar(`Por favor enviá tu *nombre completo* para continuar. 😊`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    const nombre      = txt;
+    const primerNombre = nombre.split(' ')[0];
+    // Guardar en interesados_bot
+    try {
+      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,'nuevo')`).run(iid, nombre, numero, est.carrera_id, est.carrera_nombre);
+    } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
+
+    const info = `¡Mucho gusto, *${primerNombre}*! 😊 Te compartimos información sobre nuestra institución y la carrera de *${est.carrera_nombre}*:\n\n` +
+      `🏫 *ITS Santísima Trinidad*\n` +
+      `Contamos con modernas instalaciones equipadas con laboratorios, aulas especializadas y espacios de práctica de primer nivel, diseñados para garantizar una formación completa y de excelencia.\n\n` +
+      `👨‍🏫 *Nuestros Docentes*\n` +
+      `Nuestro plantel docente está altamente capacitado, con formación académica y amplia experiencia profesional en cada área, comprometidos con el aprendizaje y el crecimiento de cada estudiante.\n\n` +
+      `📚 *Carrera: ${est.carrera_nombre}*\n` +
+      `⏳ Duración: *${est.carrera_anos} años*\n\n` +
+      `📋 *Requisitos de inscripción:*\n` +
+      `✅ Haber culminado la Educación Media (Bachillerato)\n` +
+      `✅ Fotocopia de Cédula de Identidad\n` +
+      `✅ Certificado de Estudios\n\n` +
+      `Un *asesor del ITS se comunicará contigo* a la brevedad para orientarte y responder todas tus preguntas. 📞\n\n` +
+      `¡Gracias por tu interés, *${primerNombre}*! Te esperamos 🎓`;
+
+    await enviar(info);
+    _botEstados.set(numero, { estado: 'completado', ts: Date.now() });
+    return;
+  }
+
+  if (est.estado === 'completado') {
+    if (esReinicio || txtn === 'menu' || txtn === 'inicio') {
+      _botEstados.set(numero, { estado: 'inicio', ts: Date.now() });
+      await procesarMensajeBot(numero, texto);
+    } else {
+      await enviar(`Ya registramos tu información. Un asesor del ITS se comunicará contigo pronto. 😊\n\nEscribí *MENU* si querés consultar sobre otra carrera.`);
+    }
+    return;
+  }
+
+  // Fallback
+  _botEstados.set(numero, { estado: 'inicio', ts: Date.now() });
+  await procesarMensajeBot(numero, texto);
+}
+
 // ── MIGRACIÓN: asignacion_id en pagos (para vincular pago con materia habilitada) ──
 try {
   const cols = db.prepare("PRAGMA table_info(pagos)").all().map(c => c.name);
@@ -6794,6 +6923,63 @@ app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── WEBHOOK: mensajes entrantes de WhatsApp (Evolution API) ──────────────────
+app.post('/webhook/whatsapp', (req, res) => {
+  res.sendStatus(200); // responder rápido para no timeout
+  try {
+    const body = req.body;
+    if (!body) return;
+    // Soportar tanto el evento directo como el envuelto en array
+    const eventos = Array.isArray(body) ? body : [body];
+    for (const ev of eventos) {
+      const event = ev.event || ev.type || '';
+      if (!event.includes('message')) continue;
+      const data = ev.data || ev;
+      const key  = data.key || {};
+      if (key.fromMe) continue; // ignorar mensajes propios
+      const remoteJid = key.remoteJid || '';
+      if (remoteJid.includes('@g.us') || remoteJid.includes('@broadcast')) continue; // ignorar grupos
+      const numero = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+      if (!numero) continue;
+      const msg = data.message;
+      const texto = msg?.conversation || msg?.extendedTextMessage?.text || msg?.imageMessage?.caption || '';
+      if (!texto) continue;
+      const nombreContacto = data.pushName || '';
+      // Guardar en wa_recibidos
+      try {
+        db.prepare(`INSERT OR IGNORE INTO wa_recibidos (id,numero,nombre_contacto,mensaje,leido)
+          VALUES (?,?,?,?,0)`).run('war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), numero, nombreContacto, texto);
+      } catch(e) {}
+      // Procesar bot (async, no esperar)
+      procesarMensajeBot(numero, texto).catch(e=>console.error('[BOT]', e.message));
+    }
+  } catch(e) { console.error('[WEBHOOK WA]', e.message); }
+});
+
+// ── PANEL DE INTERESADOS (admisiones bot) ────────────────────────────────────
+app.get('/api/interesados', auth(ADM), (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM interesados_bot ORDER BY fecha DESC').all());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/interesados/:id/estado', auth(ADM), (req, res) => {
+  try {
+    const { estado } = req.body;
+    if (!['nuevo','contactado','inscripto','descartado'].includes(estado))
+      return res.status(400).json({ error: 'Estado inválido' });
+    db.prepare('UPDATE interesados_bot SET estado=? WHERE id=?').run(estado, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/interesados/:id', auth(ADM), (req, res) => {
+  try {
+    db.prepare('DELETE FROM interesados_bot WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── DETECCIÓN DE ALUMNOS DUPLICADOS ──────────────────────────────────────────
 app.get('/api/alumnos/duplicados', auth(ADM), (req, res) => {
   try {
@@ -7054,5 +7240,17 @@ app.listen(PORT, () => {
         }
       } catch(e) { console.warn('[WA] Auto-reconectar falló:', e.message); }
     }, 5000);
+    // Configurar webhook para recibir mensajes entrantes (bot de admisiones)
+    setTimeout(async () => {
+      try {
+        const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
+        await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INSTANCE}`, {
+          method: 'POST',
+          headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ webhook: { enabled: true, url: `${APP_URL}/webhook/whatsapp`, events: ['MESSAGES_UPSERT'] } })
+        });
+        console.log('[BOT] ✅ Webhook Evolution configurado →', APP_URL+'/webhook/whatsapp');
+      } catch(e) { console.warn('[BOT] Webhook config falló:', e.message); }
+    }, 8000);
   }
 });
