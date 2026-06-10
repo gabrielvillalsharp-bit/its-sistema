@@ -6229,37 +6229,44 @@ app.delete('/api/whatsapp/programados/:id', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
-// ── WHATSAPP: webhook para recibir mensajes ───────────────────────────────────
-app.post('/api/whatsapp/webhook', (req, res) => {
+// ── WHATSAPP: webhook para recibir mensajes (ambas rutas) ────────────────────
+function manejarWebhookWA(req, res) {
+  res.json({ ok: true }); // responder rápido
   try {
     const body = req.body;
-    // Evolution API v2 format
-    const event = body?.event || body?.type || '';
-    const data = body?.data || body;
-    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
-      const msg = data?.message || data?.messages?.[0];
-      if (msg && !msg?.key?.fromMe) {
-        const remoteJid = msg?.key?.remoteJid || '';
-        // Ignorar grupos (@g.us), broadcast, newsletter y status
-        if (remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter') || remoteJid === 'status@broadcast') {
-          res.json({ ok: true }); return;
-        }
-        const numero = remoteJid.replace('@s.whatsapp.net','');
-        const texto = msg?.message?.conversation
-          || msg?.message?.extendedTextMessage?.text
-          || msg?.message?.imageMessage?.caption
-          || '';
-        const nombre = msg?.pushName || null;
-        if (numero && texto) {
-          const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-          db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha) VALUES (?,?,?,?,?)')
-            .run(wrid, numero, nombre, texto, nowStr());
-        }
-      }
+    if (!body) return;
+    const eventos = Array.isArray(body) ? body : [body];
+    for (const ev of eventos) {
+      const event = (ev.event || ev.type || '').toLowerCase();
+      if (!event.includes('message')) continue;
+      const data = ev.data || ev;
+      // Soportar tanto data.key directo como data.messages[0]
+      const msgObj = (data.key && data.message) ? data : data?.messages?.[0] || null;
+      if (!msgObj) continue;
+      const key = msgObj.key || {};
+      if (key.fromMe) continue;
+      const remoteJid = key.remoteJid || '';
+      // Ignorar grupos, broadcast, newsletter, status
+      if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) continue;
+      const numero = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+      if (!numero) continue;
+      const msg = msgObj.message || {};
+      const texto = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
+      if (!texto.trim()) continue;
+      const nombre = msgObj.pushName || data.pushName || '';
+      // Guardar en wa_recibidos
+      try {
+        const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+        db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha,leido) VALUES (?,?,?,?,?,0)')
+          .run(wrid, numero, nombre, texto.trim(), nowStr());
+      } catch(e) {}
+      // Procesar bot (async, no esperar)
+      procesarMensajeBot(numero, texto.trim()).catch(e=>console.error('[BOT]', e.message));
     }
-    res.json({ ok: true });
-  } catch(e) { res.json({ ok: false }); }
-});
+  } catch(e) { console.error('[WEBHOOK WA]', e.message); }
+}
+app.post('/api/whatsapp/webhook', manejarWebhookWA);
+app.post('/webhook/whatsapp', manejarWebhookWA);
 
 // ── WHATSAPP: mensajes recibidos ──────────────────────────────────────────────
 app.get('/api/whatsapp/recibidos', auth(ADM), (req, res) => {
@@ -7451,38 +7458,7 @@ app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── WEBHOOK: mensajes entrantes de WhatsApp (Evolution API) ──────────────────
-app.post('/webhook/whatsapp', (req, res) => {
-  res.sendStatus(200); // responder rápido para no timeout
-  try {
-    const body = req.body;
-    if (!body) return;
-    // Soportar tanto el evento directo como el envuelto en array
-    const eventos = Array.isArray(body) ? body : [body];
-    for (const ev of eventos) {
-      const event = ev.event || ev.type || '';
-      if (!event.includes('message')) continue;
-      const data = ev.data || ev;
-      const key  = data.key || {};
-      if (key.fromMe) continue; // ignorar mensajes propios
-      const remoteJid = key.remoteJid || '';
-      if (remoteJid.includes('@g.us') || remoteJid.includes('@broadcast')) continue; // ignorar grupos
-      const numero = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
-      if (!numero) continue;
-      const msg = data.message;
-      const texto = msg?.conversation || msg?.extendedTextMessage?.text || msg?.imageMessage?.caption || '';
-      if (!texto) continue;
-      const nombreContacto = data.pushName || '';
-      // Guardar en wa_recibidos
-      try {
-        db.prepare(`INSERT OR IGNORE INTO wa_recibidos (id,numero,nombre_contacto,mensaje,leido)
-          VALUES (?,?,?,?,0)`).run('war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), numero, nombreContacto, texto);
-      } catch(e) {}
-      // Procesar bot (async, no esperar)
-      procesarMensajeBot(numero, texto).catch(e=>console.error('[BOT]', e.message));
-    }
-  } catch(e) { console.error('[WEBHOOK WA]', e.message); }
-});
+// /webhook/whatsapp ya está registrado arriba como alias de manejarWebhookWA
 
 // ── PANEL DE INTERESADOS (admisiones bot) ────────────────────────────────────
 app.get('/api/interesados', auth(ADM), (req, res) => {
