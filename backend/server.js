@@ -6191,39 +6191,76 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+// ── WHATSAPP CHAT: helper enriquecer número ───────────────────────────────────
+function wacEnriquecerNumero(rawNum) {
+  const numSin0 = rawNum.replace(/^595/,'').replace(/^0/,'');
+  const alumno = db.prepare(`
+    SELECT a.nombre, a.apellido, c.nombre as carrera_nombre
+    FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
+    WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?)
+      AND a.estado='Activo' LIMIT 1
+  `).get('%'+numSin0, '%0'+numSin0, rawNum);
+  const pendientes = db.prepare("SELECT COUNT(*) as n FROM wa_consultas WHERE numero LIKE ? AND estado='pendiente'").get('%'+numSin0)?.n || 0;
+  return { alumno: alumno||null, consultas_pendientes: pendientes };
+}
+
 // ── WHATSAPP CHAT: lista de conversaciones ────────────────────────────────────
 app.get('/api/whatsapp/chats', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
   const EVO_KEY = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
-  if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.status(503).json({ error: 'Evolution API no configurada' });
-  try {
-    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findChats/${EVO_INST}`, {
-      headers: { apikey: EVO_KEY }
+
+  let chats = [];
+
+  // 1) Intentar obtener chats desde Evolution API
+  if (EVO_URL && EVO_KEY && EVO_INST) {
+    try {
+      const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findChats/${EVO_INST}`, {
+        headers: { apikey: EVO_KEY }, signal: AbortSignal.timeout(6000)
+      });
+      let raw = await r.json();
+      let evoChats = Array.isArray(raw) ? raw : (raw?.chats || raw?.data || []);
+      evoChats = evoChats.filter(c => {
+        const id = (c.id || c.remoteJid || '');
+        return id.includes('@s.whatsapp.net') && !id.includes('-');
+      });
+      chats = evoChats.map(c => {
+        const rawNum = (c.id || c.remoteJid || '').split('@')[0];
+        const extra  = wacEnriquecerNumero(rawNum);
+        const lastTs = c.updatedAt || c.lastMsgTimestamp || c.lastMessageTimestamp || 0;
+        const lastMsg = c.lastMessage?.message?.conversation
+                     || c.lastMessage?.message?.extendedTextMessage?.text || '';
+        return { numero: rawNum, nombre: c.name||c.pushName||null, lastMsg, _ts: lastTs, ...extra };
+      });
+    } catch(e) { /* fallback a DB */ }
+  }
+
+  // 2) Fallback: construir lista desde wa_recibidos + wa_mensajes enviados
+  if (chats.length === 0) {
+    const recibidos = db.prepare(`
+      SELECT numero, nombre_contacto as nombre, mensaje as lastMsg,
+             MAX(fecha) as ultima_fecha
+      FROM wa_recibidos GROUP BY numero ORDER BY ultima_fecha DESC LIMIT 100
+    `).all();
+    const enviados = db.prepare(`
+      SELECT destinatario_telefono as numero, NULL as nombre, mensaje as lastMsg,
+             MAX(fecha) as ultima_fecha
+      FROM wa_mensajes WHERE destinatario_telefono IS NOT NULL
+      GROUP BY destinatario_telefono ORDER BY ultima_fecha DESC LIMIT 100
+    `).all();
+    // Merge: números únicos ordenados por última actividad
+    const map = new Map();
+    [...recibidos, ...enviados].forEach(r => {
+      const existing = map.get(r.numero);
+      if (!existing || r.ultima_fecha > existing.ultima_fecha) map.set(r.numero, r);
     });
-    let raw = await r.json();
-    let chats = Array.isArray(raw) ? raw : (raw?.chats || raw?.data || []);
-    // Solo chats individuales (excluir grupos que tienen '-' en el número)
-    chats = chats.filter(c => {
-      const id = (c.id || c.remoteJid || '');
-      return id.includes('@s.whatsapp.net') && !id.includes('-');
+    chats = [...map.values()].sort((a,b) => b.ultima_fecha > a.ultima_fecha ? 1 : -1).map(r => {
+      const extra = wacEnriquecerNumero(r.numero);
+      return { numero: r.numero, nombre: r.nombre||null, lastMsg: r.lastMsg||'', _ts: r.ultima_fecha, ...extra };
     });
-    // Enriquecer con datos de alumno y consultas pendientes
-    const enriched = chats.slice(0, 120).map(chat => {
-      const rawNum = (chat.id || chat.remoteJid || '').split('@')[0];
-      const numSin0 = rawNum.replace(/^595/,'');
-      const alumno = db.prepare(`
-        SELECT a.nombre, a.apellido, c.nombre as carrera_nombre
-        FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
-        WHERE (a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo' LIMIT 1
-      `).get('%'+numSin0, '%0'+numSin0);
-      const pendientes = db.prepare("SELECT COUNT(*) as n FROM wa_consultas WHERE numero LIKE ? AND estado='pendiente'").get('%'+numSin0)?.n || 0;
-      const lastTs = chat.updatedAt || chat.lastMsgTimestamp || chat.lastMessageTimestamp || 0;
-      return { ...chat, numero: rawNum, alumno: alumno||null, consultas_pendientes: pendientes, _ts: lastTs };
-    });
-    enriched.sort((a,b) => (b._ts > a._ts ? 1 : -1));
-    res.json(enriched);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  }
+
+  res.json(chats);
 });
 
 // ── WHATSAPP CHAT: mensajes de una conversación ───────────────────────────────
@@ -6231,34 +6268,61 @@ app.get('/api/whatsapp/chats/:numero/mensajes', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
   const EVO_KEY = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
-  if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.status(503).json({ error: 'Evolution API no configurada' });
-  try {
-    const numero = req.params.numero;
-    const jid    = `${numero}@s.whatsapp.net`;
-    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findMessages/${EVO_INST}`, {
-      method:  'POST',
-      headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ where: { key: { remoteJid: jid } }, limit: 60 })
-    });
-    const data = await r.json();
-    // Normalizar distintos formatos de respuesta de Evolution API
-    let msgs = [];
-    if (Array.isArray(data))               msgs = data;
-    else if (Array.isArray(data?.messages)) msgs = data.messages;
-    else if (Array.isArray(data?.messages?.records)) msgs = data.messages.records;
-    else if (Array.isArray(data?.records)) msgs = data.records;
-    // Ordenar cronológicamente
-    msgs.sort((a,b) => ((a.messageTimestamp||a.key?.timestamp||0) - (b.messageTimestamp||b.key?.timestamp||0)));
-    // Enriquecer con info del alumno y consultas
-    const numSin0 = numero.replace(/^595/,'');
-    const alumno = db.prepare(`
-      SELECT a.nombre, a.apellido, a.ci, c.nombre as carrera_nombre, a.telefono, a.id as alumno_id
-      FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
-      WHERE (a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo' LIMIT 1
-    `).get('%'+numSin0, '%0'+numSin0);
-    const consultas = db.prepare("SELECT * FROM wa_consultas WHERE numero LIKE ? ORDER BY fecha DESC LIMIT 10").all('%'+numSin0);
-    res.json({ mensajes: msgs, alumno, consultas });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  const numero   = req.params.numero;
+  const numSin0  = numero.replace(/^595/,'').replace(/^0/,'');
+
+  let msgs = [];
+
+  // 1) Intentar Evolution API
+  if (EVO_URL && EVO_KEY && EVO_INST) {
+    try {
+      const jid = `${numero}@s.whatsapp.net`;
+      const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/chat/findMessages/${EVO_INST}`, {
+        method: 'POST',
+        headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit: 60 }),
+        signal: AbortSignal.timeout(6000)
+      });
+      const data = await r.json();
+      if (Array.isArray(data))                      msgs = data;
+      else if (Array.isArray(data?.messages))        msgs = data.messages;
+      else if (Array.isArray(data?.messages?.records)) msgs = data.messages.records;
+      else if (Array.isArray(data?.records))         msgs = data.records;
+    } catch(e) { /* fallback */ }
+  }
+
+  // 2) Fallback: construir mensajes desde wa_recibidos + wa_mensajes
+  if (msgs.length === 0) {
+    const recibidos = db.prepare(`
+      SELECT id, numero, mensaje, fecha, 0 as fromMe, nombre_contacto as pushName
+      FROM wa_recibidos WHERE numero LIKE ? ORDER BY fecha ASC LIMIT 60
+    `).all('%'+numSin0);
+    const enviados = db.prepare(`
+      SELECT id, destinatario_telefono as numero, mensaje, fecha, 1 as fromMe, NULL as pushName
+      FROM wa_mensajes WHERE destinatario_telefono LIKE ? ORDER BY fecha ASC LIMIT 60
+    `).all('%'+numSin0);
+    // Combinar y ordenar cronológicamente
+    msgs = [...recibidos, ...enviados]
+      .sort((a,b) => a.fecha > b.fecha ? 1 : -1)
+      .map(m => ({
+        key: { fromMe: !!m.fromMe, remoteJid: numero+'@s.whatsapp.net' },
+        message: { conversation: m.mensaje },
+        messageTimestamp: Math.floor(new Date(m.fecha).getTime()/1000),
+        pushName: m.pushName
+      }));
+  } else {
+    msgs.sort((a,b) => ((a.messageTimestamp||0) - (b.messageTimestamp||0)));
+  }
+
+  // Datos del alumno y consultas
+  const alumno = db.prepare(`
+    SELECT a.nombre, a.apellido, a.ci, c.nombre as carrera_nombre, a.telefono
+    FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id
+    WHERE (a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo' LIMIT 1
+  `).get('%'+numSin0, '%0'+numSin0);
+  const consultas = db.prepare("SELECT * FROM wa_consultas WHERE numero LIKE ? ORDER BY fecha DESC LIMIT 10").all('%'+numSin0);
+
+  res.json({ mensajes: msgs, alumno, consultas });
 });
 
 // ── WHATSAPP CHAT: enviar mensaje desde el chat interno ───────────────────────
