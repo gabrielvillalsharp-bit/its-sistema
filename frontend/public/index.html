@@ -7685,59 +7685,125 @@ const _INT_BADGE = {
   inscripto:  ['#059669','#dcfce7','✅ Inscripto'],
   descartado: ['#6b7280','#f1f5f9','🚫 Descartado'],
 };
+const _CONS_BADGE={
+  pendiente:['#d97706','#fef9c3','⏳ Pendiente'],
+  atendido: ['#059669','#dcfce7','✅ Atendido'],
+};
+const _CONS_TIPO={
+  alumno_registrado:'👤 Alumno registrado',
+  alumno_nuevo:     '🆕 Alumno no registrado',
+  externo:          '🌐 Externo',
+};
 async function pgInteresados(el){
-  el.innerHTML='<div class="ph"><h3>📩 Interesados — Bot de Admisiones</h3></div>'+skeletonTable(4,5);
+  el.innerHTML='<div class="ph"><h3>📩 Bot de Atención</h3></div>'+skeletonTable(4,5);
   try{
-    const [data, recibidosResp] = await Promise.all([
+    const [consultas, interesados, recibidosResp] = await Promise.all([
+      api('GET','/api/consultas'),
       api('GET','/api/interesados'),
       api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0}))
     ]);
     const recibidos = recibidosResp.mensajes || [];
-    const total=data.length, nuevos=data.filter(d=>d.estado==='nuevo').length;
-    const carreras=[...new Set(data.map(d=>d.carrera_nombre))].filter(Boolean);
-    el.innerHTML=`<div class="ph"><h3>📩 Interesados — Bot de Admisiones</h3></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+    const consTotal=consultas.length, consPend=consultas.filter(c=>c.estado==='pendiente').length;
+    const intTotal=interesados.length, intNuevos=interesados.filter(d=>d.estado==='nuevo').length;
+    const carreras=[...new Set(interesados.map(d=>d.carrera_nombre))].filter(Boolean);
+
+    el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención — ITS</h3></div>
+    <!-- STATS -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:18px">
       <div style="background:#ecfeff;border:2px solid #a5f3fc;border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:28px;font-weight:900;color:#0891b2">${total}</div>
-        <div style="font-size:11px;color:#0e7490;font-weight:700">TOTAL INTERESADOS</div>
+        <div style="font-size:28px;font-weight:900;color:#0891b2">${consTotal}</div>
+        <div style="font-size:11px;color:#0e7490;font-weight:700">CONSULTAS RECIBIDAS</div>
       </div>
       <div style="background:#fef9c3;border:2px solid #fde68a;border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:28px;font-weight:900;color:#d97706">${nuevos}</div>
-        <div style="font-size:11px;color:#92400e;font-weight:700">SIN CONTACTAR</div>
+        <div style="font-size:28px;font-weight:900;color:#d97706">${consPend}</div>
+        <div style="font-size:11px;color:#92400e;font-weight:700">PENDIENTES</div>
+      </div>
+      <div style="background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#15803d">${intTotal}</div>
+        <div style="font-size:11px;color:#166534;font-weight:700">INTERESADOS</div>
+      </div>
+      <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#c2410c">${intNuevos}</div>
+        <div style="font-size:11px;color:#9a3412;font-weight:700">SIN CONTACTAR</div>
       </div>
     </div>
-    ${carreras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="bs" style="font-size:12px;background:#0891b2;color:#fff" onclick="intFiltrar('')">Todas</button>
-      ${carreras.map(c=>`<button class="bs" style="font-size:12px" onclick="intFiltrar('${c.replace(/'/g,"\\'")}')">📚 ${c}</button>`).join('')}
-    </div>`:''}
-    ${data.length===0
-      ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">📭 Aún no hay interesados registrados por el bot.</div>'
-      :`<div style="overflow-x:auto"><table class="tbl" id="int-tabla">
-        <thead><tr><th>Nombre</th><th>Teléfono</th><th>Carrera de interés</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
-        <tbody>${data.map(d=>{
-          const [bg,bgL,label]=_INT_BADGE[d.estado]||_INT_BADGE.nuevo;
-          return `<tr data-carrera="${d.carrera_nombre||''}">
-            <td style="font-weight:700">${d.nombre||'—'}</td>
-            <td><a href="https://wa.me/${d.telefono}" target="_blank" style="color:#25D366;font-weight:700">📱 ${d.telefono||'—'}</a></td>
-            <td>${d.carrera_nombre||'—'}</td>
-            <td style="font-size:12px;color:#6b7280">${(d.fecha||'').slice(0,16)}</td>
-            <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
-            <td>
-              <div style="display:flex;gap:4px;flex-wrap:wrap">
-                ${d.estado!=='contactado'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="intCambiarEstado('${d.id}','contactado')">📞</button>`:''}
-                ${d.estado!=='inscripto'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="intCambiarEstado('${d.id}','inscripto')">✅</button>`:''}
-                ${d.estado!=='descartado'?`<button class="bs" style="font-size:11px" onclick="intCambiarEstado('${d.id}','descartado')">🚫</button>`:''}
-                <button class="bs d" style="font-size:11px" onclick="intEliminar('${d.id}','${(d.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
-              </div>
-            </td>
-          </tr>`;}).join('')}
-        </tbody></table></div>`}
+    <!-- TABS -->
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid #e2e8f0">
+      <button id="tab-consultas" onclick="intTab('consultas')" style="padding:8px 18px;border:none;background:#0891b2;color:#fff;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
+        💬 Consultas ${consPend>0?`<span style="background:#dc2626;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${consPend}</span>`:''}
+      </button>
+      <button id="tab-interesados" onclick="intTab('interesados')" style="padding:8px 18px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
+        🎓 Interesados en inscripción ${intNuevos>0?`<span style="background:#d97706;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${intNuevos}</span>`:''}
+      </button>
+      <button id="tab-mensajes" onclick="intTab('mensajes')" style="padding:8px 18px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
+        📥 Mensajes ${recibidosResp.no_leidos>0?`<span style="background:#dc2626;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${recibidosResp.no_leidos}</span>`:''}
+      </button>
+    </div>
 
-    <div style="margin-top:20px">
-      <div style="font-weight:800;font-size:14px;color:#0891b2;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        📥 Mensajes recibidos (análisis pre-activación)
-        ${recibidosResp.no_leidos>0?`<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">${recibidosResp.no_leidos} nuevos</span>`:''}
-        <span style="font-size:11px;color:#6b7280;font-weight:400">— Analizá qué escriben para ajustar el bot antes del 11/06</span>
+    <!-- PANEL: CONSULTAS -->
+    <div id="panel-consultas">
+      ${consultas.length===0
+        ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">💬 Aún no hay consultas recibidas por el bot.</div>'
+        :`<div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Carrera / Año</th><th>Consulta</th><th>Teléfono</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
+          <tbody>${consultas.map(c=>{
+            const [bg,bgL,label]=_CONS_BADGE[c.estado]||_CONS_BADGE.pendiente;
+            const tipoLabel=_CONS_TIPO[c.tipo]||c.tipo;
+            const carreraInfo=[c.carrera_nombre,c.anio].filter(Boolean).join(' · ')||'—';
+            return `<tr>
+              <td style="font-weight:700;white-space:nowrap">${c.nombre||'—'}</td>
+              <td style="font-size:11px;white-space:nowrap">${tipoLabel}</td>
+              <td style="font-size:12px">${carreraInfo}</td>
+              <td style="max-width:260px;font-size:13px">${(c.consulta||'').slice(0,120)}${(c.consulta||'').length>120?'…':''}</td>
+              <td><a href="https://wa.me/${c.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${c.numero||'—'}</a></td>
+              <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(c.fecha||'').slice(0,16)}</td>
+              <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
+              <td>
+                <div style="display:flex;gap:4px">
+                  ${c.estado!=='atendido'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="consCambiarEstado('${c.id}','atendido')">✅</button>`:''}
+                  ${c.estado!=='pendiente'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="consCambiarEstado('${c.id}','pendiente')">⏳</button>`:''}
+                  <button class="bs d" style="font-size:11px" onclick="consEliminar('${c.id}','${(c.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
+                </div>
+              </td>
+            </tr>`;}).join('')}
+          </tbody></table></div>`}
+    </div>
+
+    <!-- PANEL: INTERESADOS -->
+    <div id="panel-interesados" style="display:none">
+      ${carreras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="bs" style="font-size:12px;background:#0891b2;color:#fff" onclick="intFiltrar('')">Todas</button>
+        ${carreras.map(c=>`<button class="bs" style="font-size:12px" onclick="intFiltrar('${c.replace(/'/g,"\\'")}')">📚 ${c}</button>`).join('')}
+      </div>`:''}
+      ${interesados.length===0
+        ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">📭 Aún no hay interesados registrados por el bot.</div>'
+        :`<div style="overflow-x:auto"><table class="tbl" id="int-tabla">
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Carrera de interés</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
+          <tbody>${interesados.map(d=>{
+            const [bg,bgL,label]=_INT_BADGE[d.estado]||_INT_BADGE.nuevo;
+            return `<tr data-carrera="${d.carrera_nombre||''}">
+              <td style="font-weight:700">${d.nombre||'—'}</td>
+              <td><a href="https://wa.me/${d.telefono}" target="_blank" style="color:#25D366;font-weight:700">📱 ${d.telefono||'—'}</a></td>
+              <td>${d.carrera_nombre||'—'}</td>
+              <td style="font-size:12px;color:#6b7280">${(d.fecha||'').slice(0,16)}</td>
+              <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  ${d.estado!=='contactado'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="intCambiarEstado('${d.id}','contactado')">📞</button>`:''}
+                  ${d.estado!=='inscripto'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="intCambiarEstado('${d.id}','inscripto')">✅</button>`:''}
+                  ${d.estado!=='descartado'?`<button class="bs" style="font-size:11px" onclick="intCambiarEstado('${d.id}','descartado')">🚫</button>`:''}
+                  <button class="bs d" style="font-size:11px" onclick="intEliminar('${d.id}','${(d.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
+                </div>
+              </td>
+            </tr>`;}).join('')}
+          </tbody></table></div>`}
+    </div>
+
+    <!-- PANEL: MENSAJES RECIBIDOS -->
+    <div id="panel-mensajes" style="display:none">
+      <div style="font-weight:700;font-size:13px;color:#475569;margin-bottom:10px">
+        Todos los mensajes entrantes de WhatsApp registrados por el sistema.
+        ${recibidosResp.no_leidos>0?`<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">${recibidosResp.no_leidos} nuevos</span>`:''}
       </div>
       ${recibidos.length===0
         ?'<div style="color:#94a3b8;font-size:13px;padding:12px 0">Aún no hay mensajes entrantes registrados.</div>'
@@ -7753,12 +7819,36 @@ async function pgInteresados(el){
           </tbody></table></div>
           <button class="bs" style="margin-top:8px;font-size:12px" onclick="intMarcarLeidos()">✓ Marcar todos como leídos</button>`}
     </div>`;
-  }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Interesados</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+  }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+}
+function intTab(tab){
+  ['consultas','interesados','mensajes'].forEach(t=>{
+    const panel=document.getElementById('panel-'+t);
+    const btn=document.getElementById('tab-'+t);
+    if(!panel||!btn) return;
+    const activo=t===tab;
+    panel.style.display=activo?'':'none';
+    btn.style.background=activo?'#0891b2':'#e2e8f0';
+    btn.style.color=activo?'#fff':'#475569';
+  });
 }
 function intFiltrar(carrera){
   document.querySelectorAll('#int-tabla tbody tr').forEach(tr=>{
     tr.style.display=(!carrera||tr.dataset.carrera===carrera)?'':'none';
   });
+}
+async function consCambiarEstado(id, estado){
+  try{
+    await api('PUT',`/api/consultas/${id}/estado`,{estado});
+    pgInteresados(document.getElementById('mc'));
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function consEliminar(id, nombre){
+  confirm2('🗑 Eliminar consulta',`¿Eliminar la consulta de <strong>${nombre}</strong>?`,
+    async function(){
+      try{await api('DELETE',`/api/consultas/${id}`);toast('✓ Eliminado','ok');pgInteresados(document.getElementById('mc'));}
+      catch(e){toast('Error: '+e.message,'err');}
+    },null);
 }
 async function intCambiarEstado(id, estado){
   try{

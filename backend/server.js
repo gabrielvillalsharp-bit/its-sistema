@@ -87,11 +87,32 @@ try {
   )`).run();
 } catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
 
+// ── MIGRACIÓN: tabla wa_consultas ─────────────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS wa_consultas (
+    id             TEXT PRIMARY KEY,
+    numero         TEXT,
+    nombre         TEXT,
+    tipo           TEXT DEFAULT 'externo',
+    alumno_id      TEXT,
+    carrera_nombre TEXT,
+    anio           TEXT,
+    ci             TEXT,
+    consulta       TEXT,
+    estado         TEXT DEFAULT 'pendiente',
+    fecha          TEXT DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) { console.warn('[Migración] wa_consultas:', e.message); }
+
 // ── BOT DE ADMISIONES ─────────────────────────────────────────────────────────
-const _botEstados = new Map(); // numero → { estado, carrera_id, carrera_nombre, carrera_anos, ts }
+const _botEstados = new Map(); // numero → { estado, ..., ts, completadoTs? }
 setInterval(() => {
-  const lim = Date.now() - 2*60*60*1000;
-  _botEstados.forEach((v,k) => { if(v.ts < lim) _botEstados.delete(k); });
+  const lim2h  = Date.now() - 2*60*60*1000;
+  const lim24h = Date.now() - 24*60*60*1000;
+  _botEstados.forEach((v,k) => {
+    const esCompletado = ['completado_alumno','completado_externo'].includes(v.estado);
+    if (v.ts < (esCompletado ? lim24h : lim2h)) _botEstados.delete(k);
+  });
 }, 30*60*1000);
 
 const BOT_CARRERAS = [
@@ -106,10 +127,14 @@ const BOT_CARRERAS = [
   {num:'9', id:'cont',  nombre:'Contabilidad',                  anos:2},
 ];
 
-const BOT_MENU = `👋 ¡Bienvenido/a al *ITS Santísima Trinidad*!\n\nSomos un Instituto Técnico Superior comprometido con tu futuro profesional. 🎓\n\n¿En qué carrera estás interesado/a? Escribí el *número* de tu elección:\n\n1️⃣ Cosmiatría\n2️⃣ Enfermería\n3️⃣ Farmacia\n4️⃣ Instrumentación Quirúrgica\n5️⃣ Radiología\n6️⃣ Agropecuaria\n7️⃣ Electricidad\n8️⃣ Criminalística\n9️⃣ Contabilidad`;
+const BOT_MENU_PRINCIPAL =
+  `Bienvenido/a al *Instituto Técnico Superior Santísima Trinidad*. 🎓\n\n` +
+  `Para brindarle la atención correspondiente, por favor indíquenos cuál es su situación:\n\n` +
+  `1️⃣ Soy alumno/a de la institución\n` +
+  `2️⃣ No soy alumno/a - deseo realizar consultas`;
 
 async function procesarMensajeBot(numero, texto) {
-  // Bot activo recién desde el 11 de junio de 2026
+  // Bot activo desde el 11 de junio de 2026
   const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' }));
   const activacion = new Date('2026-06-11T00:00:00');
   if (hoy < activacion) return;
@@ -134,72 +159,240 @@ async function procesarMensajeBot(numero, texto) {
   const est  = _botEstados.get(numero) || { estado: 'inicio' };
   est.ts     = Date.now();
 
-  // Palabras clave para reiniciar
+  // Palabras clave para reiniciar siempre
   const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola'].some(p=>txtn.startsWith(p));
 
+  // Límite 24h: si ya completó flujo y no han pasado 24h → silencio (salvo MENU)
+  const estadosCompletados = ['completado_alumno','completado_externo'];
+  if (estadosCompletados.includes(est.estado) && !esReinicio) {
+    const hace24h = Date.now() - 24*60*60*1000;
+    if ((est.completadoTs||0) > hace24h) return;
+    est.estado = 'inicio'; // pasaron 24h → reiniciar
+  }
+
+  // ── MENÚ PRINCIPAL ────────────────────────────────────────────────────────
   if (est.estado === 'inicio' || esReinicio) {
-    await enviar(BOT_MENU);
-    _botEstados.set(numero, { estado: 'esperando_carrera', ts: Date.now() });
+    await enviar(BOT_MENU_PRINCIPAL);
+    _botEstados.set(numero, { estado: 'esperando_tipo', ts: Date.now() });
     return;
   }
 
-  if (est.estado === 'esperando_carrera') {
-    const carrera = BOT_CARRERAS.find(c => c.num === txt || txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6)));
-    if (!carrera) {
-      await enviar(`Por favor escribí el *número* de la carrera que te interesa (del 1 al 9).\n\nEscribí *MENU* para ver las opciones de nuevo. 📋`);
-      _botEstados.set(numero, est);
+  // ── SELECCIÓN DE TIPO ─────────────────────────────────────────────────────
+  if (est.estado === 'esperando_tipo') {
+    const esAlumno   = txt==='1' || txtn.includes('soy al') || txtn==='alumno' || txtn==='alumna';
+    const esExterno  = txt==='2' || txtn.includes('no soy') || txtn.includes('consult') || txtn.includes('interes');
+
+    if (esAlumno) {
+      // Buscar por teléfono en alumnos (normalizar número)
+      const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
+      const numCon0 = '0'+numSin0;
+      const alumno  = db.prepare(`
+        SELECT a.id, a.nombre, a.apellido, a.telefono
+        FROM alumnos a
+        WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?)
+          AND a.estado = 'Activo'
+        LIMIT 1
+      `).get('%'+numSin0, '%'+numCon0, numSin0);
+
+      if (alumno) {
+        const nombreCompleto = `${alumno.nombre||''} ${alumno.apellido||''}`.trim();
+        est.alumno_id     = alumno.id;
+        est.alumno_nombre = nombreCompleto;
+        est.estado        = 'alumno_espera_consulta';
+        _botEstados.set(numero, est);
+        await enviar(
+          `Buenas, *${nombreCompleto}*. Le hemos identificado en nuestro sistema como alumno/a activo/a de la institución. 😊\n\n` +
+          `Por favor, indíquenos su consulta y un encargado se comunicará con usted a la brevedad.`
+        );
+      } else {
+        est.estado = 'alumno_nuevo_nombre';
+        _botEstados.set(numero, est);
+        await enviar(
+          `No hemos podido identificar su número en nuestro sistema.\n\n` +
+          `Para registrarle y atender su consulta necesitamos algunos datos.\n\n` +
+          `Por favor, indíquenos su *nombre completo*:`
+        );
+      }
       return;
     }
-    est.carrera_id   = carrera.id;
-    est.carrera_nombre = carrera.nombre;
-    est.carrera_anos = carrera.anos;
-    est.estado       = 'esperando_nombre';
+
+    if (esExterno) {
+      est.estado = 'externo_nombre';
+      _botEstados.set(numero, est);
+      await enviar(
+        `Con gusto le atendemos. 😊\n\n` +
+        `Por favor, indíquenos su *nombre completo*:`
+      );
+      return;
+    }
+
+    // Opción no reconocida
+    await enviar(
+      `Por favor, seleccione una opción válida:\n\n` +
+      `1️⃣ Soy alumno/a de la institución\n` +
+      `2️⃣ No soy alumno/a - deseo realizar consultas`
+    );
     _botEstados.set(numero, est);
-    await enviar(`¡Excelente elección! 🎓 *${carrera.nombre}* es una de nuestras carreras más destacadas.\n\nPara brindarte información personalizada, ¿podrías decirme tu *nombre completo*?`);
     return;
   }
 
-  if (est.estado === 'esperando_nombre') {
+  // ── FLUJO A1: ALUMNO REGISTRADO ───────────────────────────────────────────
+  if (est.estado === 'alumno_espera_consulta') {
     if (txt.length < 3) {
-      await enviar(`Por favor enviá tu *nombre completo* para continuar. 😊`);
+      await enviar(`Por favor, indíquenos su consulta para poder asistirle. 📋`);
       _botEstados.set(numero, est);
       return;
     }
-    const nombre      = txt;
-    const primerNombre = nombre.split(' ')[0];
-    // Guardar en interesados_bot
     try {
-      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-        VALUES (?,?,?,?,?,'nuevo')`).run(iid, nombre, numero, est.carrera_id, est.carrera_nombre);
-    } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
+      const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,alumno_id,consulta,estado,fecha)
+        VALUES (?,?,?,'alumno_registrado',?,?,'pendiente',datetime('now','localtime'))`)
+        .run(cid, numero, est.alumno_nombre, est.alumno_id||null, txt);
+    } catch(e) { console.error('[BOT] guardar consulta alumno:', e.message); }
 
-    const info = `¡Mucho gusto, *${primerNombre}*! 😊 Te compartimos información sobre nuestra institución y la carrera de *${est.carrera_nombre}*:\n\n` +
-      `🏫 *ITS Santísima Trinidad*\n` +
-      `Contamos con modernas instalaciones equipadas con laboratorios, aulas especializadas y espacios de práctica de primer nivel, diseñados para garantizar una formación completa y de excelencia.\n\n` +
-      `👨‍🏫 *Nuestros Docentes*\n` +
-      `Nuestro plantel docente está altamente capacitado, con formación académica y amplia experiencia profesional en cada área, comprometidos con el aprendizaje y el crecimiento de cada estudiante.\n\n` +
-      `📚 *Carrera: ${est.carrera_nombre}*\n` +
-      `⏳ Duración: *${est.carrera_anos} años*\n\n` +
-      `📋 *Requisitos de inscripción:*\n` +
-      `✅ Haber culminado la Educación Media (Bachillerato)\n` +
-      `✅ Fotocopia de Cédula de Identidad\n` +
-      `✅ Certificado de Estudios\n\n` +
-      `Un *asesor del ITS se comunicará contigo* a la brevedad para orientarte y responder todas tus preguntas. 📞\n\n` +
-      `¡Gracias por tu interés, *${primerNombre}*! Te esperamos 🎓`;
-
-    await enviar(info);
-    _botEstados.set(numero, { estado: 'completado', ts: Date.now() });
+    const pNombre = (est.alumno_nombre||'').split(' ')[0];
+    await enviar(
+      `Su consulta ha sido recibida correctamente. ✅\n\n` +
+      `Un encargado del Instituto se comunicará con usted a la brevedad.\n\n` +
+      `Gracias por contactarnos, *${pNombre}*.`
+    );
+    _botEstados.set(numero, { estado: 'completado_alumno', completadoTs: Date.now(), ts: Date.now() });
     return;
   }
 
-  if (est.estado === 'completado') {
-    if (esReinicio || txtn === 'menu' || txtn === 'inicio') {
-      _botEstados.set(numero, { estado: 'inicio', ts: Date.now() });
-      await procesarMensajeBot(numero, texto);
-    } else {
-      await enviar(`Ya registramos tu información. Un asesor del ITS se comunicará contigo pronto. 😊\n\nEscribí *MENU* si querés consultar sobre otra carrera.`);
+  // ── FLUJO A2: ALUMNO NUEVO (no encontrado en sistema) ─────────────────────
+  if (est.estado === 'alumno_nuevo_nombre') {
+    if (txt.length < 3) {
+      await enviar(`Por favor, ingrese su *nombre completo* para continuar:`);
+      _botEstados.set(numero, est);
+      return;
     }
+    est.nombre = txt;
+    est.estado = 'alumno_nuevo_ci';
+    _botEstados.set(numero, est);
+    await enviar(`Gracias. ¿Cuál es su número de *cédula de identidad*?`);
+    return;
+  }
+
+  if (est.estado === 'alumno_nuevo_ci') {
+    const ci = txt.replace(/\D/g,'');
+    if (ci.length < 5) {
+      await enviar(`Por favor, ingrese un número de cédula válido:`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.ci     = ci;
+    est.estado = 'alumno_nuevo_carrera';
+    _botEstados.set(numero, est);
+    const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
+    await enviar(`¿En qué carrera se encuentra cursando?\n\n${lista}`);
+    return;
+  }
+
+  if (est.estado === 'alumno_nuevo_carrera') {
+    const carrera = BOT_CARRERAS.find(c=>c.num===txt||txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6)));
+    if (!carrera) {
+      await enviar(`Por favor, seleccione el *número* de su carrera (del 1 al 9):`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.carrera_nombre = carrera.nombre;
+    est.estado         = 'alumno_nuevo_anio';
+    _botEstados.set(numero, est);
+    await enviar(`¿En qué año se encuentra cursando?\n\n1️⃣ Primer año\n2️⃣ Segundo año\n3️⃣ Tercer año`);
+    return;
+  }
+
+  if (est.estado === 'alumno_nuevo_anio') {
+    const anosMap = {'1':'Primer año','2':'Segundo año','3':'Tercer año'};
+    const anio = anosMap[txt] ||
+      (txtn.includes('prim')?'Primer año':txtn.includes('segu')?'Segundo año':txtn.includes('terc')?'Tercer año':null);
+    if (!anio) {
+      await enviar(`Por favor seleccione el año:\n\n1️⃣ Primer año\n2️⃣ Segundo año\n3️⃣ Tercer año`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.anio   = anio;
+    est.estado = 'alumno_nuevo_consulta';
+    _botEstados.set(numero, est);
+    await enviar(
+      `Sus datos han sido registrados correctamente. ✅\n\n` +
+      `Por favor, indíquenos su consulta y un encargado del Instituto se comunicará con usted a la brevedad:`
+    );
+    return;
+  }
+
+  if (est.estado === 'alumno_nuevo_consulta') {
+    if (txt.length < 3) {
+      await enviar(`Por favor, indíquenos su consulta para poder asistirle:`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    try {
+      const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,carrera_nombre,anio,ci,consulta,estado,fecha)
+        VALUES (?,?,?,'alumno_nuevo',?,?,?,?,'pendiente',datetime('now','localtime'))`)
+        .run(cid, numero, est.nombre, est.carrera_nombre, est.anio, est.ci, txt);
+    } catch(e) { console.error('[BOT] guardar consulta alumno nuevo:', e.message); }
+
+    const pNombre = (est.nombre||'').split(' ')[0];
+    await enviar(
+      `Su consulta ha sido recibida correctamente. ✅\n\n` +
+      `Un encargado del Instituto se comunicará con usted a la brevedad.\n\n` +
+      `Gracias por contactarnos, *${pNombre}*.`
+    );
+    _botEstados.set(numero, { estado: 'completado_alumno', completadoTs: Date.now(), ts: Date.now() });
+    return;
+  }
+
+  // ── FLUJO B: EXTERNO (no alumno) ──────────────────────────────────────────
+  if (est.estado === 'externo_nombre') {
+    if (txt.length < 3) {
+      await enviar(`Por favor, ingrese su *nombre completo* para continuar:`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.nombre = txt;
+    est.estado = 'externo_consulta';
+    _botEstados.set(numero, est);
+    await enviar(
+      `Mucho gusto, *${txt.split(' ')[0]}*. 😊\n\n` +
+      `Por favor, indíquenos su consulta o el motivo de su comunicación:`
+    );
+    return;
+  }
+
+  if (est.estado === 'externo_consulta') {
+    if (txt.length < 3) {
+      await enviar(`Por favor, indíquenos su consulta para poder asistirle:`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    const carreraMencionada = BOT_CARRERAS.find(c=>txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,5)));
+    try {
+      const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,carrera_nombre,consulta,estado,fecha)
+        VALUES (?,?,?,'externo',?,?,'pendiente',datetime('now','localtime'))`)
+        .run(cid, numero, est.nombre, carreraMencionada?.nombre||null, txt);
+    } catch(e) { console.error('[BOT] guardar consulta externo:', e.message); }
+
+    // Si menciona inscripción o carrera → también guardar como interesado
+    if (carreraMencionada || txtn.includes('inscri') || txtn.includes('carrer') || txtn.includes('estudi')) {
+      try {
+        const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+        db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
+          VALUES (?,?,?,?,?,'nuevo')`)
+          .run(iid, est.nombre, numero, carreraMencionada?.id||'', carreraMencionada?.nombre||'(por confirmar)');
+      } catch(e) {}
+    }
+
+    const pNombre = (est.nombre||'').split(' ')[0];
+    await enviar(
+      `Su consulta ha sido recibida correctamente. ✅\n\n` +
+      `Un encargado del Instituto Técnico Superior se comunicará con usted a la brevedad.\n\n` +
+      `Gracias por contactarnos, *${pNombre}*.`
+    );
+    _botEstados.set(numero, { estado: 'completado_externo', completadoTs: Date.now(), ts: Date.now() });
     return;
   }
 
@@ -6981,6 +7174,30 @@ app.put('/api/interesados/:id/estado', auth(ADM), (req, res) => {
 app.delete('/api/interesados/:id', auth(ADM), (req, res) => {
   try {
     db.prepare('DELETE FROM interesados_bot WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PANEL DE CONSULTAS BOT ────────────────────────────────────────────────────
+app.get('/api/consultas', auth(ADM), (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM wa_consultas ORDER BY fecha DESC').all());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/consultas/:id/estado', auth(ADM), (req, res) => {
+  try {
+    const { estado } = req.body;
+    if (!['pendiente','atendido'].includes(estado))
+      return res.status(400).json({ error: 'Estado inválido' });
+    db.prepare('UPDATE wa_consultas SET estado=? WHERE id=?').run(estado, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/consultas/:id', auth(ADM), (req, res) => {
+  try {
+    db.prepare('DELETE FROM wa_consultas WHERE id=?').run(req.params.id);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
