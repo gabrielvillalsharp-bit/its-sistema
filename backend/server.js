@@ -5986,6 +5986,58 @@ app.put('/api/whatsapp/plantillas-sistema/:clave', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+// ── DIAGNÓSTICO Y RECONFIGURACIÓN DEL WEBHOOK ────────────────────────────────
+app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
+  const EVO_URL  = process.env.EVOLUTION_URL;
+  const EVO_KEY  = process.env.EVOLUTION_KEY;
+  const EVO_INST = process.env.EVOLUTION_INSTANCE;
+  const APP_URL  = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
+  const webhookUrl = `${APP_URL}/webhook/whatsapp`;
+
+  const resultado = { webhookUrl, configEnv: { EVO_URL: !!EVO_URL, EVO_KEY: !!EVO_KEY, EVO_INST: !!EVO_INST, APP_URL } };
+
+  if (!EVO_URL || !EVO_KEY || !EVO_INST) {
+    return res.json({ ...resultado, error: 'Variables de entorno faltantes' });
+  }
+
+  // 1. Ver config actual del webhook en Evolution API
+  try {
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/find/${EVO_INST}`, {
+      headers: { apikey: EVO_KEY }, signal: AbortSignal.timeout(6000)
+    });
+    resultado.webhookActual = await r.json();
+  } catch(e) { resultado.webhookActual = { error: e.message }; }
+
+  // 2. Reconfigurar webhook (si se pasa ?reconfigurar=1)
+  if (req.query.reconfigurar === '1') {
+    try {
+      const r2 = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INST}`, {
+        method: 'POST',
+        headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT','messages.upsert'] } }),
+        signal: AbortSignal.timeout(6000)
+      });
+      resultado.reconfiguracion = await r2.json();
+    } catch(e) { resultado.reconfiguracion = { error: e.message }; }
+  }
+
+  // 3. Últimos mensajes recibidos en wa_recibidos
+  resultado.ultimosRecibidos = db.prepare('SELECT numero,nombre_contacto,mensaje,fecha FROM wa_recibidos ORDER BY fecha DESC LIMIT 5').all();
+  resultado.totalRecibidos   = db.prepare('SELECT COUNT(*) as n FROM wa_recibidos').get().n;
+
+  res.json(resultado);
+});
+
+// Endpoint de prueba: simula recibir un mensaje (para testear el bot sin WhatsApp)
+app.post('/api/whatsapp/webhook-test', auth(ADM), (req, res) => {
+  const { numero, texto, nombre } = req.body;
+  if (!numero || !texto) return res.status(400).json({ error: 'numero y texto requeridos' });
+  const fakeReq = { body: { event: 'messages.upsert', data: { key: { remoteJid: `${numero}@s.whatsapp.net`, fromMe: false }, message: { conversation: texto }, pushName: nombre||'Test' } } };
+  const fakeRes = { json: ()=>{} };
+  manejarWebhookWA(fakeReq, fakeRes);
+  res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${numero}` });
+});
+
 // ── WHATSAPP GESTIÓN: estado de conexión ──────────────────────────────────────
 app.get('/api/whatsapp/estado', auth(ADM), async (req, res) => {
   const EVO_URL = process.env.EVOLUTION_URL;
