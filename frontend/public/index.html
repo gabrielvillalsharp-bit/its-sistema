@@ -1459,7 +1459,7 @@ function go(p, _fromHistory){
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
-    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,interesados:pgInteresados,
+    solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,interesados:pgInteresados,papelera:pgPapelera,
     whatsapp:pgWhatsApp,
     'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
@@ -7344,6 +7344,7 @@ function pgHubPrincipal(el){
     ${_mCardSm('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
     ${_mCardSm('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
     ${_mCardSm('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
+    ${_mCardSm('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
   </div>`:''}
 
   ${_mSecTitulo('✏️','Académico','#7c3aed')}
@@ -7383,6 +7384,7 @@ function pgHubPersonas(el){
     ${_mCard('depuracion','🧹','Depuración','Limpiar inactivos','#b91c1c','#fff1f2')}
     ${_mCard('duplicados','👥','Duplicados','Detectar duplicados','#7c3aed','#f5f3ff')}
     ${_mCard('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
+    ${_mCard('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
   </div>`;
 }
 function pgHubAcademico(el){
@@ -7866,6 +7868,72 @@ async function intEliminar(id, nombre){
 async function intMarcarLeidos(){
   try{await api('PUT','/api/whatsapp/recibidos/leer-todos');pgInteresados(document.getElementById('mc'));}
   catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── PAPELERA DE RECICLAJE ─────────────────────────────────────────────────────
+const _PAP_TIPO={
+  alumno_completo:{ ico:'👤', label:'Alumno (completo)' },
+  alumno:         { ico:'👤', label:'Alumno'            },
+  pago:           { ico:'💰', label:'Pago'              },
+  examen:         { ico:'📝', label:'Examen'            },
+  docente:        { ico:'👨‍🏫', label:'Docente'          },
+};
+async function pgPapelera(el){
+  el.innerHTML='<div class="ph"><h3>🗑️ Papelera de Reciclaje</h3></div>'+skeletonTable(3,5);
+  try{
+    const data = await api('GET','/api/papelera');
+    const hoy  = new Date();
+    el.innerHTML=`<div class="ph"><h3>🗑️ Papelera de Reciclaje</h3></div>
+    <div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
+      ⚠️ Los registros eliminados se conservan <strong>10 días</strong> y luego se eliminan definitivamente de forma automática.
+      Podés restaurarlos en cualquier momento antes de que venzan.
+    </div>
+    ${data.length===0
+      ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía.</div>'
+      :`<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
+        <tbody>${data.map(d=>{
+          const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
+          const expira = new Date(d.expira_en);
+          const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
+          const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
+          return `<tr>
+            <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
+            <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
+            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
+            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
+            <td style="text-align:center">
+              <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
+            </td>
+            <td>
+              <div style="display:flex;gap:5px">
+                <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="papRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
+                <button class="bs d" style="font-size:11px" onclick="papEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+              </div>
+            </td>
+          </tr>`;}).join('')}
+        </tbody></table></div>`}`;
+  }catch(e){el.innerHTML=`<div class="ph"><h3>🗑️ Papelera</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+}
+async function papRestore(id, nombre){
+  confirm2('♻️ Restaurar registro',`¿Restaurar <strong>${nombre}</strong>? El registro volverá al sistema.`,
+    async function(){
+      try{
+        await api('POST',`/api/papelera/${id}/restaurar`);
+        toast('✓ Restaurado correctamente','ok');
+        pgPapelera(document.getElementById('mc'));
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+async function papEliminar(id, nombre){
+  confirm2('🗑 Eliminar definitivamente',`¿Eliminar <strong>${nombre}</strong> de forma permanente? Esta acción no se puede deshacer.`,
+    async function(){
+      try{
+        await api('DELETE',`/api/papelera/${id}`);
+        toast('✓ Eliminado permanentemente','ok');
+        pgPapelera(document.getElementById('mc'));
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
 }
 
 // ── DEPURACIÓN DE ALUMNOS INACTIVOS ──────────────────────────────────────────

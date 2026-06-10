@@ -104,6 +104,31 @@ try {
   )`).run();
 } catch(e) { console.warn('[Migración] wa_consultas:', e.message); }
 
+// ── MIGRACIÓN: tabla papelera ─────────────────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS papelera (
+    id                TEXT PRIMARY KEY,
+    tipo              TEXT,
+    nombre_display    TEXT,
+    datos_json        TEXT,
+    eliminado_por     TEXT,
+    fecha_eliminacion TEXT DEFAULT (datetime('now','localtime')),
+    expira_en         TEXT
+  )`).run();
+} catch(e) { console.warn('[Migración] papelera:', e.message); }
+
+// ── HELPER PAPELERA ───────────────────────────────────────────────────────────
+function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
+  try {
+    const pid    = 'pap_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+    const expira = new Date(Date.now() + 10*24*60*60*1000)
+      .toLocaleString('sv-SE', { timeZone: 'America/Asuncion' }).replace('T',' ').slice(0,19);
+    db.prepare(`INSERT INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en)
+      VALUES (?,?,?,?,?,?)`)
+      .run(pid, tipo, nombreDisplay, JSON.stringify(datos), eliminadoPor||null, expira);
+  } catch(e) { console.error('[PAPELERA] guardar:', e.message); }
+}
+
 // ── BOT DE ADMISIONES ─────────────────────────────────────────────────────────
 const _botEstados = new Map(); // numero → { estado, ..., ts, completadoTs? }
 setInterval(() => {
@@ -831,9 +856,17 @@ app.put('/api/docentes/:uid/password', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 app.delete('/api/docentes/:uid', auth(ADM), (req, res) => {
-  db.prepare('DELETE FROM docentes WHERE usuario_id=?').run(req.params.uid);
-  db.prepare('DELETE FROM usuarios WHERE id=?').run(req.params.uid);
-  res.json({ ok: true });
+  try {
+    const docente = db.prepare('SELECT * FROM docentes WHERE usuario_id=?').get(req.params.uid);
+    const usuario = db.prepare('SELECT * FROM usuarios WHERE id=?').get(req.params.uid);
+    if (docente || usuario) {
+      const nombre = usuario ? `${usuario.nombre||''} ${usuario.apellido||''}`.trim() : req.params.uid;
+      guardarEnPapelera('docente', nombre, { docente, usuario }, req.user?.id);
+    }
+    db.prepare('DELETE FROM docentes WHERE usuario_id=?').run(req.params.uid);
+    db.prepare('DELETE FROM usuarios WHERE id=?').run(req.params.uid);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ALUMNOS ───────────────────────────────────────────────────────────────────
@@ -1113,12 +1146,23 @@ app.delete('/api/alumnos/grupo', auth(ADM), (req, res) => {
 // Eliminación completa desde Pagos (incluye solicitudes y cuenta de usuario)
 app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
   try {
-    const a = db.prepare('SELECT id, usuario_id, nombre, apellido, ci FROM alumnos WHERE id=?').get(req.params.id);
+    const a = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);
     if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
+    // Snapshot para papelera ANTES de eliminar
+    const usuario    = a.usuario_id ? db.prepare('SELECT * FROM usuarios WHERE id=?').get(a.usuario_id) : null;
+    const notas      = db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(a.id);
+    const pagos      = db.prepare('SELECT * FROM pagos WHERE alumno_id=?').all(a.id);
+    const asistencia = db.prepare('SELECT * FROM asistencia WHERE alumno_id=?').all(a.id);
+    const becas      = db.prepare('SELECT * FROM becas WHERE alumno_id=?').all(a.id);
+    const habilitaciones = db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').all(a.id);
+    guardarEnPapelera('alumno_completo',
+      `${a.nombre||''} ${a.apellido||''}`.trim() + (a.ci ? ` (CI: ${a.ci})` : ''),
+      { alumno: a, usuario, notas, pagos, asistencia, becas, habilitaciones },
+      req.user?.id
+    );
     db.pragma('foreign_keys = OFF');
     try {
       db.transaction(() => {
-        // Buscar dinámicamente todas las tablas que tienen columna alumno_id y borrar
         const tablas = db.prepare(`
           SELECT m.name FROM sqlite_master m
           WHERE m.type='table'
@@ -1128,7 +1172,6 @@ app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
         tablas.forEach(t => {
           try { db.prepare(`DELETE FROM ${t} WHERE alumno_id=?`).run(a.id); } catch {}
         });
-        // Solicitudes de incorporación registradas por este usuario
         if (a.usuario_id) {
           try { db.prepare('DELETE FROM solicitudes_alumno WHERE registrado_por=?').run(a.usuario_id); } catch {}
         }
@@ -1145,21 +1188,33 @@ app.delete('/api/alumnos/:id/completo', auth(ADM), (req, res) => {
 
 app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
   try {
-    const a = db.prepare('SELECT usuario_id FROM alumnos WHERE id=?').get(req.params.id);
+    const a = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);
     if (!a) return res.status(404).json({ error: 'Alumno no encontrado' });
+    // Snapshot para papelera ANTES de eliminar
+    const usuario    = a.usuario_id ? db.prepare('SELECT * FROM usuarios WHERE id=?').get(a.usuario_id) : null;
+    const notas      = db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(a.id);
+    const pagos      = db.prepare('SELECT * FROM pagos WHERE alumno_id=?').all(a.id);
+    const asistencia = db.prepare('SELECT * FROM asistencia WHERE alumno_id=?').all(a.id);
+    const becas      = db.prepare('SELECT * FROM becas WHERE alumno_id=?').all(a.id);
+    const habilitaciones = db.prepare('SELECT * FROM habilitaciones_examen WHERE alumno_id=?').all(a.id);
+    guardarEnPapelera('alumno',
+      `${a.nombre||''} ${a.apellido||''}`.trim() + (a.ci ? ` (CI: ${a.ci})` : ''),
+      { alumno: a, usuario, notas, pagos, asistencia, becas, habilitaciones },
+      req.user?.id
+    );
     db.transaction(() => {
-      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(req.params.id);
-      db.prepare('DELETE FROM alumnos WHERE id=?').run(req.params.id);
+      db.prepare('DELETE FROM notas WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM asistencia WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM pagos WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM constancias WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM becas WHERE alumno_id=?').run(a.id);
+      db.prepare('DELETE FROM habilitaciones_examen WHERE alumno_id=?').run(a.id);
+      try { db.prepare('DELETE FROM deudas_cuotas WHERE alumno_id=?').run(a.id); } catch {}
+      try { db.prepare('DELETE FROM solicitudes_egreso WHERE alumno_id=?').run(a.id); } catch {}
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(a.id);
       if (a.usuario_id) db.prepare('DELETE FROM usuarios WHERE id=?').run(a.usuario_id);
     })();
-    audit(req.user.id,'DELETE','alumnos',req.params.id,{});
+    audit(req.user.id,'DELETE','alumnos',a.id,{});
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
 });
@@ -2324,8 +2379,23 @@ app.put('/api/examenes/:id', auth(ADM), (req, res) => {
 });
 
 app.delete('/api/examenes/:id', auth(ADM), (req, res) => {
-  db.prepare('DELETE FROM examenes WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
+  try {
+    const ex = db.prepare(`
+      SELECT e.*, m.nombre as materia_nombre, c.anio, c.division,
+             ca.nombre as carrera_nombre
+      FROM examenes e
+      LEFT JOIN asignaciones a ON e.asignacion_id=a.id
+      LEFT JOIN materias m ON a.materia_id=m.id
+      LEFT JOIN cursos c ON a.curso_id=c.id
+      LEFT JOIN carreras ca ON c.carrera_id=ca.id
+      WHERE e.id=?`).get(req.params.id);
+    if (ex) {
+      const nombre = `${ex.tipo||'Examen'} — ${ex.materia_nombre||ex.asignacion_id} (${ex.fecha||'sin fecha'})`;
+      guardarEnPapelera('examen', nombre, ex, req.user?.id);
+    }
+    db.prepare('DELETE FROM examenes WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── RECUPERATORIOS PARCIALES — Preview automático ────────────────────────────
@@ -2812,6 +2882,15 @@ app.put('/api/pagos/:id', auth(ADM), (req, res) => {
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
   try {
     const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
+    if (p) {
+      // Enriquecer con nombre del alumno para el display
+      const al = p.alumno_id ? db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(p.alumno_id) : null;
+      const nombreAl = al ? `${al.nombre||''} ${al.apellido||''}`.trim() : p.alumno_id;
+      guardarEnPapelera('pago',
+        `${p.concepto||'Pago'} — ${nombreAl} — Gs. ${(p.monto||0).toLocaleString()} (${p.fecha_pago||'sin fecha'})`,
+        p, req.user?.id
+      );
+    }
     db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id);
     // Si el pago era de un examen con arancel vinculado a una materia, eliminar la habilitación creada por ese pago
     if (p?.asignacion_id && p?.alumno_id) {
@@ -4553,6 +4632,14 @@ async function hacerBackupAutomatico() {
 cron.schedule('0 23 * * *', () => {
   console.log('[BACKUP] Ejecutando backup diario 23:00 PY...');
   hacerBackupAutomatico();
+}, { timezone: 'America/Asuncion' });
+
+// ── CRON: Purga papelera expirada (diario 03:00) ─────────────────────────────
+cron.schedule('0 3 * * *', () => {
+  try {
+    const r = db.prepare("DELETE FROM papelera WHERE expira_en <= datetime('now','localtime')").run();
+    if (r.changes > 0) console.log(`[PAPELERA] Purgados ${r.changes} registros expirados`);
+  } catch(e) { console.error('[PAPELERA PURGE]', e.message); }
 }, { timezone: 'America/Asuncion' });
 
 console.log('⏰ Backup programado: todos los días a las 23:00 (hora Paraguay) → Volume + GitHub');
@@ -7174,6 +7261,122 @@ app.put('/api/interesados/:id/estado', auth(ADM), (req, res) => {
 app.delete('/api/interesados/:id', auth(ADM), (req, res) => {
   try {
     db.prepare('DELETE FROM interesados_bot WHERE id=?').run(req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PAPELERA DE RECICLAJE ─────────────────────────────────────────────────────
+app.get('/api/papelera', auth(ADM), (req, res) => {
+  try {
+    res.json(db.prepare(
+      'SELECT id,tipo,nombre_display,eliminado_por,fecha_eliminacion,expira_en FROM papelera ORDER BY fecha_eliminacion DESC'
+    ).all());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/papelera/:id/restaurar', auth(ADM), async (req, res) => {
+  try {
+    const item = db.prepare('SELECT * FROM papelera WHERE id=?').get(req.params.id);
+    if (!item) return res.status(404).json({ error: 'No encontrado en papelera' });
+    const datos = JSON.parse(item.datos_json);
+
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        if (item.tipo === 'alumno_completo' || item.tipo === 'alumno') {
+          // Restaurar usuario
+          if (datos.usuario) {
+            const u = datos.usuario;
+            db.prepare(`INSERT OR IGNORE INTO usuarios
+              (id,nombre,apellido,ci,email,password_hash,rol,activo)
+              VALUES (?,?,?,?,?,?,?,?)`)
+              .run(u.id,u.nombre,u.apellido,u.ci,u.email,u.password_hash,u.rol,u.activo??1);
+          }
+          // Restaurar alumno
+          if (datos.alumno) {
+            const a = datos.alumno;
+            db.prepare(`INSERT OR IGNORE INTO alumnos
+              (id,usuario_id,matricula,carrera_id,curso_id,estado,ci,nombre,apellido,telefono)
+              VALUES (?,?,?,?,?,?,?,?,?,?)`)
+              .run(a.id,a.usuario_id,a.matricula,a.carrera_id,a.curso_id,a.estado??'Activo',a.ci,a.nombre,a.apellido,a.telefono);
+          }
+          // Restaurar notas
+          (datos.notas||[]).forEach(n => {
+            try { db.prepare(`INSERT OR IGNORE INTO notas
+              (id,alumno_id,asignacion_id,tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,
+               final_ord,final_recuperatorio,complementario,extraordinario,puntaje_total,nota_final,estado,director_pts)
+              VALUES (@id,@alumno_id,@asignacion_id,@tp1,@tp2,@tp3,@tp4,@tp5,@parcial,@parcial_recuperatorio,
+               @final_ord,@final_recuperatorio,@complementario,@extraordinario,@puntaje_total,@nota_final,@estado,@director_pts)`)
+              .run(n); } catch {}
+          });
+          // Restaurar pagos
+          (datos.pagos||[]).forEach(p => {
+            try { db.prepare(`INSERT OR IGNORE INTO pagos
+              (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,descuento,medio_pago)
+              VALUES (@id,@alumno_id,@periodo_id,@concepto,@monto,@fecha_pago,@estado,@descuento,@medio_pago)`)
+              .run(p); } catch {}
+          });
+          // Restaurar asistencia
+          (datos.asistencia||[]).forEach(a => {
+            try { db.prepare(`INSERT OR IGNORE INTO asistencia
+              (id,alumno_id,asignacion_id,fecha,estado,observacion)
+              VALUES (@id,@alumno_id,@asignacion_id,@fecha,@estado,@observacion)`)
+              .run(a); } catch {}
+          });
+          // Restaurar becas y habilitaciones
+          (datos.becas||[]).forEach(b => {
+            try { db.prepare(`INSERT OR IGNORE INTO becas
+              (id,alumno_id,tipo,porcentaje,monto_fijo,fecha_inicio,fecha_fin,activa)
+              VALUES (@id,@alumno_id,@tipo,@porcentaje,@monto_fijo,@fecha_inicio,@fecha_fin,@activa)`)
+              .run(b); } catch {}
+          });
+          (datos.habilitaciones||[]).forEach(h => {
+            try { db.prepare(`INSERT OR IGNORE INTO habilitaciones_examen
+              (id,alumno_id,tipo_examen,asignacion_id,habilitado,habilitado_recuperatorio)
+              VALUES (@id,@alumno_id,@tipo_examen,@asignacion_id,@habilitado,@habilitado_recuperatorio)`)
+              .run(h); } catch {}
+          });
+        } else if (item.tipo === 'pago') {
+          const p = datos;
+          try { db.prepare(`INSERT OR IGNORE INTO pagos
+            (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,descuento,medio_pago,asignacion_id)
+            VALUES (@id,@alumno_id,@periodo_id,@concepto,@monto,@fecha_pago,@estado,@descuento,@medio_pago,@asignacion_id)`)
+            .run(p); } catch(e2) { throw new Error('Error restaurar pago: '+e2.message); }
+        } else if (item.tipo === 'examen') {
+          const e = datos;
+          try { db.prepare(`INSERT OR IGNORE INTO examenes
+            (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
+            VALUES (@id,@asignacion_id,@tipo,@fecha,@hora,@aula,@periodo_id,@puntos_max)`)
+            .run(e); } catch(e2) { throw new Error('Error restaurar examen: '+e2.message); }
+        } else if (item.tipo === 'docente') {
+          if (datos.usuario) {
+            const u = datos.usuario;
+            db.prepare(`INSERT OR IGNORE INTO usuarios
+              (id,nombre,apellido,ci,email,password_hash,rol,activo)
+              VALUES (?,?,?,?,?,?,?,?)`)
+              .run(u.id,u.nombre,u.apellido,u.ci,u.email,u.password_hash,u.rol,u.activo??1);
+          }
+          if (datos.docente) {
+            const d = datos.docente;
+            try { db.prepare(`INSERT OR IGNORE INTO docentes
+              (id,usuario_id,especialidad,titulo,telefono,celular)
+              VALUES (@id,@usuario_id,@especialidad,@titulo,@telefono,@celular)`)
+              .run(d); } catch {}
+          }
+        }
+      })();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
+    db.prepare('DELETE FROM papelera WHERE id=?').run(req.params.id);
+    audit(req.user.id,'RESTAURAR','papelera',req.params.id,{ tipo: item.tipo, nombre: item.nombre_display });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: 'Error al restaurar: '+e.message }); }
+});
+
+app.delete('/api/papelera/:id', auth(ADM), (req, res) => {
+  try {
+    db.prepare('DELETE FROM papelera WHERE id=?').run(req.params.id);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
