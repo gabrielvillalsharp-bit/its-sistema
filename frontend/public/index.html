@@ -9814,6 +9814,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     // Para los 5 exámenes con arancel: requieren habilitación específica por pago de arancel en esta materia
     const esArancelHab=(tipo)=>tiposHab.includes(tipo);
     const disabledBase=ausente;
+    const disabledParcialOrd=ausente||me.rol==='docente';
     const disabledFinalOrd=ausente||!esArancelHab('final_ord');
     const disabledFinalRec=ausente||!esArancelHab('final_recuperatorio');
     const disabledComplem=ausente||!esArancelHab('complementario');
@@ -9853,7 +9854,7 @@ W.loadNotas=async(asigId,_tipo)=>{
           autocomplete="off" oninput="updN('${a.id}','${asigId}','tp4',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.tp4!=null?'700':'400'};color:${disabledBase?'#94a3b8':a.tp4!=null?'#15803d':'#64748b'}"/></td>
       <td style="${cellBase}padding:4px 8px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1;font-weight:800;font-size:14px;color:#374151" id="tptot-${a.id}">${a.tp_total??'—'}</td>
-      ${inp('parcial',20,a.parcial,'#ffffff',disabledBase,'#1d4ed8')}
+      ${inp('parcial',20,a.parcial,'#ffffff',disabledParcialOrd,'#1d4ed8')}
       <td class="${disabledParcialRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledParcialRec?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
         <input class="nota-inp" type="number" min="0" max="20" step="1" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'·'}" ${disabledParcialRec?'disabled':''}
           autocomplete="off" oninput="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"
@@ -9971,6 +9972,16 @@ W.updN=async(aId,asigId,campo,val)=>{
     }
   }
   if(!W._nc[aId])W._nc[aId]={};
+  // Validar suma de TPs ≤ 20 antes de aceptar el cambio
+  if(['tp1','tp2','tp3','tp4'].includes(campo)){
+    const newVal=val===''?null:Math.round(Number(val));
+    const tmp={...W._nc[aId],[campo]:newVal};
+    const tpSum=['tp1','tp2','tp3','tp4'].reduce((s,f)=>s+(tmp[f]??0),0);
+    if(tpSum>20){
+      toast(`⚠️ La suma de TPs (${tpSum}pts) supera el máximo de 20pts. Corrija el valor.`,'err',4000);
+      return;
+    }
+  }
   W._nc[aId][campo]=val===''?null:Math.round(Number(val));
   const n=W._nc[aId];
   try{

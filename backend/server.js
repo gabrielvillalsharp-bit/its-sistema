@@ -1640,6 +1640,13 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
         }
       }
     }
+    // Docente no puede modificar el parcial ordinario (está bloqueado tras cierre del período)
+    if (req.user.rol === 'docente') {
+      const vParcial = req.body.parcial;
+      if (vParcial !== undefined && vParcial !== '' && vParcial !== null) {
+        return res.status(403).json({ error: 'El parcial ordinario está bloqueado para docentes. Solo el director puede modificarlo.' });
+      }
+    }
     const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];
     // Validar que todos los valores sean enteros (sin comas ni decimales)
     for (const c of campos) {
@@ -1655,6 +1662,11 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       if (v === '' || v === undefined || v === null) return null;
       return Math.round(Number(String(v).replace(',', '.')));
     });
+    // Validar que la suma de TPs (tp1+tp2+tp3+tp4) no supere 20 puntos
+    const tpSum = [vals[0],vals[1],vals[2],vals[3]].reduce((s,v)=>s+(v??0),0);
+    if (tpSum > 20) {
+      return res.status(400).json({ error: `La suma de TPs (${tpSum}pts) supera el máximo permitido de 20 puntos. Corrija los valores.` });
+    }
     // Validar habilitación para recuperatorio (director puede siempre)
     if (req.user.rol !== 'director' && vals[6] !== null) {
       const hab = db.prepare(`SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND habilitado=1 AND (habilitado_recuperatorio=1 OR tipo_examen='parcial_recuperatorio') LIMIT 1`).get(req.params.alumno_id, req.params.asig_id);
@@ -6014,7 +6026,7 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
       const r2 = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INST}`, {
         method: 'POST',
         headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT','messages.upsert'] } }),
+        body: JSON.stringify({ enabled: true, url: webhookUrl, webhook_by_events: false, events: ['MESSAGES_UPSERT'] }),
         signal: AbortSignal.timeout(6000)
       });
       resultado.reconfiguracion = await r2.json();
