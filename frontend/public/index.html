@@ -7964,14 +7964,13 @@ async function pgInteresados(el){
       ${interesados.length===0
         ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">📭 Aún no hay interesados registrados por el bot.</div>'
         :`<div style="overflow-x:auto"><table class="tbl" id="int-tabla">
-          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Primer mensaje</th><th>Carrera</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Teléfono</th><th>Carrera de interés</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
           <tbody>${interesados.map(d=>{
             const [bg,bgL,label]=_INT_BADGE[d.estado]||_INT_BADGE.nuevo;
             return `<tr data-carrera="${d.carrera_nombre||''}">
               <td style="font-weight:700">${d.nombre||'—'}</td>
               <td><a href="https://wa.me/${d.telefono}" target="_blank" style="color:#25D366;font-weight:700">📱 ${d.telefono||'—'}</a></td>
-              <td style="max-width:220px;font-size:12px;color:#475569">${d.consulta?`<span title="${d.consulta.replace(/"/g,'&quot;')}">${d.consulta.slice(0,80)}${d.consulta.length>80?'…':''}</span>`:'—'}</td>
-              <td style="font-size:12px">${d.carrera_nombre||'—'}</td>
+              <td>${d.carrera_nombre||'—'}</td>
               <td style="font-size:12px;color:#6b7280">${(d.fecha||'').slice(0,16)}</td>
               <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
               <td>
