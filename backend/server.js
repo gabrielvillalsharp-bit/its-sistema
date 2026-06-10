@@ -86,6 +86,8 @@ try {
     estado       TEXT DEFAULT 'nuevo'
   )`).run();
 } catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
+// Agregar columna consulta si no existe
+try { db.prepare('ALTER TABLE interesados_bot ADD COLUMN consulta TEXT').run(); } catch(e) {}
 
 // ── LIMPIEZA: purgar mensajes de grupos mal guardados en wa_recibidos ────────
 try {
@@ -6323,6 +6325,19 @@ function manejarWebhookWA(req, res) {
         const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
         db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha,leido) VALUES (?,?,?,?,?,0)')
           .run(wrid, numero, nombre, texto.trim(), nowStr());
+      } catch(e) {}
+      // Auto-registrar en interesados_bot si es contacto nuevo y no es alumno activo
+      try {
+        const yaEsta = db.prepare('SELECT id FROM interesados_bot WHERE telefono=?').get(numero);
+        if (!yaEsta) {
+          const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
+          const esAlumno = db.prepare("SELECT 1 FROM alumnos WHERE (telefono LIKE ? OR telefono LIKE ?) AND estado='Activo' LIMIT 1").get('%'+numSin0, '%0'+numSin0);
+          if (!esAlumno) {
+            const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+            db.prepare(`INSERT INTO interesados_bot (id,nombre,telefono,carrera_nombre,consulta,estado) VALUES (?,?,?,'(por confirmar)',?,'nuevo')`)
+              .run(iid, nombre||numero, numero, texto.trim().slice(0,300));
+          }
+        }
       } catch(e) {}
       // Procesar bot (async, no esperar)
       procesarMensajeBot(numero, texto.trim()).catch(e=>console.error('[BOT]', e.message));
