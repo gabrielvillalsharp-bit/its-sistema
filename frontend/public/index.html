@@ -1369,20 +1369,14 @@ function navFor(r){
       {id:'avisos',l:'Avisos',c:'#1f8246',r:['director','docente','alumno']},
     ]},
     {g:'Comunicación',i:[
-      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director'],sub:[
-        {id:'wa-chat',l:'💬 Chat',r:['director']},
-        {id:'interesados',l:'📩 Interesados',r:['director']},
-      ]},
+      {id:'whatsapp',l:'WhatsApp',c:'#25D366',r:['director']},
     ]},
     {g:'Gestión',i:[
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
       {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director']},
     ]},
     {g:'Administración',i:[
-      {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director'],sub:[
-        {id:'papelera',l:'🗑️ Papelera',r:['director']},
-        {id:'limpieza',l:'🧹 Limpieza',r:['director']},
-      ]},
+      {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
       {id:'usuarios',l:'Usuarios & Accesos',c:'#dc2626',r:['director']},
     ]},
     {g:'Mi área',i:[
@@ -1405,19 +1399,12 @@ function buildNav(){
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
     </button>`+
   groups.map((g,idx)=>{
-    const subArr=`<svg class="ni-sub-arr" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>`;
     return `<div>
       <button class="ng-hdr" onclick="toggleNavGrp(${idx})" id="ngh-${idx}">
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
-        ${g.i.map((i,j)=>{
-          if(i.sub&&i.sub.length){
-            const children=i.sub.map(s=>`<button class="ni ni-child" id="ni-${s.id}" data-l="${s.l}" onclick="go('${s.id}')">${s.l}</button>`).join('');
-            return `<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="toggleNavSub('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span>${subArr}</button><div class="ni-children" id="nisub-${i.id}" style="max-height:0">${children}</div>`;
-          }
-          return `<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`;
-        }).join('')}
+        ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
       </div>
     </div>`;
   }).join('')+`
@@ -1480,12 +1467,6 @@ function go(p, _fromHistory){
   closeMobMenu();
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('ni-'+p)?.classList.add('active');
-  // Auto-expand sub-nav if navigating to a child page
-  const _subParents={
-    'wa-chat':'whatsapp','interesados':'whatsapp',
-    'papelera':'auditoria','limpieza':'auditoria'
-  };
-  if(_subParents[p]) toggleNavSub(_subParents[p], true);
   // Sync bottom nav
   document.querySelectorAll('.mbn-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('mbn-'+p)?.classList.add('active');
@@ -2171,6 +2152,20 @@ async function pgWhatsApp(el){
   const leerTodosBtn = noLeidos>0?'<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>':'';
 
   el.innerHTML=`
+  <!-- Accesos rápidos dentro del panel WhatsApp -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+    <div onclick="go('wa-chat')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #dcfce7;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(37,211,102,.18)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
+      <div style="font-size:28px;margin-bottom:6px">💬</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b">Chat</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Conversaciones en vivo</div>
+    </div>
+    <div onclick="go('interesados')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #e0f2fe;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(8,145,178,.18)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
+      <div style="font-size:28px;margin-bottom:6px">📩</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b">Interesados</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Bot de admisiones</div>
+    </div>
+  </div>
+
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <div style="background:linear-gradient(135deg,#128C7E,#25D366);border-radius:12px;padding:10px 18px;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px">
       <span style="font-size:22px">💬</span> WhatsApp — Gestión
@@ -8502,11 +8497,10 @@ async function limRenderDup(){
   if(!pane) return;
   pane.innerHTML=`<div class="card">
     <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:11px 14px;font-size:13px;color:#5b21b6;margin-bottom:14px">
-      <strong>🔎 Detecta:</strong> alumnos con la misma CI, o nombres muy similares que podrían ser el mismo alumno cargado dos veces. Los que tienen pagos o puntaje se marcan para que puedas decidir cuál conservar.
+      <strong>🔎 Detecta:</strong> alumnos con la misma CI o nombres muy similares. Podés <strong>🔀 Unificar</strong> para fusionar pagos, notas y asistencia conservando el registro correcto, o <strong>🗑 Eliminar</strong> el que no tiene datos.
     </div>
     <div id="dup-contenido"><div class="es">Analizando alumnos...</div></div>
   </div>`;
-  // reuse pgDuplicados logic — call it with a virtual el that has dup-contenido
   try{
     const todos=await api('GET','/api/alumnos/duplicados');
     const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'').trim();
@@ -8520,7 +8514,7 @@ async function limRenderDup(){
       if(lista.length<2)return;
       for(let i=0;i<lista.length;i++)for(let j=i+1;j<lista.length;j++){
         const a=lista[i],b=lista[j];
-        if((a.ci||'').replace(/\D/g,'').length>=5 && (a.ci||'').replace(/\D/g,'')===(b.ci||'').replace(/\D/g,''))continue;
+        if((a.ci||'').replace(/\D/g,'').length>=5&&(a.ci||'').replace(/\D/g,'')===(b.ci||'').replace(/\D/g,''))continue;
         const na=norm(a.nombre+a.apellido),nb=norm(b.nombre+b.apellido);
         if(na===nb||na.startsWith(nb.slice(0,8))||nb.startsWith(na.slice(0,8))){
           const k='nom_'+[a.id,b.id].sort().join('_');
@@ -8532,35 +8526,48 @@ async function limRenderDup(){
     const cont=document.getElementById('dup-contenido');
     if(!cont) return;
     if(!lista.length){cont.innerHTML='<div style="text-align:center;padding:32px;color:#059669;font-size:14px">✅ No se detectaron duplicados aparentes.</div>';return;}
-    const renderAlumno=a=>{
-      const curso=a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''}`:null;
-      const esRecomendado=a.cnt_pagos>0||a.cnt_puntaje>0;
-      return `<div style="padding:10px 14px;border-top:1px solid #ede9fe;background:${esRecomendado?'#f0fdf4':'#fff'};display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:700;font-size:13px">${a.apellido}, ${a.nombre} ${esRecomendado?'<span style="background:#059669;color:#fff;padding:1px 7px;border-radius:8px;font-size:10px;margin-left:4px">✓ CONSERVAR</span>':''}</div>
-          <div style="font-size:11px;color:#6b7280">CI: ${a.ci||'—'} · ${a.carrera_nombre||'Sin carrera'}${curso?' · '+curso:''}</div>
-        </div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap">
-          ${a.cnt_pagos>0?`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 ${a.cnt_pagos} pagos</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin pagos</span>'}
-          ${a.cnt_puntaje>0?`<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📊 Con puntaje</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin puntaje</span>'}
-          <span style="background:${a.estado==='Activo'?'#dcfce7':'#f1f5f9'};color:${a.estado==='Activo'?'#166534':'#94a3b8'};padding:2px 8px;border-radius:8px;font-size:11px">${a.estado}</span>
-        </div>
-        <button style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer"
-          onclick="limDupEliminar('${a.id}','${(a.apellido+', '+a.nombre).replace(/'/g,"\\'")}')">🗑 Eliminar</button>
-      </div>`;
-    };
+
     const badgeTipo=t=>t==='ci'
       ?'<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">⚠ Misma CI</span>'
       :'<span style="background:#7c3aed;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">Nombre similar</span>';
+
+    const renderAlumnoRow=a=>{
+      const curso=a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''}`:null;
+      const esMejor=a.cnt_pagos>0||a.cnt_puntaje>0;
+      return `<div style="padding:10px 14px;border-top:1px solid #ede9fe;background:${esMejor?'#f0fdf4':'#fff'};display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''}
+            ${esMejor?'<span style="background:#059669;color:#fff;padding:1px 7px;border-radius:8px;font-size:10px;margin-left:4px">recomendado</span>':''}
+          </div>
+          <div style="font-size:11px;color:#6b7280">CI: ${a.ci||'—'} · ${a.carrera_nombre||'Sin carrera'}${curso?' · '+curso:''}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${a.cnt_pagos>0?`<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">💰 ${a.cnt_pagos} pagos</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin pagos</span>'}
+          ${a.cnt_puntaje>0?`<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">📊 Puntaje</span>`:'<span style="background:#f1f5f9;color:#94a3b8;padding:2px 8px;border-radius:8px;font-size:11px">Sin puntaje</span>'}
+          <span style="background:${a.estado==='Activo'?'#dcfce7':'#f1f5f9'};color:${a.estado==='Activo'?'#166534':'#94a3b8'};padding:2px 8px;border-radius:8px;font-size:11px">${a.estado}</span>
+        </div>
+        <button style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer"
+          onclick="limDupEliminar('${a.id}','${(a.apellido+', '+a.nombre).replace(/'/g,"\\'")}')">🗑</button>
+      </div>`;
+    };
+
     cont.innerHTML=
       `<div style="font-size:13px;color:#6b7280;margin-bottom:14px">Se detectaron <strong>${lista.length} grupo(s)</strong> con posibles duplicados.</div>`+
-      lista.map(g=>`<div style="border:2px solid #ddd6fe;border-radius:12px;margin-bottom:12px;overflow:hidden">
-        <div style="background:#f5f3ff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between">
-          <div style="font-weight:800;font-size:13px;color:#5b21b6">${g.key} ${badgeTipo(g.tipo)}</div>
-          <span style="font-size:11px;color:#7c3aed">${g.lista.length} registros</span>
-        </div>
-        ${g.lista.map(renderAlumno).join('')}
-      </div>`).join('');
+      lista.map(g=>{
+        const ids=g.lista.map(a=>a.id);
+        const idsEnc=encodeURIComponent(JSON.stringify(ids));
+        return `<div style="border:2px solid #ddd6fe;border-radius:12px;margin-bottom:14px;overflow:hidden">
+          <div style="background:#f5f3ff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:800;font-size:13px;color:#5b21b6">${g.key}</span>
+              ${badgeTipo(g.tipo)}
+              <span style="font-size:11px;color:#7c3aed">${g.lista.length} registros</span>
+            </div>
+            ${g.lista.length===2?`<button onclick="dupAbrirUnificar('${g.lista[0].id}','${g.lista[1].id}')" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">🔀 Unificar</button>`:''}
+          </div>
+          ${g.lista.map(renderAlumnoRow).join('')}
+        </div>`;
+      }).join('');
   }catch(e){const c=document.getElementById('dup-contenido');if(c)c.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`;}
 }
 async function limDupEliminar(id, nombre){
@@ -8568,6 +8575,111 @@ async function limDupEliminar(id, nombre){
     async function(){
       try{await api('DELETE',`/api/alumnos/${id}/completo`);toast('✓ '+nombre+' eliminado','ok');limRenderDup();}
       catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+
+// ── PANEL DE UNIFICACIÓN DE DUPLICADOS ───────────────────────────────────────
+async function dupAbrirUnificar(id1, id2){
+  modal('<div style="text-align:center;padding:24px;color:#7c3aed">Cargando datos para comparación...</div>',true);
+  try{
+    const [d1, d2] = await Promise.all([
+      api('GET',`/api/alumnos/${id1}/detalle-dup`),
+      api('GET',`/api/alumnos/${id2}/detalle-dup`)
+    ]);
+    // Obtener nombres de los alumnos del DOM (ya los tenemos en la lista)
+    const btn1=document.getElementById('ni-'+id1);
+    // buscar en los grupos ya renderizados
+    const todosDiv=document.querySelectorAll('[onclick*="dupAbrirUnificar"]');
+    // Buscar info desde los rows
+    const getInfo=(id,det)=>{
+      const rows=document.querySelectorAll(`[onclick*="limDupEliminar('${id}'"]`);
+      let nombre=id; let ci='';
+      rows.forEach(r=>{ const t=r.closest('div[style*="border-top"]'); if(t){nombre=t.querySelector('[style*="font-weight:700"]')?.textContent?.trim()||id;}});
+      return {id, nombre, det};
+    };
+    const a1=getInfo(id1,d1), a2=getInfo(id2,d2);
+
+    // Calcular mes más reciente de pagos
+    const ultimoPago=det=>(det.pagos||[]).reduce((m,p)=>p.mes_anio>m?p.mes_anio:m,'');
+    const mes1=ultimoPago(d1), mes2=ultimoPago(d2);
+    // Sugerir quién conservar: más pagos, luego puntaje, luego asistencia
+    const score=det=>(det.pagos||[]).length*10 + (det.notas||[]).filter(n=>n.puntaje_total>0).length*5 + ((det.asistencia?.total)||0);
+    const s1=score(d1), s2=score(d2);
+    const sugerido= s1>=s2 ? id1 : id2;
+
+    const renderPagos=det=>{
+      const p=det.pagos||[];
+      if(!p.length) return '<em style="color:#94a3b8;font-size:12px">Sin pagos</em>';
+      // Agrupar por mes
+      const meses={};
+      p.forEach(x=>{(meses[x.mes_anio]=meses[x.mes_anio]||[]).push(x);});
+      return Object.entries(meses).sort((a,b)=>b[0].localeCompare(a[0])).map(([mes,ps])=>
+        `<div style="margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#475569;background:#e2e8f0;padding:1px 6px;border-radius:8px">${mes}</span> `+
+        ps.map(x=>`<span style="font-size:11px;color:#166534;background:#dcfce7;padding:1px 7px;border-radius:8px;margin-left:3px">${x.concepto} · Gs. ${(x.monto||0).toLocaleString()}</span>`).join('')+
+        `</div>`
+      ).join('');
+    };
+
+    const renderNotas=det=>{
+      const n=(det.notas||[]).filter(x=>x.puntaje_total>0);
+      if(!n.length) return '<em style="color:#94a3b8;font-size:12px">Sin puntaje registrado</em>';
+      return n.map(x=>`<div style="font-size:11px;color:#1d4ed8">${x.materia||'Materia'}: <strong>${x.puntaje_total} pts</strong> — ${x.nota_final||x.estado||'—'}</div>`).join('');
+    };
+
+    const renderAsist=det=>{
+      const a=det.asistencia;
+      if(!a||!a.total) return '<em style="color:#94a3b8;font-size:12px">Sin registros</em>';
+      return `<span style="font-size:12px">${a.total} registros · <span style="color:#059669">${a.presentes} P</span> · <span style="color:#dc2626">${a.ausentes} A</span></span>`;
+    };
+
+    const colCard=(id,det,label)=>{
+      const esSugerido=id===sugerido;
+      return `<div style="flex:1;min-width:280px;border:2px solid ${esSugerido?'#7c3aed':'#e2e8f0'};border-radius:12px;padding:14px;background:${esSugerido?'#faf5ff':'#fff'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-weight:800;font-size:13px;color:#1e293b">${label}</div>
+          ${esSugerido?'<span style="background:#7c3aed;color:#fff;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700">⭐ Sugerido conservar</span>':''}
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px">💰 Pagos</div>
+          ${renderPagos(det)}
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px">📊 Notas/Puntaje</div>
+          ${renderNotas(det)}
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px">✅ Asistencia</div>
+          ${renderAsist(det)}
+        </div>
+        <button onclick="dupConfirmarUnificar('${id}','${id===id1?id2:id1}')" style="width:100%;padding:10px;background:${esSugerido?'#7c3aed':'#e2e8f0'};color:${esSugerido?'#fff':'#374151'};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">
+          ✓ Conservar este · eliminar el otro
+        </button>
+      </div>`;
+    };
+
+    const htm=`
+      <div style="font-size:16px;font-weight:900;color:#1a202c;margin-bottom:4px">🔀 Unificar Duplicados</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:16px">Todos los pagos, notas y asistencia del eliminado se moverán al conservado. Se guarda copia en la papelera por 10 días.</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+        ${colCard(id1,d1,'Registro 1')}
+        ${colCard(id2,d2,'Registro 2')}
+      </div>
+      <div style="text-align:right"><button onclick="cm()" style="padding:8px 18px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;font-size:13px;color:#64748b">Cancelar</button></div>
+    `;
+    modal(htm, true);
+  }catch(e){modal(`<div style="color:#dc2626;padding:20px">Error: ${e.message}</div>`);};
+}
+
+async function dupConfirmarUnificar(conservar_id, eliminar_id){
+  confirm2('🔀 Confirmar unificación',
+    `¿Unificar los registros? Los pagos, notas y asistencia del duplicado se moverán al registro conservado. El duplicado se eliminará (guardado en papelera 10 días).`,
+    async function(){
+      try{
+        const r=await api('POST','/api/alumnos/unificar',{conservar_id,eliminar_id});
+        cm();
+        toast('✓ Registros unificados correctamente','ok');
+        limRenderDup();
+      }catch(e){toast('Error: '+e.message,'err');}
     },null);
 }
 
@@ -13991,7 +14103,22 @@ function exportarHabilitadosPDF(){
 }
 
 async function pgAuditoria(el){
-  el.innerHTML=`<div class="ph"><h3>📋 Registro de Auditoría</h3>
+  el.innerHTML=`
+  <!-- Accesos rápidos dentro del panel Auditoría -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+    <div onclick="go('papelera')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #e2e8f0;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(100,116,139,.18)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
+      <div style="font-size:28px;margin-bottom:6px">🗑️</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b">Papelera</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Registros eliminados</div>
+    </div>
+    <div onclick="go('limpieza')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #fee2e2;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(185,28,28,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
+      <div style="font-size:28px;margin-bottom:6px">🧹</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b">Limpieza</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Inactivos y duplicados</div>
+    </div>
+  </div>
+
+  <div class="ph"><h3>📋 Registro de Auditoría</h3>
     <div class="ph-right">
       <button class="bs" onclick="mostrarDiagnostico()" style="background:#7c3aed;color:#fff;border-color:#7c3aed">🔍 Diagnóstico</button>
       <button class="bs" onclick="verHoraSistema()" title="Ajustar hora del sistema" style="background:#d97706;color:#fff;border-color:#d97706">🕐 Ajustar hora</button>

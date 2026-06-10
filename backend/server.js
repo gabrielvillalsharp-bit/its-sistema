@@ -7644,6 +7644,140 @@ app.get('/api/alumnos/duplicados', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── DETALLE PARA COMPARACIÓN DE DUPLICADOS ───────────────────────────────────
+app.get('/api/alumnos/:id/detalle-dup', auth(ADM), (req, res) => {
+  try {
+    const { id } = req.params;
+    // Pagos agrupados por mes+concepto
+    const pagos = db.prepare(`
+      SELECT p.id, p.concepto, p.monto, p.fecha_pago, p.estado, p.medio_pago,
+        strftime('%Y-%m', p.fecha_pago) as mes_anio
+      FROM pagos p WHERE p.alumno_id=? AND p.estado!='Anulado'
+      ORDER BY p.fecha_pago DESC
+    `).all(id);
+    // Notas resumidas
+    const notas = db.prepare(`
+      SELECT n.id, n.asignacion_id, n.puntaje_total, n.nota_final, n.estado,
+        m.nombre as materia, a.id as asig_id
+      FROM notas n
+      LEFT JOIN asignaciones a ON n.asignacion_id=a.id
+      LEFT JOIN materias m ON a.materia_id=m.id
+      WHERE n.alumno_id=?
+    `).all(id);
+    // Asistencia resumen
+    const asist = db.prepare(`
+      SELECT COUNT(*) as total,
+        SUM(CASE WHEN estado='P' THEN 1 ELSE 0 END) as presentes,
+        SUM(CASE WHEN estado='A' THEN 1 ELSE 0 END) as ausentes
+      FROM asistencia WHERE alumno_id=?
+    `).get(id);
+    res.json({ pagos, notas, asistencia: asist });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── UNIFICACIÓN DE DUPLICADOS ─────────────────────────────────────────────────
+app.post('/api/alumnos/unificar', auth(ADM), (req, res) => {
+  const { conservar_id, eliminar_id } = req.body;
+  if (!conservar_id || !eliminar_id || conservar_id === eliminar_id)
+    return res.status(400).json({ error: 'IDs inválidos' });
+
+  const conservar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(conservar_id);
+  const eliminar  = db.prepare('SELECT * FROM alumnos WHERE id=?').get(eliminar_id);
+  if (!conservar || !eliminar)
+    return res.status(404).json({ error: 'Alumno no encontrado' });
+
+  try {
+    db.pragma('foreign_keys = OFF');
+    const unif = db.transaction(() => {
+      const log = [];
+
+      // 1. PAGOS — reasignar los del duplicado al conservado
+      //    Si ya hay un pago del mismo mes+concepto en conservar, igual se mueve
+      //    (mismo alumno, puede haber pagado 2 meses en el mismo nombre)
+      const pagosElim = db.prepare(
+        "SELECT id, concepto, fecha_pago, strftime('%Y-%m',fecha_pago) as mes_anio FROM pagos WHERE alumno_id=?"
+      ).all(eliminar_id);
+
+      pagosElim.forEach(p => {
+        db.prepare('UPDATE pagos SET alumno_id=? WHERE id=?').run(conservar_id, p.id);
+        log.push(`pago_movido: ${p.id} (${p.mes_anio} ${p.concepto})`);
+      });
+
+      // 2. NOTAS — por asignacion_id
+      //    Si conservar ya tiene nota para esa asignacion, fusionar campos vacíos
+      //    Si no, reasignar directamente
+      const notasElim = db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(eliminar_id);
+      notasElim.forEach(ne => {
+        const exist = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(conservar_id, ne.asignacion_id);
+        if (!exist) {
+          db.prepare('UPDATE notas SET alumno_id=? WHERE id=?').run(conservar_id, ne.id);
+          log.push(`nota_movida: ${ne.id}`);
+        } else {
+          // Fusionar: llenar campos nulos en conservar con valores del duplicado
+          const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio',
+            'final_ord','final_recuperatorio','complementario','extraordinario','director_pts'];
+          const sets = campos.filter(c => (exist[c]==null||exist[c]==='') && ne[c]!=null && ne[c]!=='')
+            .map(c => `${c}=${ne[c]}`);
+          if (sets.length) {
+            db.prepare(`UPDATE notas SET ${sets.join(',')} WHERE id=?`).run(exist.id);
+            log.push(`nota_fusionada: ${exist.id} campos=[${sets.join(',')}]`);
+          }
+          db.prepare('DELETE FROM notas WHERE id=?').run(ne.id);
+        }
+      });
+
+      // 3. ASISTENCIA — reasignar directo (mismo alumno, mismas fechas son válidas)
+      const cntAsist = db.prepare('SELECT COUNT(*) as n FROM asistencia WHERE alumno_id=?').get(eliminar_id).n;
+      if (cntAsist > 0) {
+        db.prepare('UPDATE asistencia SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+        log.push(`asistencia_movida: ${cntAsist} registros`);
+      }
+
+      // 4. BECAS, HABILITACIONES, CONSTANCIAS, QR_CAMBIOS
+      db.prepare('UPDATE becas SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE habilitaciones_examen SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE constancias SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE qr_cambios SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+
+      // 5. Completar datos faltantes en conservar con los del duplicado
+      const a = conservar, b = eliminar;
+      const campos2 = ['telefono','ci','matricula'];
+      campos2.forEach(c => {
+        if ((!a[c] || a[c]==='') && b[c]) {
+          db.prepare(`UPDATE alumnos SET ${c}=? WHERE id=?`).run(b[c], conservar_id);
+          log.push(`campo_completado: ${c}=${b[c]}`);
+        }
+      });
+
+      // 6. Guardar en papelera y borrar duplicado
+      const snapElim = { alumno: eliminar, motivo: 'unificacion_duplicados', conservar_id };
+      const pid = 'pap_'+Date.now()+'_dup';
+      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
+        .run(pid,'alumno_duplicado',`${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado)`,
+          JSON.stringify(snapElim), req.user?.id||null, expira);
+
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(eliminar_id);
+      // Eliminar usuario del duplicado si existe y no es el mismo usuario
+      if (eliminar.usuario_id && eliminar.usuario_id !== conservar.usuario_id) {
+        db.prepare('DELETE FROM usuarios WHERE id=?').run(eliminar.usuario_id);
+      }
+
+      log.push(`duplicado_eliminado: ${eliminar_id}`);
+      audit(req.user?.id, 'UNIFICAR_DUPLICADOS', 'alumnos', conservar_id,
+        { conservar: conservar_id, eliminado: eliminar_id, log });
+      return { ok: true, log };
+    });
+
+    const result = unif();
+    db.pragma('foreign_keys = ON');
+    res.json(result);
+  } catch(e) {
+    db.pragma('foreign_keys = ON');
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   try {
     const rows = db.prepare(`
