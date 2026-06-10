@@ -109,6 +109,11 @@ const BOT_CARRERAS = [
 const BOT_MENU = `👋 ¡Bienvenido/a al *ITS Santísima Trinidad*!\n\nSomos un Instituto Técnico Superior comprometido con tu futuro profesional. 🎓\n\n¿En qué carrera estás interesado/a? Escribí el *número* de tu elección:\n\n1️⃣ Cosmiatría\n2️⃣ Enfermería\n3️⃣ Farmacia\n4️⃣ Instrumentación Quirúrgica\n5️⃣ Radiología\n6️⃣ Agropecuaria\n7️⃣ Electricidad\n8️⃣ Criminalística\n9️⃣ Contabilidad`;
 
 async function procesarMensajeBot(numero, texto) {
+  // Bot activo recién desde el 11 de junio de 2026
+  const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' }));
+  const activacion = new Date('2026-06-11T00:00:00');
+  if (hoy < activacion) return;
+
   const EVO_URL  = process.env.EVOLUTION_URL;
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
