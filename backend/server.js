@@ -193,7 +193,7 @@ async function procesarMensajeBot(numero, texto) {
       const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
         method: 'POST',
         headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: numero, text: msg }),
+        body: JSON.stringify({ number: numero, textMessage: { text: msg } }),
         signal: AbortSignal.timeout(8000)
       });
       if (!r.ok) console.error(`[BOT] enviar ${r.status} → ${numero}`);
