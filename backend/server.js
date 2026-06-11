@@ -6021,15 +6021,22 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
 
   // 2. Reconfigurar webhook (si se pasa ?reconfigurar=1)
   if (req.query.reconfigurar === '1') {
-    try {
-      const r2 = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INST}`, {
-        method: 'POST',
-        headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: true, url: webhookUrl, webhook_by_events: false, events: ['MESSAGES_UPSERT'] }),
-        signal: AbortSignal.timeout(6000)
-      });
-      resultado.reconfiguracion = await r2.json();
-    } catch(e) { resultado.reconfiguracion = { error: e.message }; }
+    const body = { url: webhookUrl, webhook_by_events: false, webhook_base64: false, events: ['MESSAGES_UPSERT','MESSAGES_UPDATE','MESSAGES_DELETE','SEND_MESSAGE','CONNECTION_UPDATE'] };
+    // Intentar con POST primero, luego PUT si falla
+    for (const method of ['POST','PUT']) {
+      try {
+        const r2 = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INST}`, {
+          method,
+          headers: { apikey: EVO_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(6000)
+        });
+        const txt = await r2.text();
+        let json; try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
+        resultado.reconfiguracion = { method, status: r2.status, ok: r2.ok, response: json };
+        if (r2.ok) break; // si salió bien, no hace falta intentar el otro método
+      } catch(e) { resultado.reconfiguracion = { method, error: e.message }; }
+    }
   }
 
   // 3. Últimos mensajes recibidos en wa_recibidos
