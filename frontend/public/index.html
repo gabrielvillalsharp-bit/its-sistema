@@ -1404,7 +1404,7 @@ function buildNav(){
         <span>${g.g}</span>${chevron}
       </button>
       <div class="ng-items" id="ngi-${idx}">
-        ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span></button>`).join('')}
+        ${g.i.map((i,j)=>`<button class="ni" id="ni-${i.id}" data-l="${i.l}" onclick="go('${i.id}')" style="animation-delay:${(idx*5+j)*30}ms">${_niIco(i.id)}<span class="ni-lbl">${i.l}</span>${i.id==='wa-chat'?`<span id="nav-wachat-badge" style="display:none;background:#22c55e;color:#fff;font-size:10px;font-weight:800;min-width:18px;height:18px;border-radius:9px;padding:0 4px;align-items:center;justify-content:center;margin-left:auto;line-height:1"></span>`:''}</button>`).join('')}
       </div>
     </div>`;
   }).join('')+`
@@ -8249,7 +8249,13 @@ async function wacCargarLista(){
     const data = await api('GET','/api/whatsapp/chats');
     _wacChats = data;
     wacRenderLista(data);
-    document.getElementById('wac-status').textContent = `${data.length} conversaciones · ${new Date().toLocaleTimeString('es')}`;
+    const totalNoLeidos = data.reduce((sum,c)=>sum+(c.unread||0),0);
+    const statusEl = document.getElementById('wac-status');
+    if(statusEl) statusEl.innerHTML = `${data.length} conversaciones · ${new Date().toLocaleTimeString('es')}`
+      + (totalNoLeidos>0 ? ` · <span style="background:#22c55e;color:#fff;padding:1px 8px;border-radius:8px;font-weight:700">📬 ${totalNoLeidos} sin leer</span>` : '');
+    // Badge en nav sidebar
+    const navBadge = document.getElementById('nav-wachat-badge');
+    if(navBadge){ navBadge.textContent=totalNoLeidos>0?totalNoLeidos:''; navBadge.style.display=totalNoLeidos>0?'inline-flex':'none'; }
     // Si hay uno activo, refrescar sin perder scroll
     if(_wacNumeroActivo) wacCargarMensajes(_wacNumeroActivo, false);
   }catch(e){
@@ -8273,30 +8279,38 @@ function wacRenderLista(chats){
   }
   lista.innerHTML = visible.map(c=>{
     const nombre    = c.name || c.pushName || c.alumno?.nombre || c.numero;
-    const lastMsg   = c.lastMessage?.message?.conversation || c.lastMessage?.message?.extendedTextMessage?.text || '';
+    const lastMsg   = c.lastMessage?.message?.conversation || c.lastMessage?.message?.extendedTextMessage?.text || c.lastMsg || '';
     const esAlumno  = !!c.alumno;
     const pendiente = c.consultas_pendientes > 0;
     const activo    = c.numero === _wacNumeroActivo;
     const hora      = c._ts ? new Date(c._ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}) : '';
+    const unread    = activo ? 0 : (c.unread || 0);
     return `<div onclick="wacSeleccionar('${c.numero}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:flex-start;
-             background:${activo?'#dcfce7':'#fff'};transition:background .15s"
+             background:${activo?'#dcfce7':unread?'#f0fdf4':'#fff'};transition:background .15s"
       onmouseover="if('${c.numero}'!==_wacNumeroActivo)this.style.background='#f8fafc'"
-      onmouseout="if('${c.numero}'!==_wacNumeroActivo)this.style.background='#fff'">
+      onmouseout="if('${c.numero}'!==_wacNumeroActivo)this.style.background='${unread?'#f0fdf4':'#fff'}'">
       <!-- Avatar -->
-      <div style="width:40px;height:40px;border-radius:50%;background:${esAlumno?'#dcfce7':'#e2e8f0'};
-                  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">
-        ${esAlumno?'👤':'👤'}
+      <div style="position:relative;flex-shrink:0">
+        <div style="width:40px;height:40px;border-radius:50%;background:${esAlumno?'#dcfce7':'#e2e8f0'};
+                    display:flex;align-items:center;justify-content:center;font-size:18px">
+          ${esAlumno?'👤':'👤'}
+        </div>
+        ${unread>0?`<span style="position:absolute;top:-3px;right:-3px;background:#22c55e;color:#fff;
+          font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;
+          display:flex;align-items:center;justify-content:center;padding:0 4px;
+          border:2px solid #fff;line-height:1">${unread>99?'99+':unread}</span>`:''}
       </div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
-          <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${nombre}</span>
-          <span style="font-size:11px;color:#94a3b8;white-space:nowrap">${hora}</span>
+          <span style="font-weight:${unread?800:700};font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;
+                       color:${unread?'#15803d':'#1e293b'}">${nombre}</span>
+          <span style="font-size:11px;color:${unread?'#16a34a':'#94a3b8'};white-space:nowrap;font-weight:${unread?700:400}">${hora}</span>
         </div>
         <div style="font-size:11px;color:${esAlumno?'#15803d':'#64748b'};margin-top:1px;font-weight:${esAlumno?700:400}">
           ${esAlumno ? (c.alumno.carrera_nombre||'Alumno') : '📱 '+c.numero}
         </div>
-        <div style="font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;margin-top:2px">
+        <div style="font-size:12px;color:${unread?'#374151':'#94a3b8'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;margin-top:2px;font-weight:${unread?600:400}">
           ${lastMsg || ''}
         </div>
         ${pendiente?`<span style="background:#fef9c3;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px">⏳ consulta pendiente</span>`:''}
@@ -8312,6 +8326,15 @@ function wacFiltrar(val){
 async function wacSeleccionar(numero){
   _wacNumeroActivo = numero;
   clearInterval(_wacTimerMsgs);
+  // Marcar como leído en cache local inmediatamente (UX instantánea)
+  if(_wacChats){
+    const idx = _wacChats.findIndex(c=>c.numero===numero);
+    if(idx>=0 && _wacChats[idx].unread>0){
+      _wacChats[idx].unread = 0;
+      // Llamar backend en background (no bloquear la UI)
+      api('POST',`/api/whatsapp/chats/${numero}/marcar-leido`).catch(()=>{});
+    }
+  }
   // Marcar activo visualmente
   wacRenderLista(_wacChats);
   // Mostrar input
@@ -8329,6 +8352,15 @@ async function wacCargarMensajes(numero, scrollBottom){
   try{
     const data = await api('GET',`/api/whatsapp/chats/${numero}/mensajes`);
     const { mensajes, alumno, consultas } = data;
+    // Si hay mensajes no leídos, marcar como leído (chat está abierto)
+    if(_wacChats){
+      const idx = _wacChats.findIndex(c=>c.numero===numero);
+      if(idx>=0 && _wacChats[idx].unread>0){
+        _wacChats[idx].unread = 0;
+        api('POST',`/api/whatsapp/chats/${numero}/marcar-leido`).catch(()=>{});
+        wacRenderLista(_wacChats);
+      }
+    }
     const header = document.getElementById('wac-header');
     const msgsEl = document.getElementById('wac-mensajes');
     if(!header || !msgsEl) return;

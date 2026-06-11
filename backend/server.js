@@ -6513,7 +6513,37 @@ app.get('/api/whatsapp/chats', auth(ADM), async (req, res) => {
     });
   }
 
+  // 3) Enriquecer con conteo de mensajes no leídos por número
+  try {
+    const noLeidos = db.prepare(`
+      SELECT numero, COUNT(*) as n FROM wa_recibidos WHERE leido=0 GROUP BY numero
+    `).all();
+    const unreadMap = {};
+    noLeidos.forEach(r => { unreadMap[r.numero] = r.n; });
+    // También intentar con número sin 595 (por si hay variación en cómo se guardó)
+    chats = chats.map(c => {
+      const numSin = String(c.numero||'').replace(/^595/,'');
+      const unread = (unreadMap[c.numero] || 0) + (unreadMap['0'+numSin] || 0) + (unreadMap[numSin] || 0);
+      return { ...c, unread: unread > 0 ? unread : 0 };
+    });
+  } catch(e) { /* no afecta el resto */ }
+
   res.json(chats);
+});
+
+// ── WHATSAPP CHAT: marcar conversación como leída ─────────────────────────────
+app.post('/api/whatsapp/chats/:numero/marcar-leido', auth(ADM), (req, res) => {
+  const numero = req.params.numero;
+  // El número puede estar guardado con o sin 595, con o sin 0 inicial
+  const numSin = String(numero).replace(/^595/,'');
+  const variantes = [numero, numSin, '0'+numSin, '595'+numSin].filter(Boolean);
+  try {
+    const placeholders = variantes.map(()=>'?').join(',');
+    const r = db.prepare(`UPDATE wa_recibidos SET leido=1 WHERE numero IN (${placeholders}) AND leido=0`).run(...variantes);
+    res.json({ ok: true, actualizados: r.changes });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── WHATSAPP CHAT: mensajes de una conversación ───────────────────────────────
