@@ -188,26 +188,29 @@ async function procesarMensajeBot(numero, texto) {
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
 
+  // Normalizar número al formato internacional 595XXXXXXXXX
+  const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
+
   const enviar = async (msg) => {
     try {
       const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
         method: 'POST',
         headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: numero, textMessage: { text: msg } }),
+        body: JSON.stringify({ number: numNorm, textMessage: { text: msg } }),
         signal: AbortSignal.timeout(8000)
       });
       const respTxt = await r.text();
       const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       if (!r.ok) {
-        console.error(`[BOT] enviar ${r.status} → ${numero}: ${respTxt.slice(0,400)}`);
-        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot_error',numero,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
+        console.error(`[BOT] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
+        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot_error',numNorm,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
       } else {
-        console.log(`[BOT] enviar OK (${r.status}) → ${numero}`);
-        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot',numero,msg.slice(0,200),'enviado',nowStr()); } catch {}
+        console.log(`[BOT] enviar OK (${r.status}) → ${numNorm}`);
+        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
       }
     } catch(e) {
       console.error('[BOT] enviar error:', e.message);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numero,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numNorm,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
     }
   };
 
@@ -6075,16 +6078,17 @@ app.post('/api/whatsapp/bot-send-test', auth(ADM), async (req, res) => {
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.json({ ok: false, error: 'Faltan variables EVOLUTION_URL / EVOLUTION_KEY / EVOLUTION_INSTANCE' });
   if (!numero || !mensaje) return res.status(400).json({ error: 'numero y mensaje requeridos' });
+  const numNormalizado = normalizarTelefono(numero) || numero;
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
       method: 'POST',
       headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number: numero, textMessage: { text: mensaje } }),
+      body: JSON.stringify({ number: numNormalizado, textMessage: { text: mensaje } }),
       signal: AbortSignal.timeout(8000)
     });
     const txt = await r.text();
     let json; try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-    res.json({ ok: r.ok, status: r.status, response: json, numero_usado: numero, instancia: EVO_INST });
+    res.json({ ok: r.ok, status: r.status, response: json, numero_original: numero, numero_usado: numNormalizado, instancia: EVO_INST });
   } catch(e) {
     res.json({ ok: false, error: e.message, numero_usado: numero, instancia: EVO_INST });
   }
