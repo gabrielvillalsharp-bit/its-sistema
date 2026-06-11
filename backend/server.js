@@ -219,15 +219,15 @@ async function procesarMensajeBot(numero, texto) {
   const est  = _botEstados.get(numero) || { estado: 'inicio' };
   est.ts     = Date.now();
 
-  // Palabras clave para reiniciar siempre
-  const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola'].some(p=>txtn.startsWith(p));
+  // Palabras clave para reiniciar siempre (evaluado ANTES del bloqueo de 24h)
+  const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola','test'].some(p=>txtn.startsWith(p));
 
-  // Límite 24h absoluto: si ya completó flujo y no han pasado 24h → silencio total
+  // Límite 24h: si ya completó flujo y no han pasado 24h → silencio (salvo reinicio explícito)
   const estadosCompletados = ['completado_alumno','completado_externo'];
   if (estadosCompletados.includes(est.estado)) {
     const hace24h = Date.now() - 24*60*60*1000;
-    if ((est.completadoTs||0) > hace24h) return; // silencio absoluto
-    est.estado = 'inicio'; // pasaron 24h → reiniciar
+    if ((est.completadoTs||0) > hace24h && !esReinicio) return; // silencio (salvo "hola","menu",etc.)
+    est.estado = 'inicio'; // reiniciar
   }
 
   // ── MENÚ PRINCIPAL ────────────────────────────────────────────────────────
@@ -530,6 +530,21 @@ try {
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
+
+// Tablas auxiliares del bot (si no existen se crean aquí)
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS wa_consultas (
+    id TEXT PRIMARY KEY, numero TEXT, nombre TEXT, tipo TEXT,
+    alumno_id TEXT, carrera_nombre TEXT, anio TEXT, ci TEXT,
+    consulta TEXT, estado TEXT DEFAULT 'pendiente', fecha TEXT
+  )`).run();
+} catch(e) { console.warn('[Migración] wa_consultas:', e.message); }
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS interesados_bot (
+    id TEXT PRIMARY KEY, nombre TEXT, telefono TEXT,
+    carrera_id TEXT, carrera_nombre TEXT, estado TEXT DEFAULT 'nuevo', fecha TEXT DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
 
 // ── MIGRACIÓN: ampliar CHECK constraint de aranceles.tipo ────────────────────
 try {

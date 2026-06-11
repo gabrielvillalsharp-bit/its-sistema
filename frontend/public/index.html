@@ -333,6 +333,9 @@ body.mob-alumno .ct{padding-bottom:68px}
 /* ── DEFAULT: desktop oculta tarjetas móviles ── */
 .mis-notas-cards{display:none}
 .mi-asist-cards{display:none}
+/* Alumno siempre ve las tarjetas (en cualquier dispositivo) */
+body.mob-alumno .mis-notas-cards{display:block!important}
+body.mob-alumno .mi-asist-cards{display:block!important}
 /* ── MOBILE ────────────────────────────────── */
 @media(max-width:768px){
   /* ── MIS NOTAS ALUMNO ── */
@@ -1008,11 +1011,14 @@ body.mob-alumno .ct{padding-bottom:68px}
   <button class="mbn-btn" id="mbn-dashboard" onclick="go('dashboard')">
     <span class="mbn-ico">🏠</span><span class="mbn-lbl">Inicio</span>
   </button>
-  <button class="mbn-btn" id="mbn-mi-portal" onclick="go('mi-portal')">
-    <span class="mbn-ico">🎓</span><span class="mbn-lbl">Mi Portal</span>
+  <button class="mbn-btn" id="mbn-mis-notas" onclick="go('mis-notas')">
+    <span class="mbn-ico">📝</span><span class="mbn-lbl">Mis Notas</span>
   </button>
-  <button class="mbn-btn" id="mbn-agenda" onclick="go('agenda')">
-    <span class="mbn-ico">📅</span><span class="mbn-lbl">Agenda</span>
+  <button class="mbn-btn" id="mbn-mi-asistencia" onclick="go('mi-asistencia')">
+    <span class="mbn-ico">✅</span><span class="mbn-lbl">Asistencia</span>
+  </button>
+  <button class="mbn-btn" id="mbn-mi-estado-cuenta" onclick="go('mi-estado-cuenta')">
+    <span class="mbn-ico">💳</span><span class="mbn-lbl">Cuenta</span>
   </button>
   <button class="mbn-btn" id="mbn-mas" onclick="toggleMobMenu()">
     <span class="mbn-ico">☰</span><span class="mbn-lbl">Más</span>
@@ -1377,7 +1383,7 @@ function navFor(r){
     ]},
     {g:'Administración',i:[
       {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
-      {id:'usuarios',l:'Usuarios & Accesos',c:'#dc2626',r:['director']},
+      {id:'usuarios',l:'Alumnos & Usuarios',c:'#dc2626',r:['director']},
     ]},
     {g:'Mi área',i:[
       {id:'mi-portal',l:'Mi portal',c:'#1f8246',r:['docente','alumno']},
@@ -1677,9 +1683,14 @@ async function pgDash(el){
         ${notas.length?notas.slice(0,6).map(n=>{
           const cls=n.estado==='Aprobado'?'bg':n.estado==='Reprobado'?'br':'bgr';
           const lbl=(n.estado==='Pendiente'||!n.estado)?'En curso':n.estado;
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bdr)">
-            <span style="font-size:12px;font-weight:600;color:var(--txt)">${n.materia_nombre}</span>
-            <span class="bx ${cls}">${lbl}</span>
+          const pts=n.puntaje_total!=null?n.puntaje_total:null;
+          const ptsColor=n.estado==='Aprobado'?'#166534':n.estado==='Reprobado'?'#dc2626':'#64748b';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.materia_nombre}</div>
+              ${pts!=null?`<div style="font-size:11px;color:${ptsColor};font-weight:700;margin-top:1px">${pts} pts / 100</div>`:''}
+            </div>
+            <span class="bx ${cls}" style="flex-shrink:0">${lbl}</span>
           </div>`;
         }).join(''):`<div class="es" style="padding:16px">Sin notas registradas</div>`}
         ${notas.length>6?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">+${notas.length-6} más</div>`:''}
@@ -9882,6 +9893,20 @@ async function toggleParcialBloqueo(asigId){
 }
 W.toggleParcialBloqueo=toggleParcialBloqueo;
 
+function filtrarAlumnosNotas(q){
+  const term=(q||'').toLowerCase().trim();
+  const rows=document.querySelectorAll('tr.nota-row');
+  let visibles=0;
+  rows.forEach(tr=>{
+    const nombre=tr.getAttribute('data-nombre')||'';
+    const match=!term||nombre.includes(term);
+    tr.style.display=match?'':'none';
+    if(match) visibles++;
+  });
+  const cnt=document.getElementById('notas-search-cnt');
+  if(cnt) cnt.textContent=term?`${visibles} resultado${visibles!==1?'s':''}` : '';
+}
+
 W.loadNotas=async(asigId,_tipo)=>{
   if(!asigId)return;
   const sel=document.getElementById('selAsigNotas');
@@ -9934,11 +9959,18 @@ W.loadNotas=async(asigId,_tipo)=>{
     .nota-row{transition:background .15s ease}
   </style>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;font-size:12px;flex-wrap:wrap;align-items:center">
       <span class="bx bg">✓ ${aprobados} aprobados</span>
       <span class="bx br">✗ ${reprobados} reprobados</span>
       <span class="bx bgr">⏳ ${pendientes} pendientes</span>
       ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
+      <div style="position:relative;display:flex;align-items:center">
+        <span style="position:absolute;left:9px;font-size:13px;color:#94a3b8;pointer-events:none">🔍</span>
+        <input type="text" id="buscarAlumnoNotas" placeholder="Buscar alumno..." oninput="filtrarAlumnosNotas(this.value)"
+          style="padding:6px 10px 6px 30px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;width:180px;outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e2e8f0'"/>
+        <span id="notas-search-cnt" style="position:absolute;right:8px;font-size:10px;color:#94a3b8"></span>
+      </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Acta de notas</button>`:''}
@@ -10044,7 +10076,7 @@ W.loadNotas=async(asigId,_tipo)=>{
           ${cuotasFalt.length?`<div style="font-size:8px;color:#b91c1c;margin-top:2px">${cuotasFalt.map(c=>c.replace('Cuota ','')).join(', ')}</div>`:''}`
         :`<span style="color:#16a34a;font-size:17px">✓</span>`}
     </td>`:'';
-    return `<tr class="nota-row" id="nr-${a.id}" data-al-id="${a.id}" style="background:${rowBase}" onmouseover="this.style.background='${rowHover}'" onmouseout="this.style.background='${rowBase}'">
+    return `<tr class="nota-row" id="nr-${a.id}" data-al-id="${a.id}" data-nombre="${(a.alumno_apellido||'').toLowerCase()} ${(a.alumno_nombre||'').toLowerCase()} ${(a.alumno_ci||'').toLowerCase()}" style="background:${rowBase}" onmouseover="this.style.background='${rowHover}'" onmouseout="this.style.background='${rowBase}'">
       <td style="${cellBase}padding:8px 14px;background:${rowBase};white-space:nowrap;border-right:1px solid #cbd5e1">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="min-width:20px;font-size:11px;font-weight:800;color:#94a3b8;text-align:right;flex-shrink:0">${idx+1}</span>
@@ -13266,25 +13298,34 @@ function renderMisNotas(notas){
           <div style="font-size:13px;font-weight:800;color:#166534">${n['tp'+i]??'—'}</div>
         </div>`).join('')}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
-        <div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:10px;color:#64748b;margin-bottom:2px">Total TPs</div>
-          <div style="font-size:16px;font-weight:800;color:#166534">${n.tp_total??'—'}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">
+        <div style="background:#f0fdf4;border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px;font-weight:600">TPs</div>
+          <div style="font-size:17px;font-weight:800;color:#166534">${n.tp_total??'—'}</div>
+          <div style="font-size:9px;color:#94a3b8">/ 20</div>
         </div>
-        <div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:10px;color:#64748b;margin-bottom:2px">Parcial</div>
-          <div style="font-size:16px;font-weight:800;color:#1d4ed8">${n.parcial??n.parcial_recuperatorio??'—'}</div>
+        <div style="background:#eff6ff;border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px;font-weight:600">Parcial${n.parcial_recuperatorio!=null?' (rec.)':''}</div>
+          <div style="font-size:17px;font-weight:800;color:#1d4ed8">${n.parcial_recuperatorio??n.parcial??'—'}</div>
+          <div style="font-size:9px;color:#94a3b8">/ 20</div>
         </div>
-        <div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:10px;color:#64748b;margin-bottom:2px">Final</div>
-          <div style="font-size:16px;font-weight:800;color:#c2410c">${n.final_ord??n.final_recuperatorio??'—'}</div>
+        <div style="background:#fff7ed;border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px;font-weight:600">Final${n.complementario!=null?' (comp.)':n.final_recuperatorio!=null?' (rec.)':''}</div>
+          <div style="font-size:17px;font-weight:800;color:#c2410c">${n.complementario??n.final_recuperatorio??n.final_ord??'—'}</div>
+          <div style="font-size:9px;color:#94a3b8">/ 50</div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:8px">
-        <span style="font-size:12px;color:#64748b">Puntaje total</span>
-        <span style="font-size:20px;font-weight:900;color:${est==='Aprobado'?'#166534':est==='Reprobado'?'#dc2626':'#374151'}">${n.puntaje_total??'—'} <span style="font-size:12px;font-weight:600;color:#94a3b8">/ 100</span></span>
+      ${n.director_pts!=null?`<div style="background:#f0f9ff;border-radius:6px;padding:5px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:#0369a1">Puntos dirección</span>
+        <span style="font-weight:800;color:#0369a1">${n.director_pts} / 10</span>
+      </div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:1.5px solid ${est==='Aprobado'?'#bbf7d0':est==='Reprobado'?'#fecaca':'#e2e8f0'};padding-top:10px;margin-top:2px">
+        <div>
+          <span style="font-size:11px;color:#64748b">Puntaje total</span>
+          ${n.nota_final!=null?`<div style="font-size:11px;color:#64748b;margin-top:1px">Nota: <strong>${n.nota_final}</strong></div>`:''}
+        </div>
+        <span style="font-size:26px;font-weight:900;color:${est==='Aprobado'?'#166534':est==='Reprobado'?'#dc2626':'#374151'}">${n.puntaje_total??'—'} <span style="font-size:13px;font-weight:600;color:#94a3b8">/ 100</span></span>
       </div>
-      ${n.nota_final!=null?`<div style="text-align:center;margin-top:6px"><span style="font-size:11px;color:#64748b">Nota final: </span><strong style="font-size:15px">${n.nota_final}</strong></div>`:''}
     </div>`;
   }).join('')}</div>`;
   return mobCards;
