@@ -357,6 +357,7 @@ async function procesarMensajeBot(numero, texto) {
       _botEstados.set(numero, est);
       return;
     }
+    est.carrera_id     = carrera.id;
     est.carrera_nombre = carrera.nombre;
     est.estado         = 'alumno_nuevo_anio';
     _botEstados.set(numero, est);
@@ -389,18 +390,44 @@ async function procesarMensajeBot(numero, texto) {
       _botEstados.set(numero, est);
       return;
     }
+
+    // Guardar consulta en wa_consultas
     try {
       const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,carrera_nombre,anio,ci,consulta,estado,fecha)
         VALUES (?,?,?,'alumno_nuevo',?,?,?,?,'pendiente',datetime('now','localtime'))`)
-        .run(cid, numero, est.nombre, est.carrera_nombre, est.anio, est.ci, txt);
+        .run(cid, numNorm, est.nombre, est.carrera_nombre, est.anio, est.ci, txt);
     } catch(e) { console.error('[BOT] guardar consulta alumno nuevo:', e.message); }
+
+    // Crear solicitud de incorporación para que el director verifique
+    try {
+      const partes   = (est.nombre||'').trim().split(/\s+/);
+      const snombre  = partes[0] || '';
+      const sapellido= partes.slice(1).join(' ') || '';
+      const anioNum  = est.anio==='Primer año'?1:est.anio==='Segundo año'?2:est.anio==='Tercer año'?3:1;
+      // Buscar curso que coincida con carrera + año (tomar el primero disponible)
+      let cursoId = null;
+      try {
+        const cur = db.prepare("SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 LIMIT 1").get(est.carrera_id||'', anioNum);
+        cursoId = cur?.id || null;
+      } catch {}
+      // Evitar duplicados: si ya hay una solicitud pendiente con misma CI o nombre+apellido, no crear otra
+      const yaExiste = db.prepare(
+        `SELECT id FROM solicitudes_registro WHERE estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=lower(?) AND lower(apellido)=lower(?))) LIMIT 1`
+      ).get(est.ci||'__', snombre, sapellido);
+      if (!yaExiste) {
+        const sid = 'sreg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+        db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
+          .run(sid, snombre, sapellido, est.ci||'', numNorm, est.carrera_id||'', cursoId, null, 'bot_wa');
+        console.log(`[BOT] Solicitud de incorporación creada: ${snombre} ${sapellido} CI:${est.ci} → ${est.carrera_nombre}`);
+      }
+    } catch(e) { console.error('[BOT] crear solicitud incorporacion:', e.message); }
 
     const pNombre = (est.nombre||'').split(' ')[0];
     await enviar(
-      `Su consulta ha sido recibida correctamente. ✅\n\n` +
-      `Un encargado del Instituto se comunicará con usted a la brevedad.\n\n` +
-      `Gracias por contactarnos, *${pNombre}*.`
+      `¡Sus datos han sido enviados al Director del Instituto para verificación! ✅\n\n` +
+      `En cuanto sean aprobados, quedará incorporado/a al sistema y un encargado se comunicará con usted.\n\n` +
+      `Gracias por contactarnos, *${pNombre}*. 😊`
     );
     _botEstados.set(numero, { estado: 'completado_alumno', completadoTs: Date.now(), ts: Date.now() });
     return;

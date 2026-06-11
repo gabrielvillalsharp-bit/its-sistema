@@ -1816,9 +1816,10 @@ async function pgDash(el){
     me.rol==='director' ? api('GET','/api/solicitudes-alumno').catch(()=>[]) : Promise.resolve([]),
   ]);
   window._exPendDir = exPendDir||[];
-  const _solQRPend = (solQR||[]).filter(s=>s.estado==='pendiente');
+  const _solQRPend = (solQR||[]).filter(s=>s.estado==='pendiente'&&s.tipo!=='bot_wa');
+  const _solBotPend = (solQR||[]).filter(s=>s.estado==='pendiente'&&s.tipo==='bot_wa');
   const _solDocPend = (solDocentes||[]).filter(s=>s.estado==='pendiente');
-  const _solTotalPend = _solQRPend.length + _solDocPend.length;
+  const _solTotalPend = _solQRPend.length + _solBotPend.length + _solDocPend.length;
   const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
   const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
   const qa=[];
@@ -1901,6 +1902,19 @@ async function pgDash(el){
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:800;white-space:nowrap;flex-shrink:0">NUEVO</span>
               </div>`).join('')+(qr.length>4?`<div style="padding:5px 14px;font-size:10px;color:#92400e;font-weight:600">+${qr.length-4} más</div>`:'');
+          }
+          const bot=_solBotPend.map(s=>({...s,_origen:'Bot'}));
+          if(bot.length){
+            html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#6d28d9;background:#f5f3ff;border-top:1px solid #ede9fe;border-bottom:1px solid #ddd6fe;letter-spacing:.05em">🤖 BOT WHATSAPP — ${bot.length}</div>`;
+            html+=bot.slice(0,4).map(s=>`
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #ede9fe;transition:background .12s" onmouseenter="this.style.background='#f5f3ff'" onmouseleave="this.style.background=''">
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''} · 📱 ${s.telefono||'—'}</div>
+                </div>
+                <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#ede9fe;color:#6d28d9;font-weight:800;white-space:nowrap;flex-shrink:0">WA BOT</span>
+              </div>`).join('')+(bot.length>4?`<div style="padding:5px 14px;font-size:10px;color:#6d28d9;font-weight:600">+${bot.length-4} más</div>`:'');
           }
           if(doc.length){
             html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#0369a1;background:#f0f9ff;border-top:1px solid #e0f2fe;border-bottom:1px solid #bae6fd;letter-spacing:.05em">👨‍🏫 SOLICITUD DOCENTE — ${doc.length}</div>`;
@@ -8992,14 +9006,23 @@ async function pgSolicitudes(el){
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
       ${(()=>{
         const allItems=[
-          ...regs.map(r=>({key:'qr-'+r.id,tipo:'qr',icono:'📱',tipLabel:'QR',
-            alumno:`${r.apellido||''}, ${r.nombre||''}`,ci:r.ci||'—',
-            carrera:r.carrera_nombre||'—',
-            seccion:r.curso_anio?(r.curso_anio+'°'+(r.curso_division&&r.curso_division!=='U'?' '+r.curso_division:'')+(r.turno?' T'+r.turno:'')):'—',
-            tel:r.telefono||'',fecha:r.fecha||'',estado:r.estado||'',
-            extra:r.motivo_rechazo?'Motivo: '+r.motivo_rechazo:'',
-            acciones:r.estado==='pendiente'?`<button class="bn" style="flex:1;font-size:12px;padding:8px 0;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="flex:1;font-size:12px;padding:8px 0;border-radius:8px;cursor:pointer" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''
-          })),
+          ...regs.map(r=>{
+            const esBot=r.tipo==='bot_wa';
+            const tipoKey=esBot?'bot':'qr';
+            const icono=esBot?'🤖':'📱';
+            const tipLabel=esBot?'Bot WhatsApp':'QR';
+            const seccion=r.curso_anio?(r.curso_anio+'°'+(r.curso_division&&r.curso_division!=='U'?' '+r.curso_division:'')+(r.turno?' T'+r.turno:'')):'—';
+            const extra=[
+              r.motivo_rechazo?'Motivo: '+r.motivo_rechazo:'',
+              esBot&&r.telefono?'📱 '+r.telefono:'',
+            ].filter(Boolean).join(' · ');
+            return{key:'reg-'+r.id,tipo:tipoKey,icono,tipLabel,
+              alumno:`${r.apellido||''}, ${r.nombre||''}`,ci:r.ci||'—',
+              carrera:r.carrera_nombre||'—',seccion,
+              tel:r.telefono||'',fecha:r.fecha||'',estado:r.estado||'',
+              extra,
+              acciones:r.estado==='pendiente'?`<button class="bn" style="flex:1;font-size:12px;padding:8px 0;background:linear-gradient(135deg,#059669,#047857);border:none;border-radius:8px;font-weight:700;cursor:pointer" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button><button class="bs d" style="flex:1;font-size:12px;padding:8px 0;border-radius:8px;cursor:pointer" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''};
+          }),
           ...sols.map(s=>{
             let obs=null;try{obs=s.observacion?JSON.parse(s.observacion):null;}catch{}
             return{key:'sol-'+s.id,tipo:'solicitud',icono:'📋',tipLabel:'Solicitud',
@@ -9020,9 +9043,9 @@ async function pgSolicitudes(el){
         ].sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
         const pendItems=allItems.filter(i=>i.estado==='pendiente');
         const procItems=allItems.filter(i=>i.estado!=='pendiente');
-        const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)',asignacion:'linear-gradient(135deg,#065f46,#059669)'};
-        const borderMap={qr:'#2563EB',solicitud:'#D85A30',asignacion:'#059669'};
-        const bgMap={qr:'#eff6ff',solicitud:'#fff7ed',asignacion:'#f0fdf4'};
+        const gradMap={qr:'linear-gradient(135deg,#1D4ED8,#2563EB)',solicitud:'linear-gradient(135deg,#92400e,#D85A30)',asignacion:'linear-gradient(135deg,#065f46,#059669)',bot:'linear-gradient(135deg,#6d28d9,#7c3aed)'};
+        const borderMap={qr:'#2563EB',solicitud:'#D85A30',asignacion:'#059669',bot:'#7c3aed'};
+        const bgMap={qr:'#eff6ff',solicitud:'#fff7ed',asignacion:'#f0fdf4',bot:'#f5f3ff'};
         const stC={aprobado:'background:#dcfce7;color:#166534',rechazado:'background:#fee2e2;color:#991b1b',pendiente:'background:#fef3c7;color:#92400e'};
         const stL={aprobado:'✅ Aprobado',rechazado:'❌ Rechazado',pendiente:'⏳ Pendiente'};
         let html='';
