@@ -9864,6 +9864,24 @@ async function guardarTodasNotas(asigId){
   if(errores>0) W.loadNotas(asigId);
 }
 W.guardarTodasNotas=guardarTodasNotas;
+
+async function toggleParcialBloqueo(asigId){
+  const bloqueando = !W._parcialBloqueado;
+  const btn = document.getElementById('btnParcialBloqueo');
+  if(btn){btn.disabled=true;btn.textContent='⏳...';}
+  try{
+    const r = await api('PUT',`/api/asignaciones/${asigId}/parcial-bloqueo`,{bloquear:bloqueando});
+    W._parcialBloqueado = !!r.parcial_bloqueado;
+    toast(W._parcialBloqueado ? '🔒 Parcial ordinario bloqueado para docentes' : '🔓 Parcial ordinario desbloqueado — los docentes ya pueden editarlo','ok');
+    // Recargar la grilla para reflejar el nuevo estado
+    W.loadNotas(asigId);
+  }catch(e){
+    toast('Error: '+e.message,'err');
+    if(btn){btn.disabled=false;btn.textContent=W._parcialBloqueado?'🔓 Desbloquear parcial':'🔒 Bloquear parcial';}
+  }
+}
+W.toggleParcialBloqueo=toggleParcialBloqueo;
+
 W.loadNotas=async(asigId,_tipo)=>{
   if(!asigId)return;
   const sel=document.getElementById('selAsigNotas');
@@ -9871,13 +9889,14 @@ W.loadNotas=async(asigId,_tipo)=>{
   // Skeleton mientras carga
   const nc=document.getElementById('nc');
   if(nc)nc.innerHTML=skeletonTable(8,5);
-  const [{alumnos}, actasResp] = await Promise.all([
+  const [{alumnos, parcial_bloqueado}, actasResp] = await Promise.all([
     api('GET','/api/notas/asignacion/'+asigId),
     api('GET','/api/actas-examen').catch(()=>[])
   ]);
   if(!nc){go('notas');setTimeout(()=>W.loadNotas(asigId),600);return;}
   if(!alumnos.length){nc.innerHTML='<div class="es">Sin alumnos en este curso</div>';return;}
   W._nc={};W._asigId=asigId;
+  W._parcialBloqueado = !!parcial_bloqueado;
   // Mapa de actas cerradas para esta asignación
   const actasAsig=(actasResp||[]).filter(a=>a.asignacion_id===asigId&&a.estado==='cerrada');
   const actasCerradasMap={};
@@ -9925,10 +9944,17 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Acta de notas</button>`:''}
       ${me.rol==='director'?`<button class="bs i" onclick="mImprimirAsistDia('${asigId}')">📋 Acta asistencia por día</button>`:''}
       ${me.rol==='director'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="pgActasExamen()">📋 Ver actas de examen</button>`:''}
+      ${me.rol==='director'?`<button class="bs" id="btnParcialBloqueo" onclick="toggleParcialBloqueo('${asigId}')"
+        style="background:${W._parcialBloqueado?'#dc2626':'#2563eb'};color:#fff;border-color:${W._parcialBloqueado?'#dc2626':'#2563eb'};font-weight:700;transition:background .2s">
+        ${W._parcialBloqueado?'🔓 Desbloquear parcial':'🔒 Bloquear parcial'}</button>`:''}
       ${me.rol==='docente'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:700" onclick="mGenerarActaExamen('${asigId}')">📋 Generar acta de examen</button>`:''}
       <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
     </div>
   </div>
+  ${me.rol==='docente'&&W._parcialBloqueado?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#991b1b;display:flex;align-items:center;gap:10px">
+    <span style="font-size:18px">🔒</span>
+    <div><strong>Parcial ordinario bloqueado</strong><span style="display:block;font-size:11px;margin-top:2px">El director bloqueó la edición del parcial ordinario para esta materia.</span></div>
+  </div>`:''}
   ${Object.keys(actasCerradasMap).length&&me.rol==='docente'?`<div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#78350f;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:16px">🔒</span>
     <div>
@@ -9996,7 +10022,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     // Para los 5 exámenes con arancel: requieren habilitación específica por pago de arancel en esta materia
     const esArancelHab=(tipo)=>tiposHab.includes(tipo);
     const disabledBase=ausente;
-    const disabledParcialOrd=ausente||me.rol==='docente';
+    const disabledParcialOrd=ausente||(me.rol==='docente'&&W._parcialBloqueado);
     const disabledFinalOrd=ausente||!esArancelHab('final_ord');
     const disabledFinalRec=ausente||!esArancelHab('final_recuperatorio');
     const disabledComplem=ausente||!esArancelHab('complementario');

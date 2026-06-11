@@ -529,6 +529,7 @@ try {
 
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
+try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
 
 // ── MIGRACIÓN: ampliar CHECK constraint de aranceles.tipo ────────────────────
 try {
@@ -1680,7 +1681,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
     } catch {}
   });
 
-  res.json({ alumnos });
+  res.json({ alumnos, parcial_bloqueado: asig.parcial_bloqueado ? 1 : 0 });
 });
 
 app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, res) => {
@@ -1706,14 +1707,13 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
         }
       }
     }
-    // Docente no puede modificar el parcial ordinario (solo bloquear si el valor cambia respecto al guardado)
+    // Docente no puede modificar el parcial ordinario si la asignación lo tiene bloqueado manualmente
     if (req.user.rol === 'docente') {
       const vParcial = req.body.parcial;
       if (vParcial !== undefined && vParcial !== '' && vParcial !== null) {
-        const curr = db.prepare('SELECT parcial FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
-        const newVal = Math.round(Number(String(vParcial).replace(',','.')));
-        if (curr?.parcial == null || newVal !== curr.parcial) {
-          return res.status(403).json({ error: 'El parcial ordinario está bloqueado para docentes. Solo el director puede modificarlo.' });
+        const asigInfo = db.prepare('SELECT parcial_bloqueado FROM asignaciones WHERE id=?').get(req.params.asig_id);
+        if (asigInfo?.parcial_bloqueado) {
+          return res.status(403).json({ error: 'El parcial ordinario está bloqueado para esta materia. Solo el director puede desbloquearlo.' });
         }
       }
     }
@@ -1871,6 +1871,17 @@ app.put('/api/actas-examen/:id/desbloquear', auth(ADM), (req, res) => {
     audit(req.user.id, 'DESBLOQUEAR_ACTA', 'actas_examen', req.params.id, { motivo });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Director bloquea/desbloquea parcial ordinario de una asignación
+app.put('/api/asignaciones/:id/parcial-bloqueo', auth(ADM), (req, res) => {
+  const { bloquear } = req.body; // true = bloquear, false = desbloquear
+  const asig = db.prepare('SELECT id, parcial_bloqueado FROM asignaciones WHERE id=?').get(req.params.id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  const nuevoEstado = bloquear ? 1 : 0;
+  db.prepare('UPDATE asignaciones SET parcial_bloqueado=? WHERE id=?').run(nuevoEstado, req.params.id);
+  audit(req.user.id, nuevoEstado ? 'BLOQUEAR_PARCIAL' : 'DESBLOQUEAR_PARCIAL', 'asignaciones', req.params.id, {});
+  res.json({ ok: true, parcial_bloqueado: nuevoEstado });
 });
 
 // ── ASISTENCIA ────────────────────────────────────────────────────────────────
