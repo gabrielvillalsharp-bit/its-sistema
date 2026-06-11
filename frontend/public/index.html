@@ -2554,8 +2554,30 @@ async function waDiagWebhook(){
           <div style="margin-top:6px">Eventos a activar: <strong>MESSAGES_UPSERT</strong></div>
         </div>`
       :'<div style="text-align:center;font-size:13px;color:#059669;font-weight:600">✅ Webhook correctamente configurado.</div>'}
+      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px">🤖 Test de envío del Bot</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="wa-bot-test-num" placeholder="Número (ej: 595981234567)" style="flex:1;min-width:160px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
+          <input id="wa-bot-test-msg" placeholder="Mensaje de prueba" style="flex:2;min-width:160px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px" value="Hola, soy el bot de prueba ITS ✅">
+          <button onclick="waBotSendTest()" style="padding:7px 16px;background:#059669;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700">📤 Enviar</button>
+        </div>
+        <div id="wa-bot-test-result" style="margin-top:8px;font-size:11px"></div>
+      </div>
     `;
   }catch(e){panel.innerHTML=`<div style="color:#dc2626;padding:20px">Error: ${e.message}</div>`;}
+}
+async function waBotSendTest(){
+  const num=(document.getElementById('wa-bot-test-num')?.value||'').trim();
+  const msg=(document.getElementById('wa-bot-test-msg')?.value||'').trim();
+  const res=document.getElementById('wa-bot-test-result');
+  if(!num||!msg){if(res)res.innerHTML='<span style="color:#dc2626">Completá número y mensaje</span>';return;}
+  if(res)res.innerHTML='<span style="color:#0891b2">Enviando...</span>';
+  try{
+    const data=await api('POST','/api/whatsapp/bot-send-test',{numero:num,mensaje:msg});
+    const color=data.ok?'#059669':'#dc2626';
+    const icon=data.ok?'✅':'❌';
+    if(res)res.innerHTML=`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px"><strong style="color:${color}">${icon} HTTP ${data.status||'?'} · Instancia: ${data.instancia||'?'}</strong><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;font-size:10px;max-height:120px;overflow:auto">${JSON.stringify(data.response||data.error,null,2)}</pre></div>`;
+  }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
 }
 async function waDiagReconfigurar(){
   const btn=event?.target;

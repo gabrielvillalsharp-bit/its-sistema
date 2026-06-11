@@ -196,8 +196,19 @@ async function procesarMensajeBot(numero, texto) {
         body: JSON.stringify({ number: numero, textMessage: { text: msg } }),
         signal: AbortSignal.timeout(8000)
       });
-      if (!r.ok) console.error(`[BOT] enviar ${r.status} → ${numero}`);
-    } catch(e) { console.error('[BOT] enviar error:', e.message); }
+      const respTxt = await r.text();
+      const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      if (!r.ok) {
+        console.error(`[BOT] enviar ${r.status} → ${numero}: ${respTxt.slice(0,400)}`);
+        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot_error',numero,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
+      } else {
+        console.log(`[BOT] enviar OK (${r.status}) → ${numero}`);
+        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot',numero,msg.slice(0,200),'enviado',nowStr()); } catch {}
+      }
+    } catch(e) {
+      console.error('[BOT] enviar error:', e.message);
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numero,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
+    }
   };
 
   const txt  = (texto||'').trim();
@@ -6054,6 +6065,29 @@ app.post('/api/whatsapp/webhook-test', auth(ADM), (req, res) => {
   const fakeRes = { json: ()=>{} };
   manejarWebhookWA(fakeReq, fakeRes);
   res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${numero}` });
+});
+
+// Endpoint: test de envío directo del bot (mismo código que enviar() interno)
+app.post('/api/whatsapp/bot-send-test', auth(ADM), async (req, res) => {
+  const { numero, mensaje } = req.body;
+  const EVO_URL  = process.env.EVOLUTION_URL;
+  const EVO_KEY  = process.env.EVOLUTION_KEY;
+  const EVO_INST = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INST) return res.json({ ok: false, error: 'Faltan variables EVOLUTION_URL / EVOLUTION_KEY / EVOLUTION_INSTANCE' });
+  if (!numero || !mensaje) return res.status(400).json({ error: 'numero y mensaje requeridos' });
+  try {
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
+      method: 'POST',
+      headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number: numero, textMessage: { text: mensaje } }),
+      signal: AbortSignal.timeout(8000)
+    });
+    const txt = await r.text();
+    let json; try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
+    res.json({ ok: r.ok, status: r.status, response: json, numero_usado: numero, instancia: EVO_INST });
+  } catch(e) {
+    res.json({ ok: false, error: e.message, numero_usado: numero, instancia: EVO_INST });
+  }
 });
 
 // ── WHATSAPP GESTIÓN: estado de conexión ──────────────────────────────────────
