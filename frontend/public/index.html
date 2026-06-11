@@ -2085,8 +2085,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas'};
-  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas'].map((t,i)=>{
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot'};
+  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -2391,6 +2391,37 @@ async function pgWhatsApp(el){
   <!-- Panel: Plantillas del sistema -->
   <div id="wa-panel-plantillas" style="display:none">
     <div id="wa-plantillas-cuerpo"><div class="es">Cargando plantillas...</div></div>
+  </div>
+
+  <!-- Panel: Bot -->
+  <div id="wa-panel-bot" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
+        <h3 style="margin:0 0 14px;font-size:14px;color:#0f172a;display:flex;align-items:center;gap:8px">🤖 Test de envío del Bot <span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:2px 8px;font-weight:600">DIRECTO</span></h3>
+        <label style="font-size:12px;color:#555">Número destino (formato: 595981234567)</label>
+        <input id="wa-bot-num" placeholder="595981234567" style="width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+        <label style="font-size:12px;color:#555">Mensaje a enviar</label>
+        <textarea id="wa-bot-msg" rows="3" style="width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical">✅ Prueba de bot ITS</textarea>
+        <button onclick="waBotEnviarTest()" style="width:100%;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📤 Enviar vía Bot</button>
+        <div id="wa-bot-send-res" style="margin-top:10px;font-size:11px"></div>
+        <div style="margin-top:16px;border-top:1px solid #f1f5f9;padding-top:14px">
+          <h4 style="margin:0 0 8px;font-size:12px;color:#374151">💬 Simular mensaje entrante</h4>
+          <label style="font-size:11px;color:#555">Número (desde)</label>
+          <input id="wa-bot-sim-num" placeholder="595981234567" style="width:100%;box-sizing:border-box;margin:4px 0 8px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
+          <label style="font-size:11px;color:#555">Texto del mensaje</label>
+          <input id="wa-bot-sim-txt" placeholder="Hola" style="width:100%;box-sizing:border-box;margin:4px 0 8px;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px" value="Hola">
+          <button onclick="waBotSimular()" style="width:100%;padding:8px;background:#0891b2;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔁 Simular recepción</button>
+          <div id="wa-bot-sim-res" style="margin-top:8px;font-size:11px;color:#555"></div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0;font-size:14px;color:#0f172a">📋 Últimos envíos del Bot</h3>
+          <button onclick="waBotCargarMensajes()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">🔄 Actualizar</button>
+        </div>
+        <div id="wa-bot-msgs-list"><div style="text-align:center;color:#94a3b8;padding:20px;font-size:12px">Cargando...</div></div>
+      </div>
+    </div>
   </div>`;
 
   // Store data for filters
@@ -2399,13 +2430,14 @@ async function pgWhatsApp(el){
 }
 
 function waTab(t){
-  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas'].forEach(x=>{
+  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
     if(b){b.style.background=x===t?'#128C7E':'transparent';b.style.color=x===t?'#fff':'#555';}
   });
   if(t==='plantillas') loadWAPlantillas();
+  if(t==='bot') waBotCargarMensajes();
 }
 function waDestChange(){
   const t=document.getElementById('waDestTipo')?.value;
@@ -2578,6 +2610,56 @@ async function waBotSendTest(){
     const icon=data.ok?'✅':'❌';
     if(res)res.innerHTML=`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px"><strong style="color:${color}">${icon} HTTP ${data.status||'?'} · Instancia: ${data.instancia||'?'}</strong><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;font-size:10px;max-height:120px;overflow:auto">${JSON.stringify(data.response||data.error,null,2)}</pre></div>`;
   }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
+}
+async function waBotEnviarTest(){
+  const num=(document.getElementById('wa-bot-num')?.value||'').trim();
+  const msg=(document.getElementById('wa-bot-msg')?.value||'').trim();
+  const res=document.getElementById('wa-bot-send-res');
+  if(!num||!msg){if(res)res.innerHTML='<span style="color:#dc2626">Completá número y mensaje</span>';return;}
+  if(res)res.innerHTML='<span style="color:#0891b2">⏳ Enviando...</span>';
+  try{
+    const data=await api('POST','/api/whatsapp/bot-send-test',{numero:num,mensaje:msg});
+    const color=data.ok?'#059669':'#dc2626';
+    const icon=data.ok?'✅':'❌';
+    if(res)res.innerHTML=`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-top:4px"><strong style="color:${color}">${icon} HTTP ${data.status||'?'} · Instancia: ${data.instancia||'?'}</strong><pre style="margin:6px 0 0;white-space:pre-wrap;word-break:break-all;font-size:10px;max-height:150px;overflow:auto">${JSON.stringify(data.response||data.error,null,2)}</pre></div>`;
+    setTimeout(()=>waBotCargarMensajes(),1200);
+  }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
+}
+async function waBotSimular(){
+  const num=(document.getElementById('wa-bot-sim-num')?.value||'').trim();
+  const txt=(document.getElementById('wa-bot-sim-txt')?.value||'').trim();
+  const res=document.getElementById('wa-bot-sim-res');
+  if(!num||!txt){if(res)res.innerHTML='<span style="color:#dc2626">Completá número y texto</span>';return;}
+  if(res)res.innerHTML='<span style="color:#0891b2">⏳ Procesando...</span>';
+  try{
+    await api('POST','/api/whatsapp/webhook-test',{numero:num,texto:txt});
+    if(res)res.innerHTML='<span style="color:#059669">✅ Mensaje simulado. El bot procesó la entrada — revisá los Últimos envíos en 2s.</span>';
+    setTimeout(()=>waBotCargarMensajes(),2500);
+  }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
+}
+async function waBotCargarMensajes(){
+  const el=document.getElementById('wa-bot-msgs-list');
+  if(!el) return;
+  try{
+    const data=await api('GET','/api/whatsapp/historial?limit=100');
+    const msgs=(data.mensajes||[]).filter(m=>m.tipo&&m.tipo.startsWith('bot')).slice(0,30);
+    if(!msgs.length){el.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-size:12px">Sin envíos del bot todavía</div>';return;}
+    el.innerHTML=msgs.map(m=>{
+      const esError=m.tipo==='bot_error'||m.tipo==='bot_crash';
+      const bg=esError?'#fef2f2':'#f0fdf4';
+      const border=esError?'#fca5a5':'#bbf7d0';
+      const icon=esError?'❌':'✅';
+      return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <strong>${icon} ${m.tipo||'bot'}</strong>
+          <span style="color:#94a3b8">${(m.fecha||'').slice(0,16)}</span>
+        </div>
+        <div style="color:#374151;margin-top:3px"><strong>→</strong> ${m.destinatario_telefono||m.destinatario||'?'}</div>
+        <div style="color:#64748b;margin-top:2px;word-break:break-word">${(m.mensaje||'').slice(0,120)}${(m.mensaje||'').length>120?'…':''}</div>
+        ${esError?`<div style="color:#dc2626;margin-top:3px;font-weight:600">Estado: ${m.estado||'?'}</div>`:''}
+      </div>`;
+    }).join('');
+  }catch(e){el.innerHTML=`<div style="color:#dc2626;font-size:12px;padding:10px">Error: ${e.message}</div>`;}
 }
 async function waDiagReconfigurar(){
   const btn=event?.target;
