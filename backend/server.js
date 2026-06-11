@@ -277,11 +277,12 @@ async function procesarMensajeBot(numero, texto) {
     }
 
     if (esExterno) {
-      est.estado = 'externo_nombre';
+      est.estado = 'externo_carrera';
       _botEstados.set(numero, est);
+      const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
       await enviar(
-        `Con gusto le atendemos. 😊\n\n` +
-        `Por favor, indíquenos su *nombre completo*:`
+        `¡Con gusto le atendemos! 😊\n\n` +
+        `Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`
       );
       return;
     }
@@ -405,7 +406,43 @@ async function procesarMensajeBot(numero, texto) {
     return;
   }
 
-  // ── FLUJO B: EXTERNO (no alumno) ──────────────────────────────────────────
+  // ── FLUJO B: EXTERNO / INTERESADO ────────────────────────────────────────
+  // B1: Muestra lista de carreras al elegir opción 2
+  if (est.estado === 'externo_carrera') {
+    const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
+    await enviar(
+      `¡Perfecto! Le informamos sobre nuestras carreras disponibles. 🎓\n\n` +
+      `Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`
+    );
+    est.estado = 'externo_eligiendo_carrera';
+    _botEstados.set(numero, est);
+    return;
+  }
+
+  // B2: Usuario elige carrera → pide nombre
+  if (est.estado === 'externo_eligiendo_carrera') {
+    const carrera = BOT_CARRERAS.find(c =>
+      c.num === txt ||
+      txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6))
+    );
+    if (!carrera) {
+      const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
+      await enviar(`Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`);
+      _botEstados.set(numero, est);
+      return;
+    }
+    est.carrera_id     = carrera.id;
+    est.carrera_nombre = carrera.nombre;
+    est.estado         = 'externo_nombre';
+    _botEstados.set(numero, est);
+    await enviar(
+      `¡Excelente elección! 🎓 *${carrera.nombre}* es una de nuestras carreras más destacadas.\n\n` +
+      `Para brindarle información personalizada, ¿podría indicarnos su *nombre completo*?`
+    );
+    return;
+  }
+
+  // B3: Usuario da nombre → envía info de la carrera + guarda como interesado
   if (est.estado === 'externo_nombre') {
     if (txt.length < 3) {
       await enviar(`Por favor, ingrese su *nombre completo* para continuar:`);
@@ -413,135 +450,38 @@ async function procesarMensajeBot(numero, texto) {
       return;
     }
     est.nombre = txt;
-    est.estado = 'externo_motivo';
-    _botEstados.set(numero, est);
-    await enviar(
-      `Mucho gusto, *${txt.split(' ')[0]}*. 😊\n\n` +
-      `¿En qué le podemos ayudar hoy?\n\n` +
-      `1️⃣ Información sobre las carreras disponibles\n` +
-      `2️⃣ Inscripción / Matrícula\n` +
-      `3️⃣ Otra consulta`
-    );
-    return;
-  }
+    const primerNombre = txt.split(' ')[0];
 
-  if (est.estado === 'externo_motivo') {
-    const esCarreras   = txt==='1' || txtn.includes('carrer') || txtn.includes('inform') || txtn.includes('ofert');
-    const esInscripcion= txt==='2' || txtn.includes('inscri') || txtn.includes('matricul') || txtn.includes('anot');
-    const esOtra       = txt==='3' || txtn.includes('otra') || txtn.includes('consult') || txtn.includes('otro');
-
-    if (esCarreras) {
-      const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
-      let carrerasDetalle = [];
-      try {
-        carrerasDetalle = db.prepare("SELECT nombre, turno, semestres FROM carreras WHERE activa=1 ORDER BY nombre").all();
-      } catch(e) {}
-      const lista = carrerasDetalle.length
-        ? carrerasDetalle.map((c,i)=>`${i+1}. *${c.nombre}*\n   🕐 Turno: ${c.turno||'a confirmar'} · ⏱ ${c.semestres||'?'} semestres`).join('\n\n')
-        : BOT_CARRERAS.map(c=>`• ${c.nombre}`).join('\n');
-      est.estado = 'externo_carrera_contacto';
-      _botEstados.set(numero, est);
-      await enviar(
-        `📚 *Carreras disponibles en el ITS:*\n\n${lista}\n\n` +
-        `🔗 Para inscribirse en línea: ${APP_URL}/inscripcion.html\n\n` +
-        `¿Le gustaría que un encargado le contacte para más información?\n\nResponda *SI* o *NO*`
-      );
-      return;
-    }
-
-    if (esInscripcion) {
-      const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
-      try {
-        const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-        db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-          VALUES (?,?,?,?,?,'nuevo')`)
-          .run(iid, est.nombre, numNorm, '', '(interesado en inscripción)');
-      } catch(e) {}
-      const pNombre = (est.nombre||'').split(' ')[0];
-      await enviar(
-        `¡Excelente, *${pNombre}*! 🎉\n\n` +
-        `Puede iniciar su proceso de inscripción en línea a través del siguiente enlace:\n\n` +
-        `🔗 *${APP_URL}/inscripcion.html*\n\n` +
-        `Un encargado del Instituto le contactará a la brevedad para guiarle en el proceso.\n\n` +
-        `¡Muchas gracias por su interés en el ITS! 😊`
-      );
-      _botEstados.set(numero, { estado: 'completado_externo', completadoTs: Date.now(), ts: Date.now() });
-      return;
-    }
-
-    if (esOtra) {
-      est.estado = 'externo_consulta';
-      _botEstados.set(numero, est);
-      await enviar(`Por favor, indíquenos su consulta y un encargado le responderá a la brevedad:`);
-      return;
-    }
-
-    // Opción no reconocida
-    await enviar(
-      `Por favor, seleccione una opción:\n\n` +
-      `1️⃣ Información sobre las carreras disponibles\n` +
-      `2️⃣ Inscripción / Matrícula\n` +
-      `3️⃣ Otra consulta`
-    );
-    _botEstados.set(numero, est);
-    return;
-  }
-
-  if (est.estado === 'externo_carrera_contacto') {
-    const quiereSi = txtn.includes('si') || txtn.includes('sí') || txt==='1' || txtn.includes('dale') || txtn.includes('claro') || txtn.includes('ok');
-    const quiereNo = txtn.includes('no') || txt==='2';
-    const pNombre  = (est.nombre||'').split(' ')[0];
-    if (quiereSi || (!quiereNo && txt.length > 1)) {
-      try {
-        const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-        db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-          VALUES (?,?,?,?,?,'nuevo')`)
-          .run(iid, est.nombre, numNorm, '', '(solicita contacto)');
-      } catch(e) {}
-      await enviar(
-        `¡Perfecto, *${pNombre}*! ✅\n\n` +
-        `Sus datos han sido registrados. Un encargado del Instituto se comunicará con usted a la brevedad para brindarle toda la información que necesita.\n\n` +
-        `¡Gracias por su interés en el ITS! 😊`
-      );
-    } else {
-      await enviar(
-        `Entendido, *${pNombre}*. ¡Fue un placer atenderle! 😊\n\n` +
-        `Recuerde que puede visitarnos o escribirnos cuando lo necesite.`
-      );
-    }
-    _botEstados.set(numero, { estado: 'completado_externo', completadoTs: Date.now(), ts: Date.now() });
-    return;
-  }
-
-  if (est.estado === 'externo_consulta') {
-    if (txt.length < 3) {
-      await enviar(`Por favor, indíquenos su consulta para poder asistirle:`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    const carreraMencionada = BOT_CARRERAS.find(c=>txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,5)));
+    // Buscar detalle de la carrera para mostrar semestres/turno
+    let semestres = '?', turno = '';
     try {
-      const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,carrera_nombre,consulta,estado,fecha)
-        VALUES (?,?,?,'externo',?,?,'pendiente',datetime('now','localtime'))`)
-        .run(cid, numNorm, est.nombre, carreraMencionada?.nombre||null, txt);
-    } catch(e) { console.error('[BOT] guardar consulta externo:', e.message); }
+      const det = db.prepare("SELECT semestres, turno FROM carreras WHERE id=? OR nombre=?").get(est.carrera_id||'', est.carrera_nombre||'');
+      if (det) { semestres = det.semestres||'?'; turno = det.turno||''; }
+    } catch(e) {}
 
-    if (carreraMencionada || txtn.includes('inscri') || txtn.includes('carrer') || txtn.includes('estudi')) {
-      try {
-        const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-        db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-          VALUES (?,?,?,?,?,'nuevo')`)
-          .run(iid, est.nombre, numNorm, carreraMencionada?.id||'', carreraMencionada?.nombre||'(por confirmar)');
-      } catch(e) {}
-    }
+    // Guardar como interesado
+    try {
+      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,'nuevo')`)
+        .run(iid, est.nombre, numNorm, est.carrera_id||'', est.carrera_nombre||'');
+    } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
 
-    const pNombre = (est.nombre||'').split(' ')[0];
-    await enviar(
-      `Su consulta ha sido recibida correctamente. ✅\n\n` +
-      `Un encargado del Instituto Técnico Superior se comunicará con usted a la brevedad.\n\n` +
-      `Gracias por contactarnos, *${pNombre}*.`
-    );
+    const infoMsg =
+      `¡Mucho gusto, *${primerNombre}*! 😊 Le compartimos información sobre la carrera de *${est.carrera_nombre||'la institución'}*:\n\n` +
+      `🏫 *ITS Santísima Trinidad*\n` +
+      `Contamos con modernas instalaciones, laboratorios y aulas especializadas para garantizar una formación completa y de excelencia.\n\n` +
+      `📚 *Carrera: ${est.carrera_nombre}*\n` +
+      (semestres !== '?' ? `⏳ Duración: *${semestres} semestres*\n` : '') +
+      (turno ? `🕐 Turno: *${turno}*\n` : '') +
+      `\n📋 *Requisitos de inscripción:*\n` +
+      `✅ Haber culminado la Educación Media (Bachillerato)\n` +
+      `✅ Fotocopia de Cédula de Identidad\n` +
+      `✅ Certificado de Estudios\n\n` +
+      `Un *asesor del ITS se comunicará con usted* a la brevedad para orientarle y responder todas sus preguntas. 📞\n\n` +
+      `¡Gracias por su interés, *${primerNombre}*! Le esperamos 🎓`;
+
+    await enviar(infoMsg);
     _botEstados.set(numero, { estado: 'completado_externo', completadoTs: Date.now(), ts: Date.now() });
     return;
   }
