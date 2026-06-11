@@ -1640,11 +1640,15 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
         }
       }
     }
-    // Docente no puede modificar el parcial ordinario (está bloqueado tras cierre del período)
+    // Docente no puede modificar el parcial ordinario (solo bloquear si el valor cambia respecto al guardado)
     if (req.user.rol === 'docente') {
       const vParcial = req.body.parcial;
       if (vParcial !== undefined && vParcial !== '' && vParcial !== null) {
-        return res.status(403).json({ error: 'El parcial ordinario está bloqueado para docentes. Solo el director puede modificarlo.' });
+        const curr = db.prepare('SELECT parcial FROM notas WHERE alumno_id=? AND asignacion_id=?').get(req.params.alumno_id, req.params.asig_id);
+        const newVal = Math.round(Number(String(vParcial).replace(',','.')));
+        if (curr?.parcial == null || newVal !== curr.parcial) {
+          return res.status(403).json({ error: 'El parcial ordinario está bloqueado para docentes. Solo el director puede modificarlo.' });
+        }
       }
     }
     const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','ausente','director_pts'];

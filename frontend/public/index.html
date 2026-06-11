@@ -2152,19 +2152,6 @@ async function pgWhatsApp(el){
   const leerTodosBtn = noLeidos>0?'<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>':'';
 
   el.innerHTML=`
-  <!-- Accesos rápidos dentro del panel WhatsApp -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px">
-    <div onclick="go('wa-chat')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #dcfce7;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(37,211,102,.18)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
-      <div style="font-size:28px;margin-bottom:6px">💬</div>
-      <div style="font-size:13px;font-weight:700;color:#1e293b">Chat</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Conversaciones en vivo</div>
-    </div>
-    <div onclick="go('interesados')" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #e0f2fe;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(8,145,178,.18)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
-      <div style="font-size:28px;margin-bottom:6px">📩</div>
-      <div style="font-size:13px;font-weight:700;color:#1e293b">Interesados</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Bot de admisiones</div>
-    </div>
-  </div>
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <div style="background:linear-gradient(135deg,#128C7E,#25D366);border-radius:12px;padding:10px 18px;color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px">
@@ -2191,15 +2178,15 @@ async function pgWhatsApp(el){
       <div style="font-size:11px;color:#555;margin-top:3px">❌ Fallidos</div>
       <div style="font-size:10px;color:#fca5a5;margin-top:4px">Ver historial →</div>
     </div>
-    <div onclick="waTab('programar')" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(217,119,6,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:22px;font-weight:700;color:#d97706">${pendProg}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">⏰ Programados</div>
-      <div style="font-size:10px;color:#fcd34d;margin-top:4px">Ver programados →</div>
+    <div onclick="go('wa-chat')" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(37,211,102,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:22px">💬</div>
+      <div style="font-size:11px;color:#555;margin-top:3px;font-weight:700">Chat</div>
+      <div style="font-size:10px;color:#86efac;margin-top:4px">Conversaciones →</div>
     </div>
-    <div onclick="waTab('recibidos')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(37,99,235,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:22px;font-weight:700;color:#2563eb">${noLeidos}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">💬 Sin leer</div>
-      <div style="font-size:10px;color:#93c5fd;margin-top:4px">Ver recibidos →</div>
+    <div onclick="go('interesados')" style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(8,145,178,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:22px">📩</div>
+      <div style="font-size:11px;color:#555;margin-top:3px;font-weight:700">Interesados</div>
+      <div style="font-size:10px;color:#7dd3fc;margin-top:4px">Bot admisiones →</div>
     </div>
     <div onclick="waTab('docentes')" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#333">${conTel.length}</div>
@@ -7403,6 +7390,27 @@ function _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr,sm){
 function _mCardSm(id,emoji,title,subtitle,iconColor,iconBg,onclickStr){
   return _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr,true);
 }
+// Card doble: dos destinos en una sola tarjeta (arriba/abajo)
+function _mCard2(id1,e1,t1,sub1, id2,e2,t2,sub2, sm){
+  const pad=sm?'10px 8px':'16px 12px';
+  const emSz=sm?'22px':'28px';
+  const titleFs=sm?'11px':'13px';
+  const subFs=sm?'9px':'10px';
+  const radius=sm?'14px':'16px';
+  return `<div style="background:#fff;border-radius:${radius};box-shadow:0 2px 14px rgba(0,0,0,.06);border:1px solid #f1f5f9;overflow:hidden;display:flex;flex-direction:column">
+    <div onclick="go('${id1}')" style="flex:1;padding:${pad};cursor:pointer;text-align:center;transition:background .15s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
+      <div style="font-size:${emSz};line-height:1.1;margin-bottom:4px">${e1}</div>
+      <div style="font-size:${titleFs};font-weight:700;color:#1e293b">${t1}</div>
+      ${sub1?`<div style="font-size:${subFs};color:#94a3b8;margin-top:2px">${sub1}</div>`:''}
+    </div>
+    <div style="height:1px;background:#f1f5f9"></div>
+    <div onclick="go('${id2}')" style="flex:1;padding:${pad};cursor:pointer;text-align:center;transition:background .15s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
+      <div style="font-size:${emSz};line-height:1.1;margin-bottom:4px">${e2}</div>
+      <div style="font-size:${titleFs};font-weight:700;color:#1e293b">${t2}</div>
+      ${sub2?`<div style="font-size:${subFs};color:#94a3b8;margin-top:2px">${sub2}</div>`:''}
+    </div>
+  </div>`;
+}
 function _mSecTitulo(emoji,titulo,color){
   return `<div style="display:flex;align-items:center;gap:8px;margin:22px 0 14px"><div style="width:4px;height:20px;background:${color||'#1f8246'};border-radius:4px"></div><span style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.8px">${emoji} ${titulo}</span></div>`;
 }
@@ -7420,14 +7428,11 @@ function pgHubPrincipal(el){
 
   ${esDirec?_mSecTitulo('👥','Personas','#059669'):''}
   ${esDirec?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:8px">
-    ${_mCardSm('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
+    ${_mCard2('solicitudes','🎓','Gestión de Alumnos','Inscripciones', 'constancias','📄','Constancias','Generar', true)}
     ${_mCardSm('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
-    ${_mCardSm('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
     ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCardSm('limpieza','🧹','Limpieza','Inactivos y duplicados','#b91c1c','#fff1f2')}
-    ${_mCardSm('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
-    ${_mCardSm('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
-    ${_mCardSm('wa-chat','💬','WhatsApp Chat','Conversaciones WA','#25D366','#f0fdf4')}
+    ${_mCard2('limpieza','🧹','Limpieza','Duplicados e inactivos', 'papelera','🗑️','Papelera','Eliminados', true)}
+    ${_mCard2('wa-chat','💬','WA Chat','Conversaciones', 'interesados','📩','Interesados','Admisiones', true)}
   </div>`:''}
 
   ${_mSecTitulo('✏️','Académico','#7c3aed')}
@@ -7460,14 +7465,11 @@ function pgHubCarreras(el){
 function pgHubPersonas(el){
   el.innerHTML=`<div class="ph"><h3>👥 Gestión de Personas</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
-    ${_mCard('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más','#059669','#f0fdf4')}
+    ${_mCard2('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más', 'constancias','📄','Constancias','Generar constancias', false)}
     ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
-    ${_mCard('constancias','📄','Constancias','Generar constancias','#7c3aed','#f5f3ff')}
     ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCard('limpieza','🧹','Limpieza','Inactivos y duplicados','#b91c1c','#fff1f2')}
-    ${_mCard('interesados','📩','Interesados','Bot de admisiones','#0891b2','#ecfeff')}
-    ${_mCard('papelera','🗑️','Papelera','Registros eliminados','#6b7280','#f8fafc')}
-    ${_mCard('wa-chat','💬','WhatsApp Chat','Conversaciones en vivo','#25D366','#f0fdf4')}
+    ${_mCard2('limpieza','🧹','Limpieza','Duplicados e inactivos', 'papelera','🗑️','Papelera','Registros eliminados', false)}
+    ${_mCard2('wa-chat','💬','WA Chat','Conversaciones en vivo', 'interesados','📩','Interesados','Bot de admisiones', false)}
   </div>`;
 }
 function pgHubAcademico(el){
@@ -9987,7 +9989,8 @@ W.updN=async(aId,asigId,campo,val)=>{
   try{
     const r=await api('PUT',`/api/notas/${aId}/${asigId}`,{
       tp1:n.tp1??'',tp2:n.tp2??'',tp3:n.tp3??'',tp4:n.tp4??'',tp5:n.tp5??'',
-      parcial:n.parcial??'',parcial_recuperatorio:n.parcial_recuperatorio??'',
+      ...(me.rol!=='docente'?{parcial:n.parcial??''}:{}),
+      parcial_recuperatorio:n.parcial_recuperatorio??'',
       final_ord:n.final_ord??'',final_recuperatorio:n.final_recuperatorio??'',
       complementario:n.complementario??'',extraordinario:n.extraordinario??'',
       director_pts:n.director_pts??''
