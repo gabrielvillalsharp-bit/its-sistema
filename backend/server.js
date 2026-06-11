@@ -163,17 +163,16 @@ setInterval(() => {
   });
 }, 30*60*1000);
 
-const BOT_CARRERAS = [
-  {num:'1', id:'cosA',  nombre:'Cosmiatría',                    anos:3},
-  {num:'2', id:'enf',   nombre:'Enfermería',                    anos:2},
-  {num:'3', id:'farm',  nombre:'Farmacia',                      anos:2},
-  {num:'4', id:'instr', nombre:'Instrumentación Quirúrgica',    anos:2},
-  {num:'5', id:'rad',   nombre:'Radiología',                    anos:2},
-  {num:'6', id:'agro',  nombre:'Agropecuaria',                  anos:2},
-  {num:'7', id:'elec',  nombre:'Electricidad',                  anos:2},
-  {num:'8', id:'crim',  nombre:'Criminalística',                anos:2},
-  {num:'9', id:'cont',  nombre:'Contabilidad',                  anos:2},
-];
+// Carreras cargadas desde la BD real (IDs correctos)
+let BOT_CARRERAS = (() => {
+  try {
+    return db.prepare("SELECT id, nombre FROM carreras WHERE activa=1 ORDER BY nombre").all()
+      .map((c, i) => ({ num: String(i + 1), id: c.id, nombre: c.nombre }));
+  } catch(e) {
+    console.warn('[BOT] Error cargando carreras:', e.message);
+    return [];
+  }
+})();
 
 const BOT_MENU_PRINCIPAL =
   `Bienvenido/a al *Instituto Técnico Superior Santísima Trinidad*. 🎓\n\n` +
@@ -181,9 +180,7 @@ const BOT_MENU_PRINCIPAL =
   `1️⃣ Soy alumno/a de la institución\n` +
   `2️⃣ No soy alumno/a - deseo realizar consultas`;
 
-// ── BOT: modo solo-lectura (procesa y registra, no envía mensajes) ─────────────
-// Cambiar a false cuando se quiera activar respuestas automáticas
-const BOT_SOLO_LECTURA = true;
+const BOT_SOLO_LECTURA = false;
 
 async function procesarMensajeBot(numero, texto) {
   const EVO_URL  = process.env.EVOLUTION_URL;
@@ -192,16 +189,14 @@ async function procesarMensajeBot(numero, texto) {
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
 
   const enviar = async (msg) => {
-    if (BOT_SOLO_LECTURA) {
-      console.log(`[BOT LECTURA] → ${numero}: ${msg.slice(0,80)}...`);
-      return; // no envía nada
-    }
     try {
-      await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
+      const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
         method: 'POST',
         headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: numero, text: msg })
+        body: JSON.stringify({ number: numero, text: msg }),
+        signal: AbortSignal.timeout(8000)
       });
+      if (!r.ok) console.error(`[BOT] enviar ${r.status} → ${numero}`);
     } catch(e) { console.error('[BOT] enviar error:', e.message); }
   };
 
@@ -447,9 +442,9 @@ async function procesarMensajeBot(numero, texto) {
     return;
   }
 
-  // Fallback
-  _botEstados.set(numero, { estado: 'inicio', ts: Date.now() });
-  await procesarMensajeBot(numero, texto);
+  // Fallback: estado desconocido → reiniciar con el menú
+  await enviar(BOT_MENU_PRINCIPAL);
+  _botEstados.set(numero, { estado: 'esperando_tipo', ts: Date.now() });
 }
 
 // ── MIGRACIÓN: asignacion_id en pagos (para vincular pago con materia habilitada) ──
