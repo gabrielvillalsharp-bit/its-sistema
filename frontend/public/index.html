@@ -2420,6 +2420,17 @@ async function pgWhatsApp(el){
 
   <!-- Panel: Bot -->
   <div id="wa-panel-bot" style="display:none">
+    <!-- Control de pausa/reanudación -->
+    <div id="wa-bot-estado-banner" style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:12px;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="wa-bot-estado-ico" style="font-size:22px">🤖</span>
+        <div>
+          <div id="wa-bot-estado-txt" style="font-weight:700;font-size:14px">Cargando estado...</div>
+          <div id="wa-bot-estado-sub" style="font-size:11px;color:#64748b;margin-top:1px"></div>
+        </div>
+      </div>
+      <button id="wa-bot-toggle-btn" onclick="waBotToggle()" style="padding:10px 22px;border:none;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;transition:background .2s">...</button>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
         <h3 style="margin:0 0 14px;font-size:14px;color:#0f172a;display:flex;align-items:center;gap:8px">🤖 Test de envío del Bot <span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:2px 8px;font-weight:600">DIRECTO</span></h3>
@@ -2636,6 +2647,39 @@ async function waBotSendTest(){
     if(res)res.innerHTML=`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px"><strong style="color:${color}">${icon} HTTP ${data.status||'?'} · Instancia: ${data.instancia||'?'}</strong><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;font-size:10px;max-height:120px;overflow:auto">${JSON.stringify(data.response||data.error,null,2)}</pre></div>`;
   }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
 }
+async function waBotCargarEstado(){
+  try{
+    const d=await api('GET','/api/whatsapp/bot/estado');
+    const pausado=d.pausado;
+    const banner=document.getElementById('wa-bot-estado-banner');
+    const ico=document.getElementById('wa-bot-estado-ico');
+    const txt=document.getElementById('wa-bot-estado-txt');
+    const sub=document.getElementById('wa-bot-estado-sub');
+    const btn=document.getElementById('wa-bot-toggle-btn');
+    if(banner) banner.style.background=pausado?'#fef2f2':'#f0fdf4';
+    if(banner) banner.style.border=`1.5px solid ${pausado?'#fecaca':'#bbf7d0'}`;
+    if(ico) ico.textContent=pausado?'⏸️':'🤖';
+    if(txt){ txt.textContent=pausado?'Bot PAUSADO':'Bot ACTIVO'; txt.style.color=pausado?'#dc2626':'#166534'; }
+    if(sub) sub.textContent=pausado?'El bot no responde mensajes entrantes.':'El bot responde mensajes automáticamente.';
+    if(btn){ btn.textContent=pausado?'▶ Reanudar bot':'⏸ Pausar bot'; btn.style.background=pausado?'#059669':'#dc2626'; btn.style.color='#fff'; }
+  }catch(e){ console.error('estado bot:',e); }
+}
+async function waBotToggle(){
+  const btn=document.getElementById('wa-bot-toggle-btn');
+  try{
+    const cur=await api('GET','/api/whatsapp/bot/estado');
+    if(btn){btn.disabled=true;btn.textContent='⏳...';}
+    const ep=cur.pausado?'/api/whatsapp/bot/reanudar':'/api/whatsapp/bot/pausar';
+    await api('POST',ep);
+    await waBotCargarEstado();
+    toast(cur.pausado?'▶ Bot reanudado':'⏸ Bot pausado','ok');
+  }catch(e){
+    toast('Error: '+e.message,'err');
+    if(btn) btn.disabled=false;
+    waBotCargarEstado();
+  }
+}
+
 async function waBotEnviarTest(){
   const num=(document.getElementById('wa-bot-num')?.value||'').trim();
   const msg=(document.getElementById('wa-bot-msg')?.value||'').trim();
@@ -2663,6 +2707,7 @@ async function waBotSimular(){
   }catch(e){if(res)res.innerHTML=`<span style="color:#dc2626">Error: ${e.message}</span>`;}
 }
 async function waBotCargarMensajes(){
+  waBotCargarEstado(); // siempre sincronizar estado del banner
   const el=document.getElementById('wa-bot-msgs-list');
   if(!el) return;
   try{

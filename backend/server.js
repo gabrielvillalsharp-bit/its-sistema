@@ -180,9 +180,14 @@ const BOT_MENU_PRINCIPAL =
   `1️⃣ Soy alumno/a de la institución\n` +
   `2️⃣ No soy alumno/a - deseo realizar consultas`;
 
-const BOT_SOLO_LECTURA = false;
+// Estado de pausa del bot (persiste en configuracion)
+let _botPausado = (() => {
+  try { return db.prepare("SELECT valor FROM configuracion WHERE clave='bot_pausado'").get()?.valor === '1'; }
+  catch { return false; }
+})();
 
 async function procesarMensajeBot(numero, texto) {
+  if (_botPausado) return; // Bot pausado por el director
   const EVO_URL  = process.env.EVOLUTION_URL;
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
@@ -6151,6 +6156,23 @@ app.post('/api/whatsapp/webhook-test', auth(ADM), (req, res) => {
   const fakeRes = { json: ()=>{} };
   manejarWebhookWA(fakeReq, fakeRes);
   res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${numero}` });
+});
+
+// Estado del bot
+app.get('/api/whatsapp/bot/estado', auth(ADM), (req, res) => {
+  res.json({ pausado: _botPausado });
+});
+app.post('/api/whatsapp/bot/pausar', auth(ADM), (req, res) => {
+  _botPausado = true;
+  try { db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('bot_pausado','1','Bot de WhatsApp pausado')").run(); } catch {}
+  audit(req.user.id, 'BOT_PAUSAR', 'sistema', 'bot', {});
+  res.json({ ok: true, pausado: true });
+});
+app.post('/api/whatsapp/bot/reanudar', auth(ADM), (req, res) => {
+  _botPausado = false;
+  try { db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('bot_pausado','0','Bot de WhatsApp pausado')").run(); } catch {}
+  audit(req.user.id, 'BOT_REANUDAR', 'sistema', 'bot', {});
+  res.json({ ok: true, pausado: false });
 });
 
 // Endpoint: test de envío directo del bot (mismo código que enviar() interno)
