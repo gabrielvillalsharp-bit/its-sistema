@@ -1192,7 +1192,7 @@ function startApp(){
     if(sc) sc.innerHTML=`<img src="${window._itsLogo}" alt="Logo ITS"/>`;
   }
   // Cargar logo institucional globalmente para todas las actas
-  api('GET','/api/institucion').then(i=>{ W._instLogo=i.logo_base64||''; }).catch(()=>{ W._instLogo=''; });
+  api('GET','/api/institucion').then(i=>{ W._instLogo=i.logo_base64||''; W._instNombre=i.nombre||''; }).catch(()=>{ W._instLogo=''; W._instNombre=''; });
   const rp=document.getElementById('rp');rp.textContent=me.rol;rp.className='rp rp-'+me.rol;
   buildNav();
   const inicio='dashboard';
@@ -3364,7 +3364,86 @@ function mQrGeneral(){
     <span style="font-size:11px;word-break:break-all;flex:1;color:#374151">${url}</span>
     <button class="bs" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('✓ Copiado','ok'))" style="white-space:nowrap;font-size:11px">📋 Copiar</button>
   </div>
-  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="window.open('${url}','_blank')">🔗 Abrir página</button></div>`);
+  <div class="mf">
+    <button class="bs" onclick="cm()">Cerrar</button>
+    <button class="bs" onclick="imprimirQrGeneral('${url}','${qrSrc}')" style="background:#059669;color:#fff">📄 Descargar PDF</button>
+    <button class="bn" onclick="window.open('${url}','_blank')">🔗 Abrir página</button>
+  </div>`);
+}
+
+function imprimirQrGeneral(url, qrSrc){
+  const inst = W._instNombre || document.title || 'Instituto';
+  const win = window.open('','_blank','width=800,height=900');
+  win.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>QR Registro Alumnos</title>
+  <style>
+    @page { margin: 20mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; }
+    .page { max-width: 600px; margin: 0 auto; padding: 32px 24px; text-align: center; }
+    .logo-area { margin-bottom: 20px; }
+    .inst-nombre { font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+    .subtitulo { font-size: 14px; color: #64748b; margin-bottom: 28px; }
+    .qr-box { display: inline-block; border: 3px solid #7c3aed; border-radius: 16px; padding: 16px; margin-bottom: 28px; background: #faf5ff; }
+    .qr-box img { display: block; width: 240px; height: 240px; }
+    .titulo-qr { font-size: 20px; font-weight: 800; color: #7c3aed; margin-bottom: 6px; }
+    .desc-qr { font-size: 13px; color: #64748b; margin-bottom: 28px; max-width: 440px; margin-left: auto; margin-right: auto; }
+    .pasos { text-align: left; max-width: 440px; margin: 0 auto 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; }
+    .pasos h3 { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px; text-align: center; text-transform: uppercase; letter-spacing: .05em; }
+    .paso { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    .paso-num { background: #7c3aed; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+    .paso-txt { font-size: 13px; color: #374151; line-height: 1.5; }
+    .paso-txt strong { color: #1e293b; }
+    .url-box { background: #f1f5f9; border: 1px dashed #94a3b8; border-radius: 8px; padding: 10px 16px; font-size: 11px; color: #64748b; word-break: break-all; margin-bottom: 24px; }
+    .footer { font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="logo-area">
+    <div class="inst-nombre">${inst}</div>
+    <div class="subtitulo">Sistema de Gestión Académica</div>
+  </div>
+
+  <div class="titulo-qr">📱 Registro de Alumnos</div>
+  <div class="desc-qr">Escaneá el código QR con tu celular para registrarte o actualizar tus datos en el sistema.</div>
+
+  <div class="qr-box">
+    <img src="${qrSrc}" alt="QR Registro"/>
+  </div>
+
+  <div class="pasos">
+    <h3>¿Cómo registrarse?</h3>
+    <div class="paso">
+      <div class="paso-num">1</div>
+      <div class="paso-txt">Abrí la <strong>cámara de tu celular</strong> y apuntala al código QR de arriba.</div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">2</div>
+      <div class="paso-txt">Tocá el <strong>link que aparece</strong> en la pantalla para abrir el formulario.</div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">3</div>
+      <div class="paso-txt"><strong>Elegí tu carrera</strong> del listado y buscá tu nombre o CI.</div>
+    </div>
+    <div class="paso">
+      <div class="paso-num">4</div>
+      <div class="paso-txt">Completá o confirmá tus datos y <strong>enviá la solicitud</strong>. El director la aprobará a la brevedad.</div>
+    </div>
+  </div>
+
+  <div class="url-box">También podés ingresar manualmente: <strong>${url}</strong></div>
+
+  <div class="footer">Este QR es permanente — podés escanearlo en cualquier momento.</div>
+</div>
+<script>window.onload=()=>{ window.print(); }<\/script>
+</body>
+</html>`);
+  win.document.close();
 }
 function mQrCarrera(id, nombre){
   const url = location.origin+'/registro?c='+id;
