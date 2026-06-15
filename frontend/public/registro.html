@@ -146,7 +146,30 @@ async function apiFetch(method, url, body) {
 async function init() {
   const app = document.getElementById('app');
   if (!carreraId) {
-    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ URL inválida. Escaneá el QR correcto de tu carrera.</div></div>`;
+    // QR General — mostrar selector de carrera
+    try {
+      const carreras = await apiFetch('GET', '/pub/carreras');
+      app.innerHTML = `
+        <div class="header">
+          <div class="header-logo">🎓</div>
+          <h1>Registro de Alumno</h1>
+          <div class="header-carrera">Seleccioná tu carrera para continuar</div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div style="margin-bottom:16px">
+            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:8px">¿En qué carrera estás inscripto?</label>
+            <select id="sel-carrera" style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;color:#111827">
+              <option value="">-- Elegí una carrera --</option>
+              ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+            </select>
+          </div>
+          <button onclick="seleccionarCarrera()" style="width:100%;padding:12px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">
+            Continuar →
+          </button>
+        </div>`;
+    } catch(e) {
+      app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
+    }
     return;
   }
   try {
@@ -158,6 +181,14 @@ async function init() {
   } catch(e) {
     app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
   }
+}
+
+async function seleccionarCarrera() {
+  const sel = document.getElementById('sel-carrera');
+  const id = sel?.value;
+  if (!id) { alert('Elegí una carrera para continuar.'); return; }
+  // Redirigir con el parámetro de carrera
+  window.location.href = '/registro?c=' + id;
 }
 
 function renderHeader(sub) {

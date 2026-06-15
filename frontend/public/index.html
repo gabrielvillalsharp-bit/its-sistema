@@ -3342,7 +3342,7 @@ async function svEscala(){
 async function pgCarreras(el){
   const d=await api('GET','/api/carreras');
   el.innerHTML=`<div class="ph"><h3>Carreras (${d.length})</h3>
-    <div class="ph-right"><button class="bs s" onclick="exportXls('alumnos')">⬇ Excel alumnos</button><button class="bn" onclick="mCarrera()">+ Nueva carrera</button></div></div>
+    <div class="ph-right"><button class="bs s" onclick="exportXls('alumnos')">⬇ Excel alumnos</button><button class="bs" onclick="mQrGeneral()" style="background:#7c3aed;color:#fff">📱 QR General</button><button class="bn" onclick="mCarrera()">+ Nueva carrera</button></div></div>
   <div class="card"><div class="tw"><table><thead><tr><th>Código</th><th>Nombre</th><th>Turno</th><th>Alumnos</th><th>Materias</th><th>Secciones</th><th>Est.</th><th></th></tr></thead><tbody>
   ${d.map(c=>`<tr>
     <td><span class="bx bb">${c.codigo}</span></td><td><strong>${c.nombre}</strong></td><td>${c.turno||'-'}</td>
@@ -3351,6 +3351,20 @@ async function pgCarreras(el){
     <td><span class="bx ${c.activa?'bg':'br'}">${c.activa?'Activa':'Inactiva'}</span></td>
     <td><div class="abs"><button class="bs" onclick="mQrCarrera('${c.id}','${c.nombre.replace(/'/g,"\\'")}')">📱 QR</button><button class="bs i" onclick="mCarrera(DJ(this.dataset.j))" data-j="${J(c)}">Editar</button><button class="bs d" onclick="del('${c.id}','carreras')">Eliminar</button></div></td></tr>`).join('')}
   </tbody></table></div></div>`;
+}
+function mQrGeneral(){
+  const url = location.origin+'/registro';
+  const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=7c3aed&data='+encodeURIComponent(url);
+  modal(`<h4>📱 QR General de Registro</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">El alumno escanea, elige su carrera y sigue el proceso normal de registro.</p>
+  <div style="display:flex;justify-content:center;margin-bottom:14px">
+    <img src="${qrSrc}" width="220" height="220" style="border-radius:10px;border:2px solid #7c3aed" onerror="this.parentElement.innerHTML='<p style=color:#888;font-size:12px>QR no disponible sin conexión</p>'"/>
+  </div>
+  <div style="background:#f8fafc;border:1px solid var(--bdr);border-radius:8px;padding:8px 12px;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+    <span style="font-size:11px;word-break:break-all;flex:1;color:#374151">${url}</span>
+    <button class="bs" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('✓ Copiado','ok'))" style="white-space:nowrap;font-size:11px">📋 Copiar</button>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button><button class="bn" onclick="window.open('${url}','_blank')">🔗 Abrir página</button></div>`);
 }
 function mQrCarrera(id, nombre){
   const url = location.origin+'/registro?c='+id;
