@@ -282,13 +282,16 @@ async function procesarMensajeBot(numero, texto) {
   const hace24h = Date.now() - 24*60*60*1000;
   if (!est || est.ts < hace24h) {
     // Identificar si es un alumno activo por su teléfono (solo para dar contexto a la IA)
-    const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
-    const numCon0 = '0'+numSin0;
-    const alumno = db.prepare(`
-      SELECT a.id, a.nombre, a.apellido FROM alumnos a
-      WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo'
-      LIMIT 1
-    `).get('%'+numSin0, '%'+numCon0, numSin0);
+    let alumno = null;
+    try {
+      const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
+      const numCon0 = '0'+numSin0;
+      alumno = db.prepare(`
+        SELECT a.id, a.nombre, a.apellido FROM alumnos a
+        WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo'
+        LIMIT 1
+      `).get('%'+numSin0, '%'+numCon0, numSin0);
+    } catch(e) { console.error('[BOT] búsqueda alumno por teléfono:', e.message); }
     est = { historial: [], alumno: alumno || null, interesadoGuardado: false, consultaGuardada: false, ts: Date.now() };
   }
   est.ts = Date.now();
@@ -6369,9 +6372,20 @@ function manejarWebhookWA(req, res) {
       if (!msgObj) continue;
       const key = msgObj.key || {};
       if (key.fromMe) continue;
-      const remoteJid = key.remoteJid || '';
+      let remoteJid = key.remoteJid || '';
       // Ignorar grupos, broadcast, newsletter, status
       if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) continue;
+      // Algunos contactos llegan con un ID "@lid" (identidad oculta de WhatsApp) en vez del número real.
+      // Si Evolution/Baileys incluye el JID real alternativo, usarlo; si no, no se puede responder — se ignora.
+      if (remoteJid.endsWith('@lid')) {
+        const alt = key.remoteJidAlt || msgObj.remoteJidAlt || data.remoteJidAlt || '';
+        if (alt && (alt.endsWith('@s.whatsapp.net') || alt.endsWith('@c.us'))) {
+          remoteJid = alt;
+        } else {
+          console.warn('[WEBHOOK WA] mensaje con @lid sin JID real disponible, se ignora:', remoteJid);
+          continue;
+        }
+      }
       const numero = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
       if (!numero) continue;
       const msg = msgObj.message || {};
