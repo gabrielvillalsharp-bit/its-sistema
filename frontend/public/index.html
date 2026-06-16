@@ -7719,7 +7719,7 @@ function pgHubPrincipal(el){
     ${_mCard2('solicitudes','🎓','Gestión de Alumnos','Inscripciones', 'constancias','📄','Constancias','Generar', true)}
     ${_mCardSm('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
     ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCard2('limpieza','🧹','Limpieza','Duplicados e inactivos', 'papelera','🗑️','Papelera','Eliminados', true)}
+    ${_mCardSm('limpieza','🧹','Limpieza','Duplicados, inactivos y papelera','#dc2626','#fef2f2')}
     ${_mCard2('wa-chat','💬','WA Chat','Conversaciones', 'interesados','📩','Interesados','Admisiones', true)}
   </div>`:''}
 
@@ -7756,7 +7756,7 @@ function pgHubPersonas(el){
     ${_mCard2('solicitudes','🎓','Gestión de Alumnos','Inscripciones y más', 'constancias','📄','Constancias','Generar constancias', false)}
     ${_mCard('docentes','👨‍🏫','Docentes','Gestionar plantel','#2563eb','#eff6ff')}
     ${_mCard('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
-    ${_mCard2('limpieza','🧹','Limpieza','Duplicados e inactivos', 'papelera','🗑️','Papelera','Registros eliminados', false)}
+    ${_mCard('limpieza','🧹','Limpieza','Duplicados, inactivos y papelera','#dc2626','#fef2f2')}
     ${_mCard2('wa-chat','💬','WA Chat','Conversaciones en vivo', 'interesados','📩','Interesados','Bot de admisiones', false)}
   </div>`;
 }
@@ -8817,21 +8817,83 @@ async function pgLimpieza(el){
   <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:18px">
     <button id="lim-tab-dep" onclick="limTab('dep')" style="padding:10px 22px;background:none;border:none;border-bottom:3px solid #dc2626;font-size:13px;font-weight:700;color:#dc2626;cursor:pointer;margin-bottom:-2px">🧹 Depuración de Inactivos</button>
     <button id="lim-tab-dup" onclick="limTab('dup')" style="padding:10px 22px;background:none;border:none;border-bottom:3px solid transparent;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:-2px">👥 Detección de Duplicados</button>
+    <button id="lim-tab-pap" onclick="limTab('pap')" style="padding:10px 22px;background:none;border:none;border-bottom:3px solid transparent;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:-2px">🗑️ Papelera</button>
   </div>
   <div id="lim-pane-dep"></div>
-  <div id="lim-pane-dup" style="display:none"></div>`;
+  <div id="lim-pane-dup" style="display:none"></div>
+  <div id="lim-pane-pap" style="display:none"></div>`;
   await limRenderDep();
 }
 function limTab(t){
-  ['dep','dup'].forEach(k=>{
+  const colores={dep:'#dc2626',dup:'#7c3aed',pap:'#059669'};
+  ['dep','dup','pap'].forEach(k=>{
     const btn=document.getElementById('lim-tab-'+k);
     const pane=document.getElementById('lim-pane-'+k);
     const active=k===t;
-    if(btn){btn.style.borderBottomColor=active?(k==='dep'?'#dc2626':'#7c3aed'):'transparent';btn.style.color=active?(k==='dep'?'#dc2626':'#7c3aed'):'#6b7280';btn.style.fontWeight=active?'700':'600';}
+    if(btn){btn.style.borderBottomColor=active?colores[k]:'transparent';btn.style.color=active?colores[k]:'#6b7280';btn.style.fontWeight=active?'700':'600';}
     if(pane) pane.style.display=active?'block':'none';
   });
   if(t==='dep') limRenderDep();
   if(t==='dup') limRenderDup();
+  if(t==='pap') limRenderPap();
+}
+async function limRenderPap(){
+  const pane=document.getElementById('lim-pane-pap');
+  if(!pane) return;
+  pane.innerHTML=skeletonTable(3,5);
+  try{
+    const data = await api('GET','/api/papelera');
+    const hoy  = new Date();
+    pane.innerHTML=`<div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
+      ⚠️ Los registros eliminados se conservan <strong>10 días</strong> y luego se eliminan definitivamente de forma automática.
+      Podés restaurarlos en cualquier momento antes de que venzan.
+    </div>
+    ${data.length===0
+      ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía.</div>'
+      :`<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
+        <tbody>${data.map(d=>{
+          const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
+          const expira = new Date(d.expira_en);
+          const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
+          const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
+          return `<tr>
+            <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
+            <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
+            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
+            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
+            <td style="text-align:center">
+              <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
+            </td>
+            <td>
+              <div style="display:flex;gap:5px">
+                <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="limPapRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
+                <button class="bs d" style="font-size:11px" onclick="limPapEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+              </div>
+            </td>
+          </tr>`;}).join('')}
+        </tbody></table></div>`}`;
+  }catch(e){pane.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`;}
+}
+async function limPapRestore(id, nombre){
+  confirm2('♻️ Restaurar registro',`¿Restaurar <strong>${nombre}</strong>? El registro volverá al sistema.`,
+    async function(){
+      try{
+        await api('POST',`/api/papelera/${id}/restaurar`);
+        toast('✓ Restaurado correctamente','ok');
+        limRenderPap();
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+async function limPapEliminar(id, nombre){
+  confirm2('🗑 Eliminar definitivamente',`¿Eliminar <strong>${nombre}</strong> de forma permanente? Esta acción no se puede deshacer.`,
+    async function(){
+      try{
+        await api('DELETE',`/api/papelera/${id}`);
+        toast('✓ Eliminado permanentemente','ok');
+        limRenderPap();
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
 }
 async function limRenderDep(){
   const pane=document.getElementById('lim-pane-dep');
