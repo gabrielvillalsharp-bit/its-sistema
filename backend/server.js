@@ -349,6 +349,9 @@ try {
   }
 } catch(e) { console.warn('[Migración] pagos.asignacion_id:', e.message); }
 
+try { db.prepare("ALTER TABLE pagos ADD COLUMN mora_exonerada INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+try { db.prepare("ALTER TABLE pagos ADD COLUMN mora_monto INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
@@ -2717,7 +2720,10 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   res.json({ pagos, totalPagado, alumno: al });
 });
 app.post('/api/pagos', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id } = req.body;
+  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id, mora_exonerada } = req.body;
+  const esCuotaMensual = /^cuota\s+\d+/i.test(concepto || '');
+  const diaHoy = new Date().getDate();
+  const moraMonto = esCuotaMensual && diaHoy >= 11 ? 50000 : 0;
   // Mapa: concepto exacto → tipo_examen (solo para los 5 exámenes con arancel)
   const ARANCEL_TIPO_MAP = {
     'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
@@ -2759,9 +2765,9 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     const montoPagado = parseFloat(monto)||0;
     const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
     const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
-    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null);
+    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null,mora_exonerada?1:0,moraMonto);
     const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
-    audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago});
+    audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago, mora_exonerada:mora_exonerada?1:0, mora_monto:moraMonto});
 
     // Auto-crear habilitación por pago de examen con arancel (para la materia específica)
     let habilitadoExamen = false;

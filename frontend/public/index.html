@@ -12363,7 +12363,7 @@ function mPagoDirecto(alId, conceptoFijo){
       </div>
       <input type="hidden" id="pgco" value="${conceptoFijo}"/>`
     :`<div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
-      <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
+      <select id="pgco" onchange="W._pgMontoBase=null;autoMontoArancel();pgActualizarMora();pgcoChangeHandler()">
         ${es1erAnioForm?'':'\n        <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option></optgroup>'}
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
@@ -12404,6 +12404,10 @@ function mPagoDirecto(alId, conceptoFijo){
       🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
     </div>
     <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
+    <div id="pgMoraBox" style="display:none;background:#fff1f2;border:1px solid #fca5a5;border-radius:7px;padding:9px 13px;margin-top:-4px;margin-bottom:6px;font-size:12px;color:#b91c1c">
+      <strong>Recargo por mora: Gs. 50.000</strong> — el vencimiento es el dia 10.
+      ${me.rol==='director'?'<div style="margin-top:7px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pgMoraExon" onchange="pgExonerarMora()" style="width:auto;margin:0"><label for="pgMoraExon" style="color:#7c2d12;font-size:12px;cursor:pointer">Exonerar mora - autorizo cobrar sin recargo</label></div>':''}
+    </div>
     <div class="f"><label>Medio de pago</label><select id="pgmed" onchange="document.getElementById('pgcomp-box').style.display=this.value==='Transferencia'?'block':'none'">
       <option value="Efectivo">Efectivo</option>
       <option value="Transferencia">Transferencia bancaria</option>
@@ -12420,7 +12424,9 @@ function mPagoDirecto(alId, conceptoFijo){
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
   // Llamar handlers inmediatamente (modal ya está en DOM)
+  W._pgMontoBase=null;
   autoMontoArancel();
+  pgActualizarMora();
   if(conceptoFijo) pgcoChangeHandler();
   // Cargar becas en background y mostrar si hay activas
   api('GET','/api/becas?alumno_id='+alId).then(becas=>{
@@ -12608,7 +12614,7 @@ function mPago(){
     </div>
     <div id="pgHabInfo"></div>
     <div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>
-      <select id="pgco" onchange="autoMontoArancel();pgcoChangeHandler()">
+      <select id="pgco" onchange="W._pgMontoBase=null;autoMontoArancel();pgActualizarMora();pgcoChangeHandler()">
         <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option></optgroup>
         <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
         <optgroup label="Exámenes Parciales">
@@ -12633,13 +12639,17 @@ function mPago(){
       </div>
     </div>
     <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
+    <div id="pgMoraBox" style="display:none;background:#fff1f2;border:1px solid #fca5a5;border-radius:7px;padding:9px 13px;margin-top:-4px;margin-bottom:6px;font-size:12px;color:#b91c1c">
+      <strong>Recargo por mora: Gs. 50.000</strong> — el vencimiento es el dia 10.
+      ${me.rol==='director'?'<div style="margin-top:7px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pgMoraExon" onchange="pgExonerarMora()" style="width:auto;margin:0"><label for="pgMoraExon" style="color:#7c2d12;font-size:12px;cursor:pointer">Exonerar mora - autorizo cobrar sin recargo</label></div>':''}
+    </div>
     <div class="f"><label>Medio de pago</label><select id="pgmed">
       <option value="Efectivo">Efectivo</option><option value="Transferencia">Transferencia bancaria</option>
       <option value="Cheque">Cheque</option><option value="Tarjeta">Tarjeta</option>
     </select></div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
-  setTimeout(()=>{document.getElementById('pgbus')?.focus();autoMontoArancel();},100);
+  setTimeout(()=>{document.getElementById('pgbus')?.focus();W._pgMontoBase=null;autoMontoArancel();pgActualizarMora();},100);
 }
 function autoMontoArancel(){
   const concepto=v('pgco');
@@ -12661,6 +12671,33 @@ function autoMontoArancel(){
     ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
   }
   if(ar){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=ar.monto;}
+}
+function pgActualizarMora(){
+  const concepto=v('pgco')||'';
+  const esCuota=/^Cuota\s+\d+/i.test(concepto);
+  const dia=new Date().getDate();
+  const hayMora=esCuota&&dia>=11;
+  const box=document.getElementById('pgMoraBox');
+  if(!box)return;
+  if(hayMora){
+    box.style.display='block';
+    const exon=document.getElementById('pgMoraExon')?.checked||false;
+    const inp=document.getElementById('pgmo');
+    if(inp){
+      const base=W._pgMontoBase!=null?W._pgMontoBase:(parseFloat(inp.value)||0);
+      W._pgMontoBase=base;
+      inp.value=exon?base:base+50000;
+    }
+  } else {
+    box.style.display='none';
+    W._pgMontoBase=null;
+  }
+}
+function pgExonerarMora(){
+  const exon=document.getElementById('pgMoraExon')?.checked||false;
+  const inp=document.getElementById('pgmo');
+  if(!inp||W._pgMontoBase==null)return;
+  inp.value=exon?W._pgMontoBase:W._pgMontoBase+50000;
 }
 const ARANCEL_CONCEPTOS=['Examen Parcial Recuperatorio','Examen Final Ordinario','Examen Final Recuperatorio','Examen Final Complementario','Examen Final Extraordinario'];
 function pgcoChangeHandler(){
@@ -12750,7 +12787,7 @@ async function svPago(){
   const asignacion_id=isArancel?(v('pgco-asig')||null):null;
   if(isArancel&&!asignacion_id)return alert('⚠ Para registrar este pago debes seleccionar la materia que el alumno va a habilitar para rendir.');
   const materiaLabel=isArancel&&asignacion_id?document.getElementById('pgco-asig')?.options[document.getElementById('pgco-asig')?.selectedIndex]?.text||'':'';
-  const o={alumno_id:alumnoId,concepto,monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo'};
+  const o={alumno_id:alumnoId,concepto,monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo',mora_exonerada:document.getElementById('pgMoraExon')?.checked?1:0};
   if(asignacion_id)o.asignacion_id=asignacion_id;
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   window._pagoData=o;
