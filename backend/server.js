@@ -6383,6 +6383,10 @@ function manejarWebhookWA(req, res) {
           remoteJid = alt;
         } else {
           console.warn('[WEBHOOK WA] mensaje con @lid sin JID real disponible, se ignora:', remoteJid);
+          try {
+            db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha,leido) VALUES (?,?,?,?,?,0)')
+              .run('debug_'+Date.now(), remoteJid, '[DEBUG @lid]', JSON.stringify({key, msgObjKeys: Object.keys(msgObj), dataKeys: Object.keys(data)}).slice(0,1900), nowStr());
+          } catch(e) {}
           continue;
         }
       }
