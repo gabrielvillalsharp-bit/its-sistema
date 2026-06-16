@@ -8836,7 +8836,17 @@ async function pgPagosPendientesWA(el){
 }
 function _ppwCard(p){
   const sugerido = p.alumno_id ? `${p.alumno_apellido||''}, ${p.alumno_nombre||''}` : '';
-  return `<div class="card mb12" id="ppw-${p.id}" style="border:2px solid #fde68a">
+  const iaPendiente = !p.ia_estado || p.ia_estado==='pendiente';
+  const estadoNoExitoso = p.estado_transferencia_ia && !['exitosa','enviada','completada','cargada'].includes(p.estado_transferencia_ia);
+  const iaInfo = iaPendiente
+    ? '⏳ Analizando con IA...'
+    : p.ia_estado==='error'
+      ? '⚠️ La IA no pudo analizar esta imagen. Completá los datos manualmente.'
+      : p.ia_estado==='no_es_comprobante'
+        ? '⚠️ La IA no detectó un comprobante de transferencia válido en esta imagen. Revisá manualmente.'
+        : `🪄 IA detectó: ${p.monto_sugerido?'Gs. '+Number(p.monto_sugerido).toLocaleString('es-PY'):'monto no visible'}${p.fecha_sugerida?' · '+p.fecha_sugerida:''}${p.banco_detectado?' · '+p.banco_detectado:''}${p.referencia_detectada?' · ref. '+p.referencia_detectada:''}${p.nombre_detectado?' · remitente: '+p.nombre_detectado:''} — verificá antes de aprobar.`;
+  return `<div class="card mb12" id="ppw-${p.id}" style="border:2px solid ${estadoNoExitoso?'#dc2626':'#fde68a'}">
+    ${estadoNoExitoso?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:12px;color:#991b1b;margin-bottom:10px;font-weight:700">🚨 El comprobante indica estado "${p.estado_transferencia_ia}" — la transferencia puede no haberse acreditado todavía. Verificá con especial cuidado antes de aprobar.</div>`:''}
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <img src="data:${p.imagen_mime};base64,${p.imagen_data}" style="width:160px;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer" onclick="window.open(this.src,'_blank')"/>
       <div style="flex:1;min-width:240px">
@@ -8863,16 +8873,35 @@ function _ppwCard(p){
           </div>
           <div style="flex:1;min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Monto (Gs.)</label>
-            <input id="ppw-mon-${p.id}" type="number" placeholder="0" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+            <input id="ppw-mon-${p.id}" type="number" value="${p.monto_sugerido||''}" placeholder="0" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Fecha de pago</label>
+            <input id="ppw-fec-${p.id}" type="date" value="${p.fecha_sugerida||''}" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
         </div>
-        <div style="display:flex;gap:8px">
+        <div id="ppw-ia-${p.id}" style="font-size:11px;color:#7c3aed;margin-bottom:8px">${iaInfo}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="bs" style="background:#f5f3ff;color:#7c3aed;border:1.5px solid #ddd6fe" onclick="ppwLeerIA('${p.id}')" id="ppw-iabtn-${p.id}">🪄 Reanalizar con IA</button>
           <button class="bn" style="background:#059669" onclick="ppwAprobar('${p.id}')">✅ Aprobar</button>
           <button class="bs d" onclick="ppwRechazar('${p.id}')">❌ Rechazar</button>
         </div>
+        <div style="font-size:10px;color:#92400e;margin-top:6px">⚠️ La IA solo es una ayuda para precargar datos. Verificá siempre el ingreso real en la cuenta bancaria antes de aprobar.</div>
       </div>
     </div>
   </div>`;
+}
+async function ppwLeerIA(id){
+  const btn=document.getElementById('ppw-iabtn-'+id), info=document.getElementById('ppw-ia-'+id);
+  if(btn){btn.disabled=true;btn.textContent='🪄 Leyendo...';}
+  try{
+    const d=await api('POST',`/api/pagos/pendientes-wa/${id}/leer-ia`,{});
+    if(d.monto) document.getElementById('ppw-mon-'+id).value=d.monto;
+    if(d.fecha) document.getElementById('ppw-fec-'+id).value=d.fecha;
+    if(info) info.textContent = `🪄 IA detectó: ${d.monto?'Gs. '+Number(d.monto).toLocaleString('es-PY'):'monto no detectado'}${d.fecha?' · '+d.fecha:''}${d.banco?' · '+d.banco:''}${d.referencia?' · ref. '+d.referencia:''} — verificá antes de aprobar.`;
+    toast('✓ Datos precargados, verificá tu cuenta bancaria','ok');
+  }catch(e){ if(info) info.textContent=''; toast('No se pudo leer el comprobante: '+e.message,'err'); }
+  finally{ if(btn){btn.disabled=false;btn.textContent='🪄 Precargar con IA';} }
 }
 function _ppwAlumnoId(p_id){
   const val=(document.getElementById('ppw-al-'+p_id)?.value||'').trim();
@@ -8890,13 +8919,14 @@ async function ppwAprobar(id){
   const periodo_id = document.getElementById('ppw-per-'+id)?.value;
   const concepto = document.getElementById('ppw-con-'+id)?.value?.trim();
   const monto = document.getElementById('ppw-mon-'+id)?.value;
+  const fecha_pago = document.getElementById('ppw-fec-'+id)?.value || null;
   if(!alumno_id){toast('Seleccioná un alumno válido de la lista','warn');return;}
   if(!concepto){toast('Ingresá el concepto del pago','warn');return;}
   if(!monto || parseFloat(monto)<=0){toast('Ingresá un monto válido','warn');return;}
-  confirm2('✅ Aprobar pago',`¿Confirmar el pago de <strong>${concepto}</strong> por <strong>Gs. ${Number(monto).toLocaleString('es-PY')}</strong>? Se notificará al alumno por WhatsApp.`,
+  confirm2('✅ Aprobar pago',`¿Confirmás que este monto realmente ingresó a la cuenta bancaria del Instituto?<br><br>Pago de <strong>${concepto}</strong> por <strong>Gs. ${Number(monto).toLocaleString('es-PY')}</strong>. Se notificará al alumno por WhatsApp.`,
     async function(){
       try{
-        await api('POST',`/api/pagos/pendientes-wa/${id}/aprobar`,{alumno_id,periodo_id,concepto,monto,medio_pago:'Transferencia'});
+        await api('POST',`/api/pagos/pendientes-wa/${id}/aprobar`,{alumno_id,periodo_id,concepto,monto,fecha_pago,medio_pago:'Transferencia'});
         toast('✓ Pago aprobado y registrado','ok');
         document.getElementById('ppw-'+id)?.remove();
       }catch(e){toast('Error: '+e.message,'err');}
@@ -12374,12 +12404,19 @@ function mPagoDirecto(alId, conceptoFijo){
       🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
     </div>
     <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
-    <div class="f"><label>Medio de pago</label><select id="pgmed">
+    <div class="f"><label>Medio de pago</label><select id="pgmed" onchange="document.getElementById('pgcomp-box').style.display=this.value==='Transferencia'?'block':'none'">
       <option value="Efectivo">Efectivo</option>
       <option value="Transferencia">Transferencia bancaria</option>
       <option value="Cheque">Cheque</option>
       <option value="Tarjeta">Tarjeta</option>
     </select></div>
+    <div id="pgcomp-box" style="display:none;padding:10px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;margin-top:6px">
+      <label style="font-size:11px;font-weight:700;color:#5b21b6;display:block;margin-bottom:6px">📷 Comprobante de transferencia (opcional)</label>
+      <input type="file" id="pgcomp-file" accept="image/*" style="font-size:12px;margin-bottom:8px">
+      <button type="button" class="bs" style="background:#fff;color:#7c3aed;border:1.5px solid #ddd6fe;font-size:12px" onclick="pgLeerComprobanteIA()" id="pgcomp-btn">🪄 Precargar monto y fecha con IA</button>
+      <div style="font-size:10px;color:#92400e;margin-top:6px">⚠️ Es solo una ayuda para precargar datos. Verificá siempre el ingreso real en tu cuenta bancaria antes de guardar.</div>
+      <div id="pgcomp-info" style="font-size:11px;color:#7c3aed;margin-top:4px"></div>
+    </div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPago()">Guardar</button></div>`);
   // Llamar handlers inmediatamente (modal ya está en DOM)
@@ -12396,6 +12433,22 @@ function mPagoDirecto(alId, conceptoFijo){
       <br><span style="font-size:10px;color:#388e3c">Aplicar el descuento correspondiente al monto</span>
     </div>`;
   }).catch(()=>{});
+}
+
+async function pgLeerComprobanteIA(){
+  const file=document.getElementById('pgcomp-file')?.files?.[0];
+  const info=document.getElementById('pgcomp-info'), btn=document.getElementById('pgcomp-btn');
+  if(!file){toast('Seleccioná primero la imagen del comprobante','warn');return;}
+  if(btn){btn.disabled=true;btn.textContent='🪄 Leyendo...';}
+  try{
+    const fd=new FormData(); fd.append('archivo',file);
+    const d=await api('POST','/api/pagos/leer-comprobante',fd,true);
+    if(d.monto) document.getElementById('pgmo').value=d.monto;
+    if(d.fecha) document.getElementById('pgfe').value=d.fecha;
+    if(info) info.textContent=`🪄 IA detectó: ${d.monto?'Gs. '+Number(d.monto).toLocaleString('es-PY'):'monto no detectado'}${d.fecha?' · '+d.fecha:''}${d.banco?' · '+d.banco:''}${d.referencia?' · ref. '+d.referencia:''} — verificá antes de guardar.`;
+    toast('✓ Datos precargados, verificá tu cuenta bancaria','ok');
+  }catch(e){toast('No se pudo leer el comprobante: '+e.message,'err');}
+  finally{ if(btn){btn.disabled=false;btn.textContent='🪄 Precargar monto y fecha con IA';} }
 }
 
 // Registrar pago desde el cuadrado de cuota (concepto pre-seleccionado, oculto)

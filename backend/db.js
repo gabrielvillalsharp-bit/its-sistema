@@ -908,6 +908,13 @@ function init() {
     pago_id TEXT REFERENCES pagos(id),
     resuelto_por TEXT,
     fecha_resolucion TEXT,
+    monto_sugerido REAL,
+    fecha_sugerida TEXT,
+    nombre_detectado TEXT,
+    banco_detectado TEXT,
+    referencia_detectada TEXT,
+    ia_estado TEXT DEFAULT 'pendiente',
+    estado_transferencia_ia TEXT,
     fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   )`); } catch {}
   // Configuración editable del sistema (plantillas WA, etc.)

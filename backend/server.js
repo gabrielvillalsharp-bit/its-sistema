@@ -12,7 +12,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
-const { geminiChat } = require('./gemini');
+const { geminiChat, geminiLeerComprobante } = require('./gemini');
 
 // ── CACHE EN MEMORIA para datos estáticos (TTL 60s) ──────────────────────────
 const _cache = {};
@@ -140,6 +140,11 @@ try {
     created_at    TEXT DEFAULT (datetime('now','localtime'))
   )`).run();
 } catch(e) { console.warn('[Migración] movimientos_extra:', e.message); }
+
+// ── MIGRACIÓN: columnas de precarga IA en pagos_pendientes_wa ───────────────
+['monto_sugerido REAL','fecha_sugerida TEXT','nombre_detectado TEXT','banco_detectado TEXT','referencia_detectada TEXT',"ia_estado TEXT DEFAULT 'pendiente'",'estado_transferencia_ia TEXT'].forEach(col => {
+  try { db.prepare(`ALTER TABLE pagos_pendientes_wa ADD COLUMN ${col}`).run(); } catch {}
+});
 
 // ── HELPER PAPELERA ───────────────────────────────────────────────────────────
 function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
@@ -2825,8 +2830,25 @@ app.get('/api/pagos/pendientes-wa', auth(ADM), (req, res) => {
   `).all();
   res.json(rows);
 });
+// Pre-carga con IA: lee monto/fecha del comprobante (el director SIEMPRE debe verificar contra su cuenta bancaria)
+app.post('/api/pagos/pendientes-wa/:id/leer-ia', auth(ADM), async (req, res) => {
+  try {
+    const pend = db.prepare("SELECT imagen_data, imagen_mime FROM pagos_pendientes_wa WHERE id=?").get(req.params.id);
+    if (!pend) return res.status(404).json({ error: 'No encontrado' });
+    const datos = await geminiLeerComprobante(pend.imagen_data, pend.imagen_mime);
+    res.json(datos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/pagos/leer-comprobante', auth(ADM), upload.single('archivo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Falta el archivo' });
+    const base64 = req.file.buffer.toString('base64');
+    const datos = await geminiLeerComprobante(base64, req.file.mimetype);
+    res.json(datos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, medio_pago, descuento } = req.body;
+  const { alumno_id, periodo_id, concepto, monto, medio_pago, descuento, fecha_pago } = req.body;
   if (!alumno_id || !concepto || monto === undefined) return res.status(400).json({ error: 'alumno_id, concepto y monto son obligatorios' });
   try {
     const pend = db.prepare("SELECT * FROM pagos_pendientes_wa WHERE id=? AND estado='Pendiente'").get(req.params.id);
@@ -2835,7 +2857,7 @@ app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
     const id = 'pg_'+Date.now();
     const montoNum = parseFloat(monto)||0;
     db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .run(id, alumno_id, periodo_id||null, concepto, montoNum, nowDate(), 'Pagado', 'Transferencia (comprobante WhatsApp)', descuento||0, medio_pago||'Transferencia');
+      .run(id, alumno_id, periodo_id||null, concepto, montoNum, fecha_pago||nowDate(), 'Pagado', 'Transferencia (comprobante WhatsApp)', descuento||0, medio_pago||'Transferencia');
 
     db.prepare("UPDATE pagos_pendientes_wa SET estado='Aprobado', pago_id=?, resuelto_por=?, fecha_resolucion=? WHERE id=?")
       .run(id, req.user.id, nowStr(), req.params.id);
@@ -6300,6 +6322,38 @@ app.delete('/api/whatsapp/programados/:id', auth(ADM), (req, res) => {
 });
 
 // ── WHATSAPP: webhook para recibir mensajes (ambas rutas) ────────────────────
+// Analiza automáticamente un comprobante recién recibido y precarga los datos (el director igual debe verificar).
+async function analizarComprobanteWA(ppid, imgB64, mime) {
+  let datos;
+  try {
+    datos = await geminiLeerComprobante(imgB64, mime);
+  } catch(e) {
+    db.prepare("UPDATE pagos_pendientes_wa SET ia_estado='error' WHERE id=?").run(ppid);
+    return;
+  }
+  // Intentar resolver alumno por nombre detectado, si todavía no se identificó por teléfono
+  let alumnoIdPorNombre = null;
+  if (datos.nombre_remitente) {
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z\s]/g,'').trim();
+    const objetivo = norm(datos.nombre_remitente);
+    if (objetivo.length >= 4) {
+      const candidatos = db.prepare("SELECT id, nombre, apellido FROM alumnos WHERE estado='Activo'").all();
+      const match = candidatos.find(a => {
+        const completo = norm(`${a.nombre} ${a.apellido}`);
+        const inverso  = norm(`${a.apellido} ${a.nombre}`);
+        return completo === objetivo || inverso === objetivo || objetivo.includes(completo) || completo.includes(objetivo);
+      });
+      if (match) alumnoIdPorNombre = match.id;
+    }
+  }
+  db.prepare(`UPDATE pagos_pendientes_wa SET
+    monto_sugerido=?, fecha_sugerida=?, nombre_detectado=?, banco_detectado=?, referencia_detectada=?,
+    ia_estado=?, estado_transferencia_ia=?, alumno_id=COALESCE(alumno_id,?)
+    WHERE id=?`)
+    .run(datos.monto||null, datos.fecha||null, datos.nombre_remitente||null, datos.banco||null, datos.referencia||null,
+      datos.es_comprobante===false?'no_es_comprobante':'ok', datos.estado_transferencia||null, alumnoIdPorNombre, ppid);
+}
+
 function manejarWebhookWA(req, res) {
   res.json({ ok: true }); // responder rápido
   try {
@@ -6334,11 +6388,14 @@ function manejarWebhookWA(req, res) {
               SELECT id FROM alumnos WHERE (telefono LIKE ? OR telefono LIKE ?) AND estado='Activo' LIMIT 1
             `).get('%'+numSin0, '%0'+numSin0);
             const ppid = 'ppw_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+            const mime = msg.imageMessage.mimetype||'image/jpeg';
             db.prepare(`INSERT INTO pagos_pendientes_wa (id,numero,nombre_contacto,alumno_id,imagen_data,imagen_mime,mensaje_texto)
               VALUES (?,?,?,?,?,?,?)`)
-              .run(ppid, numero, nombre, alumno?.id||null, imgB64, msg.imageMessage.mimetype||'image/jpeg', texto.trim()||null);
+              .run(ppid, numero, nombre, alumno?.id||null, imgB64, mime, texto.trim()||null);
             enviarWA(numero, 'Recibimos su comprobante de transferencia. ✅ Será revisado por el Instituto y le confirmaremos en breve. ¡Gracias!')
               .catch(e=>console.error('[WEBHOOK WA] ack comprobante:', e.message));
+            // Análisis automático con IA (no bloquea la respuesta del webhook)
+            analizarComprobanteWA(ppid, imgB64, mime).catch(e=>console.error('[WEBHOOK WA] análisis IA:', e.message));
           } catch(e) { console.error('[WEBHOOK WA] guardar comprobante:', e.message); }
         }
       }
