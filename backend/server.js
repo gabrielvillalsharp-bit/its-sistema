@@ -186,7 +186,10 @@ let _botPausado = (() => {
 function _botSystemPrompt(alumno) {
   const inst = (() => { try { return db.prepare('SELECT * FROM institucion LIMIT 1').get(); } catch { return null; } })();
   const nombreInst = inst?.nombre || 'Instituto Técnico Superior Santísima Trinidad';
-  const carrerasTxt = BOT_CARRERAS.map(c => `- ${c.nombre}`).join('\n') || '(sin carreras cargadas)';
+  const carrerasTxt = BOT_CARRERAS.map(c => {
+    const dur = /cosmiatr/i.test(c.nombre) ? '3 años' : '2 años';
+    return `- ${c.nombre} (duración: ${dur})`;
+  }).join('\n') || '(sin carreras cargadas)';
 
   let contexto = `Estás hablando por WhatsApp con una persona EXTERNA (no es alumno registrado) que puede estar interesada en inscribirse.`;
   if (alumno) {
@@ -201,6 +204,12 @@ Carreras que ofrece la institución:
 ${carrerasTxt}
 
 Requisitos generales de inscripción: haber culminado la Educación Media (Bachillerato), fotocopia de cédula de identidad, certificado de estudios.
+
+Duración: todas las carreras son de 2 años, excepto Cosmiatría que es de 3 años.
+Clases: 3 veces por semana (el día y horario exacto depende de la carrera; si preguntan el horario exacto, decí que un encargado le confirmará los días).
+Precios: 1er año Gs. 300.000 por cuota (sin costo de matrícula); 2do año Gs. 400.000 por cuota (incluye costo de matrícula). Si preguntan por 3er año (solo Cosmiatría), decí que un encargado le confirmará ese monto.
+No hay límite de edad para estudiar — personas de cualquier edad pueden inscribirse.
+Extranjeros también pueden estudiar (por ejemplo, brasileños), siempre que cumplan los mismos requisitos (bachillerato culminado, documento de identidad, certificado de estudios).
 
 Tu objetivo en la conversación:
 - Si es una persona externa interesada: saludala, preguntale en qué carrera está interesada, y pedile su nombre completo. Dale información breve de la carrera elegida (debe ser una de la lista) y avisale que un asesor se comunicará con ella.
