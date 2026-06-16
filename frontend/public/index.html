@@ -12405,8 +12405,7 @@ function mPagoDirecto(alId, conceptoFijo){
     </div>
     <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
     <div id="pgMoraBox" style="display:none;background:#fff1f2;border:1px solid #fca5a5;border-radius:7px;padding:9px 13px;margin-top:-4px;margin-bottom:6px;font-size:12px;color:#b91c1c">
-      <strong>Recargo por mora: Gs. 50.000</strong> — el vencimiento es el dia 10.
-      ${me.rol==='director'?'<div style="margin-top:7px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pgMoraExon" onchange="pgExonerarMora()" style="width:auto;margin:0"><label for="pgMoraExon" style="color:#7c2d12;font-size:12px;cursor:pointer">Exonerar mora - autorizo cobrar sin recargo</label></div>':''}
+      ⚠️ <strong>Recargo por mora de Gs. 50.000 incluido</strong> — venció el día 10. Si el director autoriza un monto menor, se registrará con exoneración de mora.
     </div>
     <div class="f"><label>Medio de pago</label><select id="pgmed" onchange="document.getElementById('pgcomp-box').style.display=this.value==='Transferencia'?'block':'none'">
       <option value="Efectivo">Efectivo</option>
@@ -12640,8 +12639,7 @@ function mPago(){
     </div>
     <div class="f"><label>Monto (Gs.) <span style="color:var(--red)">*</span></label><input id="pgmo" type="number" placeholder="0" style="font-size:16px;font-weight:700"/></div>
     <div id="pgMoraBox" style="display:none;background:#fff1f2;border:1px solid #fca5a5;border-radius:7px;padding:9px 13px;margin-top:-4px;margin-bottom:6px;font-size:12px;color:#b91c1c">
-      <strong>Recargo por mora: Gs. 50.000</strong> — el vencimiento es el dia 10.
-      ${me.rol==='director'?'<div style="margin-top:7px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pgMoraExon" onchange="pgExonerarMora()" style="width:auto;margin:0"><label for="pgMoraExon" style="color:#7c2d12;font-size:12px;cursor:pointer">Exonerar mora - autorizo cobrar sin recargo</label></div>':''}
+      ⚠️ <strong>Recargo por mora de Gs. 50.000 incluido</strong> — venció el día 10. Si el director autoriza un monto menor, se registrará con exoneración de mora.
     </div>
     <div class="f"><label>Medio de pago</label><select id="pgmed">
       <option value="Efectivo">Efectivo</option><option value="Transferencia">Transferencia bancaria</option>
@@ -12681,23 +12679,16 @@ function pgActualizarMora(){
   if(!box)return;
   if(hayMora){
     box.style.display='block';
-    const exon=document.getElementById('pgMoraExon')?.checked||false;
     const inp=document.getElementById('pgmo');
     if(inp){
-      const base=W._pgMontoBase!=null?W._pgMontoBase:(parseFloat(inp.value)||0);
+      const base=parseFloat(inp.value)||0;
       W._pgMontoBase=base;
-      inp.value=exon?base:base+50000;
+      inp.value=base+50000;
     }
   } else {
     box.style.display='none';
     W._pgMontoBase=null;
   }
-}
-function pgExonerarMora(){
-  const exon=document.getElementById('pgMoraExon')?.checked||false;
-  const inp=document.getElementById('pgmo');
-  if(!inp||W._pgMontoBase==null)return;
-  inp.value=exon?W._pgMontoBase:W._pgMontoBase+50000;
 }
 const ARANCEL_CONCEPTOS=['Examen Parcial Recuperatorio','Examen Final Ordinario','Examen Final Recuperatorio','Examen Final Complementario','Examen Final Extraordinario'];
 function pgcoChangeHandler(){
@@ -12811,9 +12802,16 @@ async function svPago(){
     }
   }
   const montoEsp=arancelEsp?arancelEsp.monto:null;
-  const diff=montoEsp&&o.monto<montoEsp?montoEsp-o.monto:0;
+  const esCuotaConMora=W._pgMontoBase!=null&&/^Cuota\s+\d+/i.test(o.concepto||'')&&new Date().getDate()>=11;
+  const montoConMora=esCuotaConMora?(W._pgMontoBase+50000):montoEsp;
+  const diff=montoConMora&&o.monto<montoConMora?montoConMora-o.monto:0;
+  o.mora_exonerada=esCuotaConMora&&o.monto<(W._pgMontoBase+50000)?1:0;
   let alertaHTML='';
-  if(montoEsp&&o.monto!==montoEsp){
+  if(esCuotaConMora&&o.mora_exonerada){
+    alertaHTML=`<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:8px 12px;margin-top:8px;font-size:12px;color:#92400e">
+      ⚠️ <strong>Mora exonerada por el director</strong> — el monto de Gs. ${Number(o.monto).toLocaleString()} es menor al esperado con mora (Gs. ${Number(W._pgMontoBase+50000).toLocaleString()}). Se registrará con exoneración de mora.
+    </div>`;
+  } else if(montoEsp&&o.monto!==montoEsp&&!esCuotaConMora){
     if(o.monto<montoEsp){
       alertaHTML=`<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:8px 12px;margin-top:8px;font-size:12px;color:#e65100">
         ⚠ <strong>Monto menor a la cuota/arancel</strong><br>
