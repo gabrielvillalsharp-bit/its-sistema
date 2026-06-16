@@ -1485,6 +1485,7 @@ function go(p, _fromHistory){
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
     solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,limpieza:pgLimpieza,interesados:pgInteresados,papelera:pgPapelera,
+    'pagos-pendientes-wa':pgPagosPendientesWA,
     whatsapp:pgWhatsApp,'wa-chat':pgWaChat,
     'repositorio':pgRepositorio,
     'repositorio-programas':pgRepProgramas,
@@ -7779,6 +7780,7 @@ function pgHubFinanzas(el){
   el.innerHTML=`<div class="ph"><h3>💰 Finanzas y Recursos</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
     ${esDirec?_mCard('pagos','💳','Pagos','Registros de pago','#059669','#f0fdf4'):''}
+    ${esDirec?_mCard('pagos-pendientes-wa','🧾','Aprobar Pagos','Comprobantes por WhatsApp','#dc2626','#fef2f2'):''}
     ${esDirec?_mCard('aranceles','💲','Aranceles','Configurar cuotas','#2563eb','#eff6ff'):''}
     ${esDirec?_mCard('deudores','⚠️','Deudores','Alumnos con deuda','#ea580c','#fff7ed'):''}
     ${esDirec?_mCard('becas','⭐','Becas','Gestión de becas','#7c3aed','#f5f3ff'):''}
@@ -8807,6 +8809,107 @@ async function dupEliminar(id, nombre){
     async function(){
       try{await api('DELETE',`/api/alumnos/${id}/completo`);toast('✓ '+nombre+' eliminado','ok');pgDuplicados(document.getElementById('mc'));}
       catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+
+// ── PAGOS PENDIENTES POR WHATSAPP (comprobantes de transferencia) ────────────
+async function pgPagosPendientesWA(el){
+  el.innerHTML='<div class="ph"><h3>🧾 Aprobar Pagos (WhatsApp)</h3></div>'+skeletonTable(2,3);
+  const [pendientes, alumnos, periodos] = await Promise.all([
+    api('GET','/api/pagos/pendientes-wa').catch(()=>[]),
+    api('GET','/api/alumnos').catch(()=>[]),
+    api('GET','/api/periodos').catch(()=>[])
+  ]);
+  W._ppwAlumnos = alumnos; W._ppwPeriodos = periodos;
+  el.innerHTML=`<div class="ph"><h3>🧾 Aprobar Pagos (WhatsApp)</h3></div>
+  <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:11px 14px;font-size:13px;color:#1e40af;margin-bottom:16px">
+    📲 Comprobantes de transferencia enviados por alumnos/interesados al WhatsApp del Instituto. Revisá la imagen, completá los datos del pago y aprobá o rechazá.
+  </div>
+  <datalist id="ppw-alumnos-dl">
+    ${alumnos.map(a=>`<option value="${(a.apellido+', '+a.nombre).replace(/"/g,'')} — CI ${a.ci||''}" data-id="${a.id}"></option>`).join('')}
+  </datalist>
+  <div id="ppw-lista">
+    ${pendientes.length===0
+      ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">✅ No hay comprobantes pendientes.</div>'
+      :pendientes.map(p=>_ppwCard(p)).join('')}
+  </div>`;
+}
+function _ppwCard(p){
+  const sugerido = p.alumno_id ? `${p.alumno_apellido||''}, ${p.alumno_nombre||''}` : '';
+  return `<div class="card mb12" id="ppw-${p.id}" style="border:2px solid #fde68a">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <img src="data:${p.imagen_mime};base64,${p.imagen_data}" style="width:160px;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer" onclick="window.open(this.src,'_blank')"/>
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:13px;color:#6b7280;margin-bottom:8px">
+          📞 ${p.numero} ${p.nombre_contacto?'· '+p.nombre_contacto:''} · ${(p.fecha||'').slice(0,16)}
+          ${p.mensaje_texto?`<br/>💬 "${p.mensaje_texto}"`:''}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <div style="flex:1;min-width:200px">
+            <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Alumno</label>
+            <input list="ppw-alumnos-dl" id="ppw-al-${p.id}" value="${sugerido}" placeholder="Buscar por nombre o CI..." style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Período</label>
+            <select id="ppw-per-${p.id}" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+              ${(W._ppwPeriodos||[]).map(per=>`<option value="${per.id}" ${per.activo?'selected':''}>${per.nombre}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="flex:1;min-width:160px">
+            <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Concepto</label>
+            <input id="ppw-con-${p.id}" placeholder="Ej: Cuota 3" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Monto (Gs.)</label>
+            <input id="ppw-mon-${p.id}" type="number" placeholder="0" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="bn" style="background:#059669" onclick="ppwAprobar('${p.id}')">✅ Aprobar</button>
+          <button class="bs d" onclick="ppwRechazar('${p.id}')">❌ Rechazar</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function _ppwAlumnoId(p_id){
+  const val=(document.getElementById('ppw-al-'+p_id)?.value||'').trim();
+  const ciMatch=val.match(/CI\s+(\S+)/i);
+  const ci=ciMatch?ciMatch[1]:null;
+  const nombrePart=val.split(' — CI')[0].trim().toLowerCase();
+  const al=(W._ppwAlumnos||[]).find(a=>
+    (ci && (a.ci||'')===ci) ||
+    `${a.apellido}, ${a.nombre}`.trim().toLowerCase()===nombrePart
+  );
+  return al?al.id:null;
+}
+async function ppwAprobar(id){
+  const alumno_id = _ppwAlumnoId(id);
+  const periodo_id = document.getElementById('ppw-per-'+id)?.value;
+  const concepto = document.getElementById('ppw-con-'+id)?.value?.trim();
+  const monto = document.getElementById('ppw-mon-'+id)?.value;
+  if(!alumno_id){toast('Seleccioná un alumno válido de la lista','warn');return;}
+  if(!concepto){toast('Ingresá el concepto del pago','warn');return;}
+  if(!monto || parseFloat(monto)<=0){toast('Ingresá un monto válido','warn');return;}
+  confirm2('✅ Aprobar pago',`¿Confirmar el pago de <strong>${concepto}</strong> por <strong>Gs. ${Number(monto).toLocaleString('es-PY')}</strong>? Se notificará al alumno por WhatsApp.`,
+    async function(){
+      try{
+        await api('POST',`/api/pagos/pendientes-wa/${id}/aprobar`,{alumno_id,periodo_id,concepto,monto,medio_pago:'Transferencia'});
+        toast('✓ Pago aprobado y registrado','ok');
+        document.getElementById('ppw-'+id)?.remove();
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
+}
+async function ppwRechazar(id){
+  confirm2('❌ Rechazar comprobante','¿Rechazar este comprobante? Se notificará al contacto por WhatsApp.',
+    async function(){
+      try{
+        await api('POST',`/api/pagos/pendientes-wa/${id}/rechazar`,{});
+        toast('✓ Comprobante rechazado','ok');
+        document.getElementById('ppw-'+id)?.remove();
+      }catch(e){toast('Error: '+e.message,'err');}
     },null);
 }
 

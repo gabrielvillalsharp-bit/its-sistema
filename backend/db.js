@@ -895,6 +895,21 @@ function init() {
   try { db.exec(`CREATE TABLE IF NOT EXISTS honorarios (id TEXT PRIMARY KEY, docente_id TEXT NOT NULL, asignacion_id TEXT, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, monto REAL NOT NULL DEFAULT 80000, estado TEXT NOT NULL DEFAULT 'generado', tipo TEXT NOT NULL DEFAULT 'clase', reemplazo_id TEXT, observacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS reemplazos (id TEXT PRIMARY KEY, asignacion_id TEXT NOT NULL, docente_titular_id TEXT NOT NULL, docente_reemplazante_id TEXT NOT NULL, fecha TEXT NOT NULL, turno INTEGER NOT NULL DEFAULT 1, motivo TEXT, estado TEXT NOT NULL DEFAULT 'pendiente', registrado_por TEXT NOT NULL, aprobado_por TEXT, fecha_aprobacion TEXT, fecha_registro TEXT NOT NULL DEFAULT (datetime('now')))`); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS feriados (id TEXT PRIMARY KEY, fecha TEXT NOT NULL UNIQUE, nombre TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT 'nacional', activo INTEGER NOT NULL DEFAULT 1)`); } catch {}
+  // Comprobantes de transferencia recibidos por WhatsApp, pendientes de aprobación
+  try { db.exec(`CREATE TABLE IF NOT EXISTS pagos_pendientes_wa (
+    id TEXT PRIMARY KEY,
+    numero TEXT NOT NULL,
+    nombre_contacto TEXT,
+    alumno_id TEXT REFERENCES alumnos(id),
+    imagen_data TEXT NOT NULL,
+    imagen_mime TEXT NOT NULL DEFAULT 'image/jpeg',
+    mensaje_texto TEXT,
+    estado TEXT NOT NULL DEFAULT 'Pendiente' CHECK(estado IN ('Pendiente','Aprobado','Rechazado')),
+    pago_id TEXT REFERENCES pagos(id),
+    resuelto_por TEXT,
+    fecha_resolucion TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`); } catch {}
   // Configuración editable del sistema (plantillas WA, etc.)
   try { db.exec(`CREATE TABLE IF NOT EXISTS configuracion (clave TEXT PRIMARY KEY, valor TEXT NOT NULL, descripcion TEXT)`); } catch {}
   // Registro de notificaciones WA enviadas (evita duplicados)

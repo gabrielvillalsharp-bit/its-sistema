@@ -12,6 +12,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
+const { geminiChat } = require('./gemini');
 
 // ── CACHE EN MEMORIA para datos estáticos (TTL 60s) ──────────────────────────
 const _cache = {};
@@ -153,14 +154,10 @@ function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
 }
 
 // ── BOT DE ADMISIONES ─────────────────────────────────────────────────────────
-const _botEstados = new Map(); // numero → { estado, ..., ts, completadoTs? }
+const _botEstados = new Map(); // numero → { historial:[{role,texto}], alumno, interesadoGuardado, consultaGuardada, ts }
 setInterval(() => {
-  const lim2h  = Date.now() - 2*60*60*1000;
   const lim24h = Date.now() - 24*60*60*1000;
-  _botEstados.forEach((v,k) => {
-    const esCompletado = ['completado_alumno','completado_externo'].includes(v.estado);
-    if (v.ts < (esCompletado ? lim24h : lim2h)) _botEstados.delete(k);
-  });
+  _botEstados.forEach((v,k) => { if (v.ts < lim24h) _botEstados.delete(k); });
 }, 30*60*1000);
 
 // Carreras cargadas desde la BD real (IDs correctos)
@@ -186,341 +183,144 @@ let _botPausado = (() => {
   catch { return false; }
 })();
 
-async function procesarMensajeBot(numero, texto) {
-  if (_botPausado) return; // Bot pausado por el director
+function _botSystemPrompt(alumno) {
+  const inst = (() => { try { return db.prepare('SELECT * FROM institucion LIMIT 1').get(); } catch { return null; } })();
+  const nombreInst = inst?.nombre || 'Instituto Técnico Superior Santísima Trinidad';
+  const carrerasTxt = BOT_CARRERAS.map(c => `- ${c.nombre}`).join('\n') || '(sin carreras cargadas)';
+
+  let contexto = `Estás hablando por WhatsApp con una persona EXTERNA (no es alumno registrado) que puede estar interesada en inscribirse.`;
+  if (alumno) {
+    contexto = `Estás hablando con *${alumno.nombre} ${alumno.apellido}*, un/a alumno/a ACTIVO/A de la institución (ya identificado por su número de teléfono). No le pidas nombre, CI ni carrera — ya los tenemos. Si tiene una consulta o reclamo, escuchalo y avisale que un encargado se va a comunicar.`;
+  }
+
+  return `Eres el asistente virtual de admisiones de "${nombreInst}", un instituto técnico superior en Paraguay. Respondés por WhatsApp en español paraguayo, de forma cordial, breve (máximo 4-5 líneas por mensaje) y profesional. No uses markdown complejo, solo *negrita* ocasional y emojis moderados.
+
+${contexto}
+
+Carreras que ofrece la institución:
+${carrerasTxt}
+
+Requisitos generales de inscripción: haber culminado la Educación Media (Bachillerato), fotocopia de cédula de identidad, certificado de estudios.
+
+Tu objetivo en la conversación:
+- Si es una persona externa interesada: saludala, preguntale en qué carrera está interesada, y pedile su nombre completo. Dale información breve de la carrera elegida (debe ser una de la lista) y avisale que un asesor se comunicará con ella.
+- Si es un alumno activo: escuchá su consulta y avisale que un encargado la atenderá pronto.
+- Nunca inventes carreras, precios ni datos que no tengas. Si preguntan algo que no sabés (precios exactos, horarios específicos), decí que un encargado le dará esa información.
+
+MUY IMPORTANTE — etiquetas internas (el usuario NUNCA las ve, se eliminan antes de enviarse):
+- En cuanto tengas el NOMBRE COMPLETO y la CARRERA de interés de una persona externa, agregá al final de tu respuesta, en una línea aparte, exactamente:
+[[INTERESADO:Nombre Completo|Nombre exacto de la carrera de la lista]]
+- Si el alumno activo te cuenta su consulta, agregá al final, en una línea aparte:
+[[CONSULTA:resumen breve de la consulta]]
+- Agregá cada etiqueta como máximo una vez por conversación, solo cuando corresponda. Si no aplica ninguna, no agregues ninguna línea.`;
+}
+
+function _botExtraerEtiquetas(textoIA) {
+  let limpio = textoIA;
+  let interesado = null, consulta = null;
+  const mInt = textoIA.match(/\[\[INTERESADO:([^|]+)\|([^\]]+)\]\]/);
+  if (mInt) { interesado = { nombre: mInt[1].trim(), carrera: mInt[2].trim() }; limpio = limpio.replace(mInt[0], ''); }
+  const mCons = textoIA.match(/\[\[CONSULTA:([^\]]+)\]\]/);
+  if (mCons) { consulta = mCons[1].trim(); limpio = limpio.replace(mCons[0], ''); }
+  return { limpio: limpio.trim(), interesado, consulta };
+}
+
+// Envía un mensaje de texto por WhatsApp (Evolution API) y registra el resultado en wa_mensajes.
+async function enviarWA(numero, msg, tipo) {
   const EVO_URL  = process.env.EVOLUTION_URL;
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
-
-  // Normalizar número al formato internacional 595XXXXXXXXX
   const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
-
-  const enviar = async (msg) => {
-    try {
-      const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
-        method: 'POST',
-        headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: numNorm, textMessage: { text: msg } }),
-        signal: AbortSignal.timeout(8000)
-      });
-      const respTxt = await r.text();
-      const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      if (!r.ok) {
-        console.error(`[BOT] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
-        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot_error',numNorm,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
-      } else {
-        console.log(`[BOT] enviar OK (${r.status}) → ${numNorm}`);
-        try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'bot',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
-      }
-    } catch(e) {
-      console.error('[BOT] enviar error:', e.message);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numNorm,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
+  try {
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
+      method: 'POST',
+      headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number: numNorm, textMessage: { text: msg } }),
+      signal: AbortSignal.timeout(8000)
+    });
+    const respTxt = await r.text();
+    const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+    if (!r.ok) {
+      console.error(`[WA] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,tipo||'bot_error',numNorm,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
+    } else {
+      console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,tipo||'bot',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
-  };
-
-  const txt  = (texto||'').trim();
-  const txtn = txt.toLowerCase().replace(/[^a-z0-9]/g,' ').trim();
-  const est  = _botEstados.get(numero) || { estado: 'inicio' };
-  est.ts     = Date.now();
-
-  // Palabras clave para reiniciar siempre (evaluado ANTES del bloqueo de 24h)
-  const esReinicio = ['hola','menu','inicio','buenas','buen dia','buen tarde','buen noche','hi','ola','test'].some(p=>txtn.startsWith(p));
-
-  // Límite 24h: si ya completó flujo y no han pasado 24h → silencio (salvo reinicio explícito)
-  const estadosCompletados = ['completado_alumno','completado_externo'];
-  if (estadosCompletados.includes(est.estado)) {
-    const hace24h = Date.now() - 24*60*60*1000;
-    if ((est.completadoTs||0) > hace24h && !esReinicio) return; // silencio (salvo "hola","menu",etc.)
-    est.estado = 'inicio'; // reiniciar
+  } catch(e) {
+    console.error('[WA] enviar error:', e.message);
+    try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numNorm,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
   }
+}
 
-  // ── MENÚ PRINCIPAL ────────────────────────────────────────────────────────
-  if (est.estado === 'inicio' || esReinicio) {
-    await enviar(BOT_MENU_PRINCIPAL);
-    _botEstados.set(numero, { estado: 'esperando_tipo', ts: Date.now() });
-    return;
+async function procesarMensajeBot(numero, texto) {
+  if (_botPausado) return; // Bot pausado por el director
+  if (!process.env.EVOLUTION_URL || !process.env.EVOLUTION_KEY || !process.env.EVOLUTION_INSTANCE) return;
+
+  const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
+  const enviar = (msg) => enviarWA(numero, msg, 'bot');
+
+  const txt = (texto||'').trim();
+  if (!txt) return;
+
+  let est = _botEstados.get(numero);
+  const hace24h = Date.now() - 24*60*60*1000;
+  if (!est || est.ts < hace24h) {
+    // Identificar si es un alumno activo por su teléfono (solo para dar contexto a la IA)
+    const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
+    const numCon0 = '0'+numSin0;
+    const alumno = db.prepare(`
+      SELECT a.id, a.nombre, a.apellido FROM alumnos a
+      WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?) AND a.estado='Activo'
+      LIMIT 1
+    `).get('%'+numSin0, '%'+numCon0, numSin0);
+    est = { historial: [], alumno: alumno || null, interesadoGuardado: false, consultaGuardada: false, ts: Date.now() };
   }
+  est.ts = Date.now();
 
-  // ── SELECCIÓN DE TIPO ─────────────────────────────────────────────────────
-  if (est.estado === 'esperando_tipo') {
-    const esAlumno   = txt==='1' || txtn.includes('soy al') || txtn==='alumno' || txtn==='alumna';
-    const esExterno  = txt==='2' || txtn.includes('no soy') || txtn.includes('consult') || txtn.includes('interes');
-
-    if (esAlumno) {
-      // Buscar por teléfono en alumnos (normalizar número)
-      const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
-      const numCon0 = '0'+numSin0;
-      const alumno  = db.prepare(`
-        SELECT a.id, a.nombre, a.apellido, a.telefono
-        FROM alumnos a
-        WHERE (a.telefono LIKE ? OR a.telefono LIKE ? OR a.telefono LIKE ?)
-          AND a.estado = 'Activo'
-        LIMIT 1
-      `).get('%'+numSin0, '%'+numCon0, numSin0);
-
-      if (alumno) {
-        const nombreCompleto = `${alumno.nombre||''} ${alumno.apellido||''}`.trim();
-        est.alumno_id     = alumno.id;
-        est.alumno_nombre = nombreCompleto;
-        est.estado        = 'alumno_espera_consulta';
-        _botEstados.set(numero, est);
-        await enviar(
-          `Buenas, *${nombreCompleto}*. Le hemos identificado en nuestro sistema como alumno/a activo/a de la institución. 😊\n\n` +
-          `Por favor, indíquenos su consulta y un encargado se comunicará con usted a la brevedad.`
-        );
-      } else {
-        est.estado = 'alumno_nuevo_nombre';
-        _botEstados.set(numero, est);
-        await enviar(
-          `No hemos podido identificar su número en nuestro sistema.\n\n` +
-          `Para registrarle y atender su consulta necesitamos algunos datos.\n\n` +
-          `Por favor, indíquenos su *nombre completo*:`
-        );
-      }
-      return;
-    }
-
-    if (esExterno) {
-      est.estado = 'externo_carrera';
-      _botEstados.set(numero, est);
-      const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
-      await enviar(
-        `¡Con gusto le atendemos! 😊\n\n` +
-        `Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`
-      );
-      return;
-    }
-
-    // Opción no reconocida
-    await enviar(
-      `Por favor, seleccione una opción válida:\n\n` +
-      `1️⃣ Soy alumno/a de la institución\n` +
-      `2️⃣ No soy alumno/a - deseo realizar consultas`
-    );
+  let respuestaIA;
+  try {
+    respuestaIA = await geminiChat(_botSystemPrompt(est.alumno), est.historial, txt);
+  } catch(e) {
+    console.error('[BOT] Gemini error:', e.message);
+    await enviar('Disculpe, en este momento no podemos procesar su mensaje automáticamente. Un encargado se comunicará con usted a la brevedad. 🙏');
     _botEstados.set(numero, est);
     return;
   }
 
-  // ── FLUJO A1: ALUMNO REGISTRADO ───────────────────────────────────────────
-  if (est.estado === 'alumno_espera_consulta') {
-    if (txt.length < 3) {
-      await enviar(`Por favor, indíquenos su consulta para poder asistirle. 📋`);
-      _botEstados.set(numero, est);
-      return;
-    }
+  const { limpio, interesado, consulta } = _botExtraerEtiquetas(respuestaIA);
+
+  if (interesado && !est.interesadoGuardado) {
+    try {
+      const carrera = BOT_CARRERAS.find(c =>
+        c.nombre.toLowerCase() === interesado.carrera.toLowerCase() ||
+        c.nombre.toLowerCase().includes(interesado.carrera.toLowerCase()) ||
+        interesado.carrera.toLowerCase().includes(c.nombre.toLowerCase())
+      );
+      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,'nuevo')`)
+        .run(iid, interesado.nombre, numNorm, carrera?.id||'', carrera?.nombre||interesado.carrera);
+      est.interesadoGuardado = true;
+    } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
+  }
+
+  if (consulta && !est.consultaGuardada) {
     try {
       const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,alumno_id,consulta,estado,fecha)
         VALUES (?,?,?,'alumno_registrado',?,?,'pendiente',datetime('now','localtime'))`)
-        .run(cid, numero, est.alumno_nombre, est.alumno_id||null, txt);
+        .run(cid, numNorm, est.alumno ? `${est.alumno.nombre} ${est.alumno.apellido}`.trim() : '', est.alumno?.id||null, consulta);
+      est.consultaGuardada = true;
     } catch(e) { console.error('[BOT] guardar consulta alumno:', e.message); }
-
-    const pNombre = (est.alumno_nombre||'').split(' ')[0];
-    await enviar(
-      `Su consulta ha sido recibida correctamente. ✅\n\n` +
-      `Un encargado del Instituto se comunicará con usted a la brevedad.\n\n` +
-      `Gracias por contactarnos, *${pNombre}*.`
-    );
-    _botEstados.set(numero, { estado: 'completado_alumno', completadoTs: Date.now(), ts: Date.now() });
-    return;
   }
 
-  // ── FLUJO A2: ALUMNO NUEVO (no encontrado en sistema) ─────────────────────
-  if (est.estado === 'alumno_nuevo_nombre') {
-    if (txt.length < 3) {
-      await enviar(`Por favor, ingrese su *nombre completo* para continuar:`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.nombre = txt;
-    est.estado = 'alumno_nuevo_ci';
-    _botEstados.set(numero, est);
-    await enviar(`Gracias. ¿Cuál es su número de *cédula de identidad*?`);
-    return;
-  }
+  est.historial.push({ role: 'user', texto: txt }, { role: 'model', texto: respuestaIA });
+  if (est.historial.length > 16) est.historial = est.historial.slice(-16);
+  _botEstados.set(numero, est);
 
-  if (est.estado === 'alumno_nuevo_ci') {
-    const ci = txt.replace(/\D/g,'');
-    if (ci.length < 5) {
-      await enviar(`Por favor, ingrese un número de cédula válido:`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.ci     = ci;
-    est.estado = 'alumno_nuevo_carrera';
-    _botEstados.set(numero, est);
-    const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
-    await enviar(`¿En qué carrera se encuentra cursando?\n\n${lista}`);
-    return;
-  }
-
-  if (est.estado === 'alumno_nuevo_carrera') {
-    const carrera = BOT_CARRERAS.find(c=>c.num===txt||txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6)));
-    if (!carrera) {
-      await enviar(`Por favor, seleccione el *número* de su carrera (del 1 al 9):`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.carrera_id     = carrera.id;
-    est.carrera_nombre = carrera.nombre;
-    est.estado         = 'alumno_nuevo_anio';
-    _botEstados.set(numero, est);
-    await enviar(`¿En qué año se encuentra cursando?\n\n1️⃣ Primer año\n2️⃣ Segundo año\n3️⃣ Tercer año`);
-    return;
-  }
-
-  if (est.estado === 'alumno_nuevo_anio') {
-    const anosMap = {'1':'Primer año','2':'Segundo año','3':'Tercer año'};
-    const anio = anosMap[txt] ||
-      (txtn.includes('prim')?'Primer año':txtn.includes('segu')?'Segundo año':txtn.includes('terc')?'Tercer año':null);
-    if (!anio) {
-      await enviar(`Por favor seleccione el año:\n\n1️⃣ Primer año\n2️⃣ Segundo año\n3️⃣ Tercer año`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.anio   = anio;
-    est.estado = 'alumno_nuevo_consulta';
-    _botEstados.set(numero, est);
-    await enviar(
-      `Sus datos han sido registrados correctamente. ✅\n\n` +
-      `Por favor, indíquenos su consulta y un encargado del Instituto se comunicará con usted a la brevedad:`
-    );
-    return;
-  }
-
-  if (est.estado === 'alumno_nuevo_consulta') {
-    if (txt.length < 3) {
-      await enviar(`Por favor, indíquenos su consulta para poder asistirle:`);
-      _botEstados.set(numero, est);
-      return;
-    }
-
-    // Guardar consulta en wa_consultas
-    try {
-      const cid = 'wc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT INTO wa_consultas (id,numero,nombre,tipo,carrera_nombre,anio,ci,consulta,estado,fecha)
-        VALUES (?,?,?,'alumno_nuevo',?,?,?,?,'pendiente',datetime('now','localtime'))`)
-        .run(cid, numNorm, est.nombre, est.carrera_nombre, est.anio, est.ci, txt);
-    } catch(e) { console.error('[BOT] guardar consulta alumno nuevo:', e.message); }
-
-    // Crear solicitud de incorporación para que el director verifique
-    try {
-      const partes   = (est.nombre||'').trim().split(/\s+/);
-      const snombre  = partes[0] || '';
-      const sapellido= partes.slice(1).join(' ') || '';
-      const anioNum  = est.anio==='Primer año'?1:est.anio==='Segundo año'?2:est.anio==='Tercer año'?3:1;
-      // Buscar curso que coincida con carrera + año (tomar el primero disponible)
-      let cursoId = null;
-      try {
-        const cur = db.prepare("SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 LIMIT 1").get(est.carrera_id||'', anioNum);
-        cursoId = cur?.id || null;
-      } catch {}
-      // Evitar duplicados: si ya hay una solicitud pendiente con misma CI o nombre+apellido, no crear otra
-      const yaExiste = db.prepare(
-        `SELECT id FROM solicitudes_registro WHERE estado='pendiente' AND ((ci!='' AND ci=?) OR (lower(nombre)=lower(?) AND lower(apellido)=lower(?))) LIMIT 1`
-      ).get(est.ci||'__', snombre, sapellido);
-      if (!yaExiste) {
-        const sid = 'sreg_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-        db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
-          .run(sid, snombre, sapellido, est.ci||'', numNorm, est.carrera_id||'', cursoId, null, 'bot_wa');
-        console.log(`[BOT] Solicitud de incorporación creada: ${snombre} ${sapellido} CI:${est.ci} → ${est.carrera_nombre}`);
-      }
-    } catch(e) { console.error('[BOT] crear solicitud incorporacion:', e.message); }
-
-    const pNombre = (est.nombre||'').split(' ')[0];
-    await enviar(
-      `¡Sus datos han sido enviados al Director del Instituto para verificación! ✅\n\n` +
-      `En cuanto sean aprobados, quedará incorporado/a al sistema y un encargado se comunicará con usted.\n\n` +
-      `Gracias por contactarnos, *${pNombre}*. 😊`
-    );
-    _botEstados.set(numero, { estado: 'completado_alumno', completadoTs: Date.now(), ts: Date.now() });
-    return;
-  }
-
-  // ── FLUJO B: EXTERNO / INTERESADO ────────────────────────────────────────
-  // B1: Muestra lista de carreras al elegir opción 2
-  if (est.estado === 'externo_carrera') {
-    const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
-    await enviar(
-      `¡Perfecto! Le informamos sobre nuestras carreras disponibles. 🎓\n\n` +
-      `Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`
-    );
-    est.estado = 'externo_eligiendo_carrera';
-    _botEstados.set(numero, est);
-    return;
-  }
-
-  // B2: Usuario elige carrera → pide nombre
-  if (est.estado === 'externo_eligiendo_carrera') {
-    const carrera = BOT_CARRERAS.find(c =>
-      c.num === txt ||
-      txtn.includes(c.nombre.toLowerCase().replace(/[^a-z0-9]/g,' ').trim().slice(0,6))
-    );
-    if (!carrera) {
-      const lista = BOT_CARRERAS.map(c=>`${c.num}️⃣ ${c.nombre}`).join('\n');
-      await enviar(`Por favor, escriba el *número* de la carrera que le interesa:\n\n${lista}`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.carrera_id     = carrera.id;
-    est.carrera_nombre = carrera.nombre;
-    est.estado         = 'externo_nombre';
-    _botEstados.set(numero, est);
-    await enviar(
-      `¡Excelente elección! 🎓 *${carrera.nombre}* es una de nuestras carreras más destacadas.\n\n` +
-      `Para brindarle información personalizada, ¿podría indicarnos su *nombre completo*?`
-    );
-    return;
-  }
-
-  // B3: Usuario da nombre → envía info de la carrera + guarda como interesado
-  if (est.estado === 'externo_nombre') {
-    if (txt.length < 3) {
-      await enviar(`Por favor, ingrese su *nombre completo* para continuar:`);
-      _botEstados.set(numero, est);
-      return;
-    }
-    est.nombre = txt;
-    const primerNombre = txt.split(' ')[0];
-
-    // Buscar detalle de la carrera para mostrar semestres/turno
-    let semestres = '?', turno = '';
-    try {
-      const det = db.prepare("SELECT semestres, turno FROM carreras WHERE id=? OR nombre=?").get(est.carrera_id||'', est.carrera_nombre||'');
-      if (det) { semestres = det.semestres||'?'; turno = det.turno||''; }
-    } catch(e) {}
-
-    // Guardar como interesado
-    try {
-      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-        VALUES (?,?,?,?,?,'nuevo')`)
-        .run(iid, est.nombre, numNorm, est.carrera_id||'', est.carrera_nombre||'');
-    } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
-
-    const infoMsg =
-      `¡Mucho gusto, *${primerNombre}*! 😊 Le compartimos información sobre la carrera de *${est.carrera_nombre||'la institución'}*:\n\n` +
-      `🏫 *ITS Santísima Trinidad*\n` +
-      `Contamos con modernas instalaciones, laboratorios y aulas especializadas para garantizar una formación completa y de excelencia.\n\n` +
-      `📚 *Carrera: ${est.carrera_nombre}*\n` +
-      (semestres !== '?' ? `⏳ Duración: *${semestres} semestres*\n` : '') +
-      (turno ? `🕐 Turno: *${turno}*\n` : '') +
-      `\n📋 *Requisitos de inscripción:*\n` +
-      `✅ Haber culminado la Educación Media (Bachillerato)\n` +
-      `✅ Fotocopia de Cédula de Identidad\n` +
-      `✅ Certificado de Estudios\n\n` +
-      `Un *asesor del ITS se comunicará con usted* a la brevedad para orientarle y responder todas sus preguntas. 📞\n\n` +
-      `¡Gracias por su interés, *${primerNombre}*! Le esperamos 🎓`;
-
-    await enviar(infoMsg);
-    _botEstados.set(numero, { estado: 'completado_externo', completadoTs: Date.now(), ts: Date.now() });
-    return;
-  }
-
-  // Fallback: estado desconocido → reiniciar con el menú
-  await enviar(BOT_MENU_PRINCIPAL);
-  _botEstados.set(numero, { estado: 'esperando_tipo', ts: Date.now() });
+  await enviar(limpio || 'Un encargado se comunicará con usted a la brevedad. 🙏');
 }
 
 // ── MIGRACIÓN: asignacion_id en pagos (para vincular pago con materia habilitada) ──
@@ -3007,6 +2807,54 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+// ── PAGOS PENDIENTES POR WHATSAPP (comprobantes de transferencia) ────────────
+app.get('/api/pagos/pendientes-wa', auth(ADM), (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.*, a.nombre as alumno_nombre, a.apellido as alumno_apellido
+    FROM pagos_pendientes_wa p LEFT JOIN alumnos a ON p.alumno_id=a.id
+    WHERE p.estado='Pendiente' ORDER BY p.fecha DESC
+  `).all();
+  res.json(rows);
+});
+app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
+  const { alumno_id, periodo_id, concepto, monto, medio_pago, descuento } = req.body;
+  if (!alumno_id || !concepto || monto === undefined) return res.status(400).json({ error: 'alumno_id, concepto y monto son obligatorios' });
+  try {
+    const pend = db.prepare("SELECT * FROM pagos_pendientes_wa WHERE id=? AND estado='Pendiente'").get(req.params.id);
+    if (!pend) return res.status(404).json({ error: 'No encontrado o ya resuelto' });
+
+    const id = 'pg_'+Date.now();
+    const montoNum = parseFloat(monto)||0;
+    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(id, alumno_id, periodo_id||null, concepto, montoNum, nowDate(), 'Pagado', 'Transferencia (comprobante WhatsApp)', descuento||0, medio_pago||'Transferencia');
+
+    db.prepare("UPDATE pagos_pendientes_wa SET estado='Aprobado', pago_id=?, resuelto_por=?, fecha_resolucion=? WHERE id=?")
+      .run(id, req.user.id, nowStr(), req.params.id);
+
+    audit(req.user.id, 'APROBAR_PAGO_WA', 'pagos_pendientes_wa', req.params.id, { alumno_id, concepto, monto: montoNum });
+
+    const montoFmt = 'Gs. '+Number(montoNum).toLocaleString('es-PY');
+    enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
+
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/pagos/pendientes-wa/:id/rechazar', auth(ADM), (req, res) => {
+  const { motivo } = req.body;
+  try {
+    const pend = db.prepare("SELECT * FROM pagos_pendientes_wa WHERE id=? AND estado='Pendiente'").get(req.params.id);
+    if (!pend) return res.status(404).json({ error: 'No encontrado o ya resuelto' });
+
+    db.prepare("UPDATE pagos_pendientes_wa SET estado='Rechazado', resuelto_por=?, fecha_resolucion=? WHERE id=?")
+      .run(req.user.id, nowStr(), req.params.id);
+    audit(req.user.id, 'RECHAZAR_PAGO_WA', 'pagos_pendientes_wa', req.params.id, { motivo });
+
+    enviarWA(pend.numero, `No pudimos verificar su comprobante de transferencia. 🙏${motivo ? '\nMotivo: '+motivo : ''}\n\nPor favor, comuníquese con el Instituto o envíe nuevamente una imagen clara del comprobante.`, 'pago_rechazado').catch(()=>{});
+
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.put('/api/pagos/:id', auth(ADM), (req, res) => {
   try {
     const { concepto, monto, fecha_pago, medio_pago, comprobante } = req.body;
@@ -6123,7 +5971,7 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
 
   // 2. Reconfigurar webhook (si se pasa ?reconfigurar=1)
   if (req.query.reconfigurar === '1') {
-    const body = { url: webhookUrl, webhook_by_events: false, webhook_base64: false, events: ['MESSAGES_UPSERT','MESSAGES_UPDATE','MESSAGES_DELETE','SEND_MESSAGE','CONNECTION_UPDATE'] };
+    const body = { url: webhookUrl, webhook_by_events: false, webhook_base64: true, events: ['MESSAGES_UPSERT','MESSAGES_UPDATE','MESSAGES_DELETE','SEND_MESSAGE','CONNECTION_UPDATE'] };
     // Intentar con POST primero, luego PUT si falla
     for (const method of ['POST','PUT']) {
       try {
@@ -6465,8 +6313,28 @@ function manejarWebhookWA(req, res) {
       if (!numero) continue;
       const msg = msgObj.message || {};
       const texto = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
-      if (!texto.trim()) continue;
       const nombre = msgObj.pushName || data.pushName || '';
+
+      // Imagen recibida (posible comprobante de transferencia) → guardar como pago pendiente
+      if (msg.imageMessage) {
+        const imgB64 = msgObj.base64 || msg.base64 || data.base64 || null;
+        if (imgB64) {
+          try {
+            const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
+            const alumno = db.prepare(`
+              SELECT id FROM alumnos WHERE (telefono LIKE ? OR telefono LIKE ?) AND estado='Activo' LIMIT 1
+            `).get('%'+numSin0, '%0'+numSin0);
+            const ppid = 'ppw_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+            db.prepare(`INSERT INTO pagos_pendientes_wa (id,numero,nombre_contacto,alumno_id,imagen_data,imagen_mime,mensaje_texto)
+              VALUES (?,?,?,?,?,?,?)`)
+              .run(ppid, numero, nombre, alumno?.id||null, imgB64, msg.imageMessage.mimetype||'image/jpeg', texto.trim()||null);
+            enviarWA(numero, 'Recibimos su comprobante de transferencia. ✅ Será revisado por el Instituto y le confirmaremos en breve. ¡Gracias!')
+              .catch(e=>console.error('[WEBHOOK WA] ack comprobante:', e.message));
+          } catch(e) { console.error('[WEBHOOK WA] guardar comprobante:', e.message); }
+        }
+      }
+
+      if (!texto.trim()) continue;
       // Guardar en wa_recibidos
       try {
         const wrid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
