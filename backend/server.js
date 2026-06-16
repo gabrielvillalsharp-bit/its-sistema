@@ -245,7 +245,8 @@ async function enviarWA(numero, msg, tipo) {
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
-  const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
+  // Si ya es un JID completo (contiene @), pasarlo directo; si no, normalizar como número paraguayo
+  const numNorm = String(numero||'').includes('@') ? String(numero) : (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
       method: 'POST',
@@ -6381,22 +6382,16 @@ function manejarWebhookWA(req, res) {
       let remoteJid = key.remoteJid || '';
       // Ignorar grupos, broadcast, newsletter, status
       if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) continue;
-      // Algunos contactos llegan con un ID "@lid" (identidad oculta de WhatsApp) en vez del número real.
-      // Si Evolution/Baileys incluye el JID real alternativo, usarlo; si no, no se puede responder — se ignora.
+      // Mensajes @lid: identidad oculta de WhatsApp. Usamos el JID tal cual para responder,
+      // Evolution API puede enrutar la respuesta aunque no tengamos el número real.
       if (remoteJid.endsWith('@lid')) {
         const alt = key.remoteJidAlt || msgObj.remoteJidAlt || data.remoteJidAlt || '';
         if (alt && (alt.endsWith('@s.whatsapp.net') || alt.endsWith('@c.us'))) {
           remoteJid = alt;
-        } else {
-          console.warn('[WEBHOOK WA] mensaje con @lid sin JID real disponible, se ignora:', remoteJid);
-          try {
-            db.prepare('INSERT INTO wa_recibidos (id,numero,nombre_contacto,mensaje,fecha,leido) VALUES (?,?,?,?,?,0)')
-              .run('debug_'+Date.now(), remoteJid, '[DEBUG @lid]', JSON.stringify({key, msgObjKeys: Object.keys(msgObj), dataKeys: Object.keys(data)}).slice(0,1900), nowStr());
-          } catch(e) {}
-          continue;
         }
+        // Si no hay alternativa, seguimos con el @lid — Evolution lo enruta igual
       }
-      const numero = remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+      const numero = remoteJid.endsWith('@lid') ? remoteJid : remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
       if (!numero) continue;
       const msg = msgObj.message || {};
       const texto = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
