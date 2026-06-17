@@ -12260,7 +12260,7 @@ async function selAlumnoPago(alId){
           <button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">↕ Mover sección</button>
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${al.display_nombre||al.nombre||''}','${al.display_apellido||al.apellido||''}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
-          ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(139,92,246,.85);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700">💸 Exonerar deuda</button>`:''}
+          ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(29,158,117,.9);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700">💸 Exonerar deuda</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
       </div>
@@ -12279,15 +12279,17 @@ async function selAlumnoPago(alId){
         ${(()=>{
           if(!rDeuda||rDeuda.deudaBruta<=0)return '';
           const { cuotaBase, deudaBruta, totalExonerado, deudaNeta, detalle } = rDeuda;
+          const _MESES_CUOTA=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+          const _cuotaLabel=c=>{const m=c.match(/^Cuota\s+(\d+)$/i);return m?(_MESES_CUOTA[+m[1]]||c):c;};
           const filasDetalle=detalle.filter(d=>d.diferencia>0).map(d=>`
             <tr>
-              <td style="padding:4px 10px;font-size:11px;color:#1e293b">${d.concepto}</td>
+              <td style="padding:4px 10px;font-size:11px;color:#1e293b">${_cuotaLabel(d.concepto)}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;color:#475569">Gs. ${Number(d.esperado).toLocaleString()}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;color:#16a34a">Gs. ${Number(d.pagado).toLocaleString()}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;font-weight:700;color:#dc2626">Gs. ${Number(d.diferencia).toLocaleString()}</td>
             </tr>`).join('');
           const exonBtn=me.rol==='director'&&deudaNeta>0
-            ?`<button onclick="mExonerarDeuda('${alId}',${deudaNeta})" style="background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💸 Exonerar deuda</button>`
+            ?`<button onclick="mExonerarDeuda('${alId}',${deudaNeta})" style="background:#1D9E75;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💸 Exonerar deuda</button>`
             :'';
           return `
           <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:10px;padding:14px 16px">
@@ -12394,11 +12396,11 @@ async function mExonerarDeuda(alId, deudaNeta){
   const opciones=`
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:2px solid #e2e8f0;border-radius:8px">
-        <input type="radio" name="tipoExon" value="total" checked style="accent-color:#7c3aed">
+        <input type="radio" name="tipoExon" value="total" checked style="accent-color:#1D9E75">
         <span style="font-size:13px;font-weight:700">Exonerar deuda total — Gs. ${Number(deudaNeta).toLocaleString()}</span>
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:2px solid #e2e8f0;border-radius:8px">
-        <input type="radio" name="tipoExon" value="parcial" style="accent-color:#7c3aed">
+        <input type="radio" name="tipoExon" value="parcial" style="accent-color:#1D9E75">
         <span style="font-size:13px;font-weight:700">Exonerar monto específico</span>
       </label>
       <div id="exonParBox" style="display:none;padding:0 10px">
@@ -12409,12 +12411,12 @@ async function mExonerarDeuda(alId, deudaNeta){
         style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box">
     </div>`;
   modal(`<div style="max-width:420px;padding:20px">
-    <div style="font-size:16px;font-weight:800;color:#7c3aed;margin-bottom:6px">💸 Exonerar deuda acumulada</div>
+    <div style="font-size:16px;font-weight:800;color:#14532d;margin-bottom:6px">💸 Exonerar deuda acumulada</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:12px">Deuda neta actual: <strong style="color:#dc2626">Gs. ${Number(deudaNeta).toLocaleString()}</strong></div>
     ${opciones}
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
       <button onclick="cm()" style="padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancelar</button>
-      <button onclick="confirmarExoneracion('${alId}',${deudaNeta})" style="padding:8px 18px;border:none;border-radius:7px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer">✔ Confirmar exoneración</button>
+      <button onclick="confirmarExoneracion('${alId}',${deudaNeta})" style="padding:8px 18px;border:none;border-radius:7px;background:#1D9E75;color:#fff;font-size:13px;font-weight:700;cursor:pointer">✔ Confirmar exoneración</button>
     </div>
   </div>`,true);
   setTimeout(()=>{
@@ -14074,9 +14076,11 @@ async function pgMiEstadoCuenta(el){
     let deudaHtml = '';
     if(rDeuda && rDeuda.deudaBruta > 0){
       const {deudaBruta, totalExonerado, deudaNeta, detalle} = rDeuda;
+      const _MES_C=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+      const _cLbl=c=>{const m=c.match(/^Cuota\s+(\d+)$/i);return m?(_MES_C[+m[1]]||c):c;};
       const filas = detalle.filter(d=>d.diferencia>0).map(d=>`
         <tr>
-          <td style="padding:5px 10px;font-size:12px;color:#1e293b">${d.concepto}</td>
+          <td style="padding:5px 10px;font-size:12px;color:#1e293b">${_cLbl(d.concepto)}</td>
           <td style="padding:5px 10px;font-size:12px;text-align:right;color:#64748b">Gs. ${Number(d.esperado).toLocaleString()}</td>
           <td style="padding:5px 10px;font-size:12px;text-align:right;color:#16a34a;font-weight:700">Gs. ${Number(d.pagado).toLocaleString()}</td>
           <td style="padding:5px 10px;font-size:12px;text-align:right;font-weight:800;color:#dc2626">Gs. ${Number(d.diferencia).toLocaleString()}</td>
