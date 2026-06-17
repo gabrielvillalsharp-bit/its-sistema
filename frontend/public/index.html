@@ -12626,9 +12626,8 @@ function registrarPagoArancel(alId, concepto){
 // ── CUOTA LABELS (nombres personalizados) ────────────────────────────────────
 // Año escolar paraguayo: Cuota 1 = Marzo ... Cuota 10 = Diciembre
 const CUOTA_DEFAULTS={
-  1:'Cuota 1 — Marzo',  2:'Cuota 2 — Abril',   3:'Cuota 3 — Mayo',    4:'Cuota 4 — Junio',
-  5:'Cuota 5 — Julio',  6:'Cuota 6 — Agosto',  7:'Cuota 7 — Setiembre',8:'Cuota 8 — Octubre',
-  9:'Cuota 9 — Noviembre',10:'Cuota 10 — Diciembre'
+  1:'Marzo',2:'Abril',3:'Mayo',4:'Junio',5:'Julio',
+  6:'Agosto',7:'Setiembre',8:'Octubre',9:'Noviembre',10:'Diciembre'
 };
 function getCuotaLabels(){
   try{const s=localStorage.getItem('its_cuota_labels');if(s){const p=JSON.parse(s);// Completar con defaults si solo tiene 1-5
