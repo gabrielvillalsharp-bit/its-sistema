@@ -12824,8 +12824,17 @@ function autoMontoArancel(){
 function pgActualizarMora(){
   const concepto=v('pgco')||'';
   const esCuota=/^Cuota\s+\d+/i.test(concepto);
-  const dia=new Date().getDate();
-  const hayMora=esCuota&&dia>=11;
+  // Mora solo si el vencimiento de ESA cuota ya pasó (día 10 del mes correspondiente)
+  // Cuota 1=Marzo(3), Cuota 2=Abril(4), ..., Cuota N → mes N+2
+  let hayMora=false;
+  if(esCuota){
+    const cuotaNum=parseInt(concepto.match(/\d+/)?.[0]||'0');
+    const cuotaMes=cuotaNum+2;
+    const hoy=new Date();
+    const mesActual=hoy.getMonth()+1;
+    const diaActual=hoy.getDate();
+    hayMora=cuotaMes<mesActual||(cuotaMes===mesActual&&diaActual>=11);
+  }
   const box=document.getElementById('pgMoraBox');
   if(!box)return;
   if(hayMora){
@@ -12953,7 +12962,11 @@ async function svPago(){
     }
   }
   const montoEsp=arancelEsp?arancelEsp.monto:null;
-  const esCuotaConMora=W._pgMontoBase!=null&&/^Cuota\s+\d+/i.test(o.concepto||'')&&new Date().getDate()>=11;
+  const _cuotaNum2=parseInt((o.concepto||'').match(/\d+/)?.[0]||'0');
+  const _cuotaMes2=_cuotaNum2+2;
+  const _hoy2=new Date();
+  const _vencio2=_cuotaMes2<(_hoy2.getMonth()+1)||(_cuotaMes2===(_hoy2.getMonth()+1)&&_hoy2.getDate()>=11);
+  const esCuotaConMora=W._pgMontoBase!=null&&/^Cuota\s+\d+/i.test(o.concepto||'')&&_vencio2;
   const montoConMora=esCuotaConMora?(W._pgMontoBase+50000):montoEsp;
   const diff=montoConMora&&o.monto<montoConMora?montoConMora-o.monto:0;
   o.mora_exonerada=esCuotaConMora&&o.monto<(W._pgMontoBase+50000)?1:0;

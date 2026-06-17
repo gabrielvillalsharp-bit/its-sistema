@@ -2760,8 +2760,15 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
 app.post('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id, mora_exonerada } = req.body;
   const esCuotaMensual = /^cuota\s+\d+/i.test(concepto || '');
-  const diaHoy = new Date().getDate();
-  const moraMonto = esCuotaMensual && diaHoy >= 11 ? 50000 : 0;
+  // Mora solo si el vencimiento de ESA cuota ya pasó (día 10 del mes correspondiente)
+  // Cuota 1=Marzo(3), Cuota 2=Abril(4), ..., Cuota N → mes N+2
+  const cuotaNum = esCuotaMensual ? parseInt((concepto||'').match(/\d+/)?.[0]||'0') : 0;
+  const cuotaMes = cuotaNum + 2; // mes del año (1-12) al que corresponde la cuota
+  const hoy = new Date();
+  const mesActual = hoy.getMonth() + 1;
+  const diaActual = hoy.getDate();
+  const vencioMora = esCuotaMensual && (cuotaMes < mesActual || (cuotaMes === mesActual && diaActual >= 11));
+  const moraMonto = vencioMora ? 50000 : 0;
   // Mapa: concepto exacto → tipo_examen (solo para los 5 exámenes con arancel)
   const ARANCEL_TIPO_MAP = {
     'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
