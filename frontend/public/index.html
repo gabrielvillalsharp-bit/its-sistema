@@ -12293,6 +12293,17 @@ async function selAlumnoPago(alId){
           const exonBtn=me.rol==='director'&&deudaNeta>0
             ?`<button onclick="mExonerarDeuda('${alId}',${deudaNeta})" style="background:#1D9E75;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💸 Exonerar deuda</button>`
             :'';
+          const exoneracionesHtml=rDeuda.exoneraciones&&rDeuda.exoneraciones.length>0
+            ?`<div style="margin-top:10px;border-top:1px solid #fed7aa;padding-top:10px">
+                <div style="font-size:10px;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Exoneraciones registradas</div>
+                ${rDeuda.exoneraciones.map(e=>`
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:#fff;border-radius:6px;margin-bottom:4px;font-size:11px">
+                    <span style="color:#16a34a;font-weight:700">✓ Gs. ${Number(e.monto).toLocaleString()}</span>
+                    <span style="color:#64748b;flex:1;padding:0 6px">${e.motivo||'Sin motivo'} · ${(e.fecha||'').slice(0,10)}</span>
+                    ${me.rol==='director'?`<button onclick="eliminarExoneracion('${e.id}','${alId}')" title="Eliminar exoneración" style="background:#fee2e2;border:none;border-radius:5px;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;padding:2px 8px">✕</button>`:''}
+                  </div>`).join('')}
+              </div>`
+            :'';
           return `
           <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:10px;padding:14px 16px">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -12311,7 +12322,7 @@ async function selAlumnoPago(alId){
             </div>
             <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;margin-bottom:10px;font-size:11px">
               <thead><tr style="background:#fff7ed;border-bottom:1px solid #fed7aa">
-                <th style="padding:5px 10px;text-align:left;color:#78350f;font-weight:700">Cuota</th>
+                <th style="padding:5px 10px;text-align:left;color:#78350f;font-weight:700">Mes</th>
                 <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Esperado</th>
                 <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Pagado</th>
                 <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Pendiente</th>
@@ -12319,6 +12330,7 @@ async function selAlumnoPago(alId){
               <tbody>${filasDetalle}</tbody>
             </table>
             ${exonBtn}
+            ${exoneracionesHtml}
           </div>`;
         })()}
 
@@ -12431,6 +12443,15 @@ async function mExonerarDeuda(alId, deudaNeta){
   },100);
 }
 
+async function eliminarExoneracion(exonId, alId){
+  if(!confirm('¿Eliminar esta exoneración? La deuda volverá a figurar como pendiente.')) return;
+  try{
+    await api('DELETE','/api/alumnos/'+alId+'/exonerar-deuda/'+exonId);
+    showToast('Exoneración eliminada','ok');
+    await selAlumnoPago(alId);
+  }catch(e){showToast('Error: '+e.message,'err');}
+}
+
 async function confirmarExoneracion(alId, deudaNeta){
   const tipo=document.querySelector('input[name="tipoExon"]:checked')?.value||'total';
   let monto=tipo==='total'?deudaNeta:Number(document.getElementById('exonMonto')?.value||0);
@@ -12514,7 +12535,7 @@ function mPagoDirecto(alId, conceptoFijo){
   // Si viene con concepto fijo, mostrarlo como badge inmutable; si no, mostrar selector completo
   const concepto_select_html=conceptoFijo
     ?`<div style="padding:8px 12px;background:#f0f4ff;border:1.5px solid #c7d2fe;border-radius:8px;font-size:13px;font-weight:700;color:#3730a3;margin-bottom:4px">
-        📋 ${conceptoFijo}
+        📋 ${cuotaAMes(conceptoFijo)}
       </div>
       <input type="hidden" id="pgco" value="${conceptoFijo}"/>`
     :`<div class="f"><label>Concepto <span style="color:var(--red)">*</span></label>

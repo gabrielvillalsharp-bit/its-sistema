@@ -6842,6 +6842,16 @@ app.post('/api/alumnos/:id/exonerar-deuda', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.delete('/api/alumnos/:id/exonerar-deuda/:exonId', auth(ADM), (req, res) => {
+  try {
+    const ex = db.prepare('SELECT * FROM deuda_exoneraciones WHERE id=? AND alumno_id=?').get(req.params.exonId, req.params.id);
+    if (!ex) return res.status(404).json({ error: 'Exoneración no encontrada' });
+    db.prepare('DELETE FROM deuda_exoneraciones WHERE id=?').run(req.params.exonId);
+    audit(req.user.id, 'DELETE_EXONERACION_DEUDA', 'deuda_exoneraciones', req.params.exonId, { alumno_id: req.params.id, monto: ex.monto });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── ESTADO DE CUENTA CON DEUDAS ACUMULADAS ────────────────────────────────────
 app.get('/api/alumnos/:id/estado-cuenta', auth(['director','alumno']), (req, res) => {
   // Alumno solo puede ver el suyo
