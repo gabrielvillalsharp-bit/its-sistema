@@ -324,12 +324,10 @@ async function enviarWA(numero, msg, tipo) {
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
   const numStr = String(numero||'');
-  // @lid = identificador de privacidad de WhatsApp; Evolution no puede enrutar por @lid,
-  // así que lo convertimos a número limpio y confiamos en que Evolution lo mapee.
-  // @s.whatsapp.net y @c.us: pasarlos tal cual (Evolution los maneja por JID).
-  const numNorm = numStr.endsWith('@lid')
-    ? _normTelPY(numStr)  // strip @lid → número Paraguay
-    : (numStr.includes('@') ? numStr : _normTelPY(numStr));
+  // @lid = identificador de privacidad de WhatsApp. El ID numérico NO es un número de teléfono,
+  // así que lo pasamos tal cual a Evolution y esperamos que enrute internamente.
+  // @s.whatsapp.net y @c.us se pasan tal cual. Números sin @ se normalizan a Paraguay.
+  const numNorm = numStr.includes('@') ? numStr : _normTelPY(numStr);
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
       method: 'POST',
@@ -393,7 +391,11 @@ async function procesarMensajeBot(numero, texto) {
   } catch(e) {
     console.error('[BOT] Gemini error:', e.message);
     botLog(numero, 'gemini_error', e.message);
-    await enviar('Disculpe, en este momento no podemos procesar su mensaje automáticamente. Un encargado se comunicará con usted a la brevedad. 🙏');
+    // Mensaje diferenciado: si es cuota excedida (429) vs error genérico
+    const msg429 = e.status === 429 || (e.message||'').includes('429')
+      ? 'Estamos recibiendo muchas consultas en este momento. Un asesor se comunicará con usted a la brevedad. ¡Gracias por contactarnos! 🙏'
+      : 'Disculpe, en este momento no podemos procesar su mensaje automáticamente. Un encargado se comunicará con usted a la brevedad. 🙏';
+    await enviar(msg429);
     _botEstados.set(numero, est);
     return;
   }
@@ -6623,14 +6625,25 @@ function manejarWebhookWA(req, res) {
       let remoteJid = key.remoteJid || '';
       // Ignorar grupos, broadcast, newsletter, status
       if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) continue;
-      // Mensajes @lid: identidad oculta de WhatsApp. Usamos el JID tal cual para responder,
-      // Evolution API puede enrutar la respuesta aunque no tengamos el número real.
+      // Mensajes @lid: identidad de privacidad de WhatsApp (el ID no es un número de teléfono).
+      // Buscamos el JID real en todos los campos posibles que Evolution pueda incluir.
       if (remoteJid.endsWith('@lid')) {
-        const alt = key.remoteJidAlt || msgObj.remoteJidAlt || data.remoteJidAlt || '';
-        if (alt && (alt.endsWith('@s.whatsapp.net') || alt.endsWith('@c.us'))) {
-          remoteJid = alt;
+        const isRealJid = s => s && (s.endsWith('@s.whatsapp.net') || s.endsWith('@c.us'));
+        const candidates = [
+          key.remoteJidAlt, msgObj.remoteJidAlt, data.remoteJidAlt,
+          ev.sender, data.sender, msgObj.sender,
+          key.participant, msgObj.key?.participant,
+        ];
+        const real = candidates.find(isRealJid);
+        if (real) {
+          remoteJid = real;
+        } else {
+          // Loguear para diagnóstico (campos disponibles en este payload)
+          console.warn('[WEBHOOK @lid] Sin JID alternativo. Campos disponibles:', JSON.stringify({
+            remoteJidAltKey: key.remoteJidAlt, remoteJidAltMsg: msgObj.remoteJidAlt,
+            sender: ev.sender||data.sender, participant: key.participant,
+          }));
         }
-        // Si no hay alternativa, seguimos con el @lid — Evolution lo enruta igual
       }
       const numero = remoteJid.endsWith('@lid') ? remoteJid : remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
       if (!numero) continue;
