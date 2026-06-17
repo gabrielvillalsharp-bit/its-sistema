@@ -12345,11 +12345,7 @@ async function selAlumnoPago(alId){
             const compActivo=compromisos.find(c=>c.estado==='pendiente'||c.estado==='vencido');
             const esVencido=compActivo?.estado==='vencido';
             const btnNuevo=`<button onclick="mCompromisoPago('${alId}')" style="background:#1D9E75;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">📋 ${compActivo?'Editar':'+ Compromiso'}</button>`;
-            if(!compActivo)return `
-              <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-                <span style="font-size:11px;color:#94a3b8">📋 Sin compromiso de pago activo</span>
-                ${btnNuevo}
-              </div>`;
+            if(!compActivo)return '';
             return `
               <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:${esVencido?'#fff5f5':'#f0fdf4'}">
                 <div style="display:flex;align-items:center;gap:8px">
