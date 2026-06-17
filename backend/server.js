@@ -390,6 +390,21 @@ try {
   )`);
 } catch {}
 
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS compromisos_pago (
+    id TEXT PRIMARY KEY,
+    alumno_id TEXT NOT NULL,
+    director_id TEXT NOT NULL,
+    fecha_limite TEXT NOT NULL,
+    monto_total INTEGER NOT NULL DEFAULT 0,
+    concepto TEXT,
+    estado TEXT NOT NULL DEFAULT 'pendiente',
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    fecha_pago TEXT,
+    pago_id TEXT
+  )`);
+} catch {}
+
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
@@ -1614,6 +1629,15 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     const tpSum = [vals[0],vals[1],vals[2],vals[3]].reduce((s,v)=>s+(v??0),0);
     if (tpSum > 20) {
       return res.status(400).json({ error: `La suma de TPs (${tpSum}pts) supera el máximo permitido de 20 puntos. Corrija los valores.` });
+    }
+    // Bloquear nota final si el alumno tiene compromiso de pago vencido (solo docente)
+    if (req.user.rol !== 'director') {
+      const camposFinales = ['final_ord','final_recuperatorio','complementario','extraordinario'];
+      const hayFinal = camposFinales.some(c => req.body[c] !== undefined && req.body[c] !== '' && req.body[c] !== null);
+      if (hayFinal) {
+        const compVencido = db.prepare("SELECT id FROM compromisos_pago WHERE alumno_id=? AND estado='vencido' LIMIT 1").get(req.params.alumno_id);
+        if (compVencido) return res.status(403).json({ error: 'El alumno tiene un compromiso de pago vencido. El director debe regularizarlo antes de cargar notas finales.' });
+      }
     }
     // Validar habilitación para recuperatorio (director puede siempre)
     if (req.user.rol !== 'director' && vals[6] !== null) {
@@ -6745,6 +6769,34 @@ cron.schedule('* * * * *', async () => {
   } catch(e) { console.error('[Cron WA programados]', e.message); }
 });
 
+// ── CRON: COMPROMISOS DE PAGO ─────────────────────────────────────────────────
+// Diariamente a las 7:00 AM: vence compromisos expirados y envía recordatorios WA
+cron.schedule('0 7 * * *', async () => {
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    // Vencer compromisos expirados
+    db.prepare("UPDATE compromisos_pago SET estado='vencido' WHERE estado='pendiente' AND fecha_limite<?").run(hoy);
+    // Recordatorios 3 días antes
+    const en3dias = new Date(); en3dias.setDate(en3dias.getDate() + 3);
+    const fecha3 = en3dias.toISOString().slice(0, 10);
+    // Recordatorios 1 día antes
+    const en1dia = new Date(); en1dia.setDate(en1dia.getDate() + 1);
+    const fecha1 = en1dia.toISOString().slice(0, 10);
+    const pendientes = db.prepare(`
+      SELECT cp.*, a.nombre, a.apellido, a.telefono
+      FROM compromisos_pago cp JOIN alumnos a ON cp.alumno_id=a.id
+      WHERE cp.estado='pendiente' AND (cp.fecha_limite=? OR cp.fecha_limite=?)
+    `).all(fecha3, fecha1);
+    for (const comp of pendientes) {
+      if (!comp.telefono) continue;
+      const diasRestantes = comp.fecha_limite === fecha3 ? 3 : 1;
+      const msg = `Estimado/a *${comp.apellido}, ${comp.nombre}*:\n\nLe recordamos que tiene un *compromiso de pago* pendiente con el Instituto por *Gs. ${Number(comp.monto_total).toLocaleString()}*.\n\nFecha límite: *${comp.fecha_limite}* (${diasRestantes === 1 ? 'mañana' : 'en 3 días'}).\n\nPor favor acérquese a secretaría para regularizar su situación. Si ya realizó el pago, puede ignorar este mensaje.`;
+      await sendWhatsApp(comp.telefono, msg).catch(() => {});
+    }
+    console.log(`[Cron Compromisos] Procesados ${pendientes.length} recordatorios`);
+  } catch(e) { console.error('[Cron Compromisos]', e.message); }
+});
+
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
 app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
   const al = db.prepare(`
@@ -6800,31 +6852,61 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: fechaHoy });
 });
 
+// ── HELPERS DE CUOTAS ────────────────────────────────────────────────────────
+function cuotaBaseAlumno(al, cuotaNum) {
+  const anio = Number(al.curso_anio) || 1;
+  if (anio === 1) return 300000;
+  if (anio >= 3) return 400000;
+  // 2do año: excepción Cosmiatría — cuotas 1-5 (Marzo-Julio) = 300k, 6-10 (Agosto-Dic) = 400k
+  const esCosmiatria = /cosmiatr/i.test(al.carrera_nombre || '');
+  if (esCosmiatria) return cuotaNum <= 5 ? 300000 : 400000;
+  return 400000;
+}
+
+// Estado de las 10 cuotas del alumno (pagadas, pendientes, deuda)
+function calcCuotasEstado(al) {
+  const pagos = db.prepare("SELECT concepto,monto,mora_monto,fecha_pago FROM pagos WHERE alumno_id=? AND estado='Pagado' ORDER BY fecha_pago ASC").all(al.id);
+  const cuotas = [];
+  for (let n = 1; n <= 10; n++) {
+    const base = cuotaBaseAlumno(al, n);
+    const concepto = `Cuota ${n}`;
+    const mes = n + 2; // Cuota 1 = Marzo (mes 3), etc.
+    const pagoCuota = pagos.filter(p => p.concepto === concepto);
+    const totalPagado = pagoCuota.reduce((s, p) => s + Number(p.monto || 0), 0);
+    const mora = pagoCuota.reduce((s, p) => s + Number(p.mora_monto || 0), 0);
+    const esperado = base + mora;
+    const diferencia = Math.max(0, esperado - totalPagado);
+    const pagada = totalPagado >= base;
+    cuotas.push({ n, concepto, mes, base, mora, esperado, totalPagado, diferencia, pagada, fecha: pagoCuota[0]?.fecha_pago || null });
+  }
+  return cuotas;
+}
+
 // ── DEUDA ACUMULADA POR CUOTAS INCOMPLETAS ────────────────────────────────────
 app.get('/api/alumnos/:id/deuda', auth(), (req, res) => {
   try {
-    const al = db.prepare(`SELECT a.*, cu.anio as curso_anio FROM alumnos a LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(req.params.id);
+    const al = db.prepare(`SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(req.params.id);
     if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
     if (req.user.rol === 'alumno') {
       const alCheck = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
       if (!alCheck || alCheck.id !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
     }
-    const anio = Number(al.curso_anio) || 1;
-    const cuotaBase = anio === 1 ? 300000 : 400000;
-    const cuotasPagosAll = db.prepare("SELECT id,concepto,monto,fecha_pago,mora_monto FROM pagos WHERE alumno_id=? ORDER BY fecha_pago ASC").all(req.params.id)
+    const cuotasPagosAll = db.prepare("SELECT id,concepto,monto,fecha_pago,mora_monto FROM pagos WHERE alumno_id=? AND estado='Pagado' ORDER BY fecha_pago ASC").all(req.params.id)
       .filter(p => /^Cuota \d+$/.test(p.concepto || ''));
     let deudaBruta = 0;
     const detalle = cuotasPagosAll.map(p => {
-      const esperado = cuotaBase + (p.mora_monto || 0);
+      const cuotaNum = parseInt((p.concepto || '').match(/\d+/)?.[0] || '0');
+      const base = cuotaBaseAlumno(al, cuotaNum);
+      const esperado = base + Number(p.mora_monto || 0);
       const pagado = Number(p.monto || 0);
       const diferencia = Math.max(0, esperado - pagado);
       deudaBruta += diferencia;
-      return { concepto: p.concepto, esperado, pagado, diferencia, fecha: p.fecha_pago };
+      return { concepto: p.concepto, base, esperado, pagado, diferencia, fecha: p.fecha_pago };
     });
     const exoneraciones = db.prepare("SELECT * FROM deuda_exoneraciones WHERE alumno_id=? ORDER BY fecha DESC").all(req.params.id);
     const totalExonerado = exoneraciones.reduce((s, e) => s + Number(e.monto || 0), 0);
     const deudaNeta = Math.max(0, deudaBruta - totalExonerado);
-    res.json({ cuotaBase, deudaBruta, totalExonerado, deudaNeta, detalle, exoneraciones });
+    res.json({ deudaBruta, totalExonerado, deudaNeta, detalle, exoneraciones });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6848,6 +6930,61 @@ app.delete('/api/alumnos/:id/exonerar-deuda/:exonId', auth(ADM), (req, res) => {
     if (!ex) return res.status(404).json({ error: 'Exoneración no encontrada' });
     db.prepare('DELETE FROM deuda_exoneraciones WHERE id=?').run(req.params.exonId);
     audit(req.user.id, 'DELETE_EXONERACION_DEUDA', 'deuda_exoneraciones', req.params.exonId, { alumno_id: req.params.id, monto: ex.monto });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ESTADO DE LAS 10 CUOTAS ────────────────────────────────────────────────────
+app.get('/api/alumnos/:id/cuotas-estado', auth(), (req, res) => {
+  try {
+    const al = db.prepare(`SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    if (req.user.rol === 'alumno') {
+      const alCheck = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+      if (!alCheck || alCheck.id !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
+    }
+    const cuotas = calcCuotasEstado(al);
+    const todasPagadas = cuotas.every(c => c.pagada);
+    const compromiso = db.prepare("SELECT * FROM compromisos_pago WHERE alumno_id=? ORDER BY fecha_creacion DESC LIMIT 1").get(req.params.id);
+    res.json({ cuotas, todasPagadas, compromiso: compromiso || null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── COMPROMISOS DE PAGO ────────────────────────────────────────────────────────
+app.get('/api/alumnos/:id/compromiso-pago', auth(), (req, res) => {
+  try {
+    if (req.user.rol === 'alumno') {
+      const alCheck = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+      if (!alCheck || alCheck.id !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
+    }
+    const compromisos = db.prepare("SELECT cp.*, u.nombre as director_nombre, u.apellido as director_apellido FROM compromisos_pago cp LEFT JOIN usuarios u ON cp.director_id=u.id WHERE cp.alumno_id=? ORDER BY cp.fecha_creacion DESC").all(req.params.id);
+    res.json(compromisos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/alumnos/:id/compromiso-pago', auth(ADM), (req, res) => {
+  try {
+    const { fecha_limite, monto_total, concepto } = req.body;
+    if (!fecha_limite) return res.status(400).json({ error: 'Fecha límite requerida' });
+    const al = db.prepare('SELECT id, nombre, apellido FROM alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    // Cancelar compromiso pendiente previo
+    db.prepare("UPDATE compromisos_pago SET estado='cancelado' WHERE alumno_id=? AND estado='pendiente'").run(req.params.id);
+    const id = 'cp_' + Date.now();
+    db.prepare('INSERT INTO compromisos_pago (id,alumno_id,director_id,fecha_limite,monto_total,concepto,estado) VALUES (?,?,?,?,?,?,?)').run(
+      id, req.params.id, req.user.id, fecha_limite, Number(monto_total || 0), concepto || 'Cuotas pendientes', 'pendiente'
+    );
+    audit(req.user.id, 'COMPROMISO_PAGO', 'compromisos_pago', id, { alumno_id: req.params.id, alumno: `${al.apellido}, ${al.nombre}`, fecha_limite, monto_total });
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/alumnos/:id/compromiso-pago/:compId', auth(ADM), (req, res) => {
+  try {
+    const comp = db.prepare('SELECT * FROM compromisos_pago WHERE id=? AND alumno_id=?').get(req.params.compId, req.params.id);
+    if (!comp) return res.status(404).json({ error: 'Compromiso no encontrado' });
+    db.prepare('DELETE FROM compromisos_pago WHERE id=?').run(req.params.compId);
+    audit(req.user.id, 'DELETE_COMPROMISO_PAGO', 'compromisos_pago', req.params.compId, { alumno_id: req.params.id });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

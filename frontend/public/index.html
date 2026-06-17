@@ -1528,6 +1528,14 @@ function notaCls(n){return n?'n'+Math.min(5,Math.max(1,n)):'n-';}
 function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
 const _MESES_CUOTA_GLOBAL=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
 function cuotaAMes(c){const m=(c||'').match(/^Cuota\s+(\d+)$/i);return m?(_MESES_CUOTA_GLOBAL[+m[1]]||c):c;}
+function cuotaBaseParaAlumno(al, cuotaNum){
+  const anio=Number(al.curso_anio||al.anio||1);
+  if(anio===1)return 300000;
+  if(anio>=3)return 400000;
+  const esCosmiatria=/cosmiatr/i.test(al.carrera_nombre||'');
+  if(esCosmiatria)return cuotaNum<=5?300000:400000;
+  return 400000;
+}
 function fmtFechaHora(f){if(!f)return '-';try{const s=String(f).replace(' ','T');const d=new Date(s.endsWith('Z')||s.includes('+')?s:s+'Z');return d.toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}catch{return String(f).replace('T',' ').slice(0,16);}}
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
@@ -11995,12 +12003,13 @@ async function selAlumnoPago(alId){
   panel.innerHTML='<div style="padding:40px;text-align:center;color:#888;font-size:14px">⏳ Cargando...</div>';
 
   try{
-    const [rPagos,rHab,rBecas,rHabEspeciales,rDeuda]=await Promise.all([
+    const [rPagos,rHab,rBecas,rHabEspeciales,rDeuda,rCompromiso]=await Promise.all([
       api('GET','/api/pagos/alumno/'+alId),
       api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
       api('GET','/api/becas?alumno_id='+alId).catch(()=>[]),
       api('GET','/api/habilitaciones/'+alId).catch(()=>[]),
-      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/deuda').catch(()=>null):Promise.resolve(null)
+      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/deuda').catch(()=>null):Promise.resolve(null),
+      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/compromiso-pago').catch(()=>[]):Promise.resolve([])
     ]);
     const {pagos:rawPagos,totalPagado,alumno}=rPagos;
     // Normalizar: 'Matrícula 2025' / 'Matrícula 2026' → 'Matrícula' para compatibilidad con datos existentes
@@ -12263,6 +12272,7 @@ async function selAlumnoPago(alId){
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${al.display_nombre||al.nombre||''}','${al.display_apellido||al.apellido||''}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
           ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(29,158,117,.9);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700">💸 Exonerar deuda</button>`:''}
+          ${me.rol==='director'?`<button onclick="mCompromisoPago('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">📋 Compromiso de pago</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
       </div>
@@ -12280,12 +12290,10 @@ async function selAlumnoPago(alId){
 
         ${(()=>{
           if(!rDeuda||rDeuda.deudaBruta<=0)return '';
-          const { cuotaBase, deudaBruta, totalExonerado, deudaNeta, detalle } = rDeuda;
-          const _MESES_CUOTA=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
-          const _cuotaLabel=c=>{const m=c.match(/^Cuota\s+(\d+)$/i);return m?(_MESES_CUOTA[+m[1]]||c):c;};
+          const { deudaBruta, totalExonerado, deudaNeta, detalle } = rDeuda;
           const filasDetalle=detalle.filter(d=>d.diferencia>0).map(d=>`
             <tr>
-              <td style="padding:4px 10px;font-size:11px;color:#1e293b">${_cuotaLabel(d.concepto)}</td>
+              <td style="padding:4px 10px;font-size:11px;color:#1e293b">${cuotaAMes(d.concepto)}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;color:#475569">Gs. ${Number(d.esperado).toLocaleString()}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;color:#16a34a">Gs. ${Number(d.pagado).toLocaleString()}</td>
               <td style="padding:4px 10px;font-size:11px;text-align:right;font-weight:700;color:#dc2626">Gs. ${Number(d.diferencia).toLocaleString()}</td>
@@ -12311,7 +12319,7 @@ async function selAlumnoPago(alId){
                 <span style="font-size:18px">⚠️</span>
                 <div>
                   <div style="font-size:12px;font-weight:800;color:#9a3412">Deuda acumulada por cuotas incompletas</div>
-                  <div style="font-size:10px;color:#c2410c">Cuota base: Gs. ${Number(cuotaBase).toLocaleString()} — diferencia de pagos parciales</div>
+                  <div style="font-size:10px;color:#c2410c">Diferencia entre monto base y pagos registrados</div>
                 </div>
               </div>
               <div style="text-align:right">
@@ -12331,6 +12339,41 @@ async function selAlumnoPago(alId){
             </table>
             ${exonBtn}
             ${exoneracionesHtml}
+          </div>`;
+        })()}
+
+        ${(()=>{
+          if(me.rol!=='director')return '';
+          const compromisos=Array.isArray(rCompromiso)?rCompromiso:[];
+          const compActivo=compromisos.find(c=>c.estado==='pendiente'||c.estado==='vencido');
+          const esVencido=compActivo?.estado==='vencido';
+          const btnNuevo=`<button onclick="mCompromisoPago('${alId}')" style="background:#1D9E75;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">📋 ${compActivo?'Editar compromiso':'+ Compromiso de pago'}</button>`;
+          if(!compActivo)return `
+          <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-size:11px;color:#64748b">Sin compromiso de pago activo. Las cuotas no pagadas bloquean el acceso al examen final.</div>
+            ${btnNuevo}
+          </div>`;
+          return `
+          <div style="background:${esVencido?'#fef2f2':'#f0fdf4'};border:2px solid ${esVencido?'#fca5a5':'#86efac'};border-radius:10px;padding:14px 16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:18px">${esVencido?'🔴':'📋'}</span>
+                <div>
+                  <div style="font-size:12px;font-weight:800;color:${esVencido?'#b91c1c':'#166534'}">Compromiso de pago ${esVencido?'VENCIDO':'activo'}</div>
+                  <div style="font-size:10px;color:${esVencido?'#dc2626':'#15803d'}">${compActivo.concepto||'Cuotas pendientes'}</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <div style="text-align:right">
+                  <div style="font-size:9px;color:#64748b;text-transform:uppercase;font-weight:600">Monto</div>
+                  <div style="font-size:18px;font-weight:900;color:${esVencido?'#dc2626':'#16a34a'}">Gs. ${Number(compActivo.monto_total).toLocaleString()}</div>
+                  <div style="font-size:10px;color:#64748b">Vence: <strong>${compActivo.fecha_limite}</strong></div>
+                </div>
+                ${btnNuevo}
+                <button onclick="eliminarCompromiso('${compActivo.id}','${alId}')" style="background:#fee2e2;border:none;border-radius:7px;padding:6px 10px;font-size:12px;color:#dc2626;font-weight:700;cursor:pointer" title="Eliminar compromiso">✕</button>
+              </div>
+            </div>
+            ${esVencido?`<div style="font-size:11px;background:#fee2e2;border-radius:6px;padding:8px 12px;color:#b91c1c;font-weight:600">⚠ El compromiso venció sin pago. Los docentes no pueden cargar notas finales para este alumno.</div>`:''}
           </div>`;
         })()}
 
@@ -12462,6 +12505,59 @@ async function confirmarExoneracion(alId, deudaNeta){
     await api('POST','/api/alumnos/'+alId+'/exonerar-deuda',{monto,motivo});
     cm();
     showToast('Deuda exonerada correctamente','ok');
+    await selAlumnoPago(alId);
+  }catch(e){showToast('Error: '+e.message,'err');}
+}
+
+function mCompromisoPago(alId){
+  const hoy=new Date();
+  const enDiez=new Date(hoy); enDiez.setDate(hoy.getDate()+10);
+  const fechaDefault=enDiez.toISOString().slice(0,10);
+  modal(`<div style="max-width:420px;padding:20px">
+    <div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:6px">📋 Compromiso de pago</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">Crea un acuerdo de pago con fecha límite. Si vence sin pago, los docentes no pueden cargar notas finales.</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">Fecha límite *</label>
+        <input id="compFechaLimite" type="date" value="${fechaDefault}" min="${hoy.toISOString().slice(0,10)}"
+          style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">Monto comprometido (Gs.)</label>
+        <input id="compMonto" type="number" min="0" placeholder="0 si no se especifica"
+          style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:4px">Concepto</label>
+        <input id="compConcepto" type="text" value="Cuotas pendientes" placeholder="Cuotas pendientes"
+          style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="cm()" style="padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancelar</button>
+      <button onclick="guardarCompromiso('${alId}')" style="padding:8px 18px;border:none;border-radius:7px;background:#1D9E75;color:#fff;font-size:13px;font-weight:700;cursor:pointer">✔ Guardar compromiso</button>
+    </div>
+  </div>`,true);
+}
+
+async function guardarCompromiso(alId){
+  const fecha_limite=document.getElementById('compFechaLimite')?.value;
+  const monto_total=Number(document.getElementById('compMonto')?.value||0);
+  const concepto=document.getElementById('compConcepto')?.value||'Cuotas pendientes';
+  if(!fecha_limite){showToast('Fecha límite requerida','err');return;}
+  try{
+    await api('POST','/api/alumnos/'+alId+'/compromiso-pago',{fecha_limite,monto_total,concepto});
+    cm();
+    showToast('Compromiso registrado correctamente','ok');
+    await selAlumnoPago(alId);
+  }catch(e){showToast('Error: '+e.message,'err');}
+}
+
+async function eliminarCompromiso(compId, alId){
+  if(!confirm('¿Eliminar este compromiso de pago?')) return;
+  try{
+    await api('DELETE','/api/alumnos/'+alId+'/compromiso-pago/'+compId);
+    showToast('Compromiso eliminado','ok');
     await selAlumnoPago(alId);
   }catch(e){showToast('Error: '+e.message,'err');}
 }
@@ -14050,17 +14146,18 @@ async function pgMiEstadoCuenta(el){
   if(!me.alumnoId){el.innerHTML='<div class="ph"><h3>Estado de cuenta</h3></div><div class="es">Sin datos de alumno vinculado</div>';return;}
   el.innerHTML='<div class="ph"><h3>💳 Estado de cuenta</h3></div>'+skeletonTable(4,6);
   try{
-    const [rPagos, rDeuda] = await Promise.all([
+    const [rPagos, rDeuda, rCuotasEst] = await Promise.all([
       api('GET','/api/pagos/alumno/'+me.alumnoId),
-      api('GET','/api/alumnos/'+me.alumnoId+'/deuda').catch(()=>null)
+      api('GET','/api/alumnos/'+me.alumnoId+'/deuda').catch(()=>null),
+      api('GET','/api/alumnos/'+me.alumnoId+'/cuotas-estado').catch(()=>null)
     ]);
     const {pagos:rawPagos, totalPagado, alumno:al} = rPagos;
     const pagos = (rawPagos||[]).map(p=>({...p, concepto:/^Matr[ií]cula/.test(p.concepto||'')?'Matrícula':p.concepto}));
 
     const anio = Number(al?.curso_anio) || 1;
-    const cuotaBase = anio === 1 ? 300000 : 400000;
+    const cuotaBase1 = cuotaBaseParaAlumno(al, 1);
 
-    // Grid de cuotas (solo lectura)
+    // Grid de cuotas (solo lectura) — usa monto base correcto por cuota
     const mesFull=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
     const es1erAnio = anio === 1;
     const cuotasGrid = ['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
@@ -14081,8 +14178,9 @@ async function pgMiEstadoCuenta(el){
           <div style="font-size:10px;font-weight:600;color:#9ca3af;line-height:1.3">${lbl1}<br>${lbl2}</div>
         </div>`;
       }
-      const esperado = cuotaBase + (pago.mora_monto||0);
-      const parcial = pago.monto < esperado;
+      const base = typeof n==='number'?cuotaBaseParaAlumno(al,n):0;
+      const esperado = base + (pago.mora_monto||0);
+      const parcial = typeof n==='number'&&pago.monto < esperado;
       const bg = parcial ? '#fef3c7' : '#16a34a';
       const border = parcial ? '#fbbf24' : '#16a34a';
       const txtCol = parcial ? '#92400e' : '#fff';
@@ -14171,7 +14269,19 @@ async function pgMiEstadoCuenta(el){
         </table>
       </div>`).join('') || '<div class="es">Sin pagos registrados</div>';
 
+    const compActivo=rCuotasEst?.compromiso&&(rCuotasEst.compromiso.estado==='pendiente'||rCuotasEst.compromiso.estado==='vencido')?rCuotasEst.compromiso:null;
+    const compHtmlBanner=compActivo?`
+    <div style="background:${compActivo.estado==='vencido'?'#fef2f2':'#f0fdf4'};border:2px solid ${compActivo.estado==='vencido'?'#fca5a5':'#86efac'};border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:20px">${compActivo.estado==='vencido'?'🔴':'📋'}</span>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:12px;font-weight:800;color:${compActivo.estado==='vencido'?'#b91c1c':'#166534'}">Compromiso de pago ${compActivo.estado==='vencido'?'VENCIDO':'activo'}</div>
+        <div style="font-size:11px;color:#64748b">${compActivo.concepto||'Cuotas pendientes'} — vence ${compActivo.fecha_limite}</div>
+        ${compActivo.estado==='vencido'?`<div style="font-size:11px;color:#dc2626;font-weight:700;margin-top:2px">⚠ Tus notas finales están bloqueadas. Acercate a Secretaría.</div>`:''}
+      </div>
+      <div style="font-size:20px;font-weight:900;color:${compActivo.estado==='vencido'?'#dc2626':'#16a34a'}">Gs. ${Number(compActivo.monto_total).toLocaleString()}</div>
+    </div>`:'';
     el.innerHTML=`<div class="ph"><h3>💳 Estado de cuenta</h3></div>
+    ${compHtmlBanner}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
       <div class="card card-p" style="flex:1;min-width:140px;text-align:center">
         <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Total abonado</div>
@@ -14179,7 +14289,7 @@ async function pgMiEstadoCuenta(el){
       </div>
       <div class="card card-p" style="flex:1;min-width:140px;text-align:center">
         <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Cuota mensual</div>
-        <div style="font-size:26px;font-weight:900;color:#1e293b">Gs. ${cuotaBase.toLocaleString()}</div>
+        <div style="font-size:26px;font-weight:900;color:#1e293b">Gs. ${cuotaBase1.toLocaleString()}</div>
         <div style="font-size:10px;color:#64748b">${anio}° año</div>
       </div>
       ${rDeuda&&rDeuda.deudaNeta>0?`
