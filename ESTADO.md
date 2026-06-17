@@ -1,6 +1,6 @@
 # ESTADO DEL PROYECTO — ITS Sistema
 
-> Actualizado: 2026-06-17  
+> Actualizado: 2026-06-18  
 > Leer este archivo al inicio de cada nueva conversación para retomar sin perder contexto.
 
 ---
@@ -254,9 +254,39 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS nueva_tabla (...)`); } catch {}
 
 ---
 
+## Cambios aplicados 2026-06-18
+
+### Bug Cosmiatría — deuda falsa de 100k
+`GET /api/pagos/alumno/:id` (server.js ~línea 2777) no incluía JOIN con `carreras`.
+`al.carrera_nombre` llegaba `undefined` al frontend → `cuotaBaseParaAlumno` no detectaba
+Cosmiatría y devolvía 400k en lugar de 300k para cuotas 1–5.
+**Fix:** agregado `LEFT JOIN carreras c ON a.carrera_id=c.id` y `c.nombre as carrera_nombre`.
+
+### Nueva lógica de bloqueo de notas finales (server.js ~línea 1633)
+**Antes:** bloqueaba al docente solo si había compromiso VENCIDO.
+**Ahora:** si el alumno tiene cuotas con diferencia > 0 → bloquea al docente,
+SALVO que exista un compromiso en estado `pendiente` (que actúa como pase temporal).
+Director siempre puede cargar notas sin restricción.
+
+### Panel de alumno — UI refactorizada
+- **3 cards → 1 card financiera unificada**: estado (badge) + fila de deuda colapsable
+  (tabla oculta por defecto, toggle con "▾ Ver detalle") + fila de compromiso
+  (solo visible si el director creó uno)
+- **Pestañas sutiles**: Tab "💰 Pagos" (card financiera + grilla de cuotas/exámenes intacta)
+  y Tab "📋 Historial" (recuperatorios + habilitaciones + historial de pagos).
+  Función global `swPTab(id, tab)` en index.html.
+- **Header limpio**: eliminados botones "Mover sección" y "Modificar nombre".
+  Todos los botones del header con el mismo estilo `rgba(255,255,255,.15)`.
+
+### Texto modal compromiso actualizado
+Describe correctamente que el compromiso *habilita* al alumno para rendir finales,
+y que vencido lo bloquea nuevamente.
+
+---
+
 ## Pendientes / ideas futuras (no implementados)
 
 - Pago de exámenes por lote (múltiples materias, modal con checkboxes)
 - Reporte de compromisos vencidos para el director
-- Marcar compromiso como pagado cuando el alumno regulariza
+- Marcar compromiso como pagado automáticamente cuando el alumno regulariza todas las cuotas
 - El alumno en vista Mi Estado de Cuenta no ve el monto del compromiso en la grilla de cuotas individuales (solo en el banner)
