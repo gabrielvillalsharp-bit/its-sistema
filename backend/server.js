@@ -6038,13 +6038,30 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
 });
 
 // Endpoint de prueba: simula recibir un mensaje (para testear el bot sin WhatsApp)
+// Si numero contiene @ se usa tal cual como remoteJid; si no, se le agrega @s.whatsapp.net
 app.post('/api/whatsapp/webhook-test', auth(ADM), (req, res) => {
   const { numero, texto, nombre } = req.body;
   if (!numero || !texto) return res.status(400).json({ error: 'numero y texto requeridos' });
-  const fakeReq = { body: { event: 'messages.upsert', data: { key: { remoteJid: `${numero}@s.whatsapp.net`, fromMe: false }, message: { conversation: texto }, pushName: nombre||'Test' } } };
+  const remoteJid = numero.includes('@') ? numero : `${numero}@s.whatsapp.net`;
+  const fakeReq = { body: { event: 'messages.upsert', data: { key: { remoteJid, fromMe: false }, message: { conversation: texto }, pushName: nombre||'Test' } } };
   const fakeRes = { json: ()=>{} };
   manejarWebhookWA(fakeReq, fakeRes);
-  res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${numero}` });
+  res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${remoteJid}` });
+});
+
+// Endpoint temporal: ver últimos mensajes enviados por el bot + probar envío directo
+app.get('/api/whatsapp/mensajes-bot', auth(ADM), (req, res) => {
+  const msgs = db.prepare('SELECT * FROM wa_mensajes ORDER BY fecha DESC LIMIT 20').all();
+  res.json(msgs);
+});
+app.post('/api/whatsapp/enviar-test', auth(ADM), async (req, res) => {
+  const { numero, texto } = req.body;
+  if (!numero || !texto) return res.status(400).json({ error: 'numero y texto requeridos' });
+  try {
+    await enviarWA(numero, texto, 'bot');
+    const ultimo = db.prepare("SELECT * FROM wa_mensajes ORDER BY fecha DESC LIMIT 1").get();
+    res.json({ ok: true, ultimo });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Estado del bot
