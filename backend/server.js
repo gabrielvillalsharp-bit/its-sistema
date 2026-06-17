@@ -258,26 +258,31 @@ async function enviarWA(numero, msg, tipo) {
     const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
     if (!r.ok) {
       console.error(`[WA] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
+      botLog(numero, 'envio_fallido', `HTTP ${r.status} → ${numNorm}: ${respTxt.slice(0,300)}`);
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'fallido',nowStr()); } catch {}
     } else {
       console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
+      botLog(numero, 'envio_ok', `→ ${numNorm}: "${msg.slice(0,80)}"`);
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
   } catch(e) {
     console.error('[WA] enviar error:', e.message);
+    botLog(numero, 'envio_error', e.message);
     try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'individual',numNorm,msg.slice(0,100),'fallido',nowStr()); } catch {}
   }
 }
 
 async function procesarMensajeBot(numero, texto) {
-  if (_botPausado) return; // Bot pausado por el director
-  if (!process.env.EVOLUTION_URL || !process.env.EVOLUTION_KEY || !process.env.EVOLUTION_INSTANCE) return;
+  if (_botPausado) { botLog(numero, 'ignorado', 'bot pausado por director'); return; }
+  if (!process.env.EVOLUTION_URL || !process.env.EVOLUTION_KEY || !process.env.EVOLUTION_INSTANCE) { botLog(numero, 'ignorado', 'variables EVOLUTION no configuradas'); return; }
 
   const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
   const enviar = (msg) => enviarWA(numero, msg, 'bot');
 
   const txt = (texto||'').trim();
   if (!txt) return;
+
+  botLog(numero, 'recibido', `"${txt.slice(0,100)}"`);
 
   let est = _botEstados.get(numero);
   const hace24h = Date.now() - 24*60*60*1000;
@@ -299,9 +304,12 @@ async function procesarMensajeBot(numero, texto) {
 
   let respuestaIA;
   try {
+    botLog(numero, 'gemini_llamando', `historial: ${est.historial.length} turnos`);
     respuestaIA = await geminiChat(_botSystemPrompt(est.alumno), est.historial, txt);
+    botLog(numero, 'gemini_ok', `respuesta: "${respuestaIA.slice(0,120)}"`);
   } catch(e) {
     console.error('[BOT] Gemini error:', e.message);
+    botLog(numero, 'gemini_error', e.message);
     await enviar('Disculpe, en este momento no podemos procesar su mensaje automáticamente. Un encargado se comunicará con usted a la brevedad. 🙏');
     _botEstados.set(numero, est);
     return;
@@ -339,6 +347,24 @@ async function procesarMensajeBot(numero, texto) {
   _botEstados.set(numero, est);
 
   await enviar(limpio || 'Un encargado se comunicará con usted a la brevedad. 🙏');
+}
+
+// ── TABLA: log del bot de WhatsApp ───────────────────────────────────────────
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS wa_bot_log (
+    id TEXT PRIMARY KEY,
+    numero TEXT NOT NULL,
+    evento TEXT NOT NULL,
+    detalle TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+} catch {}
+
+function botLog(numero, evento, detalle) {
+  try {
+    db.prepare("INSERT INTO wa_bot_log (id,numero,evento,detalle) VALUES (?,?,?,?)")
+      .run('bl_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), String(numero||''), evento, detalle ? String(detalle).slice(0,500) : null);
+  } catch {}
 }
 
 // ── MIGRACIÓN: asignacion_id en pagos (para vincular pago con materia habilitada) ──
@@ -6049,10 +6075,19 @@ app.post('/api/whatsapp/webhook-test', auth(ADM), (req, res) => {
   res.json({ ok: true, mensaje: `Procesado: "${texto}" de ${remoteJid}` });
 });
 
-// Endpoint temporal: ver últimos mensajes enviados por el bot + probar envío directo
+// Endpoint: ver últimos mensajes enviados por el bot
 app.get('/api/whatsapp/mensajes-bot', auth(ADM), (req, res) => {
   const msgs = db.prepare('SELECT * FROM wa_mensajes ORDER BY fecha DESC LIMIT 20').all();
   res.json(msgs);
+});
+// Endpoint: log del bot (flujo completo de procesamiento)
+app.get('/api/whatsapp/bot-log', auth(ADM), (req, res) => {
+  const rows = db.prepare('SELECT * FROM wa_bot_log ORDER BY fecha DESC LIMIT 100').all();
+  res.json(rows);
+});
+app.delete('/api/whatsapp/bot-log', auth(ADM), (req, res) => {
+  db.prepare('DELETE FROM wa_bot_log').run();
+  res.json({ ok: true });
 });
 app.post('/api/whatsapp/enviar-test', auth(ADM), async (req, res) => {
   const { numero, texto } = req.body;

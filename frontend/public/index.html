@@ -2111,8 +2111,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot'};
-  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot'].map((t,i)=>{
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot',botlog:'🔍 Log Bot'};
+  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot','botlog'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -2459,6 +2459,21 @@ async function pgWhatsApp(el){
         <div id="wa-bot-msgs-list"><div style="text-align:center;color:#94a3b8;padding:20px;font-size:12px">Cargando...</div></div>
       </div>
     </div>
+  </div>
+
+  <!-- Panel: Log Bot -->
+  <div id="wa-panel-botlog" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <h3 style="margin:0;font-size:15px;color:#0f172a">🔍 Log del Bot — Flujo de procesamiento</h3>
+        <p style="margin:4px 0 0;font-size:11px;color:#64748b">Muestra cada paso: mensaje recibido → Gemini → envío → resultado</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="waCargarBotLog()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">🔄 Actualizar</button>
+        <button onclick="waBorrarBotLog()" style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:#dc2626">🗑 Limpiar log</button>
+      </div>
+    </div>
+    <div id="wa-botlog-cuerpo"><div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Cargando...</div></div>
   </div>`;
 
   // Store data for filters
@@ -2466,13 +2481,53 @@ async function pgWhatsApp(el){
   window._waReglas = reglasR||[];
 }
 
+async function waCargarBotLog(){
+  const cuerpo=document.getElementById('wa-botlog-cuerpo');
+  if(!cuerpo)return;
+  cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Cargando...</div>';
+  const rows=await api('GET','/api/whatsapp/bot-log').catch(()=>[]);
+  if(!rows.length){cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Sin registros todavía. Cuando llegue un mensaje al bot aparecerá aquí.</div>';return;}
+  const EVENTO_STYLE={
+    recibido:     {bg:'#eff6ff',bdr:'#bfdbfe',ic:'📩',c:'#1e40af'},
+    gemini_llamando:{bg:'#fefce8',bdr:'#fde68a',ic:'⏳',c:'#854d0e'},
+    gemini_ok:    {bg:'#f0fdf4',bdr:'#bbf7d0',ic:'✅',c:'#166534'},
+    gemini_error: {bg:'#fef2f2',bdr:'#fecaca',ic:'❌',c:'#991b1b'},
+    envio_ok:     {bg:'#f0fdf4',bdr:'#86efac',ic:'📤',c:'#15803d'},
+    envio_fallido:{bg:'#fef2f2',bdr:'#fca5a5',ic:'⚠️',c:'#b91c1c'},
+    envio_error:  {bg:'#fef2f2',bdr:'#fca5a5',ic:'💥',c:'#7f1d1d'},
+    ignorado:     {bg:'#f8fafc',bdr:'#e2e8f0',ic:'🔕',c:'#475569'},
+  };
+  const html=rows.map(r=>{
+    const s=EVENTO_STYLE[r.evento]||{bg:'#f8fafc',bdr:'#e2e8f0',ic:'•',c:'#334155'};
+    const num=(r.numero||'').length>20?r.numero.slice(0,20)+'…':r.numero;
+    const det=(r.detalle||'');
+    return `<div style="background:${s.bg};border:1px solid ${s.bdr};border-radius:8px;padding:10px 14px;margin-bottom:6px;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start">
+      <span style="font-size:16px">${s.ic}</span>
+      <div>
+        <span style="font-size:12px;font-weight:700;color:${s.c}">${r.evento}</span>
+        <span style="font-size:11px;color:#64748b;margin-left:8px">de <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${num}</code></span>
+        ${det?`<div style="font-size:11px;color:#374151;margin-top:3px;word-break:break-word">${det.replace(/</g,'&lt;')}</div>`:''}
+      </div>
+      <span style="font-size:10px;color:#94a3b8;white-space:nowrap">${(r.fecha||'').slice(5,16)}</span>
+    </div>`;
+  }).join('');
+  cuerpo.innerHTML=`<div style="max-height:600px;overflow-y:auto;padding-right:4px">${html}</div>`;
+}
+
+async function waBorrarBotLog(){
+  if(!confirm('¿Limpiar todo el log del bot?'))return;
+  await api('DELETE','/api/whatsapp/bot-log');
+  waCargarBotLog();
+}
+
 function waTab(t){
-  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot'].forEach(x=>{
+  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot','botlog'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
     if(b){b.style.background=x===t?'#128C7E':'transparent';b.style.color=x===t?'#fff':'#555';}
   });
+  if(t==='botlog') waCargarBotLog();
   if(t==='plantillas') loadWAPlantillas();
   if(t==='bot') waBotCargarMensajes();
 }
