@@ -2788,6 +2788,44 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   const totalPagado = pagos.reduce((s,p)=>s+p.monto,0);
   res.json({ pagos, totalPagado, alumno: al });
 });
+app.post('/api/pagos/lote', auth(ADM), (req, res) => {
+  const { alumno_id, periodo_id, concepto, monto_unitario, asignacion_ids, fecha_pago, medio_pago, comprobante } = req.body;
+  if (!Array.isArray(asignacion_ids) || asignacion_ids.length === 0)
+    return res.status(400).json({ error: 'Seleccioná al menos una materia' });
+  const ARANCEL_TIPO_MAP = {
+    'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
+    'Examen Final Ordinario':       'final_ord',
+    'Examen Final Recuperatorio':   'final_recuperatorio',
+    'Examen Final Complementario':  'complementario',
+    'Examen Final Extraordinario':  'extraordinario',
+  };
+  const tipoExamen = ARANCEL_TIPO_MAP[concepto];
+  if (!tipoExamen) return res.status(400).json({ error: 'Concepto no válido para pago por lote' });
+  try {
+    const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
+    const fechaHoy = nowDate();
+    const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
+    const montoUnit = parseFloat(monto_unitario) || 0;
+    let registros = 0;
+    const insertLote = db.transaction(() => {
+      asignacion_ids.forEach((asig_id, i) => {
+        const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asig_id, tipoExamen);
+        if (dup) return;
+        const pid = 'pg_' + (Date.now() + i) + '_' + i;
+        db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,0,0)')
+          .run(pid, alumno_id, periodo_id, concepto, montoUnit, fecha_pago || fechaHoy, 'Pagado', comprobante || null, medio_pago || 'Efectivo', asig_id);
+        const habId = 'hab_' + (Date.now() + i) + '_' + i;
+        db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
+          .run(habId, alumno_id, asig_id, tipoExamen, req.user.id, fechaHoy, `Habilitado por pago de ${concepto} (lote)`, esRecup);
+        audit(req.user.id, 'PAGO_LOTE', 'pagos', pid, { alumno_id, alumno: alNom ? `${alNom.apellido}, ${alNom.nombre}` : alumno_id, concepto, monto: montoUnit, asignacion_id: asig_id });
+        registros++;
+      });
+    });
+    insertLote();
+    res.json({ ok: true, registros });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id, mora_exonerada } = req.body;
   const esCuotaMensual = /^cuota\s+\d+/i.test(concepto || '');

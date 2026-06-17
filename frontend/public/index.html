@@ -12690,11 +12690,17 @@ function mPagoDirecto(alId, conceptoFijo){
   <div class="fg">
     ${concepto_select_html}
     <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-      <label style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">📚 Materia a habilitar <span style="color:var(--red)">*</span></label>
-      <select id="pgco-asig" style="width:100%;font-size:12px">
-        <option value="">— Cargando materias... —</option>
-      </select>
-      <div style="font-size:10px;color:#3730a3;margin-top:4px">El pago habilitará al docente a cargar la nota de este examen <strong>solo para esta materia</strong>.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label style="font-size:11px;font-weight:700;color:#1d4ed8">📚 Materias a habilitar <span style="color:var(--red)">*</span></label>
+        <div style="display:flex;gap:4px">
+          <button type="button" onclick="pgSelTodasMaterias(true)" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#eff6ff;color:#1d4ed8;cursor:pointer">Todas</button>
+          <button type="button" onclick="pgSelTodasMaterias(false)" style="font-size:10px;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#64748b;cursor:pointer">Ninguna</button>
+        </div>
+      </div>
+      <div id="pgco-asig-checks" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:2px">
+        <div style="color:#94a3b8;font-size:12px">Cargando materias...</div>
+      </div>
+      <div id="pgco-total-info" style="margin-top:8px;font-size:12px;font-weight:700;color:#1d4ed8;min-height:18px"></div>
     </div>
     <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
       🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
@@ -12924,9 +12930,17 @@ function mPago(){
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
       <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-        <label style="font-size:11px;font-weight:700;color:#1d4ed8;display:block;margin-bottom:6px">📚 Materia a habilitar <span style="color:var(--red)">*</span></label>
-        <select id="pgco-asig" style="width:100%;font-size:12px"><option value="">— Cargando... —</option></select>
-        <div style="font-size:10px;color:#3730a3;margin-top:4px">El pago habilitará al docente solo para esta materia.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:11px;font-weight:700;color:#1d4ed8">📚 Materias a habilitar <span style="color:var(--red)">*</span></label>
+          <div style="display:flex;gap:4px">
+            <button type="button" onclick="pgSelTodasMaterias(true)" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#eff6ff;color:#1d4ed8;cursor:pointer">Todas</button>
+            <button type="button" onclick="pgSelTodasMaterias(false)" style="font-size:10px;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#64748b;cursor:pointer">Ninguna</button>
+          </div>
+        </div>
+        <div id="pgco-asig-checks" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:2px">
+          <div style="color:#94a3b8;font-size:12px">Cargando materias...</div>
+        </div>
+        <div id="pgco-total-info" style="margin-top:8px;font-size:12px;font-weight:700;color:#1d4ed8;min-height:18px"></div>
       </div>
       <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
         🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
@@ -12995,6 +13009,24 @@ function pgActualizarMora(){
   }
 }
 const ARANCEL_CONCEPTOS=['Examen Parcial Recuperatorio','Examen Final Ordinario','Examen Final Recuperatorio','Examen Final Complementario','Examen Final Extraordinario'];
+function pgSelTodasMaterias(sel){
+  document.querySelectorAll('input[name="pgMateria"]').forEach(c=>{c.checked=sel;});
+  pgActualizarTotalMaterias();
+}
+function pgActualizarTotalMaterias(){
+  const count=document.querySelectorAll('input[name="pgMateria"]:checked').length;
+  const concepto=v('pgco')||'';
+  const aranceles=W._pdata?.aranceles||[];
+  const specificMap={'Examen Parcial Recuperatorio':'parcial_recuperatorio','Examen Final Ordinario':'final_ordinario','Examen Final Recuperatorio':'final_recuperatorio','Examen Final Complementario':'complementario','Examen Final Extraordinario':'extraordinario'};
+  const tipo=specificMap[concepto];
+  const ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
+  const unitario=ar?ar.monto:0;
+  const total=unitario*count;
+  const inp=document.getElementById('pgmo');
+  if(inp)inp.value=total||'';
+  const info=document.getElementById('pgco-total-info');
+  if(info)info.textContent=count>0&&unitario?`${count} materia${count>1?'s':''} × Gs. ${Number(unitario).toLocaleString()} = Gs. ${Number(total).toLocaleString()}`:'';
+}
 function pgcoChangeHandler(){
   const concepto=v('pgco')||'';
   const aviso=document.getElementById('pgco-recup-aviso');
@@ -13005,25 +13037,28 @@ function pgcoChangeHandler(){
     if(isArancel){
       const alId=v('pgal');
       if(alId){
-        const sel=document.getElementById('pgco-asig');
-        if(sel)sel.innerHTML='<option value="">— Cargando materias... —</option>';
+        const box=document.getElementById('pgco-asig-checks');
+        const info=document.getElementById('pgco-total-info');
+        if(box)box.innerHTML='<div style="color:#94a3b8;font-size:12px">Cargando materias...</div>';
+        if(info)info.textContent='';
         api('GET','/api/alumnos/'+alId+'/asignaciones-activas').then(asigs=>{
-          if(!sel)return;
+          if(!box)return;
           const exclude=new Set(W._arancelExclude||[]);
           W._arancelExclude=null;
           const disponibles=(asigs||[]).filter(a=>!exclude.has(a.id));
           if(!disponibles.length){
-            sel.innerHTML=exclude.size
-              ?'<option value="">— Todas las materias ya tienen este examen habilitado —</option>'
-              :'<option value="">— Sin materias en período activo —</option>';
+            box.innerHTML=`<div style="color:#94a3b8;font-size:12px;padding:6px">${exclude.size?'Todas las materias ya tienen este examen habilitado':'Sin materias en período activo'}</div>`;
           } else {
-            sel.innerHTML='<option value="">— Seleccionar materia —</option>'+
-              disponibles.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
+            box.innerHTML=disponibles.map(a=>`
+              <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;background:#fff;border:1px solid #e0e7ff">
+                <input type="checkbox" value="${a.id}" name="pgMateria" onchange="pgActualizarTotalMaterias()" style="accent-color:#1D9E75;width:14px;height:14px;flex-shrink:0">
+                <span style="font-size:12px;color:#1e293b">${a.materia_nombre}</span>
+              </label>`).join('');
           }
+          pgActualizarTotalMaterias();
         }).catch(()=>{
           W._arancelExclude=null;
-          const sel=document.getElementById('pgco-asig');
-          if(sel)sel.innerHTML='<option value="">— Error al cargar materias —</option>';
+          if(box)box.innerHTML='<div style="color:#dc2626;font-size:12px">Error al cargar materias</div>';
         });
       }
     }
@@ -13079,11 +13114,16 @@ async function svPago(){
   const alumnoId=v('pgal')||String(W._pagoSel||'');
   const concepto=v('pgco');
   const isArancel=ARANCEL_CONCEPTOS.includes(concepto);
-  const asignacion_id=isArancel?(v('pgco-asig')||null):null;
-  if(isArancel&&!asignacion_id)return alert('⚠ Para registrar este pago debes seleccionar la materia que el alumno va a habilitar para rendir.');
-  const materiaLabel=isArancel&&asignacion_id?document.getElementById('pgco-asig')?.options[document.getElementById('pgco-asig')?.selectedIndex]?.text||'':'';
-  const o={alumno_id:alumnoId,concepto,monto:parseFloat(v('pgmo')),fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo',mora_exonerada:document.getElementById('pgMoraExon')?.checked?1:0};
+  const pgChecks=[...document.querySelectorAll('input[name="pgMateria"]:checked')];
+  const asignacion_ids=isArancel?pgChecks.map(c=>c.value):[];
+  const asignacion_id=asignacion_ids.length===1?asignacion_ids[0]:null;
+  if(isArancel&&asignacion_ids.length===0)return alert('⚠ Seleccioná al menos una materia para habilitar.');
+  const materiaLabel=isArancel&&asignacion_ids.length===1?(pgChecks[0].closest('label')?.querySelector('span')?.textContent||''):asignacion_ids.length>1?`${asignacion_ids.length} materias`:'';
+  const montoTotal=parseFloat(v('pgmo'))||0;
+  const montoUnitario=asignacion_ids.length>1?montoTotal/asignacion_ids.length:montoTotal;
+  const o={alumno_id:alumnoId,concepto,monto:montoTotal,monto_unitario:montoUnitario,fecha_pago:v('pgfe'),comprobante:v('pgco2'),periodo_id:parseInt(v('pgpe')),medio_pago:v('pgmed')||'Efectivo',mora_exonerada:document.getElementById('pgMoraExon')?.checked?1:0};
   if(asignacion_id)o.asignacion_id=asignacion_id;
+  if(asignacion_ids.length>1)o.asignacion_ids=asignacion_ids;
   if(!o.monto||!o.alumno_id)return alert('Completar alumno y monto');
   window._pagoData=o;
   const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(o.alumno_id));
@@ -13147,10 +13187,11 @@ async function svPago(){
     async function(){
       const pd=window._pagoData;
       try{
-        const r=await api('POST','/api/pagos',pd);
+        const r=pd.asignacion_ids?.length>1
+          ?await api('POST','/api/pagos/lote',{alumno_id:pd.alumno_id,periodo_id:pd.periodo_id,concepto:pd.concepto,monto_unitario:pd.monto_unitario,asignacion_ids:pd.asignacion_ids,fecha_pago:pd.fecha_pago,medio_pago:pd.medio_pago,comprobante:pd.comprobante})
+          :await api('POST','/api/pagos',pd);
         cm();
         const alId=pd.alumno_id||String(W._pagoSel||'');
-        // Recargar vista de pagos
         const enDetalle=W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none';
         if(enDetalle){
           refreshKanban(alId);
@@ -13159,7 +13200,9 @@ async function svPago(){
         } else {
           go('pagos');
         }
-        if(r.habilitado_examen&&r.tipo_examen){
+        if(r.registros>1){
+          toast(`✓ ${r.registros} pagos registrados — 🔓 ${r.registros} materias habilitadas`,'ok',5000);
+        } else if(r.habilitado_examen&&r.tipo_examen){
           const lblMap={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
           toast(`✓ Pago registrado — 🔓 Habilitado para ${lblMap[r.tipo_examen]||r.tipo_examen}`,'ok',5000);
         } else if(r.monto_pendiente>0){
