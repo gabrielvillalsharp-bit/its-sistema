@@ -379,6 +379,17 @@ try {
 try { db.prepare("ALTER TABLE pagos ADD COLUMN mora_exonerada INTEGER NOT NULL DEFAULT 0").run(); } catch {}
 try { db.prepare("ALTER TABLE pagos ADD COLUMN mora_monto INTEGER NOT NULL DEFAULT 0").run(); } catch {}
 
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS deuda_exoneraciones (
+    id TEXT PRIMARY KEY,
+    alumno_id TEXT NOT NULL,
+    monto INTEGER NOT NULL,
+    motivo TEXT,
+    director_id TEXT,
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+} catch {}
+
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
@@ -6780,6 +6791,48 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,?,?)').run(cid, req.params.id, 'estudios', fechaHoy, req.user.id);
   audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id});
   res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: fechaHoy });
+});
+
+// ── DEUDA ACUMULADA POR CUOTAS INCOMPLETAS ────────────────────────────────────
+app.get('/api/alumnos/:id/deuda', auth(), (req, res) => {
+  try {
+    const al = db.prepare(`SELECT a.*, cu.anio as curso_anio FROM alumnos a LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?`).get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    if (req.user.rol === 'alumno') {
+      const alCheck = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id);
+      if (!alCheck || alCheck.id !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
+    }
+    const anio = Number(al.curso_anio) || 1;
+    const cuotaBase = anio === 1 ? 300000 : 400000;
+    const cuotasPagosAll = db.prepare("SELECT id,concepto,monto,fecha_pago,mora_monto FROM pagos WHERE alumno_id=? ORDER BY fecha_pago ASC").all(req.params.id)
+      .filter(p => /^Cuota \d+$/.test(p.concepto || ''));
+    let deudaBruta = 0;
+    const detalle = cuotasPagosAll.map(p => {
+      const esperado = cuotaBase + (p.mora_monto || 0);
+      const pagado = Number(p.monto || 0);
+      const diferencia = Math.max(0, esperado - pagado);
+      deudaBruta += diferencia;
+      return { concepto: p.concepto, esperado, pagado, diferencia, fecha: p.fecha_pago };
+    });
+    const exoneraciones = db.prepare("SELECT * FROM deuda_exoneraciones WHERE alumno_id=? ORDER BY fecha DESC").all(req.params.id);
+    const totalExonerado = exoneraciones.reduce((s, e) => s + Number(e.monto || 0), 0);
+    const deudaNeta = Math.max(0, deudaBruta - totalExonerado);
+    res.json({ cuotaBase, deudaBruta, totalExonerado, deudaNeta, detalle, exoneraciones });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/alumnos/:id/exonerar-deuda', auth(ADM), (req, res) => {
+  try {
+    const { monto, motivo } = req.body;
+    const montoNum = Number(monto || 0);
+    if (!montoNum || montoNum <= 0) return res.status(400).json({ error: 'Monto inválido' });
+    const al = db.prepare('SELECT id, nombre, apellido FROM alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const id = 'de_' + Date.now();
+    db.prepare('INSERT INTO deuda_exoneraciones (id,alumno_id,monto,motivo,director_id) VALUES (?,?,?,?,?)').run(id, req.params.id, montoNum, motivo || null, req.user.id);
+    audit(req.user.id, 'EXONERACION_DEUDA', 'deuda_exoneraciones', id, { alumno_id: req.params.id, alumno: `${al.apellido}, ${al.nombre}`, monto: montoNum, motivo });
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ESTADO DE CUENTA CON DEUDAS ACUMULADAS ────────────────────────────────────

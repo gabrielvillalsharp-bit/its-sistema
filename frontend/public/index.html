@@ -11993,11 +11993,12 @@ async function selAlumnoPago(alId){
   panel.innerHTML='<div style="padding:40px;text-align:center;color:#888;font-size:14px">⏳ Cargando...</div>';
 
   try{
-    const [rPagos,rHab,rBecas,rHabEspeciales]=await Promise.all([
+    const [rPagos,rHab,rBecas,rHabEspeciales,rDeuda]=await Promise.all([
       api('GET','/api/pagos/alumno/'+alId),
       api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
       api('GET','/api/becas?alumno_id='+alId).catch(()=>[]),
-      api('GET','/api/habilitaciones/'+alId).catch(()=>[])
+      api('GET','/api/habilitaciones/'+alId).catch(()=>[]),
+      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/deuda').catch(()=>null):Promise.resolve(null)
     ]);
     const {pagos:rawPagos,totalPagado,alumno}=rPagos;
     // Normalizar: 'Matrícula 2025' / 'Matrícula 2026' → 'Matrícula' para compatibilidad con datos existentes
@@ -12259,6 +12260,7 @@ async function selAlumnoPago(alId){
           <button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">↕ Mover sección</button>
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${al.display_nombre||al.nombre||''}','${al.display_apellido||al.apellido||''}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
+          ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(139,92,246,.85);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700">💸 Exonerar deuda</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
       </div>
@@ -12273,6 +12275,48 @@ async function selAlumnoPago(alId){
           ${rHab.cuotas_faltantes?.length&&!rHab.habilitado?`<span style="font-size:11px;color:#b71c1c;background:#fce4ec;padding:3px 10px;border-radius:10px">Faltan: <strong>${rHab.cuotas_faltantes.join(', ')}</strong></span>`:''}
           ${becasActivas.length?`<span style="background:#dcfce7;border:1px solid #86efac;color:#166534;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">💎 ${becasActivas.map(b=>b.tipo+(b.porcentaje?' '+b.porcentaje+'%':'')).join(' · ')}</span>`:''}
         </div>
+
+        ${(()=>{
+          if(!rDeuda||rDeuda.deudaBruta<=0)return '';
+          const { cuotaBase, deudaBruta, totalExonerado, deudaNeta, detalle } = rDeuda;
+          const filasDetalle=detalle.filter(d=>d.diferencia>0).map(d=>`
+            <tr>
+              <td style="padding:4px 10px;font-size:11px;color:#1e293b">${d.concepto}</td>
+              <td style="padding:4px 10px;font-size:11px;text-align:right;color:#475569">Gs. ${Number(d.esperado).toLocaleString()}</td>
+              <td style="padding:4px 10px;font-size:11px;text-align:right;color:#16a34a">Gs. ${Number(d.pagado).toLocaleString()}</td>
+              <td style="padding:4px 10px;font-size:11px;text-align:right;font-weight:700;color:#dc2626">Gs. ${Number(d.diferencia).toLocaleString()}</td>
+            </tr>`).join('');
+          const exonBtn=me.rol==='director'&&deudaNeta>0
+            ?`<button onclick="mExonerarDeuda('${alId}',${deudaNeta})" style="background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💸 Exonerar deuda</button>`
+            :'';
+          return `
+          <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:10px;padding:14px 16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:18px">⚠️</span>
+                <div>
+                  <div style="font-size:12px;font-weight:800;color:#9a3412">Deuda acumulada por cuotas incompletas</div>
+                  <div style="font-size:10px;color:#c2410c">Cuota base: Gs. ${Number(cuotaBase).toLocaleString()} — diferencia de pagos parciales</div>
+                </div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:#c2410c;font-weight:600;text-transform:uppercase">Deuda neta</div>
+                <div style="font-size:22px;font-weight:900;color:#dc2626">Gs. ${Number(deudaNeta).toLocaleString()}</div>
+                ${totalExonerado>0?`<div style="font-size:10px;color:#16a34a;font-weight:700">− Gs. ${Number(totalExonerado).toLocaleString()} exonerado</div>`:''}
+              </div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;margin-bottom:10px;font-size:11px">
+              <thead><tr style="background:#fff7ed;border-bottom:1px solid #fed7aa">
+                <th style="padding:5px 10px;text-align:left;color:#78350f;font-weight:700">Cuota</th>
+                <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Esperado</th>
+                <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Pagado</th>
+                <th style="padding:5px 10px;text-align:right;color:#78350f;font-weight:700">Pendiente</th>
+              </tr></thead>
+              <tbody>${filasDetalle}</tbody>
+            </table>
+            ${exonBtn}
+          </div>`;
+        })()}
 
         <!-- Estado de cuotas -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
@@ -12345,6 +12389,58 @@ async function eliminarHabilitacion(habId, alId){
     await selAlumnoPago(alId);
   }catch(e){showToast('Error: '+e.message,'err');}
 }
+
+async function mExonerarDeuda(alId, deudaNeta){
+  const opciones=`
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:2px solid #e2e8f0;border-radius:8px">
+        <input type="radio" name="tipoExon" value="total" checked style="accent-color:#7c3aed">
+        <span style="font-size:13px;font-weight:700">Exonerar deuda total — Gs. ${Number(deudaNeta).toLocaleString()}</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;border:2px solid #e2e8f0;border-radius:8px">
+        <input type="radio" name="tipoExon" value="parcial" style="accent-color:#7c3aed">
+        <span style="font-size:13px;font-weight:700">Exonerar monto específico</span>
+      </label>
+      <div id="exonParBox" style="display:none;padding:0 10px">
+        <input id="exonMonto" type="number" min="1" max="${deudaNeta}" placeholder="Monto a exonerar (Gs.)"
+          style="width:100%;padding:8px 12px;border:1.5px solid #c4b5fd;border-radius:7px;font-size:13px;box-sizing:border-box">
+      </div>
+      <input id="exonMotivo" type="text" placeholder="Motivo (opcional)"
+        style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>`;
+  modal(`<div style="max-width:420px;padding:20px">
+    <div style="font-size:16px;font-weight:800;color:#7c3aed;margin-bottom:6px">💸 Exonerar deuda acumulada</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px">Deuda neta actual: <strong style="color:#dc2626">Gs. ${Number(deudaNeta).toLocaleString()}</strong></div>
+    ${opciones}
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="cm()" style="padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:7px;background:#fff;font-size:13px;cursor:pointer">Cancelar</button>
+      <button onclick="confirmarExoneracion('${alId}',${deudaNeta})" style="padding:8px 18px;border:none;border-radius:7px;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer">✔ Confirmar exoneración</button>
+    </div>
+  </div>`,true);
+  setTimeout(()=>{
+    document.querySelectorAll('input[name="tipoExon"]').forEach(r=>{
+      r.addEventListener('change',()=>{
+        const box=document.getElementById('exonParBox');
+        if(box) box.style.display=r.value==='parcial'?'block':'none';
+      });
+    });
+  },100);
+}
+
+async function confirmarExoneracion(alId, deudaNeta){
+  const tipo=document.querySelector('input[name="tipoExon"]:checked')?.value||'total';
+  let monto=tipo==='total'?deudaNeta:Number(document.getElementById('exonMonto')?.value||0);
+  const motivo=document.getElementById('exonMotivo')?.value||'';
+  if(!monto||monto<=0){showToast('Ingrese un monto válido','err');return;}
+  if(monto>deudaNeta){showToast('El monto no puede superar la deuda neta','err');return;}
+  try{
+    await api('POST','/api/alumnos/'+alId+'/exonerar-deuda',{monto,motivo});
+    cm();
+    showToast('Deuda exonerada correctamente','ok');
+    await selAlumnoPago(alId);
+  }catch(e){showToast('Error: '+e.message,'err');}
+}
+
 async function habilitarDesdeHistorial(alId){
   const [aranceles, asigs] = await Promise.all([
     api('GET','/api/aranceles').catch(()=>[]),
@@ -13917,39 +14013,158 @@ async function pgMiEstadoCuenta(el){
   if(!me.alumnoId){el.innerHTML='<div class="ph"><h3>Estado de cuenta</h3></div><div class="es">Sin datos de alumno vinculado</div>';return;}
   el.innerHTML='<div class="ph"><h3>💳 Estado de cuenta</h3></div>'+skeletonTable(4,6);
   try{
-    const {alumno,pagos,resumenCuotas,totalPagado,totalDeuda,periodo}=await api('GET','/api/alumnos/'+me.alumnoId+'/estado-cuenta');
+    const [rPagos, rDeuda] = await Promise.all([
+      api('GET','/api/pagos/alumno/'+me.alumnoId),
+      api('GET','/api/alumnos/'+me.alumnoId+'/deuda').catch(()=>null)
+    ]);
+    const {pagos:rawPagos, totalPagado, alumno:al} = rPagos;
+    const pagos = (rawPagos||[]).map(p=>({...p, concepto:/^Matr[ií]cula/.test(p.concepto||'')?'Matrícula':p.concepto}));
+
+    const anio = Number(al?.curso_anio) || 1;
+    const cuotaBase = anio === 1 ? 300000 : 400000;
+
+    // Grid de cuotas (solo lectura)
+    const mesFull=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+    const es1erAnio = anio === 1;
+    const cuotasGrid = ['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
+      if(n==='Matrícula'&&es1erAnio){
+        return `<div style="border:1.5px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:12px 4px;text-align:center;flex:1;min-width:52px">
+          <div style="font-size:10px;color:#d1d5db;margin-bottom:4px">—</div>
+          <div style="font-size:10px;font-weight:600;color:#d1d5db;line-height:1.3">Mat.<br>N/A</div>
+        </div>`;
+      }
+      const key = n==='Matrícula'?'Matrícula':'Cuota '+n;
+      const lbl1 = n==='Matrícula'?'Matrí-':'Cuota';
+      const lbl2 = n==='Matrícula'?'cula':mesFull[n]||n;
+      const pago = pagos.find(p=>p.concepto===key);
+      const ok = !!pago;
+      if(!ok){
+        return `<div style="border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;padding:12px 4px;text-align:center;flex:1;min-width:52px">
+          <div style="font-size:10px;color:#d1d5db;margin-bottom:4px">○</div>
+          <div style="font-size:10px;font-weight:600;color:#9ca3af;line-height:1.3">${lbl1}<br>${lbl2}</div>
+        </div>`;
+      }
+      const esperado = cuotaBase + (pago.mora_monto||0);
+      const parcial = pago.monto < esperado;
+      const bg = parcial ? '#fef3c7' : '#16a34a';
+      const border = parcial ? '#fbbf24' : '#16a34a';
+      const txtCol = parcial ? '#92400e' : '#fff';
+      const ico = parcial ? '⚠' : '✓';
+      return `<div style="border:1.5px solid ${border};border-radius:8px;background:${bg};padding:12px 4px;text-align:center;flex:1;min-width:52px"
+        title="Gs. ${Number(pago.monto).toLocaleString()} pagado${parcial?' — pendiente Gs. '+Math.max(0,esperado-pago.monto).toLocaleString():''}">
+        <div style="font-size:10px;color:${parcial?'#b45309':'rgba(255,255,255,.7)'};margin-bottom:4px">${ico}</div>
+        <div style="font-size:10px;font-weight:700;color:${txtCol};line-height:1.3">${lbl1}<br>${lbl2}</div>
+      </div>`;
+    }).join('');
+
+    // Tarjeta de deuda acumulada
+    let deudaHtml = '';
+    if(rDeuda && rDeuda.deudaBruta > 0){
+      const {deudaBruta, totalExonerado, deudaNeta, detalle} = rDeuda;
+      const filas = detalle.filter(d=>d.diferencia>0).map(d=>`
+        <tr>
+          <td style="padding:5px 10px;font-size:12px;color:#1e293b">${d.concepto}</td>
+          <td style="padding:5px 10px;font-size:12px;text-align:right;color:#64748b">Gs. ${Number(d.esperado).toLocaleString()}</td>
+          <td style="padding:5px 10px;font-size:12px;text-align:right;color:#16a34a;font-weight:700">Gs. ${Number(d.pagado).toLocaleString()}</td>
+          <td style="padding:5px 10px;font-size:12px;text-align:right;font-weight:800;color:#dc2626">Gs. ${Number(d.diferencia).toLocaleString()}</td>
+        </tr>`).join('');
+      deudaHtml = `
+      <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:22px">⚠️</span>
+            <div>
+              <div style="font-size:14px;font-weight:800;color:#9a3412">Tenés saldo pendiente en cuotas</div>
+              <div style="font-size:11px;color:#c2410c;margin-top:2px">Cuotas en las que se pagó menos del valor mensual</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:9px;color:#c2410c;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Deuda total</div>
+            <div style="font-size:28px;font-weight:900;color:#dc2626;line-height:1">Gs. ${Number(deudaNeta).toLocaleString()}</div>
+            ${totalExonerado>0?`<div style="font-size:11px;color:#16a34a;font-weight:700;margin-top:2px">− Gs. ${Number(totalExonerado).toLocaleString()} exonerado por Dirección</div>`:''}
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;font-size:12px">
+          <thead><tr style="background:#fff7ed;border-bottom:1px solid #fed7aa">
+            <th style="padding:6px 10px;text-align:left;color:#78350f;font-weight:700">Cuota</th>
+            <th style="padding:6px 10px;text-align:right;color:#78350f;font-weight:700">Esperado</th>
+            <th style="padding:6px 10px;text-align:right;color:#78350f;font-weight:700">Pagado</th>
+            <th style="padding:6px 10px;text-align:right;color:#78350f;font-weight:700">Diferencia</th>
+          </tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+        <div style="margin-top:10px;padding:8px 12px;background:#fef3c7;border-radius:7px;font-size:11px;color:#78350f">
+          💡 Acercate a Secretaría para regularizar tu saldo pendiente.
+        </div>
+      </div>`;
+    }
+
+    // Historial agrupado
+    const grupos={matricula:{label:'Matrícula',icon:'🏫',pagos:[]},cuotas:{label:'Cuotas mensuales',icon:'📅',pagos:[]},examenes:{label:'Exámenes',icon:'📝',pagos:[]},otros:{label:'Otros',icon:'📌',pagos:[]}};
+    pagos.forEach(p=>{
+      const c=p.concepto||'';
+      if(c==='Matrícula') grupos.matricula.pagos.push(p);
+      else if(/^Cuota \d+$/.test(c)) grupos.cuotas.pagos.push(p);
+      else if(/Parcial|Final|Extraordinario|Examen/i.test(c)) grupos.examenes.pagos.push(p);
+      else grupos.otros.pagos.push(p);
+    });
+    const histHtml = Object.entries(grupos).filter(([,g])=>g.pagos.length>0).map(([,g])=>`
+      <div style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+        <div style="background:#f8fafc;padding:9px 14px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0">
+          <span>${g.icon} ${g.label}</span>
+          <span style="color:#166534">Gs. ${g.pagos.reduce((s,p)=>s+Number(p.monto||0),0).toLocaleString()}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#fafafa">
+            <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Fecha</th>
+            <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Concepto</th>
+            <th style="padding:6px 10px;text-align:right;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Monto</th>
+            <th style="padding:6px 10px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Medio</th>
+          </tr></thead>
+          <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map((p,i)=>`
+            <tr style="background:${i%2?'#f8fafc':'#fff'}">
+              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
+              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${p.concepto}</td>
+              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;color:#166534">Gs. ${Number(p.monto||0).toLocaleString()}</td>
+              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#64748b">${p.medio_pago||'Efectivo'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`).join('') || '<div class="es">Sin pagos registrados</div>';
+
     el.innerHTML=`<div class="ph"><h3>💳 Estado de cuenta</h3></div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-      <div class="card card-p" style="flex:1;min-width:150px;text-align:center">
-        <div style="font-size:11px;color:var(--t2)">Total pagado</div>
-        <div style="font-size:24px;font-weight:900;color:#2e7d32">Gs. ${totalPagado.toLocaleString()}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="card card-p" style="flex:1;min-width:140px;text-align:center">
+        <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Total abonado</div>
+        <div style="font-size:26px;font-weight:900;color:#166534">Gs. ${Number(totalPagado||0).toLocaleString()}</div>
+      </div>
+      <div class="card card-p" style="flex:1;min-width:140px;text-align:center">
+        <div style="font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Cuota mensual</div>
+        <div style="font-size:26px;font-weight:900;color:#1e293b">Gs. ${cuotaBase.toLocaleString()}</div>
+        <div style="font-size:10px;color:#64748b">${anio}° año</div>
+      </div>
+      ${rDeuda&&rDeuda.deudaNeta>0?`
+      <div class="card card-p" style="flex:1;min-width:140px;text-align:center;background:#fff7ed;border-color:#fed7aa">
+        <div style="font-size:10px;color:#c2410c;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Saldo pendiente</div>
+        <div style="font-size:26px;font-weight:900;color:#dc2626">Gs. ${Number(rDeuda.deudaNeta).toLocaleString()}</div>
+      </div>`:''}
+    </div>
+    <div class="card card-p" style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
+      <div style="display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;align-items:stretch">${cuotasGrid}</div>
+      <div style="margin-top:10px;font-size:11px;color:#94a3b8;display:flex;gap:14px;flex-wrap:wrap">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#16a34a;border-radius:2px;margin-right:4px"></span>Pagado</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;margin-right:4px"></span>Pago parcial</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#e5e7eb;border-radius:2px;margin-right:4px"></span>Sin pago</span>
       </div>
     </div>
+    ${deudaHtml}
     <div class="card card-p">
-      <p style="font-weight:700;font-size:13px;margin-bottom:8px">Historial de pagos</p>
-      ${pagos.length?`<table class="historial-table" style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:#f0f4f8">
-          <th style="padding:5px 8px;border:1px solid var(--bdr)">Fecha</th>
-          <th style="padding:5px 8px;border:1px solid var(--bdr)">Concepto</th>
-          <th style="padding:5px 8px;border:1px solid var(--bdr);text-align:right">Monto</th>
-          <th style="padding:5px 8px;border:1px solid var(--bdr)">Medio</th>
-        </tr></thead><tbody>
-        ${pagos.slice(0,15).map(p=>`<tr>
-          <td style="padding:5px 8px;border:1px solid var(--bdr);white-space:nowrap">${p.fecha_pago}</td>
-          <td style="padding:5px 8px;border:1px solid var(--bdr)">${p.concepto}</td>
-          <td style="padding:5px 8px;border:1px solid var(--bdr);text-align:right;font-weight:700">Gs. ${Number(p.monto).toLocaleString()}</td>
-          <td style="padding:5px 8px;border:1px solid var(--bdr)">${p.medio_pago||'Efectivo'}</td>
-        </tr>`).join('')}
-        </tbody>
-      </table>`:'<div class="es">Sin pagos registrados</div>'}
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">📋 Historial de pagos</div>
+      ${histHtml}
     </div>`;
-  }catch(e){el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+  }catch(e){el.innerHTML=`<div class="ph"><h3>💳 Estado de cuenta</h3></div><div class="es">Error: ${e.message}</div>`;}
 }
-
-// ── INSTITUCIÓN ───────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── MÓDULO HONORARIOS PROFESIONALES ─────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 
 async function pgHonorarios(el){
   const [docs,carrs]=await Promise.all([api('GET','/api/docentes'),api('GET','/api/carreras')]);
