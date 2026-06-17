@@ -1526,6 +1526,8 @@ function show(id){document.getElementById(id)?.classList.remove('hidden');}
 function hide(id){document.getElementById(id)?.classList.add('hidden');}
 function notaCls(n){return n?'n'+Math.min(5,Math.max(1,n)):'n-';}
 function fmtFecha(f){if(!f)return '-';const d=new Date(f+'T00:00:00');return d.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});}
+const _MESES_CUOTA_GLOBAL=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+function cuotaAMes(c){const m=(c||'').match(/^Cuota\s+(\d+)$/i);return m?(_MESES_CUOTA_GLOBAL[+m[1]]||c):c;}
 function fmtFechaHora(f){if(!f)return '-';try{const s=String(f).replace(' ','T');const d=new Date(s.endsWith('Z')||s.includes('+')?s:s+'Z');return d.toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}catch{return String(f).replace('T',' ').slice(0,16);}}
 function exportXls(tabla){window.open('/api/export/'+tabla,'_blank');}
 
@@ -12206,7 +12208,7 @@ async function selAlumnoPago(alId){
             return `
             <tr style="background:${pi%2?'#f8fafc':'#fff'}">
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
-              <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${p.concepto}</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${cuotaAMes(p.concepto)}</td>
               ${esExamen?`<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:${isArancel&&p.materia_nombre?'#1d4ed8':'#94a3b8'};font-size:11px">${isArancel&&p.materia_nombre?'📚 '+p.materia_nombre:'—'}</td>`:''}
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;color:#166534;font-size:13px">Gs. ${Number(p.monto||0).toLocaleString()}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:#64748b">${p.medio_pago||'Efectivo'}</td>
@@ -14141,7 +14143,7 @@ async function pgMiEstadoCuenta(el){
           <tbody>${g.pagos.sort((a,b)=>a.fecha_pago>b.fecha_pago?-1:1).map((p,i)=>`
             <tr style="background:${i%2?'#f8fafc':'#fff'}">
               <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">${fmtFecha(p.fecha_pago)}</td>
-              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${p.concepto}</td>
+              <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${cuotaAMes(p.concepto)}</td>
               <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:800;color:#166534">Gs. ${Number(p.monto||0).toLocaleString()}</td>
               <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#64748b">${p.medio_pago||'Efectivo'}</td>
             </tr>`).join('')}
