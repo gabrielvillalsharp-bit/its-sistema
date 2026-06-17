@@ -1630,13 +1630,20 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     if (tpSum > 20) {
       return res.status(400).json({ error: `La suma de TPs (${tpSum}pts) supera el máximo permitido de 20 puntos. Corrija los valores.` });
     }
-    // Bloquear nota final si el alumno tiene compromiso de pago vencido (solo docente)
+    // Bloquear nota final si el alumno tiene cuotas pendientes sin compromiso activo (solo docente)
     if (req.user.rol !== 'director') {
       const camposFinales = ['final_ord','final_recuperatorio','complementario','extraordinario'];
       const hayFinal = camposFinales.some(c => req.body[c] !== undefined && req.body[c] !== '' && req.body[c] !== null);
       if (hayFinal) {
-        const compVencido = db.prepare("SELECT id FROM compromisos_pago WHERE alumno_id=? AND estado='vencido' LIMIT 1").get(req.params.alumno_id);
-        if (compVencido) return res.status(403).json({ error: 'El alumno tiene un compromiso de pago vencido. El director debe regularizarlo antes de cargar notas finales.' });
+        const alPago = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
+        if (alPago) {
+          const cuotasEst = calcCuotasEstado(alPago);
+          const tieneDeuda = cuotasEst.some(cu => cu.diferencia > 0);
+          if (tieneDeuda) {
+            const compActivo = db.prepare("SELECT id FROM compromisos_pago WHERE alumno_id=? AND estado='pendiente' LIMIT 1").get(req.params.alumno_id);
+            if (!compActivo) return res.status(403).json({ error: 'El alumno tiene cuotas pendientes. El director debe crear un compromiso de pago activo para habilitar las notas finales.' });
+          }
+        }
       }
     }
     // Validar habilitación para recuperatorio (director puede siempre)
@@ -2774,7 +2781,7 @@ app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
 });
 // Perfil financiero de un alumno (consulta para rol alumno)
 app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
-  const al = db.prepare('SELECT a.*, cu.anio as curso_anio FROM alumnos a LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
+  const al = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
   // Alumno solo puede ver su propio perfil
   if (req.user.rol === 'alumno' && al?.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
   const pagos = db.prepare(`SELECT p.*,c.nombre as carrera,m.nombre as materia_nombre FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN asignaciones asig ON p.asignacion_id=asig.id LEFT JOIN materias m ON asig.materia_id=m.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);
