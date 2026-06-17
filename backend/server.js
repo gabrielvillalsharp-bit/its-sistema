@@ -258,14 +258,14 @@ async function enviarWA(numero, msg, tipo) {
     const msgId = 'bm_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
     if (!r.ok) {
       console.error(`[WA] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,tipo||'bot_error',numNorm,msg.slice(0,200),`error_${r.status}`,nowStr()); } catch {}
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'fallido',nowStr()); } catch {}
     } else {
       console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,tipo||'bot',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
   } catch(e) {
     console.error('[WA] enviar error:', e.message);
-    try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'bot_crash',numNorm,msg.slice(0,100),('crash:'+e.message).slice(0,50),nowStr()); } catch {}
+    try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'individual',numNorm,msg.slice(0,100),'fallido',nowStr()); } catch {}
   }
 }
 
