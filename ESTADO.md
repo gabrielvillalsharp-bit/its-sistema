@@ -284,9 +284,67 @@ y que vencido lo bloquea nuevamente.
 
 ---
 
+## Bot WhatsApp + Gemini AI — arquitectura completa
+
+### Infraestructura implementada
+- `backend/gemini.js`: cliente REST minimalista para Google AI Studio
+  - `geminiChat(systemPrompt, historial, mensaje)` → texto de respuesta
+  - `geminiLeerComprobante(base64, mime)` → JSON con monto/fecha/banco/remitente/estado
+  - Modelo: `gemini-2.0-flash` (v1beta REST, sin SDK)
+  - Variable requerida: `GEMINI_API_KEY` en Railway
+
+### Webhook y procesamiento de mensajes entrantes
+- `POST /webhook/whatsapp` y `POST /api/whatsapp/webhook` → `manejarWebhookWA()`
+- Soporta mensajes de texto, imágenes (comprobantes), JIDs @lid, grupos ignorados
+- Imágenes → `analizarComprobanteWA()` → Gemini lee datos, guarda en `pagos_pendientes_wa`
+- Texto → `procesarMensajeBot()` → Gemini genera respuesta con etiquetas internas `[[INTERESADO:...]]` / `[[CONSULTA:...]]`
+
+### Bot de admisiones (`procesarMensajeBot`)
+- Detecta si el remitente es alumno activo (por teléfono) → contexto diferente en system prompt
+- Extrae etiquetas `[[INTERESADO:Nombre|Carrera]]` → guarda en `interesados_bot`
+- Extrae etiquetas `[[CONSULTA:resumen]]` → guarda en `wa_consultas`
+- Historial de conversación por número (Map en memoria, TTL 24h, max 16 turnos)
+- Bot pausable/reanudable desde el panel (`configuracion.bot_pausado`)
+
+### Tablas relacionadas al bot
+| Tabla | Propósito |
+|-------|-----------|
+| `interesados_bot` | Personas externas interesadas en inscribirse |
+| `wa_consultas` | Consultas de alumnos activos recibidas por el bot |
+| `wa_bot_log` | Log de cada paso: recibido → gemini_llamando → gemini_ok/error → envio_ok/fallido |
+| `wa_recibidos` | Todos los mensajes de texto entrantes |
+| `pagos_pendientes_wa` | Comprobantes de transferencia recibidos vía WhatsApp |
+
+### Endpoints de gestión del bot
+| Ruta | Descripción |
+|------|-------------|
+| `GET /api/whatsapp/bot/estado` | Estado (pausado, geminiConfigurado, evolutionConfigurado) |
+| `POST /api/whatsapp/bot/pausar` | Pausa el bot |
+| `POST /api/whatsapp/bot/reanudar` | Reanuda el bot |
+| `POST /api/whatsapp/webhook-test` | Simula mensaje entrante (para pruebas sin WhatsApp real) |
+| `GET /api/whatsapp/bot-log` | Log de procesamiento del bot (últimas 200 entradas) |
+| `DELETE /api/whatsapp/bot-log` | Limpia el log |
+| `GET /api/interesados` | Lista de interesados capturados por el bot |
+| `GET /api/consultas` | Lista de consultas de alumnos |
+
+### UI del panel WhatsApp
+- Tab "Bot": estado (badge activo/pausado + avisos si faltan variables), test de envío directo, simulador de mensaje entrante, últimos envíos del bot
+- Tab "Log Bot": log detallado paso a paso con colores por evento
+- Panel "Interesados" (`go('interesados')`): consultas pendientes, interesados por carrera, mensajes no leídos
+
+### Correcciones aplicadas (2026-06-19)
+**Bug historial con etiquetas internas:** el historial guardaba `respuestaIA` (con `[[INTERESADO:...]]`)
+en lugar de `limpio` (sin etiquetas). Gemini veía sus propias etiquetas internas en la historia
+y podía repetirlas o confundirse. **Fix:** `est.historial.push({ role:'model', texto: limpio })`.
+
+**Mejora endpoint de estado:** `GET /api/whatsapp/bot/estado` ahora devuelve
+`{ pausado, geminiConfigurado, evolutionConfigurado }`. El panel muestra advertencia visible
+si `GEMINI_API_KEY` o variables EVOLUTION_* no están configuradas en Railway.
+
+---
+
 ## Pendientes / ideas futuras (no implementados)
 
-- Pago de exámenes por lote (múltiples materias, modal con checkboxes)
 - Reporte de compromisos vencidos para el director
 - Marcar compromiso como pagado automáticamente cuando el alumno regulariza todas las cuotas
 - El alumno en vista Mi Estado de Cuenta no ve el monto del compromiso en la grilla de cuotas individuales (solo en el banner)

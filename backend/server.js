@@ -165,8 +165,8 @@ setInterval(() => {
   _botEstados.forEach((v,k) => { if (v.ts < lim24h) _botEstados.delete(k); });
 }, 30*60*1000);
 
-// Carreras cargadas desde la BD real (IDs correctos)
-let BOT_CARRERAS = (() => {
+// Carreras — recargadas desde la BD en cada llamada al bot (así aparecen carreras nuevas sin reiniciar)
+function _botCargarCarreras() {
   try {
     return db.prepare("SELECT id, nombre FROM carreras WHERE activa=1 ORDER BY nombre").all()
       .map((c, i) => ({ num: String(i + 1), id: c.id, nombre: c.nombre }));
@@ -174,7 +174,13 @@ let BOT_CARRERAS = (() => {
     console.warn('[BOT] Error cargando carreras:', e.message);
     return [];
   }
-})();
+}
+let BOT_CARRERAS = _botCargarCarreras();
+
+// Aviso en startup si falta GEMINI_API_KEY
+if (!process.env.GEMINI_API_KEY) {
+  console.warn('[BOT] ⚠️ GEMINI_API_KEY no configurada — el bot de IA NO responderá mensajes.');
+}
 
 const BOT_MENU_PRINCIPAL =
   `Bienvenido/a al *Instituto Técnico Superior Santísima Trinidad*. 🎓\n\n` +
@@ -191,42 +197,106 @@ let _botPausado = (() => {
 function _botSystemPrompt(alumno) {
   const inst = (() => { try { return db.prepare('SELECT * FROM institucion LIMIT 1').get(); } catch { return null; } })();
   const nombreInst = inst?.nombre || 'Instituto Técnico Superior Santísima Trinidad';
+  const direccion   = inst?.direccion || '';
+  const telInst     = inst?.telefono  || '';
+
+  // Recargar carreras para que el prompt sea siempre fresco
+  BOT_CARRERAS = _botCargarCarreras();
+
+  // Carreras con duración y horarios reales (agrupados por carrera)
   const carrerasTxt = BOT_CARRERAS.map(c => {
     const dur = /cosmiatr/i.test(c.nombre) ? '3 años' : '2 años';
-    return `- ${c.nombre} (duración: ${dur})`;
+
+    // Horarios de esta carrera desde la tabla asignaciones+horarios
+    let horarioTxt = '';
+    try {
+      const dias = db.prepare(`
+        SELECT DISTINCT h.dia, h.hora_inicio, h.hora_fin, h.turno
+        FROM horarios h
+        JOIN asignaciones a ON h.asignacion_id = a.id
+        JOIN cursos cu ON a.curso_id = cu.id
+        WHERE cu.carrera_id = ?
+        ORDER BY h.dia, h.hora_inicio
+        LIMIT 6
+      `).all(c.id);
+      if (dias.length) {
+        // Agrupar por día
+        const porDia = {};
+        dias.forEach(d => {
+          const k = d.dia;
+          if (!porDia[k]) porDia[k] = { inicio: d.hora_inicio, fin: d.hora_fin };
+          else {
+            if (d.hora_inicio < porDia[k].inicio) porDia[k].inicio = d.hora_inicio;
+            if (d.hora_fin   > porDia[k].fin)     porDia[k].fin   = d.hora_fin;
+          }
+        });
+        const diasStr = Object.entries(porDia)
+          .map(([dia, h]) => `${dia} ${h.inicio?.slice(0,5)}–${h.fin?.slice(0,5)}`)
+          .join(', ');
+        horarioTxt = ` | Clases: ${diasStr}`;
+      }
+    } catch {}
+
+    return `- ${c.nombre} (${dur}${horarioTxt})`;
   }).join('\n') || '(sin carreras cargadas)';
+
+  // Precios desde la tabla aranceles
+  let preciosTxt = 'Gs. 300.000/mes (1° año) · Gs. 400.000/mes (2° año en adelante)';
+  try {
+    const cuotas = db.prepare("SELECT anio, monto FROM aranceles WHERE tipo='cuota' AND activo=1 ORDER BY anio").all();
+    if (cuotas.length) {
+      preciosTxt = cuotas.map(c => `${c.anio}° año: Gs. ${Number(c.monto).toLocaleString('es-PY')}/mes`).join(' · ');
+    }
+  } catch {}
+
+  // Próxima inscripción / período activo
+  let periodoTxt = '';
+  try {
+    const p = db.prepare("SELECT nombre, fecha_inicio, fecha_fin FROM periodos WHERE activo=1 LIMIT 1").get();
+    if (p) periodoTxt = `\nPeríodo actual: ${p.nombre} (${p.fecha_inicio} al ${p.fecha_fin}).`;
+  } catch {}
 
   let contexto = `Estás hablando por WhatsApp con una persona EXTERNA (no es alumno registrado) que puede estar interesada en inscribirse.`;
   if (alumno) {
-    contexto = `Estás hablando con *${alumno.nombre} ${alumno.apellido}*, un/a alumno/a ACTIVO/A de la institución (ya identificado por su número de teléfono). No le pidas nombre, CI ni carrera — ya los tenemos. Si tiene una consulta o reclamo, escuchalo y avisale que un encargado se va a comunicar.`;
+    contexto = `Estás hablando con *${alumno.nombre} ${alumno.apellido}*, alumno/a ACTIVO/A de la institución (identificado por su número de WhatsApp). No le pidas nombre, CI ni carrera — ya los tenemos. Si tiene una consulta o reclamo, escuchalo con amabilidad y avisale que un encargado se va a comunicar con él/ella pronto.`;
   }
 
-  return `Eres el asistente virtual de admisiones de "${nombreInst}", un instituto técnico superior en Paraguay. Respondés por WhatsApp en español paraguayo, de forma cordial, breve (máximo 4-5 líneas por mensaje) y profesional. No uses markdown complejo, solo *negrita* ocasional y emojis moderados.
+  const contactoTxt = [
+    direccion && `Dirección: ${direccion}`,
+    telInst   && `Teléfono: ${telInst}`,
+  ].filter(Boolean).join(' | ');
+
+  return `Eres el asistente virtual de "${nombreInst}", un instituto técnico superior en Paraguay. Respondés por WhatsApp en español paraguayo, de forma cordial, breve (máximo 4-5 líneas por mensaje) y profesional. No uses markdown complejo, solo *negrita* ocasional y emojis moderados.
 
 ${contexto}
 
-Carreras que ofrece la institución:
+CARRERAS QUE OFRECE EL INSTITUTO:
 ${carrerasTxt}
 
-Requisitos generales de inscripción: haber culminado la Educación Media (Bachillerato), fotocopia de cédula de identidad, certificado de estudios.
+PRECIOS DE CUOTAS MENSUALES:
+${preciosTxt}
+Sin costo de matrícula al inscribirse. Las cuotas se pagan mensalmente durante el año lectivo (10 cuotas por año).${periodoTxt}
 
-Duración: todas las carreras son de 2 años, excepto Cosmiatría que es de 3 años.
-Clases: 3 veces por semana (el día y horario exacto depende de la carrera; si preguntan el horario exacto, decí que un encargado le confirmará los días).
-Precios: 1er año Gs. 300.000 por cuota (sin costo de matrícula); 2do año Gs. 400.000 por cuota (incluye costo de matrícula). Si preguntan por 3er año (solo Cosmiatría), decí que un encargado le confirmará ese monto.
-No hay límite de edad para estudiar — personas de cualquier edad pueden inscribirse.
-Extranjeros también pueden estudiar (por ejemplo, brasileños), siempre que cumplan los mismos requisitos (bachillerato culminado, documento de identidad, certificado de estudios).
+REQUISITOS DE INSCRIPCIÓN:
+- Haber culminado la Educación Media (Bachillerato completo)
+- Fotocopia de cédula de identidad
+- Certificado de estudios (título de bachiller o constancia de egreso)
+- No hay límite de edad — personas de cualquier edad pueden inscribirse
+- Extranjeros también pueden estudiar con los mismos requisitos (documento de identidad de su país + bachillerato culminado)
 
-Tu objetivo en la conversación:
-- Si es una persona externa interesada: saludala, preguntale en qué carrera está interesada, y pedile su nombre completo. Dale información breve de la carrera elegida (debe ser una de la lista) y avisale que un asesor se comunicará con ella.
+${contactoTxt ? `DATOS DE CONTACTO:\n${contactoTxt}\n` : ''}
+TU OBJETIVO:
+- Si es una persona externa interesada: saludala calurosamente, preguntale en qué carrera está interesada y pedile su nombre completo. Dale info breve de esa carrera y avisale que un asesor se va a comunicar.
 - Si es un alumno activo: escuchá su consulta y avisale que un encargado la atenderá pronto.
-- Nunca inventes carreras, precios ni datos que no tengas. Si preguntan algo que no sabés (precios exactos, horarios específicos), decí que un encargado le dará esa información.
+- Nunca inventes carreras, precios ni datos. Si no sabés algo (horario exacto, disponibilidad), decí que un encargado confirmará.
+- Sé amable, breve y claro. Máximo 4-5 líneas por respuesta.
 
-MUY IMPORTANTE — etiquetas internas (el usuario NUNCA las ve, se eliminan antes de enviarse):
-- En cuanto tengas el NOMBRE COMPLETO y la CARRERA de interés de una persona externa, agregá al final de tu respuesta, en una línea aparte, exactamente:
+ETIQUETAS INTERNAS — el usuario NUNCA las ve, se eliminan antes de enviarse:
+- Cuando tengas el NOMBRE COMPLETO y la CARRERA de una persona externa, agregá al final (línea aparte):
 [[INTERESADO:Nombre Completo|Nombre exacto de la carrera de la lista]]
-- Si el alumno activo te cuenta su consulta, agregá al final, en una línea aparte:
+- Si un alumno activo te cuenta su consulta/reclamo, agregá al final (línea aparte):
 [[CONSULTA:resumen breve de la consulta]]
-- Agregá cada etiqueta como máximo una vez por conversación, solo cuando corresponda. Si no aplica ninguna, no agregues ninguna línea.`;
+- Cada etiqueta máximo una vez por conversación. Si no aplica, no agregues nada.`;
 }
 
 function _botExtraerEtiquetas(textoIA) {
@@ -239,14 +309,27 @@ function _botExtraerEtiquetas(textoIA) {
   return { limpio: limpio.trim(), interesado, consulta };
 }
 
+// Normaliza un número a formato Paraguay (595XXXXXXXX), sin símbolos ni @
+function _normTelPY(num) {
+  let t = String(num||'').replace(/\D/g,'');
+  if (t.startsWith('0')) t = '595' + t.slice(1);
+  if (!t.startsWith('595')) t = '595' + t;
+  return t;
+}
+
 // Envía un mensaje de texto por WhatsApp (Evolution API) y registra el resultado en wa_mensajes.
 async function enviarWA(numero, msg, tipo) {
   const EVO_URL  = process.env.EVOLUTION_URL;
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
-  // Si ya es un JID completo (contiene @), pasarlo directo; si no, normalizar como número paraguayo
-  const numNorm = String(numero||'').includes('@') ? String(numero) : (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
+  const numStr = String(numero||'');
+  // @lid = identificador de privacidad de WhatsApp; Evolution no puede enrutar por @lid,
+  // así que lo convertimos a número limpio y confiamos en que Evolution lo mapee.
+  // @s.whatsapp.net y @c.us: pasarlos tal cual (Evolution los maneja por JID).
+  const numNorm = numStr.endsWith('@lid')
+    ? _normTelPY(numStr)  // strip @lid → número Paraguay
+    : (numStr.includes('@') ? numStr : _normTelPY(numStr));
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
       method: 'POST',
@@ -342,7 +425,7 @@ async function procesarMensajeBot(numero, texto) {
     } catch(e) { console.error('[BOT] guardar consulta alumno:', e.message); }
   }
 
-  est.historial.push({ role: 'user', texto: txt }, { role: 'model', texto: respuestaIA });
+  est.historial.push({ role: 'user', texto: txt }, { role: 'model', texto: limpio });
   if (est.historial.length > 16) est.historial = est.historial.slice(-16);
   _botEstados.set(numero, est);
 
@@ -6188,7 +6271,11 @@ app.post('/api/whatsapp/enviar-test', auth(ADM), async (req, res) => {
 
 // Estado del bot
 app.get('/api/whatsapp/bot/estado', auth(ADM), (req, res) => {
-  res.json({ pausado: _botPausado });
+  res.json({
+    pausado: _botPausado,
+    geminiConfigurado: !!process.env.GEMINI_API_KEY,
+    evolutionConfigurado: !!(process.env.EVOLUTION_URL && process.env.EVOLUTION_KEY && process.env.EVOLUTION_INSTANCE)
+  });
 });
 app.post('/api/whatsapp/bot/pausar', auth(ADM), (req, res) => {
   _botPausado = true;
@@ -6201,6 +6288,21 @@ app.post('/api/whatsapp/bot/reanudar', auth(ADM), (req, res) => {
   try { db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('bot_pausado','0','Bot de WhatsApp pausado')").run(); } catch {}
   audit(req.user.id, 'BOT_REANUDAR', 'sistema', 'bot', {});
   res.json({ ok: true, pausado: false });
+});
+
+// Endpoint: test directo de Gemini (verifica que la API key funciona)
+app.post('/api/whatsapp/bot/test-gemini', auth(ADM), async (req, res) => {
+  if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY no está configurada en las variables de entorno de Railway.' });
+  try {
+    const respuesta = await geminiChat(
+      'Eres un asistente de prueba. Respondé siempre con exactamente: "✅ Gemini funcionando correctamente."',
+      [],
+      'ping'
+    );
+    res.json({ ok: true, respuesta });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // Endpoint: test de envío directo del bot (mismo código que enviar() interno)
