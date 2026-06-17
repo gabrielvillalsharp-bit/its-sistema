@@ -1,5 +1,5 @@
 // Cliente minimalista para la API de Google AI Studio (Gemini) — usa REST, sin SDK.
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-2.5-flash';
 
 const _sleep = ms => new Promise(r => setTimeout(r, ms));
 
