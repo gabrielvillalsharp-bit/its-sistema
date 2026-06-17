@@ -12278,7 +12278,16 @@ async function selAlumnoPago(alId){
       </div>
 
       <!-- CUERPO SCROLLABLE -->
-      <div style="padding:14px;display:flex;flex-direction:column;gap:14px">
+      <div style="padding:14px;display:flex;flex-direction:column;gap:0">
+
+        <!-- TABS NAV -->
+        <div style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:14px">
+          <button id="ptb-pago-${alId}" onclick="swPTab('${alId}','pago')" style="padding:8px 18px;font-size:12px;font-weight:700;color:#1D9E75;border:none;background:none;cursor:pointer;border-bottom:2px solid #1D9E75;margin-bottom:-2px;transition:all .15s">💰 Pagos</button>
+          <button id="ptb-hist-${alId}" onclick="swPTab('${alId}','hist')" style="padding:8px 18px;font-size:12px;font-weight:500;color:#94a3b8;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">📋 Historial</button>
+        </div>
+
+        <!-- TAB PAGOS -->
+        <div id="pt-pago-${alId}" style="display:flex;flex-direction:column;gap:14px">
 
         <!-- Estado financiero unificado -->
         ${(()=>{
@@ -12383,23 +12392,30 @@ async function selAlumnoPago(alId){
           <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:flex-start">${examenesGrid}</div>
         </div>
 
-        <!-- Recuperatorios habilitados por materia -->
-        <div style="background:#fff;border:1px solid #a5f3fc;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;font-weight:700;color:#0e7490;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Recuperatorios habilitados</div>
-          ${recupHtml}
-        </div>
+        </div><!-- /TAB PAGOS -->
 
-        <!-- Habilitaciones: con pago y sin pago -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">🔓 Habilitaciones de examen</div>
-          ${examHtml}
-        </div>
+        <!-- TAB HISTORIAL -->
+        <div id="pt-hist-${alId}" style="display:none;flex-direction:column;gap:14px">
 
-        <!-- Historial de pagos -->
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">📋 Historial de pagos</div>
-          ${historialHtml}
-        </div>
+          <!-- Recuperatorios habilitados por materia -->
+          <div style="background:#fff;border:1px solid #a5f3fc;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:#0e7490;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Recuperatorios habilitados</div>
+            ${recupHtml}
+          </div>
+
+          <!-- Habilitaciones: con pago y sin pago -->
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">🔓 Habilitaciones de examen</div>
+            ${examHtml}
+          </div>
+
+          <!-- Historial de pagos -->
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">📋 Historial de pagos</div>
+            ${historialHtml}
+          </div>
+
+        </div><!-- /TAB HISTORIAL -->
 
       </div>`;
 
@@ -12411,6 +12427,19 @@ async function selAlumnoPago(alId){
   }
 }
 
+function swPTab(id,tab){
+  ['pago','hist'].forEach(t=>{
+    const c=document.getElementById('pt-'+t+'-'+id);
+    const b=document.getElementById('ptb-'+t+'-'+id);
+    if(!c||!b)return;
+    const on=t===tab;
+    c.style.display=on?'flex':'none';
+    if(on)c.style.flexDirection='column';
+    b.style.color=on?'#1D9E75':'#94a3b8';
+    b.style.borderBottom=on?'2px solid #1D9E75':'2px solid transparent';
+    b.style.fontWeight=on?'700':'500';
+  });
+}
 function mEditarNombreAlumno(alId, nombreActual, apellidoActual){
   modal(`<h4>✏ Modificar nombre del alumno</h4>
   <div class="fg" style="margin-top:8px">
