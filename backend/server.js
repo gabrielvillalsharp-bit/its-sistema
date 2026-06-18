@@ -167,6 +167,10 @@ setInterval(() => {
   _botEstados.forEach((v,k) => { if (v.ts < lim24h) _botEstados.delete(k); });
 }, 30*60*1000);
 
+// Caché @lid → JID real: WhatsApp Privacy Mode asigna @lid a contactos no guardados.
+// Se puebla con eventos CONTACTS_UPSERT de Evolution API para poder responderles.
+const _lidJidMap = new Map();
+
 // Carreras — recargadas desde la BD en cada llamada al bot (así aparecen carreras nuevas sin reiniciar)
 function _botCargarCarreras() {
   try {
@@ -347,10 +351,16 @@ async function enviarWA(numero, msg, tipo) {
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   if (!EVO_URL || !EVO_KEY || !EVO_INST) return;
-  const numStr = String(numero||'');
-  // @lid = identificador de privacidad de WhatsApp. El ID numérico NO es un número de teléfono,
-  // así que lo pasamos tal cual a Evolution y esperamos que enrute internamente.
+  let numStr = String(numero||'');
+  // Si es @lid, intentar resolver con el caché poblado por CONTACTS_UPSERT.
+  // El caché puede haberse actualizado durante el tiempo que tardó Gemini en responder.
+  if (numStr.endsWith('@lid') && _lidJidMap.has(numStr)) {
+    const resolved = _lidJidMap.get(numStr);
+    console.log(`[WA] @lid resuelto a ${resolved} desde caché`);
+    numStr = resolved;
+  }
   // @s.whatsapp.net y @c.us se pasan tal cual. Números sin @ se normalizan a Paraguay.
+  // @lid sin resolver: se pasa a Evolution y esperamos que enrute internamente.
   const numNorm = numStr.includes('@') ? numStr : _normTelPY(numStr);
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
@@ -6254,7 +6264,7 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
 
   // 2. Reconfigurar webhook (si se pasa ?reconfigurar=1)
   if (req.query.reconfigurar === '1') {
-    const body = { url: webhookUrl, webhook_by_events: false, webhook_base64: true, events: ['MESSAGES_UPSERT','MESSAGES_UPDATE','MESSAGES_DELETE','SEND_MESSAGE','CONNECTION_UPDATE'] };
+    const body = { url: webhookUrl, webhook_by_events: false, webhook_base64: true, events: ['MESSAGES_UPSERT','MESSAGES_UPDATE','MESSAGES_DELETE','SEND_MESSAGE','CONNECTION_UPDATE','CONTACTS_UPSERT'] };
     // Intentar con POST primero, luego PUT si falla
     for (const method of ['POST','PUT']) {
       try {
@@ -6729,6 +6739,22 @@ function manejarWebhookWA(req, res) {
     const eventos = Array.isArray(body) ? body : [body];
     for (const ev of eventos) {
       const event = (ev.event || ev.type || '').toLowerCase();
+
+      // Evento de contactos: Evolution API envía @lid → JID real cuando conoce un contacto nuevo.
+      // Cacheamos el mapeo para poder responder a contactos no guardados (números desconocidos).
+      if (event.includes('contact')) {
+        const cData = ev.data || ev;
+        const contacts = Array.isArray(cData) ? cData : (Array.isArray(cData?.contacts) ? cData.contacts : [cData]);
+        for (const c of contacts) {
+          const jid = c.id || c.jid || c.remoteJid;
+          const lid = c.lid || c.lidJid;
+          if (jid && lid && String(lid).endsWith('@lid') && (String(jid).endsWith('@s.whatsapp.net') || String(jid).endsWith('@c.us'))) {
+            _lidJidMap.set(String(lid), String(jid));
+          }
+        }
+        continue;
+      }
+
       if (!event.includes('message')) continue;
       const data = ev.data || ev;
       // Soportar tanto data.key directo como data.messages[0]
@@ -6740,23 +6766,32 @@ function manejarWebhookWA(req, res) {
       // Ignorar grupos, broadcast, newsletter, status
       if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) continue;
       // Mensajes @lid: identidad de privacidad de WhatsApp (el ID no es un número de teléfono).
-      // Buscamos el JID real en todos los campos posibles que Evolution pueda incluir.
+      // 1) Caché poblado por CONTACTS_UPSERT. 2) Campos alternativos del payload.
       if (remoteJid.endsWith('@lid')) {
         const isRealJid = s => s && (s.endsWith('@s.whatsapp.net') || s.endsWith('@c.us'));
-        const candidates = [
-          key.remoteJidAlt, msgObj.remoteJidAlt, data.remoteJidAlt,
-          ev.sender, data.sender, msgObj.sender,
-          key.participant, msgObj.key?.participant,
-        ];
-        const real = candidates.find(isRealJid);
-        if (real) {
-          remoteJid = real;
+        const lidOriginal = remoteJid;
+        // Primero: caché de contactos (poblado por eventos CONTACTS_UPSERT)
+        const cached = _lidJidMap.get(lidOriginal);
+        if (cached) {
+          remoteJid = cached;
         } else {
-          // Loguear para diagnóstico (campos disponibles en este payload)
-          console.warn('[WEBHOOK @lid] Sin JID alternativo. Campos disponibles:', JSON.stringify({
-            remoteJidAltKey: key.remoteJidAlt, remoteJidAltMsg: msgObj.remoteJidAlt,
-            sender: ev.sender||data.sender, participant: key.participant,
-          }));
+          // Segundo: buscar en campos del payload actual
+          const candidates = [
+            key.remoteJidAlt, msgObj.remoteJidAlt, data.remoteJidAlt,
+            ev.sender, data.sender, msgObj.sender,
+            key.participant, msgObj.key?.participant,
+            data.participant, data.chatId,
+          ];
+          const real = candidates.find(isRealJid);
+          if (real) {
+            remoteJid = real;
+            _lidJidMap.set(lidOriginal, real); // guardar en caché
+          } else {
+            console.warn('[WEBHOOK @lid] Sin JID alternativo. Campos:', JSON.stringify({
+              lid: lidOriginal, sender: ev.sender||data.sender,
+              participant: key.participant, dataParticipant: data.participant,
+            }));
+          }
         }
       }
       const numero = remoteJid.endsWith('@lid') ? remoteJid : remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
@@ -8791,7 +8826,7 @@ app.listen(PORT, () => {
         await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INSTANCE}`, {
           method: 'POST',
           headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ webhook: { enabled: true, url: `${APP_URL}/webhook/whatsapp`, events: ['MESSAGES_UPSERT'] } })
+          body: JSON.stringify({ webhook: { enabled: true, url: `${APP_URL}/webhook/whatsapp`, events: ['MESSAGES_UPSERT', 'CONTACTS_UPSERT'] } })
         });
         console.log('[BOT] ✅ Webhook Evolution configurado →', APP_URL+'/webhook/whatsapp');
       } catch(e) { console.warn('[BOT] Webhook config falló:', e.message); }
