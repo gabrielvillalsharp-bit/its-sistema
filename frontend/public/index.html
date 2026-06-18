@@ -2433,7 +2433,10 @@ async function pgWhatsApp(el){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px">
         <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;display:flex;align-items:center;gap:8px">🤖 Test de envío del Bot <span style="font-size:10px;background:#dcfce7;color:#166534;border-radius:8px;padding:2px 8px;font-weight:600">DIRECTO</span></h3>
-        <button onclick="waBotTestGemini()" id="wa-gemini-test-btn" style="width:100%;margin-bottom:12px;padding:8px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🧪 Probar conexión con Gemini IA</button>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button onclick="waBotTestGemini()" id="wa-gemini-test-btn" style="flex:1;padding:8px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🧪 Probar Gemini (ping)</button>
+          <button onclick="waBotTestCompleto()" id="wa-test-completo-btn" style="flex:1;padding:8px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔬 Test completo</button>
+        </div>
         <div id="wa-gemini-test-res" style="margin-bottom:10px;font-size:11px"></div>
         <label style="font-size:12px;color:#555">Número destino (formato: 595981234567)</label>
         <input id="wa-bot-num" placeholder="595981234567" style="width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
@@ -2845,6 +2848,40 @@ async function waBotCargarEstado(){
     // Mostrar/ocultar banner de diagnóstico de Gemini
     if(diagBanner) diagBanner.style.display=d.geminiConfigurado?'none':'block';
   }catch(e){ console.error('estado bot:',e); }
+}
+async function waBotTestCompleto(){
+  const btn=document.getElementById('wa-test-completo-btn');
+  const res=document.getElementById('wa-gemini-test-res');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Ejecutando test...';}
+  if(res)res.innerHTML='<div style="color:#64748b;font-size:11px;padding:8px">Enviando 4 mensajes de prueba a Gemini, esperá unos segundos...</div>';
+  try{
+    const d=await api('POST','/api/whatsapp/bot/test-completo');
+    if(!d.resultados){res.innerHTML='<div style="color:#991b1b">Error al ejecutar test</div>';return;}
+    const etiquetas={saludo:'1. Saludo / info carreras',carrera:'2. Carrera + precio + documentos',horarios:'3. Horarios + inscripción',multiturn:'4. Conversación multi-turno + nombre'};
+    const html=d.resultados.map(r=>{
+      if(!r.ok) return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="font-weight:700;color:#991b1b;font-size:11px">❌ ${etiquetas[r.id]||r.id}</div>
+        <div style="font-size:10px;color:#7f1d1d;margin-top:4px">Error: ${r.error}</div>
+      </div>`;
+      const largo=r.largo||0;
+      const cortado=largo<80;
+      return `<div style="background:${cortado?'#fffbeb':'#f0fdf4'};border:1.5px solid ${cortado?'#fde68a':'#bbf7d0'};border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;color:${cortado?'#92400e':'#166534'};font-size:11px">${cortado?'⚠️':'✅'} ${etiquetas[r.id]||r.id}</span>
+          <span style="font-size:10px;color:#64748b">${r.ms}ms · ${largo} caracteres</span>
+        </div>
+        <div style="font-size:10px;color:#475569;background:#fff;border-radius:6px;padding:8px;border:1px solid #e5e7eb;white-space:pre-wrap;max-height:120px;overflow-y:auto">${(r.respuesta||'').replace(/</g,'&lt;')}</div>
+        <div style="font-size:9px;color:#94a3b8;margin-top:4px;font-style:italic">Mensaje enviado: "${r.msg}"</div>
+      </div>`;
+    }).join('');
+    const ok=d.resultados.every(r=>r.ok);
+    res.innerHTML=`<div style="background:${ok?'#f0fdf4':'#fef2f2'};border:1.5px solid ${ok?'#86efac':'#fca5a5'};border-radius:8px;padding:10px;margin-bottom:8px;font-weight:700;font-size:12px;color:${ok?'#166534':'#991b1b'}">
+      ${ok?'✅ Todos los escenarios respondieron correctamente':'❌ Algunos escenarios fallaron'}
+    </div>${html}`;
+  }catch(e){
+    if(res)res.innerHTML=`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px;color:#991b1b;font-size:11px">Error: ${e.message}</div>`;
+  }
+  if(btn){btn.disabled=false;btn.textContent='🔬 Test completo';}
 }
 async function waBotTestGemini(){
   const btn=document.getElementById('wa-gemini-test-btn');
