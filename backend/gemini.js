@@ -27,7 +27,7 @@ async function geminiChat(systemPrompt, historial, mensaje) {
   const body = {
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { temperature: 0.6, maxOutputTokens: 1000, thinkingConfig: { thinkingBudget: 0 } }
+    generationConfig: { temperature: 0.6, maxOutputTokens: 8192 }
   };
 
   // Hasta 2 intentos: si hay 429 espera 4s y reintenta una vez
