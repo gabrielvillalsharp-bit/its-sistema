@@ -2551,12 +2551,19 @@ async function waCargarBotLog(){
   cuerpo.innerHTML=bannerErr+`<div style="max-height:520px;overflow-y:auto;padding-right:4px">${html}</div>`;
 }
 
-function waConvIrA(numero){
+async function waConvIrA(numero){
   waTab('conversaciones');
-  setTimeout(async()=>{
-    if(!_waConvDatos.length) await waConvCargar();
-    waConvAbrirNum(numero);
-  },400);
+  await waConvCargar();
+  const conv=_waConvDatos.find(c=>c.numero===numero);
+  if(conv){ waConvAbrirNum(numero); return; }
+  // Número no encontrado: mostrar aviso en el panel chat
+  const header=document.getElementById('waConvHeader');
+  const chat=document.getElementById('waConvChat');
+  const bar=document.getElementById('waConvInputBar');
+  _waConvNumActivo=numero;
+  if(header) header.innerHTML=`<div style="font-weight:700">${numero}</div><div style="font-size:11px;color:#64748b;font-weight:400">Sin conversación registrada en wa_mensajes</div>`;
+  if(bar) bar.style.display='block';
+  if(chat) chat.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px;padding:30px">No hay mensajes previos registrados para este número.<br>Podés escribirle directamente desde aquí.</div>';
 }
 async function waBorrarBotLog(){
   if(!confirm('¿Limpiar todo el log del bot?'))return;

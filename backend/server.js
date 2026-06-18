@@ -6795,14 +6795,23 @@ app.get('/api/whatsapp/conversaciones', auth(ADM), (req, res) => {
     FROM wa_recibidos
     ORDER BY fecha DESC LIMIT 1000
   `).all();
-  const todos = [...enviados, ...recibidos].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
-  // Agrupar por número normalizado
+  // También incluir mensajes del bot log (recibidos vía webhook, incluyendo @lid)
+  const delLog = db.prepare(`
+    SELECT 'recibido' as direccion, numero, '' as nombre_contacto,
+           TRIM(TRIM(detalle, '"'), '"') as mensaje, fecha, '' as estado
+    FROM wa_bot_log WHERE evento='recibido'
+    ORDER BY fecha DESC LIMIT 1000
+  `).all().map(r => ({ ...r, mensaje: (r.mensaje||'').replace(/^"(.*)"$/, '$1') }));
+
+  const todos = [...enviados, ...recibidos, ...delLog].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
   const grupos = {};
   for (const m of todos) {
-    const num = (m.numero||'').replace(/\D/g,'').replace(/^595/,'');
-    if (!grupos[num]) grupos[num] = { numero: m.numero, nombre: m.nombre_contacto||null, mensajes: [] };
-    if (!grupos[num].nombre && m.nombre_contacto) grupos[num].nombre = m.nombre_contacto;
-    grupos[num].mensajes.push(m);
+    const key = (m.numero||'').trim();
+    if (!grupos[key]) grupos[key] = { numero: key, nombre: m.nombre_contacto||null, mensajes: [] };
+    if (!grupos[key].nombre && m.nombre_contacto) grupos[key].nombre = m.nombre_contacto;
+    // Evitar duplicados del bot log
+    const yaExiste = grupos[key].mensajes.some(x => x.fecha===m.fecha && x.mensaje===m.mensaje && x.direccion===m.direccion);
+    if (!yaExiste) grupos[key].mensajes.push(m);
   }
   const lista = Object.values(grupos)
     .map(g => ({ ...g, ultimo: g.mensajes[g.mensajes.length-1]?.fecha||'' }))
