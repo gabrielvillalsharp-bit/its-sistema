@@ -146,6 +146,7 @@ try {
  'pago_id TEXT','resuelto_por TEXT','fecha_resolucion TEXT','imagen_mime TEXT DEFAULT \'image/jpeg\''].forEach(col => {
   try { db.prepare(`ALTER TABLE pagos_pendientes_wa ADD COLUMN ${col}`).run(); } catch {}
 });
+try { db.prepare('ALTER TABLE interesados_bot ADD COLUMN ci TEXT').run(); } catch {}
 
 // ── HELPER PAPELERA ───────────────────────────────────────────────────────────
 function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
@@ -303,24 +304,30 @@ Este número de WhatsApp es el contacto oficial del instituto.
 
 REGLAS:
 1. Alumnos activos que pregunten notas, pagos, asistencia o exámenes: deciles que ingresen a la *plataforma estudiantil* desde su celular con su número de cédula como usuario y contraseña. No des esa info por WhatsApp.
-2. Cuando tengas NOMBRE COMPLETO + CARRERA de interés de una persona externa, enviá el link y avisá que un asesor confirmará:
-   Ingresá a tu pre-inscripción acá: ${linkInscripcion}
+2. Cuando una persona externa muestre interés en inscribirse, pedile sus datos de forma natural (no como formulario rígido), en este orden:
+   - Nombre completo
+   - Número de cédula de identidad
+   - Carrera de interés (si no la mencionó aún)
+   Una vez que tengas los tres, confirmá: "¡Perfecto, [Nombre]! Ya registré tu interés en [Carrera]. Un asesor se va a comunicar con vos a la brevedad para coordinar los detalles 😊"
 3. Para becas, descuentos o casos especiales: derivá al asesor.
 4. Nunca inventes días exactos de clases, montos de matrícula 2° año ni datos no listados aquí.
 
 ETIQUETAS INTERNAS (el usuario nunca las ve, se eliminan automáticamente):
-- Al tener nombre completo + carrera de persona externa, agregá al final (línea aparte):
-[[INTERESADO:Nombre Completo|Nombre exacto de la carrera]]
+- Cuando tengas nombre completo + carrera (con o sin cédula), agregá al final (línea aparte):
+[[INTERESADO:Nombre Completo|Nombre exacto de la carrera|CedulaOVacio]]
 - Si un alumno activo describe su consulta, agregá al final (línea aparte):
 [[CONSULTA:resumen de la consulta]]
-- Cada etiqueta máximo una vez. Si no aplica, no agregues nada.`;
+- Cada etiqueta máximo una vez por respuesta. Si no aplica, no agregues nada.`;
 }
 
 function _botExtraerEtiquetas(textoIA) {
   let limpio = textoIA;
   let interesado = null, consulta = null;
-  const mInt = textoIA.match(/\[\[INTERESADO:([^|]+)\|([^\]]+)\]\]/);
-  if (mInt) { interesado = { nombre: mInt[1].trim(), carrera: mInt[2].trim() }; limpio = limpio.replace(mInt[0], ''); }
+  const mInt = textoIA.match(/\[\[INTERESADO:([^|]+)\|([^|\]]+)\|?([^\]]*)\]\]/);
+  if (mInt) {
+    interesado = { nombre: mInt[1].trim(), carrera: mInt[2].trim(), ci: (mInt[3]||'').trim() };
+    limpio = limpio.replace(mInt[0], '');
+  }
   const mCons = textoIA.match(/\[\[CONSULTA:([^\]]+)\]\]/);
   if (mCons) { consulta = mCons[1].trim(); limpio = limpio.replace(mCons[0], ''); }
   return { limpio: limpio.trim(), interesado, consulta };
@@ -431,27 +438,26 @@ async function procesarMensajeBot(numero, texto) {
         interesado.carrera.toLowerCase().includes(c.nombre.toLowerCase())
       ) || carreraDetectada;
       const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-        VALUES (?,?,?,?,?,'nuevo')`)
-        .run(iid, interesado.nombre, numNorm, carrera?.id||'', carrera?.nombre||interesado.carrera);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,ci,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,?,'nuevo')`)
+        .run(iid, interesado.nombre, interesado.ci||'', numNorm, carrera?.id||'', carrera?.nombre||interesado.carrera);
       est.interesadoGuardado = true;
       est.carreraGuardada = carrera?.id||null;
     } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
   } else if (carreraDetectada && !est.interesadoGuardado) {
-    // Registrar por carrera detectada aunque no haya nombre aún
     try {
       const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
-      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
-        VALUES (?,?,?,?,?,'nuevo')`)
-        .run(iid, '', numNorm, carreraDetectada.id, carreraDetectada.nombre);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,ci,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,?,'nuevo')`)
+        .run(iid, '', '', numNorm, carreraDetectada.id, carreraDetectada.nombre);
       est.interesadoGuardado = true;
       est.carreraGuardada = carreraDetectada.id;
     } catch(e) { console.error('[BOT] guardar interesado por carrera:', e.message); }
   } else if (interesado && est.interesadoGuardado) {
-    // Ya había un registro sin nombre — actualizar con el nombre si ahora lo tenemos
+    // Actualizar nombre y/o CI si ahora los tenemos
     try {
-      db.prepare(`UPDATE interesados_bot SET nombre=? WHERE telefono=? AND (nombre IS NULL OR nombre='')`)
-        .run(interesado.nombre, numNorm);
+      db.prepare(`UPDATE interesados_bot SET nombre=COALESCE(NULLIF(?,''),nombre), ci=COALESCE(NULLIF(?,''),ci) WHERE telefono=?`)
+        .run(interesado.nombre, interesado.ci||'', numNorm);
     } catch(e) {}
   }
 
