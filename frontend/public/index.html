@@ -9386,8 +9386,8 @@ async function pgSolicitudes(el){
   const carreras=[...carreraMap.entries()].map(([id,nombre])=>({id,nombre}));
 
   // formulario_web = link compartido por WhatsApp; qr/nuevo/cambio_carrera = Registro QR
-  const regsForm=regs.filter(r=>r.tipo==='formulario_web');
-  const regsQr=regs.filter(r=>r.tipo!=='formulario_web');
+  const regsForm=regs.filter(r=>r.tipo==='formulario_web'||r.tipo==='nuevo'||!r.tipo);
+  const regsQr=regs.filter(r=>r.tipo==='qr'||r.tipo==='cambio_carrera');
   const regsFormPend=regsForm.filter(r=>r.estado==='pendiente');
   const regsQrPend=regsQr.filter(r=>r.estado==='pendiente');
   const regsPend=regsFormPend; // alias para compatibilidad
