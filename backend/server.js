@@ -6310,6 +6310,14 @@ app.get('/api/whatsapp/analisis-errores', auth(ADM), (req, res) => {
       SELECT evento, detalle, fecha FROM wa_bot_log
       WHERE numero=? ORDER BY fecha ASC
     `).all(a.numero);
+    // Verificar si volvió a escribir DESPUÉS del último error
+    const msgDespues = db.prepare(`
+      SELECT detalle, fecha FROM wa_bot_log
+      WHERE numero=? AND evento='recibido' AND fecha > ?
+      ORDER BY fecha ASC LIMIT 5
+    `).all(a.numero, a.ultimo_error);
+    a.volvio_a_escribir = msgDespues.length > 0;
+    a.mensajes_post_error = msgDespues;
   }
   res.json({ afectados, mensajesAfectados });
 });
