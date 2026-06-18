@@ -6298,18 +6298,20 @@ app.get('/api/whatsapp/bot-log', auth(ADM), (req, res) => {
 app.get('/api/whatsapp/analisis-errores', auth(ADM), (req, res) => {
   const MSG_ERR = '%no podemos procesar%';
   const afectados = db.prepare(`
-    SELECT destinatario_telefono as numero, destinatario_nombre as nombre, MIN(fecha) as primer_error, MAX(fecha) as ultimo_error, COUNT(*) as errores
-    FROM wa_mensajes WHERE mensaje LIKE ? GROUP BY destinatario_telefono ORDER BY primer_error DESC
+    SELECT destinatario_telefono as numero, destinatario_nombre as nombre,
+           MIN(fecha) as primer_error, MAX(fecha) as ultimo_error, COUNT(*) as errores
+    FROM wa_mensajes WHERE mensaje LIKE ? GROUP BY destinatario_telefono ORDER BY ultimo_error DESC
   `).all(MSG_ERR);
-  const totalErrLog = db.prepare(`SELECT COUNT(*) as n FROM wa_bot_log WHERE evento='gemini_error'`).get().n;
   const mensajesAfectados = db.prepare(`SELECT COUNT(*) as n FROM wa_mensajes WHERE mensaje LIKE ?`).get(MSG_ERR).n;
-  const recibidosDurante = db.prepare(`
-    SELECT r.numero, r.nombre_contacto, r.mensaje, r.fecha
-    FROM wa_recibidos r
-    WHERE EXISTS (SELECT 1 FROM wa_mensajes m WHERE m.destinatario_telefono LIKE '%'||REPLACE(REPLACE(r.numero,'595',''),'0','') AND m.mensaje LIKE ?)
-    ORDER BY r.fecha DESC
-  `).all(MSG_ERR);
-  res.json({ afectados, totalErrLog, mensajesAfectados, recibidosDurante });
+
+  // Para cada número afectado, buscar sus mensajes en el bot log (recibidos + errores)
+  for (const a of afectados) {
+    a.log = db.prepare(`
+      SELECT evento, detalle, fecha FROM wa_bot_log
+      WHERE numero=? ORDER BY fecha ASC
+    `).all(a.numero);
+  }
+  res.json({ afectados, mensajesAfectados });
 });
 app.delete('/api/whatsapp/bot-log', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM wa_bot_log').run();
