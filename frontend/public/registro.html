@@ -594,7 +594,8 @@ async function enviarSolicitud() {
     await apiFetch('POST', '/pub/solicitud-registro', {
       nombre, apellido, ci, telefono,
       carrera_id: carreraId,
-      curso_id: cursoSeleccionado?.id || null
+      curso_id: cursoSeleccionado?.id || null,
+      tipo: 'qr'
     });
     renderExito('nuevo');
   } catch(e) {

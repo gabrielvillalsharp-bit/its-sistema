@@ -154,7 +154,7 @@ async function enviar() {
     const res = await fetch('/pub/solicitud-registro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, apellido, ci, telefono, carrera_id })
+      body: JSON.stringify({ nombre, apellido, ci, telefono, carrera_id, tipo: 'formulario_web' })
     });
     const data = await res.json();
     if (!res.ok) {
