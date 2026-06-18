@@ -419,19 +419,40 @@ async function procesarMensajeBot(numero, texto) {
 
   const { limpio, interesado, consulta } = _botExtraerEtiquetas(respuestaIA);
 
+  // Detectar carrera mencionada en el mensaje del usuario o en la respuesta del bot
+  const _textoDeteccion = (txt + ' ' + limpio).toLowerCase();
+  const carreraDetectada = BOT_CARRERAS.find(c => _textoDeteccion.includes(c.nombre.toLowerCase()));
+
   if (interesado && !est.interesadoGuardado) {
     try {
       const carrera = BOT_CARRERAS.find(c =>
         c.nombre.toLowerCase() === interesado.carrera.toLowerCase() ||
         c.nombre.toLowerCase().includes(interesado.carrera.toLowerCase()) ||
         interesado.carrera.toLowerCase().includes(c.nombre.toLowerCase())
-      );
+      ) || carreraDetectada;
       const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
         VALUES (?,?,?,?,?,'nuevo')`)
         .run(iid, interesado.nombre, numNorm, carrera?.id||'', carrera?.nombre||interesado.carrera);
       est.interesadoGuardado = true;
+      est.carreraGuardada = carrera?.id||null;
     } catch(e) { console.error('[BOT] guardar interesado:', e.message); }
+  } else if (carreraDetectada && !est.interesadoGuardado) {
+    // Registrar por carrera detectada aunque no haya nombre aún
+    try {
+      const iid = 'int_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+      db.prepare(`INSERT OR IGNORE INTO interesados_bot (id,nombre,telefono,carrera_id,carrera_nombre,estado)
+        VALUES (?,?,?,?,?,'nuevo')`)
+        .run(iid, '', numNorm, carreraDetectada.id, carreraDetectada.nombre);
+      est.interesadoGuardado = true;
+      est.carreraGuardada = carreraDetectada.id;
+    } catch(e) { console.error('[BOT] guardar interesado por carrera:', e.message); }
+  } else if (interesado && est.interesadoGuardado) {
+    // Ya había un registro sin nombre — actualizar con el nombre si ahora lo tenemos
+    try {
+      db.prepare(`UPDATE interesados_bot SET nombre=? WHERE telefono=? AND (nombre IS NULL OR nombre='')`)
+        .run(interesado.nombre, numNorm);
+    } catch(e) {}
   }
 
   if (consulta && !est.consultaGuardada) {
