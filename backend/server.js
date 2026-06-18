@@ -360,7 +360,7 @@ async function enviarWA(numero, msg, tipo) {
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'fallido',nowStr()); } catch {}
     } else {
       console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
-      botLog(numero, 'envio_ok', `→ ${numNorm}: "${msg.slice(0,80)}"`);
+      botLog(numero, 'envio_ok', `→ ${numNorm}: "${msg}"`);
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
   } catch(e) {
@@ -380,7 +380,7 @@ async function procesarMensajeBot(numero, texto) {
   const txt = (texto||'').trim();
   if (!txt) return;
 
-  botLog(numero, 'recibido', `"${txt.slice(0,100)}"`);
+  botLog(numero, 'recibido', `"${txt}"`);
 
   let est = _botEstados.get(numero);
   const hace24h = Date.now() - 24*60*60*1000;
@@ -404,7 +404,7 @@ async function procesarMensajeBot(numero, texto) {
   try {
     botLog(numero, 'gemini_llamando', `historial: ${est.historial.length} turnos`);
     respuestaIA = await geminiChat(_botSystemPrompt(est.alumno), est.historial, txt);
-    botLog(numero, 'gemini_ok', `respuesta: "${respuestaIA.slice(0,120)}"`);
+    botLog(numero, 'gemini_ok', `respuesta: "${respuestaIA}"`);
   } catch(e) {
     console.error('[BOT] Gemini error:', e.message);
     botLog(numero, 'gemini_error', e.message);
@@ -465,7 +465,7 @@ try {
 function botLog(numero, evento, detalle) {
   try {
     db.prepare("INSERT INTO wa_bot_log (id,numero,evento,detalle) VALUES (?,?,?,?)")
-      .run('bl_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), String(numero||''), evento, detalle ? String(detalle).slice(0,500) : null);
+      .run('bl_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), String(numero||''), evento, detalle ? String(detalle).slice(0,3000) : null);
   } catch {}
 }
 
