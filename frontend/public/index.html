@@ -8934,10 +8934,25 @@ async function pgPagosPendientesWA(el){
     api('GET','/api/alumnos').catch(()=>[]),
     api('GET','/api/periodos').catch(()=>[])
   ]);
-  W._ppwAlumnos = alumnos; W._ppwPeriodos = periodos;
+  W._ppwAlumnos = alumnos; W._ppwPeriodos = periodos; W._ppwTodos = pendientes;
   el.innerHTML=`<div class="ph"><h3>🧾 Aprobar Pagos (WhatsApp)</h3></div>
   <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:11px 14px;font-size:13px;color:#1e40af;margin-bottom:16px">
     📲 Comprobantes de transferencia enviados por alumnos/interesados al WhatsApp del Instituto. Revisá la imagen, completá los datos del pago y aprobá o rechazá.
+  </div>
+  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Mes</label>
+      <select id="ppw-fil-mes" onchange="ppwFiltrar()" style="padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+        <option value="">Todos</option>
+        ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m,i)=>`<option value="${i+1}">${m}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Día</label>
+      <input id="ppw-fil-dia" type="number" min="1" max="31" placeholder="Ej: 15" oninput="ppwFiltrar()" style="width:80px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+    </div>
+    <button class="bs" onclick="document.getElementById('ppw-fil-mes').value='';document.getElementById('ppw-fil-dia').value='';ppwFiltrar()" style="font-size:12px;padding:7px 14px">✕ Limpiar</button>
+    <span id="ppw-fil-count" style="font-size:12px;color:#6b7280;align-self:center"></span>
   </div>
   <datalist id="ppw-alumnos-dl">
     ${alumnos.map(a=>`<option value="${(a.apellido+', '+a.nombre).replace(/"/g,'')} — CI ${a.ci||''}" data-id="${a.id}"></option>`).join('')}
@@ -8947,6 +8962,25 @@ async function pgPagosPendientesWA(el){
       ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">✅ No hay comprobantes pendientes.</div>'
       :pendientes.map(p=>_ppwCard(p)).join('')}
   </div>`;
+  ppwFiltrar();
+}
+function ppwFiltrar(){
+  const mes = parseInt(document.getElementById('ppw-fil-mes')?.value)||0;
+  const dia = parseInt(document.getElementById('ppw-fil-dia')?.value)||0;
+  const lista = document.getElementById('ppw-lista');
+  if(!lista) return;
+  const todos = W._ppwTodos||[];
+  const filtrados = todos.filter(p=>{
+    const f = new Date(p.fecha||'');
+    if(mes && f.getMonth()+1 !== mes) return false;
+    if(dia && f.getDate() !== dia) return false;
+    return true;
+  });
+  const cnt = document.getElementById('ppw-fil-count');
+  if(cnt) cnt.textContent = (mes||dia) ? `${filtrados.length} de ${todos.length} comprobante${todos.length!==1?'s':''}` : `${todos.length} comprobante${todos.length!==1?'s':''}`;
+  lista.innerHTML = filtrados.length===0
+    ? '<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">'+(todos.length===0?'✅ No hay comprobantes pendientes.':'🔍 Ningún comprobante coincide con ese filtro.')+'</div>'
+    : filtrados.map(p=>_ppwCard(p)).join('');
 }
 function _ppwCard(p){
   const sugerido = p.alumno_id ? `${p.alumno_apellido||''}, ${p.alumno_nombre||''}` : '';
