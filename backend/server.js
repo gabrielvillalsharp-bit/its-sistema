@@ -6716,6 +6716,34 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/whatsapp/conversaciones', auth(ADM), (req, res) => {
+  const enviados = db.prepare(`
+    SELECT 'enviado' as direccion, destinatario_telefono as numero,
+           destinatario_nombre as nombre_contacto, mensaje, fecha, estado
+    FROM wa_mensajes
+    WHERE tipo='individual' AND destinatario_telefono IS NOT NULL
+    ORDER BY fecha DESC LIMIT 1000
+  `).all();
+  const recibidos = db.prepare(`
+    SELECT 'recibido' as direccion, numero, nombre_contacto, mensaje, fecha, '' as estado
+    FROM wa_recibidos
+    ORDER BY fecha DESC LIMIT 1000
+  `).all();
+  const todos = [...enviados, ...recibidos].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
+  // Agrupar por número normalizado
+  const grupos = {};
+  for (const m of todos) {
+    const num = (m.numero||'').replace(/\D/g,'').replace(/^595/,'');
+    if (!grupos[num]) grupos[num] = { numero: m.numero, nombre: m.nombre_contacto||null, mensajes: [] };
+    if (!grupos[num].nombre && m.nombre_contacto) grupos[num].nombre = m.nombre_contacto;
+    grupos[num].mensajes.push(m);
+  }
+  const lista = Object.values(grupos)
+    .map(g => ({ ...g, ultimo: g.mensajes[g.mensajes.length-1]?.fecha||'' }))
+    .sort((a,b)=> a.ultimo < b.ultimo ? 1 : -1);
+  res.json(lista);
+});
+
 // ── WHATSAPP CHAT: helper enriquecer número ───────────────────────────────────
 function wacEnriquecerNumero(rawNum) {
   const numSin0 = rawNum.replace(/^595/,'').replace(/^0/,'');

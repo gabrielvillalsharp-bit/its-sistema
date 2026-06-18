@@ -2121,8 +2121,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',historial:'📋 Historial',recibidos:recibLbl,docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot',botlog:'🔍 Log Bot'};
-  const tabsHTML = ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot','botlog'].map((t,i)=>{
+  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',conversaciones:'💬 Conversaciones',docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot',botlog:'🔍 Log Bot'};
+  const tabsHTML = ['enviar','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -2315,53 +2315,29 @@ async function pgWhatsApp(el){
   </div>
 
   <!-- Panel: Historial -->
-  <div id="wa-panel-historial" style="display:none">
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-        <h3 style="margin:0;font-size:14px;color:#333">📋 Historial de mensajes</h3>
-        <select id="waHisTipo" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
-          <option value="">Todos los tipos</option>
-          <option value="individual">Individual</option>
-          <option value="masivo">Masivo</option>
-          <option value="programado">Programado</option>
-          <option value="aviso">Aviso</option>
-        </select>
-        <select id="waHisEst" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
-          <option value="">Todos los estados</option>
-          <option value="enviado">Enviados</option>
-          <option value="fallido">Fallidos</option>
-        </select>
-        <input id="waHisDesde" type="date" onchange="waFiltHist()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px">
-        <span style="font-size:12px;color:#888">${(histR.mensajes||[]).length} registros</span>
+  <!-- Panel: Conversaciones -->
+  <div id="wa-panel-conversaciones" style="display:none">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+      <div style="display:flex;height:580px">
+        <!-- Lista de contactos -->
+        <div style="width:260px;flex-shrink:0;border-right:1px solid #e5e7eb;display:flex;flex-direction:column">
+          <div style="padding:12px;border-bottom:1px solid #e5e7eb;background:#f8fafc">
+            <input id="waConvBuscar" type="text" placeholder="🔍 Buscar..." oninput="waConvFiltrar()" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;box-sizing:border-box">
+          </div>
+          <div id="waConvLista" style="flex:1;overflow-y:auto;font-size:13px">
+            <div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Cargando...</div>
+          </div>
+        </div>
+        <!-- Chat -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div id="waConvHeader" style="padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#f8fafc;font-size:13px;font-weight:700;color:#1e293b">
+            Seleccioná una conversación
+          </div>
+          <div id="waConvChat" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;background:#f0f2f5">
+            <div style="text-align:center;color:#94a3b8;font-size:12px;margin:auto">← Seleccioná un contacto</div>
+          </div>
+        </div>
       </div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead><tr style="background:#f8fafc">
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Fecha</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Tipo</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Destinatario</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Teléfono</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Vista previa</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Contenido</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:11px">Estado</th>
-          </tr></thead>
-          <tbody id="waHisTbody">
-            ${histRowsHTML}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Panel: Recibidos -->
-  <div id="wa-panel-recibidos" style="display:none">
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <h3 style="margin:0;font-size:14px;color:#333">💬 Mensajes recibidos <span style="font-size:12px;color:#777">(${(recibR.mensajes||[]).length})</span></h3>
-        ${leerTodosBtn}
-      </div>
-      <p style="font-size:12px;color:#888;margin:0 0 12px">Los mensajes se capturan automáticamente cuando alguien responde al número conectado (requiere configurar webhook en Evolution API)</p>
-      ${recibMsgsHTML}
     </div>
   </div>
 
@@ -2539,7 +2515,7 @@ async function waBorrarBotLog(){
 }
 
 function waTab(t){
-  ['enviar','masivo','programar','historial','recibidos','docentes','reglas','plantillas','bot','botlog'].forEach(x=>{
+  ['enviar','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
@@ -2548,6 +2524,59 @@ function waTab(t){
   if(t==='botlog') waCargarBotLog();
   if(t==='plantillas') loadWAPlantillas();
   if(t==='bot') waBotCargarMensajes();
+  if(t==='conversaciones') waConvCargar();
+}
+let _waConvDatos=[];
+async function waConvCargar(){
+  const lista=document.getElementById('waConvLista');
+  if(!lista)return;
+  lista.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Cargando...</div>';
+  _waConvDatos=await api('GET','/api/whatsapp/conversaciones').catch(()=>[]);
+  waConvRenderLista(_waConvDatos);
+}
+function waConvFiltrar(){
+  const q=(document.getElementById('waConvBuscar')?.value||'').toLowerCase();
+  const fil=q?_waConvDatos.filter(c=>(c.nombre||'').toLowerCase().includes(q)||(c.numero||'').includes(q)):_waConvDatos;
+  waConvRenderLista(fil);
+}
+function waConvRenderLista(datos){
+  const lista=document.getElementById('waConvLista');
+  if(!lista)return;
+  if(!datos.length){lista.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Sin conversaciones</div>';return;}
+  lista.innerHTML=datos.map(c=>{
+    const ultimo=c.mensajes[c.mensajes.length-1];
+    const nombre=c.nombre||c.numero||'—';
+    const preview=(ultimo?.mensaje||'').slice(0,45)+(ultimo?.mensaje?.length>45?'…':'');
+    const hora=(ultimo?.fecha||'').slice(8,16).replace('T',' ').slice(0,5);
+    const dir=ultimo?.direccion==='recibido'?'':'→ ';
+    return `<div onclick="waConvAbrirNum('${c.numero}')" style="padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${nombre}</span>
+        <span style="font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:4px">${hora}</span>
+      </div>
+      <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dir}${preview||'—'}</div>
+    </div>`;
+  }).join('');
+}
+function waConvAbrirNum(numero){
+  const conv=_waConvDatos.find(c=>c.numero===numero);
+  if(!conv)return;
+  const header=document.getElementById('waConvHeader');
+  const chat=document.getElementById('waConvChat');
+  if(header) header.innerHTML=`<div style="font-weight:700">${conv.nombre||conv.numero}</div><div style="font-size:11px;color:#64748b;font-weight:400">${conv.numero} · ${conv.mensajes.length} mensaje${conv.mensajes.length!==1?'s':''}</div>`;
+  if(chat){
+    chat.innerHTML=conv.mensajes.map(m=>{
+      const enviado=m.direccion==='enviado';
+      const hora=(m.fecha||'').replace('T',' ').slice(0,16);
+      return `<div style="display:flex;justify-content:${enviado?'flex-end':'flex-start'}">
+        <div style="max-width:72%;padding:9px 13px;border-radius:${enviado?'16px 4px 16px 16px':'4px 16px 16px 16px'};background:${enviado?'#dcf8c6':'#fff'};border:1px solid ${enviado?'#b7e4a0':'#e5e7eb'};font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
+          <div>${(m.mensaje||'').replace(/\n/g,'<br>')}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${enviado?m.estado==='fallido'?' ❌':' ✓':''}</div>
+        </div>
+      </div>`;
+    }).join('');
+    chat.scrollTop=chat.scrollHeight;
+  }
 }
 function waDestChange(){
   const t=document.getElementById('waDestTipo')?.value;
