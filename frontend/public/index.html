@@ -9472,31 +9472,45 @@ async function pgSolicitudes(el){
         <div id="ins-lista" style="margin-top:12px"></div>
       </div>
 
-      <!-- Lista principal: solicitudes recibidas por formulario web -->
-      ${regs.length ? regs.map(r=>`
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${r.estado==='pendiente'?'#fde68a':r.estado==='aprobado'?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${r.estado==='pendiente'?'#fffbeb':r.estado==='aprobado'?'#f0fdf4':'#fef2f2'}">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:14px;color:#1e293b">${r.apellido}, ${r.nombre}</div>
-            <div style="font-size:12px;color:#059669;font-weight:600;margin-top:2px">${r.carrera_nombre||'—'}</div>
-            <div style="font-size:11px;color:var(--t2);margin-top:3px">
-              CI: <strong>${r.ci||'—'}</strong> · Tel: <strong>${r.telefono||'—'}</strong> · ${(r.fecha||'').split('T')[0]}
+      <!-- PENDIENTES: solicitudes que necesitan acción -->
+      ${(()=>{
+        const pends = regs.filter(r=>r.estado==='pendiente');
+        const restos = regs.filter(r=>r.estado!=='pendiente');
+        function _regRow(r){
+          return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${r.estado==='pendiente'?'#fde68a':r.estado==='aprobado'?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${r.estado==='pendiente'?'#fffbeb':r.estado==='aprobado'?'#f0fdf4':'#fef2f2'}">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px;color:#1e293b">${r.apellido}, ${r.nombre}</div>
+              <div style="font-size:12px;color:#059669;font-weight:600;margin-top:2px">${r.carrera_nombre||'—'}</div>
+              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${r.ci||'—'}</strong> · Tel: <strong>${r.telefono||'—'}</strong> · ${(r.fecha||'').split('T')[0]}</div>
+              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${r.motivo_rechazo}</div>`:''}
             </div>
-            ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${r.motivo_rechazo}</div>`:''}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
-            <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
-            ${r.estado==='pendiente'?`
-              <button class="bn" style="font-size:11px;padding:5px 14px;background:#059669;border-color:#047857" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+              <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
+              ${r.estado==='pendiente'?`<button class="bn" style="font-size:11px;padding:5px 14px;background:#059669;border-color:#047857" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button>
               <button class="bs d" style="font-size:11px;padding:5px 14px" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''}
-          </div>
-        </div>`).join('')
-      : `<div style="text-align:center;padding:40px 20px;color:var(--t3)">
-          <div style="font-size:32px;margin-bottom:10px">📋</div>
-          <div style="font-size:14px;font-weight:600">Todavía no hay solicitudes recibidas</div>
-          <div style="font-size:12px;margin-top:6px">Compartí el link con los interesados:<br>
-            <a href="https://its-sistema-production.up.railway.app/inscripcion" target="_blank" style="color:#059669;font-weight:600">its-sistema-production.up.railway.app/inscripcion</a>
-          </div>
-        </div>`}
+            </div>
+          </div>`;
+        }
+        let html = '';
+        if(pends.length){
+          html += pends.map(_regRow).join('');
+        } else {
+          html += `<div style="text-align:center;padding:30px 20px;color:var(--t3)">
+            <div style="font-size:28px;margin-bottom:8px">✅</div>
+            <div style="font-size:14px;font-weight:600">Sin solicitudes pendientes</div>
+            <div style="font-size:12px;margin-top:5px">Link del formulario:
+              <a href="https://its-sistema-production.up.railway.app/inscripcion" target="_blank" style="color:#059669;font-weight:600">its-sistema-production.up.railway.app/inscripcion</a>
+            </div>
+          </div>`;
+        }
+        if(restos.length){
+          html += `<div style="margin-top:12px">
+            <button onclick="toggleGestSubsec('ins-historial')" style="background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:6px 0">▾ Ver historial (${restos.length} procesado${restos.length!==1?'s':''})</button>
+            <div id="ins-historial" style="display:none;margin-top:8px">${restos.map(_regRow).join('')}</div>
+          </div>`;
+        }
+        return html;
+      })()}
     </div>
   </div>
   <div id="gest-sec-qr" style="display:none;margin-bottom:16px">
