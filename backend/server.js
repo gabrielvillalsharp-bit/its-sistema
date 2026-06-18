@@ -142,7 +142,8 @@ try {
 } catch(e) { console.warn('[Migración] movimientos_extra:', e.message); }
 
 // ── MIGRACIÓN: columnas de precarga IA en pagos_pendientes_wa ───────────────
-['monto_sugerido REAL','fecha_sugerida TEXT','nombre_detectado TEXT','banco_detectado TEXT','referencia_detectada TEXT',"ia_estado TEXT DEFAULT 'pendiente'",'estado_transferencia_ia TEXT'].forEach(col => {
+['monto_sugerido REAL','fecha_sugerida TEXT','nombre_detectado TEXT','banco_detectado TEXT','referencia_detectada TEXT',"ia_estado TEXT DEFAULT 'pendiente'",'estado_transferencia_ia TEXT',
+ 'pago_id TEXT','resuelto_por TEXT','fecha_resolucion TEXT','imagen_mime TEXT DEFAULT \'image/jpeg\''].forEach(col => {
   try { db.prepare(`ALTER TABLE pagos_pendientes_wa ADD COLUMN ${col}`).run(); } catch {}
 });
 
