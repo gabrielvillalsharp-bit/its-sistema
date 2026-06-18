@@ -6360,29 +6360,46 @@ app.post('/api/whatsapp/bot/reanudar', auth(ADM), (req, res) => {
 app.post('/api/whatsapp/bot/test-completo', auth(ADM), async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY no configurada' });
   const sp = _botSystemPrompt(null);
-  const casos = [
-    { id: 'saludo',    msg: 'Buen día, quería saber información sobre las carreras que tienen' },
-    { id: 'carrera',   msg: 'Me interesa Cosmiatra, cuánto sale por mes y qué documentos necesito?' },
-    { id: 'horarios',  msg: 'Y en qué horarios son las clases? puedo inscribirme ahora o tengo que esperar?' },
-    { id: 'multiturn', msg: 'Soy María López y quiero anotarme en Cosmiatra, me pueden mandar el link?' },
+  // Conversación 1: interesado nuevo — flujo completo de admisiones
+  const conv1 = [
+    { id: 'saludo',        msg: 'Buen día, quería saber información sobre las carreras que tienen' },
+    { id: 'carrera',       msg: 'Me interesa Cosmiatra, cuánto sale por mes y qué documentos necesito?' },
+    { id: 'horarios',      msg: 'Y en qué horarios son las clases? puedo inscribirme ahora o tengo que esperar?' },
+    { id: 'nombre_link',   msg: 'Soy María López, me pueden mandar el link para inscribirme?' },
+    { id: 'matricula',     msg: 'La matrícula tiene costo extra o está incluida en la cuota?' },
   ];
+  // Conversación 2: nueva conversación independiente — otros escenarios
+  const conv2 = [
+    { id: 'es_bot',        msg: 'Sos una persona real o un bot?' },
+    { id: 'precio_2anio',  msg: 'Cuánto cuesta el 2do año de Enfermería?' },
+    { id: 'duracion',      msg: 'Cuántos años dura la carrera de Técnico en Contabilidad?' },
+    { id: 'msg_corto',     msg: 'hola' },
+    { id: 'alumno_activo', msg: 'Buen día, soy alumno del instituto y no puedo entrar a la plataforma, mi CI es 4567890' },
+  ];
+  const casos = [...conv1, ...conv2];
+  const SEPARADORES = { saludo: 'conv1', es_bot: 'conv2' };
   const resultados = [];
   let historial = [];
   for (const c of casos) {
+    if (SEPARADORES[c.id]) historial = []; // nueva conversación independiente
     const t0 = Date.now();
     try {
       const resp = await geminiChat(sp, historial, c.msg);
       const ms = Date.now() - t0;
-      const { limpio } = _botExtraerEtiquetas(resp);
-      resultados.push({ id: c.id, msg: c.msg, respuesta: limpio, ms, ok: true, largo: limpio.length });
+      const { limpio, interesado } = _botExtraerEtiquetas(resp);
+      resultados.push({
+        id: c.id, msg: c.msg, respuesta: limpio, ms, ok: true,
+        largo: limpio.length,
+        conv: SEPARADORES[c.id] || null,
+        interesado_detectado: !!interesado
+      });
       historial.push({ role: 'user', texto: c.msg }, { role: 'model', texto: limpio });
-      if (historial.length > 8) historial = historial.slice(-8);
+      if (historial.length > 16) historial = historial.slice(-16);
     } catch(e) {
-      resultados.push({ id: c.id, msg: c.msg, error: e.message, ms: Date.now()-t0, ok: false });
-      break;
+      resultados.push({ id: c.id, msg: c.msg, error: e.message, ms: Date.now()-t0, ok: false, conv: SEPARADORES[c.id]||null });
     }
   }
-  res.json({ ok: resultados.every(r=>r.ok), resultados });
+  res.json({ ok: resultados.filter(r=>!r.ok).length === 0, resultados });
 });
 app.post('/api/whatsapp/bot/test-gemini', auth(ADM), async (req, res) => {
   if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY no está configurada en las variables de entorno de Railway.' });

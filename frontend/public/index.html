@@ -2883,21 +2883,42 @@ async function waBotTestCompleto(){
   try{
     const d=await api('POST','/api/whatsapp/bot/test-completo');
     if(!d.resultados){res.innerHTML='<div style="color:#991b1b">Error al ejecutar test</div>';return;}
-    const etiquetas={saludo:'1. Saludo / info carreras',carrera:'2. Carrera + precio + documentos',horarios:'3. Horarios + inscripción',multiturn:'4. Conversación multi-turno + nombre'};
+    const etiquetas={
+      saludo:'1. Saludo — info general de carreras',
+      carrera:'2. Carrera específica + precio + documentos',
+      horarios:'3. Horarios e inscripción',
+      nombre_link:'4. Da su nombre y pide el link',
+      matricula:'5. Pregunta por matrícula',
+      es_bot:'6. ¿Sos un bot o persona real?',
+      precio_2anio:'7. Precio 2° año de otra carrera',
+      duracion:'8. Duración de carrera',
+      msg_corto:'9. Mensaje muy corto (hola)',
+      alumno_activo:'10. Alumno activo con problema de acceso'
+    };
+    let convActual='';
     const html=d.resultados.map(r=>{
-      if(!r.ok) return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:8px">
+      let separador='';
+      if(r.conv&&r.conv!==convActual){
+        convActual=r.conv;
+        const titulos={conv1:'💬 Conversación 1 — Interesado nuevo (flujo de admisiones)',conv2:'💬 Conversación 2 — Escenarios variados (nueva sesión)'};
+        separador=`<div style="background:#1e293b;color:#fff;border-radius:8px;padding:8px 12px;margin:12px 0 6px;font-size:11px;font-weight:700">${titulos[r.conv]||r.conv}</div>`;
+      }
+      if(!r.ok) return separador+`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:8px">
         <div style="font-weight:700;color:#991b1b;font-size:11px">❌ ${etiquetas[r.id]||r.id}</div>
         <div style="font-size:10px;color:#7f1d1d;margin-top:4px">Error: ${r.error}</div>
       </div>`;
       const largo=r.largo||0;
       const cortado=largo<80;
-      return `<div style="background:${cortado?'#fffbeb':'#f0fdf4'};border:1.5px solid ${cortado?'#fde68a':'#bbf7d0'};border-radius:8px;padding:10px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:700;color:${cortado?'#92400e':'#166534'};font-size:11px">${cortado?'⚠️':'✅'} ${etiquetas[r.id]||r.id}</span>
-          <span style="font-size:10px;color:#64748b">${r.ms}ms · ${largo} caracteres</span>
+      const badges=[];
+      if(r.interesado_detectado) badges.push('<span style="background:#ede9fe;color:#6d28d9;border-radius:6px;padding:1px 7px;font-size:9px;font-weight:700">🎯 INTERESADO detectado</span>');
+      if(cortado) badges.push('<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 7px;font-size:9px;font-weight:700">⚠️ respuesta corta</span>');
+      return separador+`<div style="background:${cortado?'#fffbeb':'#f0fdf4'};border:1.5px solid ${cortado?'#fde68a':'#bbf7d0'};border-radius:8px;padding:10px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+          <span style="font-weight:700;color:#0f172a;font-size:11px">${etiquetas[r.id]||r.id}</span>
+          <div style="display:flex;gap:6px;align-items:center">${badges.join('')}<span style="font-size:10px;color:#64748b">${r.ms}ms · ${largo} chars</span></div>
         </div>
-        <div style="font-size:10px;color:#475569;background:#fff;border-radius:6px;padding:8px;border:1px solid #e5e7eb;white-space:pre-wrap;max-height:120px;overflow-y:auto">${(r.respuesta||'').replace(/</g,'&lt;')}</div>
-        <div style="font-size:9px;color:#94a3b8;margin-top:4px;font-style:italic">Mensaje enviado: "${r.msg}"</div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:4px;font-style:italic">↪ "${r.msg}"</div>
+        <div style="font-size:11px;color:#1e293b;background:#fff;border-radius:6px;padding:8px;border:1px solid #e5e7eb;white-space:pre-wrap;max-height:140px;overflow-y:auto">${(r.respuesta||'').replace(/</g,'&lt;')}</div>
       </div>`;
     }).join('');
     const ok=d.resultados.every(r=>r.ok);
