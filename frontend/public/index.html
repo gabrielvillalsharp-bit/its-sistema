@@ -2485,8 +2485,31 @@ async function waCargarBotLog(){
   const cuerpo=document.getElementById('wa-botlog-cuerpo');
   if(!cuerpo)return;
   cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Cargando...</div>';
-  const rows=await api('GET','/api/whatsapp/bot-log').catch(()=>[]);
-  if(!rows.length){cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Sin registros todavía. Cuando llegue un mensaje al bot aparecerá aquí.</div>';return;}
+  const [rows, analisis] = await Promise.all([
+    api('GET','/api/whatsapp/bot-log').catch(()=>[]),
+    api('GET','/api/whatsapp/analisis-errores').catch(()=>null)
+  ]);
+  // Banner de errores si hay afectados
+  let bannerErr='';
+  if(analisis && analisis.mensajesAfectados>0){
+    const lista=analisis.afectados.map(a=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #fee2e2">
+        <div>
+          <span style="font-weight:700;font-size:12px">${a.nombre||a.numero}</span>
+          <span style="font-size:11px;color:#6b7280;margin-left:6px">${a.numero}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;color:#991b1b">${a.errores} error${a.errores!==1?'es':''} · ${(a.primer_error||'').slice(0,16)}</span>
+          <button onclick="waConvIrA('${a.numero}')" style="font-size:11px;padding:3px 10px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;cursor:pointer">Ver conversación</button>
+        </div>
+      </div>`).join('');
+    bannerErr=`<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-weight:700;color:#991b1b;font-size:13px;margin-bottom:8px">⚠️ ${analisis.mensajesAfectados} mensaje${analisis.mensajesAfectados!==1?'s de error fueron enviados':'de error fue enviado'} a ${analisis.afectados.length} número${analisis.afectados.length!==1?'s':''} durante la falla del bot</div>
+      ${lista}
+    </div>`;
+  }
+  const rows2=rows;
+  if(!rows2.length&&!bannerErr){cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Sin registros todavía. Cuando llegue un mensaje al bot aparecerá aquí.</div>';return;}
   const EVENTO_STYLE={
     recibido:     {bg:'#eff6ff',bdr:'#bfdbfe',ic:'📩',c:'#1e40af'},
     gemini_llamando:{bg:'#fefce8',bdr:'#fde68a',ic:'⏳',c:'#854d0e'},
@@ -2497,7 +2520,7 @@ async function waCargarBotLog(){
     envio_error:  {bg:'#fef2f2',bdr:'#fca5a5',ic:'💥',c:'#7f1d1d'},
     ignorado:     {bg:'#f8fafc',bdr:'#e2e8f0',ic:'🔕',c:'#475569'},
   };
-  const html=rows.map(r=>{
+  const html=rows2.map(r=>{
     const s=EVENTO_STYLE[r.evento]||{bg:'#f8fafc',bdr:'#e2e8f0',ic:'•',c:'#334155'};
     const num=(r.numero||'').length>20?r.numero.slice(0,20)+'…':r.numero;
     const det=(r.detalle||'');
@@ -2511,9 +2534,16 @@ async function waCargarBotLog(){
       <span style="font-size:10px;color:#94a3b8;white-space:nowrap">${(r.fecha||'').slice(5,16)}</span>
     </div>`;
   }).join('');
-  cuerpo.innerHTML=`<div style="max-height:600px;overflow-y:auto;padding-right:4px">${html}</div>`;
+  cuerpo.innerHTML=bannerErr+`<div style="max-height:520px;overflow-y:auto;padding-right:4px">${html}</div>`;
 }
 
+function waConvIrA(numero){
+  waTab('conversaciones');
+  setTimeout(async()=>{
+    if(!_waConvDatos.length) await waConvCargar();
+    waConvAbrirNum(numero);
+  },400);
+}
 async function waBorrarBotLog(){
   if(!confirm('¿Limpiar todo el log del bot?'))return;
   await api('DELETE','/api/whatsapp/bot-log');
