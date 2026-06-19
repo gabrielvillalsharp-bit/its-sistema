@@ -394,7 +394,19 @@ async function procesarMensajeBot(numero, texto) {
   if (_botPausado) { botLog(numero, 'ignorado', 'bot pausado por director'); return; }
   if (!process.env.EVOLUTION_URL || !process.env.EVOLUTION_KEY || !process.env.EVOLUTION_INSTANCE) { botLog(numero, 'ignorado', 'variables EVOLUTION no configuradas'); return; }
 
-  const numNorm = (() => { let t=String(numero||'').replace(/\D/g,''); if(t.startsWith('0')) t='595'+t.slice(1); if(!t.startsWith('595')) t='595'+t; return t; })();
+  // numNorm se calcula DESPUÉS del await Gemini para aprovechar CONTACTS_UPSERT que puede
+  // llegar durante el tiempo que tarda Gemini (1-5 s) y revelar el JID real de un @lid.
+  // Definida como función para evaluarse en el momento de uso.
+  const _resolverNumNorm = () => {
+    const raw = String(numero||'');
+    if (raw.endsWith('@lid')) {
+      if (_lidJidMap.has(raw)) {
+        return _normTelPY(_lidJidMap.get(raw).replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, ''));
+      }
+      return raw; // @lid sin resolver: guardar como identificador hasta que llegue CONTACTS_UPSERT
+    }
+    return _normTelPY(raw);
+  };
   const enviar = (msg) => enviarWA(numero, msg, 'bot');
 
   const txt = (texto||'').trim();
@@ -450,6 +462,9 @@ async function procesarMensajeBot(numero, texto) {
     _botEstados.set(numero, est);
     return;
   }
+
+  // En este punto CONTACTS_UPSERT ya pudo haber llegado → resolver @lid al número real
+  const numNorm = _resolverNumNorm();
 
   const { limpio, interesado, consulta } = _botExtraerEtiquetas(respuestaIA);
 
@@ -6766,7 +6781,17 @@ function manejarWebhookWA(req, res) {
           const jid = c.id || c.jid || c.remoteJid;
           const lid = c.lid || c.lidJid;
           if (jid && lid && String(lid).endsWith('@lid') && (String(jid).endsWith('@s.whatsapp.net') || String(jid).endsWith('@c.us'))) {
-            _lidJidMap.set(String(lid), String(jid));
+            const lidStr = String(lid);
+            const jidStr = String(jid);
+            _lidJidMap.set(lidStr, jidStr);
+            // Actualizar registros que usaron el @lid como número temporal mientras no conocíamos el JID real.
+            // Esto garantiza que interesados_bot.telefono tenga el número real para poder contactarlos.
+            try {
+              const realNum = _normTelPY(jidStr.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, ''));
+              db.prepare("UPDATE interesados_bot SET telefono=? WHERE telefono=?").run(realNum, lidStr);
+              db.prepare("UPDATE wa_recibidos SET numero=? WHERE numero=?").run(realNum, lidStr);
+              db.prepare("UPDATE wa_mensajes SET destinatario_telefono=? WHERE destinatario_telefono=?").run(realNum, lidStr);
+            } catch(e) { console.error('[CONTACTS_UPSERT] actualizar BD:', e.message); }
           }
         }
         continue;
@@ -6885,7 +6910,7 @@ app.get('/api/whatsapp/conversaciones', auth(ADM), (req, res) => {
     // Normalizar: quitar @suffix para unificar enviados (@s.whatsapp.net) con recibidos (dígitos)
     key = key.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
     // Si es @lid y tenemos el JID real en caché, agrupar bajo el número real
-    if (key.endsWith('@lid') && _lidJidMap.has(key + '')) {
+    if (key.endsWith('@lid') && _lidJidMap.has(key)) {
       const jid = _lidJidMap.get(key);
       key = jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
     }
