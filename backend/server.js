@@ -95,6 +95,29 @@ try {
   if (purgados.changes > 0) console.log(`[Limpieza] wa_recibidos: ${purgados.changes} mensajes de grupos eliminados`);
 } catch(e) {}
 
+// ── LIMPIEZA: deduplicar wa_recibidos (mismo numero+mensaje en ventana de 5 min) ──
+try {
+  const dedup = db.prepare(`
+    DELETE FROM wa_recibidos WHERE id NOT IN (
+      SELECT MIN(id) FROM wa_recibidos
+      GROUP BY numero, mensaje, strftime('%Y-%m-%d %H:%M', fecha, 'localtime')
+    )
+  `).run();
+  if (dedup.changes > 0) console.log(`[Limpieza] wa_recibidos: ${dedup.changes} mensajes duplicados eliminados`);
+} catch(e) {}
+
+// ── LIMPIEZA: deduplicar wa_mensajes (mismo numero+mensaje en ventana de 1 min) ──
+try {
+  const dedup2 = db.prepare(`
+    DELETE FROM wa_mensajes WHERE id NOT IN (
+      SELECT MIN(id) FROM wa_mensajes
+      WHERE tipo='individual'
+      GROUP BY destinatario_telefono, mensaje, strftime('%Y-%m-%d %H:%M', fecha)
+    ) AND tipo='individual'
+  `).run();
+  if (dedup2.changes > 0) console.log(`[Limpieza] wa_mensajes: ${dedup2.changes} mensajes duplicados eliminados`);
+} catch(e) {}
+
 // ── MIGRACIÓN: tabla wa_consultas ─────────────────────────────────────────────
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS wa_consultas (
@@ -6891,38 +6914,93 @@ app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
 });
 
 app.get('/api/whatsapp/conversaciones', auth(ADM), (req, res) => {
+  const { numero: numFiltro, desde, hasta, limite = 60 } = req.query;
+  const lim = Math.min(parseInt(limite) || 60, 500);
+
+  let envWhere = `tipo='individual' AND destinatario_telefono IS NOT NULL`;
+  let recWhere = `1=1`;
+  const params = [];
+  const params2 = [];
+
+  if (numFiltro) {
+    envWhere += ` AND destinatario_telefono LIKE ?`;
+    recWhere += ` AND numero LIKE ?`;
+    params.push('%' + numFiltro + '%');
+    params2.push('%' + numFiltro + '%');
+  }
+  if (desde) {
+    envWhere += ` AND fecha >= ?`;
+    recWhere += ` AND fecha >= ?`;
+    params.push(desde);
+    params2.push(desde);
+  }
+  if (hasta) {
+    envWhere += ` AND fecha <= ?`;
+    recWhere += ` AND fecha <= ?`;
+    params.push(hasta + ' 23:59:59');
+    params2.push(hasta + ' 23:59:59');
+  }
+
   const enviados = db.prepare(`
     SELECT 'enviado' as direccion, destinatario_telefono as numero,
            destinatario_nombre as nombre_contacto, mensaje, fecha, estado
-    FROM wa_mensajes
-    WHERE tipo='individual' AND destinatario_telefono IS NOT NULL
-    ORDER BY fecha DESC LIMIT 1000
-  `).all();
+    FROM wa_mensajes WHERE ${envWhere}
+    ORDER BY fecha DESC LIMIT 2000
+  `).all(...params);
   const recibidos = db.prepare(`
     SELECT 'recibido' as direccion, numero, nombre_contacto, mensaje, fecha, '' as estado
-    FROM wa_recibidos
-    ORDER BY fecha DESC LIMIT 1000
-  `).all();
+    FROM wa_recibidos WHERE ${recWhere}
+    ORDER BY fecha DESC LIMIT 2000
+  `).all(...params2);
+
   const todos = [...enviados, ...recibidos].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
   const grupos = {};
   for (const m of todos) {
     let key = (m.numero||'').trim();
-    // Normalizar: quitar @suffix para unificar enviados (@s.whatsapp.net) con recibidos (dígitos)
     key = key.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
-    // Si es @lid y tenemos el JID real en caché, agrupar bajo el número real
     if (key.endsWith('@lid') && _lidJidMap.has(key)) {
       const jid = _lidJidMap.get(key);
       key = jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
     }
     if (!key) continue;
-    if (!grupos[key]) grupos[key] = { numero: key, nombre: m.nombre_contacto||null, mensajes: [] };
+    if (!grupos[key]) grupos[key] = { numero: key, nombre: m.nombre_contacto||null, mensajes: [], total: 0 };
     if (!grupos[key].nombre && m.nombre_contacto) grupos[key].nombre = m.nombre_contacto;
+    grupos[key].total++;
     grupos[key].mensajes.push(m);
   }
+  // Retornar solo últimos `lim` mensajes por conversación, pero informar el total real
   const lista = Object.values(grupos)
-    .map(g => ({ ...g, ultimo: g.mensajes[g.mensajes.length-1]?.fecha||'' }))
+    .map(g => ({
+      numero: g.numero,
+      nombre: g.nombre,
+      total: g.total,
+      mensajes: g.mensajes.slice(-lim),
+      ultimo: g.mensajes[g.mensajes.length-1]?.fecha||''
+    }))
     .sort((a,b)=> a.ultimo < b.ultimo ? 1 : -1);
   res.json(lista);
+});
+
+// ── WHATSAPP CHAT: todos los mensajes de un número específico ─────────────────
+app.get('/api/whatsapp/conversaciones/:numero/mensajes', auth(ADM), (req, res) => {
+  const num = decodeURIComponent(req.params.numero);
+  const numVariantes = [num, num + '@s.whatsapp.net', num + '@c.us'];
+  const placeholders = numVariantes.map(() => '?').join(',');
+  const enviados = db.prepare(`
+    SELECT 'enviado' as direccion, destinatario_telefono as numero,
+           destinatario_nombre as nombre_contacto, mensaje, fecha, estado
+    FROM wa_mensajes
+    WHERE tipo='individual' AND destinatario_telefono IN (${placeholders})
+    ORDER BY fecha ASC
+  `).all(...numVariantes);
+  const recibidos = db.prepare(`
+    SELECT 'recibido' as direccion, numero, nombre_contacto, mensaje, fecha, '' as estado
+    FROM wa_recibidos
+    WHERE numero IN (${placeholders})
+    ORDER BY fecha ASC
+  `).all(...numVariantes);
+  const mensajes = [...enviados, ...recibidos].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
+  res.json({ mensajes, total: mensajes.length });
 });
 
 // ── WHATSAPP CHAT: helper enriquecer número ───────────────────────────────────

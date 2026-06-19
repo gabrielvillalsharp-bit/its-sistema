@@ -2321,8 +2321,14 @@ async function pgWhatsApp(el){
       <div style="display:flex;height:580px">
         <!-- Lista de contactos -->
         <div style="width:260px;flex-shrink:0;border-right:1px solid #e5e7eb;display:flex;flex-direction:column">
-          <div style="padding:12px;border-bottom:1px solid #e5e7eb;background:#f8fafc">
-            <input id="waConvBuscar" type="text" placeholder="🔍 Buscar..." oninput="waConvFiltrar()" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;box-sizing:border-box">
+          <div style="padding:10px 12px;border-bottom:1px solid #e5e7eb;background:#f8fafc;display:flex;flex-direction:column;gap:6px">
+            <input id="waConvBuscar" type="text" placeholder="🔍 Buscar contacto..." oninput="waConvFiltrar()" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;box-sizing:border-box">
+            <div style="display:flex;gap:4px;align-items:center">
+              <input id="waConvDesde" type="date" onchange="waConvCargar()" style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:11px">
+              <span style="font-size:10px;color:#94a3b8">al</span>
+              <input id="waConvHasta" type="date" onchange="waConvCargar()" style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;font-size:11px">
+              <button onclick="document.getElementById('waConvDesde').value='';document.getElementById('waConvHasta').value='';waConvCargar()" title="Limpiar fechas" style="padding:4px 7px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:11px;cursor:pointer;color:#64748b">✕</button>
+            </div>
           </div>
           <div id="waConvLista" style="flex:1;overflow-y:auto;font-size:13px">
             <div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Cargando...</div>
@@ -2671,8 +2677,13 @@ async function waConvCargar(){
   const lista=document.getElementById('waConvLista');
   if(!lista)return;
   lista.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Cargando...</div>';
-  _waConvDatos=await api('GET','/api/whatsapp/conversaciones').catch(()=>[]);
-  waConvRenderLista(_waConvDatos);
+  const desde=document.getElementById('waConvDesde')?.value||'';
+  const hasta=document.getElementById('waConvHasta')?.value||'';
+  let url='/api/whatsapp/conversaciones?limite=60';
+  if(desde) url+='&desde='+desde;
+  if(hasta) url+='&hasta='+hasta;
+  _waConvDatos=await api('GET',url).catch(()=>[]);
+  waConvFiltrar();
 }
 function waConvFiltrar(){
   const q=(document.getElementById('waConvBuscar')?.value||'').toLowerCase();
@@ -2687,18 +2698,33 @@ function waConvRenderLista(datos){
     const ultimo=c.mensajes[c.mensajes.length-1];
     const nombre=c.nombre||c.numero||'—';
     const preview=(ultimo?.mensaje||'').slice(0,45)+(ultimo?.mensaje?.length>45?'…':'');
-    const hora=(ultimo?.fecha||'').slice(8,16).replace('T',' ').slice(0,5);
+    const fecha=ultimo?.fecha||'';
+    const esHoy=fecha.slice(0,10)===new Date().toISOString().slice(0,10);
+    const hora=esHoy?fecha.slice(11,16):fecha.slice(5,10).replace('-','/');
     const dir=ultimo?.direccion==='recibido'?'':'→ ';
+    const badge=c.total>c.mensajes.length?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">${c.total}</span>`:'';
     return `<div onclick="waConvAbrirNum('${c.numero}')" style="padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${nombre}</span>
-        <span style="font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:4px">${hora}</span>
+        <span style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${nombre}</span>
+        <span style="font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:4px;display:flex;align-items:center;gap:3px">${badge}${hora}</span>
       </div>
       <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dir}${preview||'—'}</div>
     </div>`;
   }).join('');
 }
 let _waConvNumActivo=null;
+function _waConvMsgHtml(mensajes){
+  return mensajes.map(m=>{
+    const enviado=m.direccion==='enviado';
+    const hora=(m.fecha||'').replace('T',' ').slice(0,16);
+    return `<div style="display:flex;justify-content:${enviado?'flex-end':'flex-start'}">
+      <div style="max-width:72%;padding:9px 13px;border-radius:${enviado?'16px 4px 16px 16px':'4px 16px 16px 16px'};background:${enviado?'#dcf8c6':'#fff'};border:1px solid ${enviado?'#b7e4a0':'#e5e7eb'};font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
+        <div>${(m.mensaje||'').replace(/\n/g,'<br>')}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${enviado?m.estado==='fallido'?' ❌':' ✓':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 function waConvAbrirNum(numero){
   const conv=_waConvDatos.find(c=>c.numero===numero);
   if(!conv)return;
@@ -2706,21 +2732,38 @@ function waConvAbrirNum(numero){
   const header=document.getElementById('waConvHeader');
   const chat=document.getElementById('waConvChat');
   const bar=document.getElementById('waConvInputBar');
-  if(header) header.innerHTML=`<div style="font-weight:700">${conv.nombre||conv.numero}</div><div style="font-size:11px;color:#64748b;font-weight:400">${conv.numero} · ${conv.mensajes.length} mensaje${conv.mensajes.length!==1?'s':''}</div>`;
+  const mostrados=conv.mensajes.length;
+  const total=conv.total||mostrados;
+  const hayMas=total>mostrados;
+  if(header) header.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:700">${conv.nombre||conv.numero}</div>
+        <div style="font-size:11px;color:#64748b;font-weight:400">${conv.numero} · ${hayMas?`últimos ${mostrados} de ${total} mensajes`:`${total} mensaje${total!==1?'s':''}`}</div>
+      </div>
+      ${hayMas?`<button onclick="waConvVerTodos('${numero}')" style="font-size:11px;padding:4px 10px;border:1px solid #3b82f6;background:#eff6ff;color:#3b82f6;border-radius:6px;cursor:pointer;white-space:nowrap">Ver todo (${total})</button>`:''}
+    </div>`;
   if(bar) bar.style.display='block';
   if(chat){
-    chat.innerHTML=conv.mensajes.map(m=>{
-      const enviado=m.direccion==='enviado';
-      const hora=(m.fecha||'').replace('T',' ').slice(0,16);
-      return `<div style="display:flex;justify-content:${enviado?'flex-end':'flex-start'}">
-        <div style="max-width:72%;padding:9px 13px;border-radius:${enviado?'16px 4px 16px 16px':'4px 16px 16px 16px'};background:${enviado?'#dcf8c6':'#fff'};border:1px solid ${enviado?'#b7e4a0':'#e5e7eb'};font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
-          <div>${(m.mensaje||'').replace(/\n/g,'<br>')}</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${enviado?m.estado==='fallido'?' ❌':' ✓':''}</div>
-        </div>
-      </div>`;
-    }).join('');
+    chat.innerHTML=_waConvMsgHtml(conv.mensajes);
     chat.scrollTop=chat.scrollHeight;
   }
+}
+async function waConvVerTodos(numero){
+  const chat=document.getElementById('waConvChat');
+  const header=document.getElementById('waConvHeader');
+  if(chat) chat.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:12px">Cargando historial completo...</div>';
+  try{
+    const r=await api('GET','/api/whatsapp/conversaciones/'+encodeURIComponent(numero)+'/mensajes');
+    const mensajes=r.mensajes||[];
+    const conv=_waConvDatos.find(c=>c.numero===numero);
+    if(conv){ conv.mensajes=mensajes; conv.total=mensajes.length; }
+    if(header){
+      const nombre=conv?.nombre||numero;
+      header.innerHTML=`<div style="font-weight:700">${nombre}</div><div style="font-size:11px;color:#64748b;font-weight:400">${numero} · ${mensajes.length} mensajes (historial completo)</div>`;
+    }
+    if(chat){ chat.innerHTML=_waConvMsgHtml(mensajes); chat.scrollTop=chat.scrollHeight; }
+  }catch(e){ if(chat) chat.innerHTML='<div style="color:#dc2626;padding:20px">Error al cargar: '+e.message+'</div>'; }
 }
 async function waConvEnviar(){
   const input=document.getElementById('waConvInput');
