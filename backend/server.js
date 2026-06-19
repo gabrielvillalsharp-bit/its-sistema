@@ -6363,7 +6363,21 @@ app.get('/api/whatsapp/mensajes-bot', auth(ADM), (req, res) => {
 });
 // Endpoint: log del bot (flujo completo de procesamiento)
 app.get('/api/whatsapp/bot-log', auth(ADM), (req, res) => {
-  const rows = db.prepare('SELECT * FROM wa_bot_log ORDER BY fecha DESC LIMIT 200').all();
+  const { numero, limit: lim = 300 } = req.query;
+  if (numero) {
+    // Buscar en múltiples formatos: con 595, sin 595, con 0, @lid parcial
+    const n = String(numero).replace(/\D/g,'');
+    const sin595 = n.replace(/^595/,'');
+    const con595 = '595' + sin595;
+    const con0   = '0'   + sin595;
+    const rows = db.prepare(`
+      SELECT * FROM wa_bot_log
+      WHERE numero LIKE ? OR numero LIKE ? OR numero LIKE ? OR numero LIKE ?
+      ORDER BY fecha DESC LIMIT ?
+    `).all('%'+n+'%', '%'+sin595+'%', '%'+con595+'%', '%'+con0+'%', parseInt(lim)||300);
+    return res.json(rows);
+  }
+  const rows = db.prepare('SELECT * FROM wa_bot_log ORDER BY fecha DESC LIMIT ?').all(parseInt(lim)||300);
   res.json(rows);
 });
 app.get('/api/whatsapp/analisis-errores', auth(ADM), (req, res) => {

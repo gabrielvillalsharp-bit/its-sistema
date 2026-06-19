@@ -2512,14 +2512,16 @@ async function waCargarBotLog(){
   const fechaFil=(document.getElementById('wa-botlog-fecha')?.value||'').trim();
   const numFil=(document.getElementById('wa-botlog-num')?.value||'').trim().toLowerCase();
   const agrupar=document.getElementById('wa-botlog-agrupar')?.checked!==false;
+  // Filtro de número se pasa al servidor para manejar @lid y variantes (595, 0, etc.)
+  let logUrl='/api/whatsapp/bot-log?limit=300';
+  if(numFil) logUrl+='&numero='+encodeURIComponent(numFil);
   const [rows, analisis] = await Promise.all([
-    api('GET','/api/whatsapp/bot-log').catch(()=>[]),
+    api('GET',logUrl).catch(()=>[]),
     api('GET','/api/whatsapp/analisis-errores').catch(()=>null)
   ]);
-  // Aplicar filtros
+  // Filtro de fecha sigue siendo client-side (es sobre los rows ya filtrados por número)
   let rows2=rows;
   if(fechaFil) rows2=rows2.filter(r=>(r.fecha||'').startsWith(fechaFil));
-  if(numFil) rows2=rows2.filter(r=>(r.numero||'').toLowerCase().includes(numFil));
   // Banner de errores
   let bannerErr='';
   if(analisis && analisis.mensajesAfectados>0){
