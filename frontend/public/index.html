@@ -8637,6 +8637,7 @@ async function pgInteresados(el){
           ?`<button onclick="intBotReanudar()" style="padding:6px 14px;background:#059669;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">▶ Reanudar bot</button>`
           :`<button onclick="intBotPausar()" style="padding:6px 14px;background:#d97706;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">⏸ Pausar bot</button>`}
         <button onclick="intTestGemini()" style="padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">🧪 Probar IA</button>
+        <button onclick="intSimularMensaje()" style="padding:6px 14px;background:#0891b2;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer">📨 Simular mensaje</button>
         <button onclick="intLimpiarRegistros()" style="padding:6px 14px;background:#64748b;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer">🗑 Limpiar registros</button>
         <button onclick="pgInteresados(document.getElementById('mc'))" style="padding:6px 10px;background:#e2e8f0;color:#475569;border:none;border-radius:7px;font-size:12px;cursor:pointer">🔄</button>
       </div>
@@ -8780,7 +8781,7 @@ async function pgInteresados(el){
               <td style="text-align:center;font-weight:700;color:#0891b2">${enviados.length}</td>
               <td style="max-width:220px;font-size:12px;color:#475569">${(ultimo?.mensaje||'').slice(0,100)}${(ultimo?.mensaje||'').length>100?'…':''}</td>
               <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(conv.ultimo||'').slice(0,16)}</td>
-              <td><button onclick="waTab('conversaciones');waConvCargar().then(()=>waConvIrA('${conv.numero}'))" style="padding:4px 10px;background:#128C7E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">💬 Ver</button></td>
+              <td><button onclick="intVerConversacion('${conv.numero}')" style="padding:4px 10px;background:#128C7E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">💬 Ver</button></td>
             </tr>`;}).join('')}
           </tbody></table></div>`}
     </div>`;
@@ -8797,6 +8798,25 @@ function intTab(tab){
     btn.style.background=activo?'#0891b2':'#e2e8f0';
     btn.style.color=activo?'#fff':'#475569';
   });
+}
+async function intVerConversacion(numero){
+  go('whatsapp');
+  // Esperar a que el panel de WA cargue, luego ir a conversaciones
+  setTimeout(async()=>{
+    waTab('conversaciones');
+    await waConvCargar();
+    waConvIrA(numero);
+  }, 300);
+}
+async function intSimularMensaje(){
+  const numero=prompt('Número a simular (ej: 0976123456 o 595976123456):','');
+  if(!numero) return;
+  const texto=prompt('Mensaje a enviar:','Hola, quiero información sobre las carreras');
+  if(!texto) return;
+  try{
+    const r=await api('POST','/api/whatsapp/webhook-test',{numero:numero.trim(),texto:texto.trim(),nombre:'Test desconocido'});
+    toast('✓ Mensaje simulado: '+r.mensaje,'ok');
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function intBotPausar(){
   try{await api('POST','/api/whatsapp/bot/pausar');toast('Bot pausado','ok');pgInteresados(document.getElementById('mc'));}
