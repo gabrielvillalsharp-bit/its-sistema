@@ -6422,11 +6422,31 @@ app.post('/api/whatsapp/enviar-test', auth(ADM), async (req, res) => {
 
 // Estado del bot
 app.get('/api/whatsapp/bot/estado', auth(ADM), (req, res) => {
+  const hace24h = new Date(Date.now() - 24*60*60*1000).toISOString().replace('T',' ').slice(0,19);
+  const recibidos24h   = db.prepare("SELECT COUNT(*) as n FROM wa_recibidos WHERE fecha >= ?").get(hace24h)?.n || 0;
+  const respondidos24h = db.prepare("SELECT COUNT(DISTINCT destinatario_telefono) as n FROM wa_mensajes WHERE estado='enviado' AND fecha >= ?").get(hace24h)?.n || 0;
+  const fallidos24h    = db.prepare("SELECT COUNT(*) as n FROM wa_mensajes WHERE estado='fallido' AND fecha >= ?").get(hace24h)?.n || 0;
+  const ultimoError    = db.prepare("SELECT detalle, fecha FROM wa_bot_log WHERE evento IN ('gemini_error','envio_fallido','envio_error') ORDER BY fecha DESC LIMIT 1").get();
   res.json({
     pausado: _botPausado,
     geminiConfigurado: !!process.env.GEMINI_API_KEY,
-    evolutionConfigurado: !!(process.env.EVOLUTION_URL && process.env.EVOLUTION_KEY && process.env.EVOLUTION_INSTANCE)
+    evolutionConfigurado: !!(process.env.EVOLUTION_URL && process.env.EVOLUTION_KEY && process.env.EVOLUTION_INSTANCE),
+    recibidos24h, respondidos24h, fallidos24h,
+    ultimoError: ultimoError || null
   });
+});
+
+// Limpiar registros de bot (bot_log y wa_mensajes/recibidos antiguos)
+app.delete('/api/whatsapp/limpiar', auth(ADM), (req, res) => {
+  const { dias = 30 } = req.query;
+  const corte = new Date(Date.now() - parseInt(dias)*24*60*60*1000).toISOString().replace('T',' ').slice(0,19);
+  try {
+    const log    = db.prepare("DELETE FROM wa_bot_log WHERE fecha < ?").run(corte);
+    const msgs   = db.prepare("DELETE FROM wa_mensajes WHERE fecha < ? AND tipo='individual'").run(corte);
+    const recib  = db.prepare("DELETE FROM wa_recibidos WHERE fecha < ?").run(corte);
+    audit(req.user.id,'WA_LIMPIAR','sistema','limpiar',{dias,log:log.changes,msgs:msgs.changes,recib:recib.changes});
+    res.json({ ok: true, log: log.changes, msgs: msgs.changes, recib: recib.changes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/whatsapp/bot/pausar', auth(ADM), (req, res) => {
   _botPausado = true;

@@ -8584,22 +8584,64 @@ const _CONS_TIPO={
 async function pgInteresados(el){
   el.innerHTML='<div class="ph"><h3>📩 Bot de Atención</h3></div>'+skeletonTable(4,5);
   try{
-    const [consultas, interesados, recibidosResp] = await Promise.all([
+    const [consultas, interesados, recibidosResp, botEst, respuestas] = await Promise.all([
       api('GET','/api/consultas'),
       api('GET','/api/interesados'),
-      api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0}))
+      api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0})),
+      api('GET','/api/whatsapp/bot/estado').catch(()=>null),
+      api('GET','/api/whatsapp/conversaciones?limite=500').catch(()=>[])
     ]);
     const recibidos = recibidosResp.mensajes || [];
     const consTotal=consultas.length, consPend=consultas.filter(c=>c.estado==='pendiente').length;
     const intTotal=interesados.length, intNuevos=interesados.filter(d=>d.estado==='nuevo').length;
     const carreras=[...new Set(interesados.map(d=>d.carrera_nombre))].filter(Boolean);
 
+    // Set de números que recibieron al menos una respuesta del bot
+    const numRespondidos=new Set();
+    for(const conv of respuestas){
+      if((conv.mensajes||[]).some(m=>m.direccion==='enviado')) numRespondidos.add(conv.numero);
+    }
+    const msgSinRespuesta=recibidos.filter(m=>{
+      const n=(m.numero||'').replace(/^595/,'');
+      return ![...numRespondidos].some(r=>r.replace(/^595/,'').endsWith(n)||n.endsWith(r.replace(/^595/,'')));
+    });
+
+    // Banner de estado del bot
+    const bEst=botEst||{};
+    const botOk=!bEst.pausado&&bEst.geminiConfigurado&&bEst.evolutionConfigurado;
+    const botColor=bEst.pausado?'#fef9c3':botOk?'#f0fdf4':'#fef2f2';
+    const botBorder=bEst.pausado?'#fde68a':botOk?'#bbf7d0':'#fecaca';
+    const botIcon=bEst.pausado?'⏸️':botOk?'🟢':'🔴';
+    const botMsg=bEst.pausado?'Bot pausado manualmente':botOk?`Activo — últimas 24 h: ${bEst.recibidos24h||0} recibidos, ${bEst.respondidos24h||0} respondidos`:'Bot con problemas';
+    const problemas=[];
+    if(!bEst.geminiConfigurado) problemas.push('Gemini no configurado (falta GEMINI_API_KEY)');
+    if(!bEst.evolutionConfigurado) problemas.push('Evolution API no configurado');
+    if(bEst.fallidos24h>0) problemas.push(`${bEst.fallidos24h} envíos fallidos en 24 h`);
+    if(bEst.ultimoError) problemas.push(`Último error: ${(bEst.ultimoError.detalle||'').slice(0,80)} (${(bEst.ultimoError.fecha||'').slice(5,16)})`);
+
     el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención — ITS</h3></div>
+
+    <!-- BANNER ESTADO BOT -->
+    <div style="background:${botColor};border:1.5px solid ${botBorder};border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:2px">${botIcon} ${botMsg}</div>
+        ${problemas.map(p=>`<div style="font-size:12px;color:#dc2626;margin-top:2px">⚠️ ${p}</div>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
+        ${bEst.pausado
+          ?`<button onclick="intBotReanudar()" style="padding:6px 14px;background:#059669;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">▶ Reanudar bot</button>`
+          :`<button onclick="intBotPausar()" style="padding:6px 14px;background:#d97706;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">⏸ Pausar bot</button>`}
+        <button onclick="intTestGemini()" style="padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">🧪 Probar IA</button>
+        <button onclick="intLimpiarRegistros()" style="padding:6px 14px;background:#64748b;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer">🗑 Limpiar registros</button>
+        <button onclick="pgInteresados(document.getElementById('mc'))" style="padding:6px 10px;background:#e2e8f0;color:#475569;border:none;border-radius:7px;font-size:12px;cursor:pointer">🔄</button>
+      </div>
+    </div>
+
     <!-- STATS -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:18px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px">
       <div style="background:#ecfeff;border:2px solid #a5f3fc;border-radius:12px;padding:14px;text-align:center">
         <div style="font-size:28px;font-weight:900;color:#0891b2">${consTotal}</div>
-        <div style="font-size:11px;color:#0e7490;font-weight:700">CONSULTAS RECIBIDAS</div>
+        <div style="font-size:11px;color:#0e7490;font-weight:700">CONSULTAS</div>
       </div>
       <div style="background:#fef9c3;border:2px solid #fde68a;border-radius:12px;padding:14px;text-align:center">
         <div style="font-size:28px;font-weight:900;color:#d97706">${consPend}</div>
@@ -8613,17 +8655,24 @@ async function pgInteresados(el){
         <div style="font-size:28px;font-weight:900;color:#c2410c">${intNuevos}</div>
         <div style="font-size:11px;color:#9a3412;font-weight:700">SIN CONTACTAR</div>
       </div>
+      <div style="background:#fdf4ff;border:2px solid #e9d5ff;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#7c3aed">${msgSinRespuesta.length}</div>
+        <div style="font-size:11px;color:#6d28d9;font-weight:700">SIN RESPUESTA</div>
+      </div>
     </div>
     <!-- TABS -->
-    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid #e2e8f0">
-      <button id="tab-consultas" onclick="intTab('consultas')" style="padding:8px 18px;border:none;background:#0891b2;color:#fff;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
+    <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
+      <button id="tab-consultas" onclick="intTab('consultas')" style="padding:8px 16px;border:none;background:#0891b2;color:#fff;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
         💬 Consultas ${consPend>0?`<span style="background:#dc2626;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${consPend}</span>`:''}
       </button>
-      <button id="tab-interesados" onclick="intTab('interesados')" style="padding:8px 18px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
-        🎓 Interesados en inscripción ${intNuevos>0?`<span style="background:#d97706;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${intNuevos}</span>`:''}
+      <button id="tab-interesados" onclick="intTab('interesados')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
+        🎓 Interesados ${intNuevos>0?`<span style="background:#d97706;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${intNuevos}</span>`:''}
       </button>
-      <button id="tab-mensajes" onclick="intTab('mensajes')" style="padding:8px 18px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:13px">
-        📥 Mensajes ${recibidosResp.no_leidos>0?`<span style="background:#dc2626;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${recibidosResp.no_leidos}</span>`:''}
+      <button id="tab-mensajes" onclick="intTab('mensajes')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
+        📥 Recibidos (${recibidos.length}) ${msgSinRespuesta.length>0?`<span style="background:#7c3aed;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${msgSinRespuesta.length} sin resp.</span>`:''}
+      </button>
+      <button id="tab-respuestas" onclick="intTab('respuestas')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
+        📤 Respuestas (${respuestas.reduce((s,c)=>(c.mensajes||[]).filter(m=>m.direccion==='enviado').length+s,0)})
       </button>
     </div>
 
@@ -8689,28 +8738,55 @@ async function pgInteresados(el){
 
     <!-- PANEL: MENSAJES RECIBIDOS -->
     <div id="panel-mensajes" style="display:none">
-      <div style="font-weight:700;font-size:13px;color:#475569;margin-bottom:10px">
-        Todos los mensajes entrantes de WhatsApp registrados por el sistema.
-        ${recibidosResp.no_leidos>0?`<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">${recibidosResp.no_leidos} nuevos</span>`:''}
-      </div>
+      ${msgSinRespuesta.length>0?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#6d28d9;font-weight:700">
+        ⚠️ ${msgSinRespuesta.length} número${msgSinRespuesta.length!==1?'s':''} sin respuesta del bot — respondé manualmente o verificá el estado del bot.
+      </div>`:''}
       ${recibidos.length===0
         ?'<div style="color:#94a3b8;font-size:13px;padding:12px 0">Aún no hay mensajes entrantes registrados.</div>'
         :`<div style="overflow-x:auto"><table class="tbl">
-          <thead><tr><th>Número</th><th>Nombre contacto</th><th>Mensaje</th><th>Fecha</th><th>Estado</th></tr></thead>
-          <tbody>${recibidos.map(m=>`<tr style="${m.leido?'':'background:#fffbeb'}">
-            <td><a href="https://wa.me/${m.numero}" target="_blank" style="color:#25D366;font-weight:700">📱 ${m.numero}</a></td>
-            <td style="font-size:12px">${m.nombre_contacto||'—'}</td>
-            <td style="max-width:320px;font-size:13px">${(m.mensaje||'').slice(0,200)}${(m.mensaje||'').length>200?'…':''}</td>
-            <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(m.fecha||'').slice(0,16)}</td>
-            <td>${m.leido?'<span style="color:#94a3b8;font-size:11px">Leído</span>':'<span style="background:#fef9c3;color:#92400e;padding:2px 7px;border-radius:8px;font-size:11px;font-weight:700">🆕 Nuevo</span>'}</td>
-          </tr>`).join('')}
+          <thead><tr><th>Número</th><th>Nombre</th><th>Mensaje</th><th>Fecha</th><th>Respondido</th></tr></thead>
+          <tbody>${recibidos.map(m=>{
+            const n=(m.numero||'').replace(/^595/,'');
+            const respondido=[...numRespondidos].some(r=>r.replace(/^595/,'').endsWith(n)||n.endsWith(r.replace(/^595/,'')));
+            return `<tr style="${!respondido?'background:#fdf4ff':''}">
+              <td><a href="https://wa.me/${m.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${m.numero}</a></td>
+              <td style="font-size:12px">${m.nombre_contacto||'—'}</td>
+              <td style="max-width:260px;font-size:12px">${(m.mensaje||'').slice(0,160)}${(m.mensaje||'').length>160?'…':''}</td>
+              <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(m.fecha||'').slice(0,16)}</td>
+              <td>${respondido
+                ?'<span style="color:#059669;font-size:11px;font-weight:700">✓ Sí</span>'
+                :`<span style="background:#fdf4ff;color:#7c3aed;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✗ No</span>`}
+              </td>
+            </tr>`;}).join('')}
           </tbody></table></div>
           <button class="bs" style="margin-top:8px;font-size:12px" onclick="intMarcarLeidos()">✓ Marcar todos como leídos</button>`}
+    </div>
+
+    <!-- PANEL: RESPUESTAS ENVIADAS -->
+    <div id="panel-respuestas" style="display:none">
+      ${respuestas.length===0
+        ?'<div style="color:#94a3b8;font-size:13px;padding:12px 0">No hay respuestas enviadas registradas.</div>'
+        :`<div style="overflow-x:auto"><table class="tbl">
+          <thead><tr><th>Número</th><th>Nombre</th><th>Mensajes</th><th>Último mensaje enviado</th><th>Última actividad</th><th>Acción</th></tr></thead>
+          <tbody>${respuestas.map(conv=>{
+            const enviados=(conv.mensajes||[]).filter(m=>m.direccion==='enviado');
+            const ultimo=enviados[enviados.length-1];
+            if(!enviados.length) return '';
+            return `<tr>
+              <td><a href="https://wa.me/${conv.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${conv.numero}</a></td>
+              <td style="font-size:12px">${conv.nombre||'—'}</td>
+              <td style="text-align:center;font-weight:700;color:#0891b2">${enviados.length}</td>
+              <td style="max-width:220px;font-size:12px;color:#475569">${(ultimo?.mensaje||'').slice(0,100)}${(ultimo?.mensaje||'').length>100?'…':''}</td>
+              <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(conv.ultimo||'').slice(0,16)}</td>
+              <td><button onclick="waTab('conversaciones');waConvCargar().then(()=>waConvIrA('${conv.numero}'))" style="padding:4px 10px;background:#128C7E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">💬 Ver</button></td>
+            </tr>`;}).join('')}
+          </tbody></table></div>`}
     </div>`;
+
   }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
 }
 function intTab(tab){
-  ['consultas','interesados','mensajes'].forEach(t=>{
+  ['consultas','interesados','mensajes','respuestas'].forEach(t=>{
     const panel=document.getElementById('panel-'+t);
     const btn=document.getElementById('tab-'+t);
     if(!panel||!btn) return;
@@ -8719,6 +8795,33 @@ function intTab(tab){
     btn.style.background=activo?'#0891b2':'#e2e8f0';
     btn.style.color=activo?'#fff':'#475569';
   });
+}
+async function intBotPausar(){
+  try{await api('POST','/api/whatsapp/bot/pausar');toast('Bot pausado','ok');pgInteresados(document.getElementById('mc'));}
+  catch(e){toast('Error: '+e.message,'err');}
+}
+async function intBotReanudar(){
+  try{await api('POST','/api/whatsapp/bot/reanudar');toast('Bot reanudado','ok');pgInteresados(document.getElementById('mc'));}
+  catch(e){toast('Error: '+e.message,'err');}
+}
+async function intTestGemini(){
+  const btn=event.target;btn.disabled=true;btn.textContent='⏳ Probando...';
+  try{
+    const r=await api('POST','/api/whatsapp/bot/test-gemini');
+    toast(r.ok?'✓ Gemini responde correctamente':'✗ Gemini falló: '+(r.error||'?'), r.ok?'ok':'err');
+  }catch(e){toast('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='🧪 Probar IA';}
+}
+async function intLimpiarRegistros(){
+  confirm2('🗑 Limpiar registros antiguos',
+    '¿Eliminar registros de bot log, mensajes enviados y recibidos con más de 30 días?',
+    async function(){
+      try{
+        const r=await api('DELETE','/api/whatsapp/limpiar?dias=30');
+        toast(`Limpieza: ${r.log} logs, ${r.msgs} mensajes enviados, ${r.recib} recibidos eliminados`,'ok');
+        pgInteresados(document.getElementById('mc'));
+      }catch(e){toast('Error: '+e.message,'err');}
+    },null);
 }
 function intFiltrar(carrera){
   document.querySelectorAll('#int-tabla tbody tr').forEach(tr=>{
