@@ -2204,16 +2204,6 @@ async function pgWhatsApp(el){
 
   <!-- KPIs -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px">
-    <div onclick="waTab('conversaciones');waConvCargar()" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(22,163,74,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:22px;font-weight:700;color:#16a34a">${totalEnv}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">✉️ Enviados</div>
-      <div style="font-size:10px;color:#86efac;margin-top:4px">Ver conversaciones →</div>
-    </div>
-    <div onclick="waTab('conversaciones');waConvCargar()" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(220,38,38,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:22px;font-weight:700;color:#dc2626">${totalFall}</div>
-      <div style="font-size:11px;color:#555;margin-top:3px">❌ Fallidos</div>
-      <div style="font-size:10px;color:#fca5a5;margin-top:4px">Ver conversaciones →</div>
-    </div>
     <div onclick="go('wa-chat')" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(37,211,102,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px">💬</div>
       <div style="font-size:11px;color:#555;margin-top:3px;font-weight:700">Chat</div>
@@ -8595,6 +8585,7 @@ async function pgInteresados(el){
       api('GET','/api/whatsapp/conversaciones?limite=500'+(fecha?'&desde='+fecha+'&hasta='+fecha:'')).catch(()=>[])
     ]);
     const recibidos = recibidosResp.mensajes || [];
+    _intConvDatos = respuestas;
     const consTotal=consultas.length, consPend=consultas.filter(c=>c.estado==='pendiente').length;
     const intTotal=interesados.length, intNuevos=interesados.filter(d=>d.estado==='nuevo').length;
     const carreras=[...new Set(interesados.map(d=>d.carrera_nombre))].filter(Boolean);
@@ -8674,11 +8665,8 @@ async function pgInteresados(el){
       <button id="tab-interesados" onclick="intTab('interesados')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
         🎓 Interesados ${intNuevos>0?`<span style="background:#d97706;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${intNuevos}</span>`:''}
       </button>
-      <button id="tab-mensajes" onclick="intTab('mensajes')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
-        📥 Recibidos (${recibidos.length}) ${msgSinRespuesta.length>0?`<span style="background:#7c3aed;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${msgSinRespuesta.length} sin resp.</span>`:''}
-      </button>
-      <button id="tab-respuestas" onclick="intTab('respuestas')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
-        📤 Respuestas (${respuestas.reduce((s,c)=>(c.mensajes||[]).filter(m=>m.direccion==='enviado').length+s,0)})
+      <button id="tab-conversaciones" onclick="intTab('conversaciones')" style="padding:8px 16px;border:none;background:#e2e8f0;color:#475569;border-radius:8px 8px 0 0;font-weight:700;cursor:pointer;font-size:12px">
+        💬 Conversaciones (${respuestas.length}) ${msgSinRespuesta.length>0?`<span style="background:#7c3aed;color:#fff;border-radius:8px;padding:1px 7px;font-size:11px;margin-left:4px">${msgSinRespuesta.length} sin resp.</span>`:''}
       </button>
     </div>
 
@@ -8742,54 +8730,47 @@ async function pgInteresados(el){
           </tbody></table></div>`}
     </div>
 
-    <!-- PANEL: MENSAJES RECIBIDOS -->
-    <div id="panel-mensajes" style="display:none">
-      ${msgSinRespuesta.length>0?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#6d28d9;font-weight:700">
-        ⚠️ ${msgSinRespuesta.length} número${msgSinRespuesta.length!==1?'s':''} sin respuesta del bot — respondé manualmente o verificá el estado del bot.
+    <!-- PANEL: CONVERSACIONES (unificado recibidos + respuestas) -->
+    <div id="panel-conversaciones" style="display:none">
+      ${msgSinRespuesta.length>0?`<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#6d28d9;font-weight:700">
+        ⚠️ ${msgSinRespuesta.length} número${msgSinRespuesta.length!==1?'s':''} sin respuesta — marcados con borde violeta
       </div>`:''}
-      ${recibidos.length===0
-        ?`<div style="color:#94a3b8;font-size:13px;padding:30px;text-align:center">📭 No hay mensajes recibidos${fecha?' el '+fecha:''}.</div>`
-        :`<div style="overflow-x:auto"><table class="tbl">
-          <thead><tr><th>Número</th><th>Nombre</th><th>Mensaje</th><th>Hora</th><th>Bot respondió</th></tr></thead>
-          <tbody>${recibidos.map(m=>`<tr style="${!m.respondido?'background:#fdf4ff':''}">
-            <td><a href="https://wa.me/${m.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${m.numero}</a></td>
-            <td style="font-size:12px">${m.nombre_contacto||'—'}</td>
-            <td style="max-width:260px;font-size:12px">${(m.mensaje||'').slice(0,160)}${(m.mensaje||'').length>160?'…':''}</td>
-            <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(m.fecha||'').slice(11,16)}</td>
-            <td>${m.respondido
-              ?'<span style="color:#059669;font-size:12px;font-weight:700">✓ Sí</span>'
-              :'<span style="background:#fdf4ff;color:#7c3aed;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✗ No</span>'}
-            </td>
-          </tr>`).join('')}
-          </tbody></table></div>
-          <button class="bs" style="margin-top:8px;font-size:12px" onclick="intMarcarLeidos()">✓ Marcar todos como leídos</button>`}
-    </div>
-
-    <!-- PANEL: RESPUESTAS ENVIADAS -->
-    <div id="panel-respuestas" style="display:none">
       ${respuestas.length===0
-        ?'<div style="color:#94a3b8;font-size:13px;padding:12px 0">No hay respuestas enviadas registradas.</div>'
-        :`<div style="overflow-x:auto"><table class="tbl">
-          <thead><tr><th>Número</th><th>Nombre</th><th>Mensajes</th><th>Último mensaje enviado</th><th>Última actividad</th><th>Acción</th></tr></thead>
-          <tbody>${respuestas.map(conv=>{
-            const enviados=(conv.mensajes||[]).filter(m=>m.direccion==='enviado');
-            const ultimo=enviados[enviados.length-1];
-            if(!enviados.length) return '';
-            return `<tr>
-              <td><a href="https://wa.me/${conv.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${conv.numero}</a></td>
-              <td style="font-size:12px">${conv.nombre||'—'}</td>
-              <td style="text-align:center;font-weight:700;color:#0891b2">${enviados.length}</td>
-              <td style="max-width:220px;font-size:12px;color:#475569">${(ultimo?.mensaje||'').slice(0,100)}${(ultimo?.mensaje||'').length>100?'…':''}</td>
-              <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(conv.ultimo||'').slice(0,16)}</td>
-              <td><button onclick="intVerConversacion('${conv.numero}')" style="padding:4px 10px;background:#128C7E;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">💬 Ver</button></td>
-            </tr>`;}).join('')}
-          </tbody></table></div>`}
+        ?`<div style="color:#94a3b8;font-size:13px;padding:30px;text-align:center">💬 No hay conversaciones${fecha?' el '+fecha:''}.</div>`
+        :`<div style="display:grid;grid-template-columns:260px 1fr;border:1px solid #e2e8f0;border-radius:10px;height:520px;overflow:hidden">
+          <div style="border-right:1px solid #e2e8f0;overflow-y:auto;background:#f8fafc">
+            ${respuestas.map(conv=>{
+              const sinResp=!conv.mensajes.some(m=>m.direccion==='enviado');
+              const ultimo=conv.mensajes[conv.mensajes.length-1];
+              const preview=(ultimo?.mensaje||'').slice(0,42)+((ultimo?.mensaje||'').length>42?'…':'');
+              const hora=(conv.ultimo||'').slice(11,16);
+              return `<div id="intci-${conv.numero}" onclick="intConvAbrir('${conv.numero}')" style="padding:11px 13px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;${sinResp?'border-left:3px solid #7c3aed;':''}" onmouseover="if(_intConvNumActivo!=='${conv.numero}')this.style.background='#f0f9ff'" onmouseout="if(_intConvNumActivo!=='${conv.numero}')this.style.background=''">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+                  <span style="font-weight:700;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${conv.nombre||conv.numero}</span>
+                  <span style="font-size:10px;color:#94a3b8;flex-shrink:0">${hora}</span>
+                </div>
+                <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${preview||'—'}</div>
+                ${sinResp?'<span style="font-size:10px;background:#fdf4ff;color:#7c3aed;border-radius:8px;padding:1px 6px;font-weight:700;display:inline-block;margin-top:2px">sin respuesta</span>':''}
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;flex-direction:column;background:#ece5dd">
+            <div id="intConvHeader" style="padding:12px 16px;border-bottom:1px solid #e2e8f0;background:#075E54;min-height:48px">
+              <div style="color:#a7f3d0;font-size:13px">← Seleccioná una conversación</div>
+            </div>
+            <div id="intConvChat" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px"></div>
+            <div id="intConvInputBar" style="display:none;padding:10px;border-top:1px solid #e2e8f0;background:#f0f0f0;gap:8px">
+              <input id="intConvInput" type="text" placeholder="Escribir mensaje..." onkeydown="if(event.key==='Enter')intConvEnviar()" style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:20px;font-size:13px;width:calc(100% - 80px);box-sizing:border-box">
+              <button onclick="intConvEnviar()" style="padding:8px 16px;background:#128C7E;color:#fff;border:none;border-radius:20px;font-size:13px;cursor:pointer;font-weight:700;margin-left:6px">➤</button>
+            </div>
+          </div>
+        </div>`}
     </div>`;
 
   }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
 }
 function intTab(tab){
-  ['consultas','interesados','mensajes','respuestas'].forEach(t=>{
+  ['consultas','interesados','conversaciones'].forEach(t=>{
     const panel=document.getElementById('panel-'+t);
     const btn=document.getElementById('tab-'+t);
     if(!panel||!btn) return;
@@ -8799,14 +8780,48 @@ function intTab(tab){
     btn.style.color=activo?'#fff':'#475569';
   });
 }
+let _intConvDatos=[];
+let _intConvNumActivo=null;
+function intConvAbrir(numero){
+  const conv=_intConvDatos.find(c=>c.numero===numero);
+  if(!conv) return;
+  _intConvNumActivo=numero;
+  const header=document.getElementById('intConvHeader');
+  const chat=document.getElementById('intConvChat');
+  const bar=document.getElementById('intConvInputBar');
+  const total=conv.total||conv.mensajes.length;
+  if(header) header.innerHTML=`<div style="font-weight:700;font-size:14px;color:#fff">${conv.nombre||conv.numero}</div>
+    <div style="font-size:11px;color:#a7f3d0">${conv.numero} · ${total} mensaje${total!==1?'s':''}</div>`;
+  if(chat){ chat.innerHTML=_waConvMsgHtml(conv.mensajes); chat.scrollTop=chat.scrollHeight; }
+  if(bar){ bar.style.display='flex'; }
+  document.querySelectorAll('[id^="intci-"]').forEach(el=>{ el.style.background=''; });
+  const item=document.getElementById('intci-'+numero);
+  if(item) item.style.background='#dbeafe';
+}
+async function intConvEnviar(){
+  if(!_intConvNumActivo) return;
+  const input=document.getElementById('intConvInput');
+  const msg=(input?.value||'').trim();
+  if(!msg) return;
+  input.value='';
+  input.disabled=true;
+  try{
+    await api('POST','/api/whatsapp/enviar',{telefono:_intConvNumActivo,mensaje:msg});
+    const chat=document.getElementById('intConvChat');
+    const hora=new Date().toISOString().replace('T',' ').slice(0,16);
+    if(chat){ chat.innerHTML+=`<div style="display:flex;justify-content:flex-end">
+      <div style="max-width:72%;padding:9px 13px;border-radius:16px 4px 16px 16px;background:#dcf8c6;border:1px solid #b7e4a0;font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
+        <div>${msg.replace(/\n/g,'<br>')}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora} ✓</div>
+      </div></div>`; chat.scrollTop=chat.scrollHeight; }
+    const conv=_intConvDatos.find(c=>c.numero===_intConvNumActivo);
+    if(conv) conv.mensajes.push({direccion:'enviado',mensaje:msg,fecha:hora,estado:'enviado'});
+  }catch(e){ toast('Error al enviar: '+e.message,'err'); }
+  finally{ if(input){ input.disabled=false; input.focus(); } }
+}
 async function intVerConversacion(numero){
-  go('whatsapp');
-  // Esperar a que el panel de WA cargue, luego ir a conversaciones
-  setTimeout(async()=>{
-    waTab('conversaciones');
-    await waConvCargar();
-    waConvIrA(numero);
-  }, 300);
+  await go('whatsapp');
+  await waConvIrA(numero);
 }
 async function intSimularMensaje(){
   const numero=prompt('Número a simular (ej: 0976123456 o 595976123456):','');
