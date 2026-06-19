@@ -2204,15 +2204,15 @@ async function pgWhatsApp(el){
 
   <!-- KPIs -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px">
-    <div onclick="waVerFiltro('historial','enviado')" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(22,163,74,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div onclick="waTab('conversaciones');waConvCargar()" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(22,163,74,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#16a34a">${totalEnv}</div>
       <div style="font-size:11px;color:#555;margin-top:3px">✉️ Enviados</div>
-      <div style="font-size:10px;color:#86efac;margin-top:4px">Ver historial →</div>
+      <div style="font-size:10px;color:#86efac;margin-top:4px">Ver conversaciones →</div>
     </div>
-    <div onclick="waVerFiltro('historial','fallido')" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(220,38,38,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div onclick="waTab('conversaciones');waConvCargar()" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(220,38,38,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px;font-weight:700;color:#dc2626">${totalFall}</div>
       <div style="font-size:11px;color:#555;margin-top:3px">❌ Fallidos</div>
-      <div style="font-size:10px;color:#fca5a5;margin-top:4px">Ver historial →</div>
+      <div style="font-size:10px;color:#fca5a5;margin-top:4px">Ver conversaciones →</div>
     </div>
     <div onclick="go('wa-chat')" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(37,211,102,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:22px">💬</div>
@@ -2466,15 +2466,30 @@ async function pgWhatsApp(el){
 
   <!-- Panel: Log Bot -->
   <div id="wa-panel-botlog" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div>
         <h3 style="margin:0;font-size:15px;color:#0f172a">🔍 Log del Bot — Flujo de procesamiento</h3>
-        <p style="margin:4px 0 0;font-size:11px;color:#64748b">Muestra cada paso: mensaje recibido → Gemini → envío → resultado</p>
+        <p style="margin:4px 0 0;font-size:11px;color:#64748b">Mensaje recibido → Gemini → envío → resultado. Agrupado por número.</p>
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="waCargarBotLog()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">🔄 Actualizar</button>
         <button onclick="waBorrarBotLog()" style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:#dc2626">🗑 Limpiar log</button>
       </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:#374151">📅 Día:</label>
+        <input type="date" id="wa-botlog-fecha" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px" onchange="waCargarBotLog()">
+        <button onclick="document.getElementById('wa-botlog-fecha').value=new Date().toISOString().slice(0,10);waCargarBotLog()" style="font-size:11px;padding:3px 9px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:5px;cursor:pointer;color:#0369a1">Hoy</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;font-weight:700;color:#374151">📱 Número:</label>
+        <input type="text" id="wa-botlog-num" placeholder="Filtrar por número..." style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;width:160px" oninput="waCargarBotLog()">
+      </div>
+      <button onclick="document.getElementById('wa-botlog-fecha').value='';document.getElementById('wa-botlog-num').value='';waCargarBotLog()" style="font-size:11px;padding:4px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;cursor:pointer;color:#64748b">✕ Limpiar</button>
+      <label style="font-size:11px;color:#374151;display:flex;align-items:center;gap:5px;margin-left:auto;cursor:pointer">
+        <input type="checkbox" id="wa-botlog-agrupar" checked onchange="waCargarBotLog()"> Agrupar por número
+      </label>
     </div>
     <div id="wa-botlog-cuerpo"><div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Cargando...</div></div>
   </div>`;
@@ -2488,11 +2503,18 @@ async function waCargarBotLog(){
   const cuerpo=document.getElementById('wa-botlog-cuerpo');
   if(!cuerpo)return;
   cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Cargando...</div>';
+  const fechaFil=(document.getElementById('wa-botlog-fecha')?.value||'').trim();
+  const numFil=(document.getElementById('wa-botlog-num')?.value||'').trim().toLowerCase();
+  const agrupar=document.getElementById('wa-botlog-agrupar')?.checked!==false;
   const [rows, analisis] = await Promise.all([
     api('GET','/api/whatsapp/bot-log').catch(()=>[]),
     api('GET','/api/whatsapp/analisis-errores').catch(()=>null)
   ]);
-  // Banner de errores si hay afectados
+  // Aplicar filtros
+  let rows2=rows;
+  if(fechaFil) rows2=rows2.filter(r=>(r.fecha||'').startsWith(fechaFil));
+  if(numFil) rows2=rows2.filter(r=>(r.numero||'').toLowerCase().includes(numFil));
+  // Banner de errores
   let bannerErr='';
   if(analisis && analisis.mensajesAfectados>0){
     const lista=analisis.afectados.map(a=>{
@@ -2530,33 +2552,86 @@ async function waCargarBotLog(){
       ${lista}
     </div>`;
   }
-  const rows2=rows;
-  if(!rows2.length&&!bannerErr){cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Sin registros todavía. Cuando llegue un mensaje al bot aparecerá aquí.</div>';return;}
+  if(!rows2.length&&!bannerErr){
+    cuerpo.innerHTML=`<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">${(fechaFil||numFil)?'Sin registros para el filtro aplicado.':'Sin registros todavía. Cuando llegue un mensaje al bot aparecerá aquí.'}</div>`;
+    return;
+  }
   const EVENTO_STYLE={
-    recibido:     {bg:'#eff6ff',bdr:'#bfdbfe',ic:'📩',c:'#1e40af'},
+    recibido:      {bg:'#eff6ff',bdr:'#bfdbfe',ic:'📩',c:'#1e40af'},
     gemini_llamando:{bg:'#fefce8',bdr:'#fde68a',ic:'⏳',c:'#854d0e'},
-    gemini_ok:    {bg:'#f0fdf4',bdr:'#bbf7d0',ic:'✅',c:'#166534'},
-    gemini_error: {bg:'#fef2f2',bdr:'#fecaca',ic:'❌',c:'#991b1b'},
-    envio_ok:     {bg:'#f0fdf4',bdr:'#86efac',ic:'📤',c:'#15803d'},
-    envio_fallido:{bg:'#fef2f2',bdr:'#fca5a5',ic:'⚠️',c:'#b91c1c'},
-    envio_error:  {bg:'#fef2f2',bdr:'#fca5a5',ic:'💥',c:'#7f1d1d'},
-    ignorado:     {bg:'#f8fafc',bdr:'#e2e8f0',ic:'🔕',c:'#475569'},
+    gemini_ok:     {bg:'#f0fdf4',bdr:'#bbf7d0',ic:'✅',c:'#166534'},
+    gemini_error:  {bg:'#fef2f2',bdr:'#fecaca',ic:'❌',c:'#991b1b'},
+    envio_ok:      {bg:'#f0fdf4',bdr:'#86efac',ic:'📤',c:'#15803d'},
+    envio_fallido: {bg:'#fef2f2',bdr:'#fca5a5',ic:'⚠️',c:'#b91c1c'},
+    envio_error:   {bg:'#fef2f2',bdr:'#fca5a5',ic:'💥',c:'#7f1d1d'},
+    ignorado:      {bg:'#f8fafc',bdr:'#e2e8f0',ic:'🔕',c:'#475569'},
   };
-  const html=rows2.map(r=>{
+  function _evRow(r,mostrarNum){
     const s=EVENTO_STYLE[r.evento]||{bg:'#f8fafc',bdr:'#e2e8f0',ic:'•',c:'#334155'};
-    const num=(r.numero||'').length>20?r.numero.slice(0,20)+'…':r.numero;
+    const num=(r.numero||'');
+    const numDisp=num.replace('@s.whatsapp.net','').replace('@c.us','').replace('@lid','@lid');
     const det=(r.detalle||'');
-    return `<div style="background:${s.bg};border:1px solid ${s.bdr};border-radius:8px;padding:10px 14px;margin-bottom:6px;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start">
-      <span style="font-size:16px">${s.ic}</span>
+    return `<div style="background:${s.bg};border:1px solid ${s.bdr};border-radius:7px;padding:8px 12px;margin-bottom:5px;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start">
+      <span style="font-size:15px">${s.ic}</span>
       <div>
         <span style="font-size:12px;font-weight:700;color:${s.c}">${r.evento}</span>
-        <span style="font-size:11px;color:#64748b;margin-left:8px">de <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${num}</code></span>
-        ${det?`<div style="font-size:11px;color:#374151;margin-top:3px;word-break:break-word">${det.replace(/</g,'&lt;')}</div>`:''}
+        ${mostrarNum?`<span style="font-size:10px;color:#64748b;margin-left:6px">de <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;cursor:pointer" onclick="document.getElementById('wa-botlog-num').value='${numDisp}';waCargarBotLog()">${numDisp}</code></span>`:''}
+        ${det?`<div style="font-size:11px;color:#374151;margin-top:2px;word-break:break-word">${det.replace(/</g,'&lt;')}</div>`:''}
       </div>
       <span style="font-size:10px;color:#94a3b8;white-space:nowrap">${(r.fecha||'').slice(5,16)}</span>
     </div>`;
+  }
+  if(!agrupar){
+    const html=rows2.map(r=>_evRow(r,true)).join('');
+    cuerpo.innerHTML=bannerErr+`<div style="max-height:540px;overflow-y:auto;padding-right:4px">${html}</div>`;
+    return;
+  }
+  // Agrupar por número
+  const byNum=new Map();
+  for(const r of rows2){
+    const n=r.numero||'(desconocido)';
+    if(!byNum.has(n)) byNum.set(n,[]);
+    byNum.get(n).push(r);
+  }
+  const groups=[...byNum.entries()].map(([num,evs])=>{
+    evs.sort((a,b)=>(a.fecha||'')>(b.fecha||'')?1:-1);
+    const recibidos=evs.filter(e=>e.evento==='recibido').length;
+    const enviados=evs.filter(e=>e.evento==='envio_ok').length;
+    const errores=evs.filter(e=>['gemini_error','envio_error','envio_fallido'].includes(e.evento)).length;
+    const lastFecha=evs[evs.length-1]?.fecha||'';
+    return {num,evs,recibidos,enviados,errores,lastFecha};
+  }).sort((a,b)=>(b.lastFecha||'')>(a.lastFecha||'')?1:-1);
+  const groupHtml=groups.map((g,i)=>{
+    const id='wa-blog-g-'+i;
+    const numDisp=g.num.replace('@s.whatsapp.net','').replace('@c.us','').replace('@lid','@lid');
+    const hora=(g.lastFecha||'').replace('T',' ').slice(0,16);
+    const hasErr=g.errores>0;
+    const evHtml=g.evs.map(r=>_evRow(r,false)).join('');
+    const msgs=g.evs.filter(e=>e.evento==='recibido').map(e=>`<div style="font-size:11px;color:#374151;padding:4px 0;border-bottom:1px dashed #e5e7eb">"${(e.detalle||'').replace(/^"|"$/g,'').slice(0,80)}"</div>`).join('');
+    return `<div style="border:1.5px solid ${hasErr?'#fca5a5':'#e2e8f0'};border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <div onclick="(function(el){const b=document.getElementById('${id}');if(b){const open=b.style.display!=='none';b.style.display=open?'none':'block';el.querySelector('.wa-bl-chv').textContent=open?'▶':'▼'}})(this)" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${hasErr?'#fef2f2':'#f8fafc'};cursor:pointer;user-select:none">
+        <span style="font-size:18px">${hasErr?'⚠️':'📱'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:13px;color:#1e293b">${numDisp}</span>
+            <span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:1px 7px;border-radius:10px">📩 ${g.recibidos} recibido${g.recibidos!==1?'s':''}</span>
+            <span style="font-size:10px;background:#f0fdf4;color:#166534;padding:1px 7px;border-radius:10px">📤 ${g.enviados} enviado${g.enviados!==1?'s':''}</span>
+            ${hasErr?`<span style="font-size:10px;background:#fef2f2;color:#991b1b;padding:1px 7px;border-radius:10px">❌ ${g.errores} error${g.errores!==1?'es':''}</span>`:''}
+          </div>
+          ${msgs?`<div style="margin-top:5px;padding:5px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:6px">${msgs}</div>`:''}
+          <div style="font-size:10px;color:#94a3b8;margin-top:3px">Último: ${hora} · ${g.evs.length} evento${g.evs.length!==1?'s':''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <button onclick="event.stopPropagation();waConvIrA('${g.num}')" style="font-size:11px;padding:4px 10px;border:1px solid #128C7E;background:#128C7E;color:#fff;border-radius:6px;cursor:pointer;font-weight:600">💬 Chat</button>
+          <span class="wa-bl-chv" style="color:#64748b;font-size:13px">▶</span>
+        </div>
+      </div>
+      <div id="${id}" style="display:none;padding:10px 14px;border-top:1px solid #e5e7eb;background:#fff;max-height:380px;overflow-y:auto">
+        ${evHtml}
+      </div>
+    </div>`;
   }).join('');
-  cuerpo.innerHTML=bannerErr+`<div style="max-height:520px;overflow-y:auto;padding-right:4px">${html}</div>`;
+  cuerpo.innerHTML=bannerErr+`<div style="max-height:620px;overflow-y:auto;padding-right:4px">${groupHtml}</div>`;
 }
 
 async function waConvIrA(numero){
@@ -9602,13 +9677,15 @@ async function pgSolicitudes(el){
   [...informes,...ausencias].forEach(x=>{if(x.carrera_id)carreraMap.set(x.carrera_id,x.carrera);});
   const carreras=[...carreraMap.entries()].map(([id,nombre])=>({id,nombre}));
 
-  // formulario_web = link compartido por WhatsApp; qr/nuevo/cambio_carrera = Registro QR
-  const regsForm=regs.filter(r=>r.tipo==='formulario_web'||r.tipo==='nuevo'||!r.tipo);
-  const regsQr=regs.filter(r=>r.tipo==='qr'||r.tipo==='cambio_carrera');
+  // formulario_web = nuevos alumnos inscriptos por web (solo para agosto 2026)
+  // Incorporaciones = alumnos ya vinculados al instituto: qr, cambio_carrera, nuevo, sin tipo
+  const regsForm=regs.filter(r=>r.tipo==='formulario_web');
+  const regsIncorp=regs.filter(r=>r.tipo!=='formulario_web');
+  const regsQr=regsIncorp.filter(r=>r.tipo==='qr'||r.tipo==='cambio_carrera');
   const regsFormPend=regsForm.filter(r=>r.estado==='pendiente');
   const regsQrPend=regsQr.filter(r=>r.estado==='pendiente');
   const regsPend=regsFormPend; // alias para compatibilidad
-  const totalHistPend=pend.length+regsQrPend.length;
+  const totalHistPend=pend.length+regsIncorp.filter(r=>r.estado==='pendiente').length;
   const asistPend=(informesPend.length+ausencias.length);
   const habsHoy=(habs||[]).length;
   function _gc(id,icon,title,badge,iconColor,iconBg,hasPend){
@@ -9778,12 +9855,12 @@ async function pgSolicitudes(el){
     ${(()=>{ W._auditArr=Array.isArray(auditAlumnos)?auditAlumnos:Array.isArray(auditAlumnos?.registros)?auditAlumnos.registros:[]; return ''; })()}
     <div style="background:linear-gradient(135deg,#0a3d62,#1a7fc4);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <span style="color:#fff;font-size:13px;font-weight:800">📋 Incorporaciones & Historial</span>
-      <span style="color:#bfdbfe;font-size:11px">${regsQr.length+sols.length} incorporaciones · ${informes.length+ausencias.length} alertas · ${W._auditArr.length} acciones</span>
+      <span style="color:#bfdbfe;font-size:11px">${regsIncorp.length+sols.length} incorporaciones · ${informes.length+ausencias.length} alertas · ${W._auditArr.length} acciones</span>
     </div>
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
       ${(()=>{
         const allItems=[
-          ...regs.map(r=>{
+          ...regsIncorp.map(r=>{
             const esBot=r.tipo==='bot_wa';
             const tipoKey=esBot?'bot':'qr';
             const icono=esBot?'🤖':'📱';
