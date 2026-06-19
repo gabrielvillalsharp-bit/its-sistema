@@ -359,9 +359,12 @@ async function enviarWA(numero, msg, tipo) {
     console.log(`[WA] @lid resuelto a ${resolved} desde caché`);
     numStr = resolved;
   }
-  // @s.whatsapp.net y @c.us se pasan tal cual. Números sin @ se normalizan a Paraguay.
+  // @s.whatsapp.net y @c.us se pasan tal cual a Evolution. Números sin @ se normalizan a Paraguay.
   // @lid sin resolver: se pasa a Evolution y esperamos que enrute internamente.
   const numNorm = numStr.includes('@') ? numStr : _normTelPY(numStr);
+  // Para guardar en wa_mensajes siempre usar formato dígitos (sin @suffix) para que coincida
+  // con el campo `numero` de wa_recibidos y el agrupado de conversaciones funcione correctamente.
+  const numForDb = numNorm.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
   try {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/message/sendText/${EVO_INST}`, {
       method: 'POST',
@@ -374,16 +377,16 @@ async function enviarWA(numero, msg, tipo) {
     if (!r.ok) {
       console.error(`[WA] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
       botLog(numero, 'envio_fallido', `HTTP ${r.status} → ${numNorm}: ${respTxt.slice(0,300)}`);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'fallido',nowStr()); } catch {}
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numForDb,msg.slice(0,200),'fallido',nowStr()); } catch {}
     } else {
       console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
       botLog(numero, 'envio_ok', `→ ${numNorm}: "${msg}"`);
-      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numNorm,msg.slice(0,200),'enviado',nowStr()); } catch {}
+      try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numForDb,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
   } catch(e) {
     console.error('[WA] enviar error:', e.message);
     botLog(numero, 'envio_error', e.message);
-    try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'individual',numNorm,msg.slice(0,100),'fallido',nowStr()); } catch {}
+    try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'individual',numForDb,msg.slice(0,100),'fallido',nowStr()); } catch {}
   }
 }
 
@@ -399,7 +402,21 @@ async function procesarMensajeBot(numero, texto) {
 
   botLog(numero, 'recibido', `"${txt}"`);
 
+  // Si el número actual es un JID resuelto (dígitos), buscar si teníamos historial bajo el @lid original.
+  // Esto ocurre cuando la primera conversación usó HASH@lid y CONTACTS_UPSERT lo resolvió después.
   let est = _botEstados.get(numero);
+  if (!est) {
+    for (const [lid, jid] of _lidJidMap) {
+      const stripped = jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+      if (stripped === numero && _botEstados.has(lid)) {
+        est = _botEstados.get(lid);
+        _botEstados.delete(lid);
+        _botEstados.set(numero, est); // migrar al nuevo key real
+        console.log(`[BOT] historial migrado de ${lid} a ${numero}`);
+        break;
+      }
+    }
+  }
   const hace24h = Date.now() - 24*60*60*1000;
   if (!est || est.ts < hace24h) {
     // Identificar si es un alumno activo por su teléfono (solo para dar contexto a la IA)
@@ -6861,23 +6878,21 @@ app.get('/api/whatsapp/conversaciones', auth(ADM), (req, res) => {
     FROM wa_recibidos
     ORDER BY fecha DESC LIMIT 1000
   `).all();
-  // También incluir mensajes del bot log (recibidos vía webhook, incluyendo @lid)
-  const delLog = db.prepare(`
-    SELECT 'recibido' as direccion, numero, '' as nombre_contacto,
-           TRIM(TRIM(detalle, '"'), '"') as mensaje, fecha, '' as estado
-    FROM wa_bot_log WHERE evento='recibido'
-    ORDER BY fecha DESC LIMIT 1000
-  `).all().map(r => ({ ...r, mensaje: (r.mensaje||'').replace(/^"(.*)"$/, '$1') }));
-
-  const todos = [...enviados, ...recibidos, ...delLog].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
+  const todos = [...enviados, ...recibidos].sort((a,b)=> a.fecha < b.fecha ? -1 : 1);
   const grupos = {};
   for (const m of todos) {
-    const key = (m.numero||'').trim();
+    let key = (m.numero||'').trim();
+    // Normalizar: quitar @suffix para unificar enviados (@s.whatsapp.net) con recibidos (dígitos)
+    key = key.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+    // Si es @lid y tenemos el JID real en caché, agrupar bajo el número real
+    if (key.endsWith('@lid') && _lidJidMap.has(key + '')) {
+      const jid = _lidJidMap.get(key);
+      key = jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+    }
+    if (!key) continue;
     if (!grupos[key]) grupos[key] = { numero: key, nombre: m.nombre_contacto||null, mensajes: [] };
     if (!grupos[key].nombre && m.nombre_contacto) grupos[key].nombre = m.nombre_contacto;
-    // Evitar duplicados del bot log
-    const yaExiste = grupos[key].mensajes.some(x => x.fecha===m.fecha && x.mensaje===m.mensaje && x.direccion===m.direccion);
-    if (!yaExiste) grupos[key].mensajes.push(m);
+    grupos[key].mensajes.push(m);
   }
   const lista = Object.values(grupos)
     .map(g => ({ ...g, ultimo: g.mensajes[g.mensajes.length-1]?.fecha||'' }))
