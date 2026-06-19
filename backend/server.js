@@ -6938,9 +6938,27 @@ app.post('/webhook/whatsapp', manejarWebhookWA);
 
 // ── WHATSAPP: mensajes recibidos ──────────────────────────────────────────────
 app.get('/api/whatsapp/recibidos', auth(ADM), (req, res) => {
-  const rows = db.prepare('SELECT * FROM wa_recibidos ORDER BY fecha DESC LIMIT 100').all();
-  const noLeidos = db.prepare('SELECT COUNT(*) as n FROM wa_recibidos WHERE leido=0').get().n;
-  res.json({ mensajes: rows, no_leidos: noLeidos });
+  const { fecha } = req.query; // filtro por fecha YYYY-MM-DD (compara con prefijo UTC)
+  let rows, noLeidos;
+  if (fecha) {
+    // Buscar en formato UTC (nowStr) y formato localtime (datetime('now','localtime'))
+    rows = db.prepare(`SELECT * FROM wa_recibidos WHERE fecha LIKE ? OR fecha LIKE ? ORDER BY fecha DESC LIMIT 500`)
+      .all(fecha+'%', (fecha+'T')+'%');
+    noLeidos = db.prepare(`SELECT COUNT(*) as n FROM wa_recibidos WHERE leido=0 AND (fecha LIKE ? OR fecha LIKE ?)`).get(fecha+'%',(fecha+'T')+'%').n;
+  } else {
+    rows = db.prepare('SELECT * FROM wa_recibidos ORDER BY fecha DESC LIMIT 200').all();
+    noLeidos = db.prepare('SELECT COUNT(*) as n FROM wa_recibidos WHERE leido=0').get().n;
+  }
+  // Enriquecer con info de si recibieron respuesta del bot en el mismo día
+  const numerosRespondidos = new Set(
+    db.prepare(`SELECT DISTINCT destinatario_telefono FROM wa_mensajes WHERE estado='enviado'${fecha?` AND fecha LIKE '${fecha}%'`:''}`).all()
+      .map(r => (r.destinatario_telefono||'').replace(/^595/,''))
+  );
+  const mensajes = rows.map(m => ({
+    ...m,
+    respondido: numerosRespondidos.has((m.numero||'').replace(/^595/,''))
+  }));
+  res.json({ mensajes, no_leidos: noLeidos });
 });
 app.put('/api/whatsapp/recibidos/leer-todos', auth(ADM), (req, res) => {
   db.prepare('UPDATE wa_recibidos SET leido=1').run();

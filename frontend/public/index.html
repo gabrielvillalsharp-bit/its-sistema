@@ -8581,30 +8581,26 @@ const _CONS_TIPO={
   alumno_nuevo:     '🆕 Alumno no registrado',
   externo:          '🌐 Externo',
 };
+let _intFechaFiltro = new Date().toISOString().slice(0,10); // default: hoy
 async function pgInteresados(el){
   el.innerHTML='<div class="ph"><h3>📩 Bot de Atención</h3></div>'+skeletonTable(4,5);
   try{
+    const fecha = _intFechaFiltro;
+    const recibidosUrl = '/api/whatsapp/recibidos' + (fecha ? '?fecha='+fecha : '');
     const [consultas, interesados, recibidosResp, botEst, respuestas] = await Promise.all([
       api('GET','/api/consultas'),
       api('GET','/api/interesados'),
-      api('GET','/api/whatsapp/recibidos').catch(()=>({mensajes:[],no_leidos:0})),
+      api('GET', recibidosUrl).catch(()=>({mensajes:[],no_leidos:0})),
       api('GET','/api/whatsapp/bot/estado').catch(()=>null),
-      api('GET','/api/whatsapp/conversaciones?limite=500').catch(()=>[])
+      api('GET','/api/whatsapp/conversaciones?limite=500'+(fecha?'&desde='+fecha+'&hasta='+fecha:'')).catch(()=>[])
     ]);
     const recibidos = recibidosResp.mensajes || [];
     const consTotal=consultas.length, consPend=consultas.filter(c=>c.estado==='pendiente').length;
     const intTotal=interesados.length, intNuevos=interesados.filter(d=>d.estado==='nuevo').length;
     const carreras=[...new Set(interesados.map(d=>d.carrera_nombre))].filter(Boolean);
 
-    // Set de números que recibieron al menos una respuesta del bot
-    const numRespondidos=new Set();
-    for(const conv of respuestas){
-      if((conv.mensajes||[]).some(m=>m.direccion==='enviado')) numRespondidos.add(conv.numero);
-    }
-    const msgSinRespuesta=recibidos.filter(m=>{
-      const n=(m.numero||'').replace(/^595/,'');
-      return ![...numRespondidos].some(r=>r.replace(/^595/,'').endsWith(n)||n.endsWith(r.replace(/^595/,'')));
-    });
+    // respondido viene del backend directamente (campo por mensaje)
+    const msgSinRespuesta=recibidos.filter(m=>!m.respondido);
 
     // Banner de estado del bot
     const bEst=botEst||{};
@@ -8620,6 +8616,15 @@ async function pgInteresados(el){
     if(bEst.ultimoError) problemas.push(`Último error: ${(bEst.ultimoError.detalle||'').slice(0,80)} (${(bEst.ultimoError.fecha||'').slice(5,16)})`);
 
     el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención — ITS</h3></div>
+
+    <!-- FILTRO DE FECHA -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:700;color:#374151">📅 Fecha:</label>
+      <input type="date" id="int-fecha-filtro" value="${fecha}" onchange="_intFechaFiltro=this.value;pgInteresados(document.getElementById('mc'))" style="padding:6px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;font-weight:600">
+      <button onclick="_intFechaFiltro=new Date().toISOString().slice(0,10);pgInteresados(document.getElementById('mc'))" style="padding:6px 12px;background:#0891b2;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:700">Hoy</button>
+      <button onclick="_intFechaFiltro='';pgInteresados(document.getElementById('mc'))" style="padding:6px 12px;background:#e2e8f0;color:#475569;border:none;border-radius:7px;font-size:12px;cursor:pointer">Ver todo</button>
+      <span style="font-size:12px;color:#94a3b8">${fecha?`Mostrando: ${fecha}`:'Todos los registros'}</span>
+    </div>
 
     <!-- BANNER ESTADO BOT -->
     <div style="background:${botColor};border:1.5px solid ${botBorder};border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -8742,22 +8747,19 @@ async function pgInteresados(el){
         ⚠️ ${msgSinRespuesta.length} número${msgSinRespuesta.length!==1?'s':''} sin respuesta del bot — respondé manualmente o verificá el estado del bot.
       </div>`:''}
       ${recibidos.length===0
-        ?'<div style="color:#94a3b8;font-size:13px;padding:12px 0">Aún no hay mensajes entrantes registrados.</div>'
+        ?`<div style="color:#94a3b8;font-size:13px;padding:30px;text-align:center">📭 No hay mensajes recibidos${fecha?' el '+fecha:''}.</div>`
         :`<div style="overflow-x:auto"><table class="tbl">
-          <thead><tr><th>Número</th><th>Nombre</th><th>Mensaje</th><th>Fecha</th><th>Respondido</th></tr></thead>
-          <tbody>${recibidos.map(m=>{
-            const n=(m.numero||'').replace(/^595/,'');
-            const respondido=[...numRespondidos].some(r=>r.replace(/^595/,'').endsWith(n)||n.endsWith(r.replace(/^595/,'')));
-            return `<tr style="${!respondido?'background:#fdf4ff':''}">
-              <td><a href="https://wa.me/${m.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${m.numero}</a></td>
-              <td style="font-size:12px">${m.nombre_contacto||'—'}</td>
-              <td style="max-width:260px;font-size:12px">${(m.mensaje||'').slice(0,160)}${(m.mensaje||'').length>160?'…':''}</td>
-              <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(m.fecha||'').slice(0,16)}</td>
-              <td>${respondido
-                ?'<span style="color:#059669;font-size:11px;font-weight:700">✓ Sí</span>'
-                :`<span style="background:#fdf4ff;color:#7c3aed;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✗ No</span>`}
-              </td>
-            </tr>`;}).join('')}
+          <thead><tr><th>Número</th><th>Nombre</th><th>Mensaje</th><th>Hora</th><th>Bot respondió</th></tr></thead>
+          <tbody>${recibidos.map(m=>`<tr style="${!m.respondido?'background:#fdf4ff':''}">
+            <td><a href="https://wa.me/${m.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${m.numero}</a></td>
+            <td style="font-size:12px">${m.nombre_contacto||'—'}</td>
+            <td style="max-width:260px;font-size:12px">${(m.mensaje||'').slice(0,160)}${(m.mensaje||'').length>160?'…':''}</td>
+            <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(m.fecha||'').slice(11,16)}</td>
+            <td>${m.respondido
+              ?'<span style="color:#059669;font-size:12px;font-weight:700">✓ Sí</span>'
+              :'<span style="background:#fdf4ff;color:#7c3aed;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">✗ No</span>'}
+            </td>
+          </tr>`).join('')}
           </tbody></table></div>
           <button class="bs" style="margin-top:8px;font-size:12px" onclick="intMarcarLeidos()">✓ Marcar todos como leídos</button>`}
     </div>
@@ -8813,15 +8815,16 @@ async function intTestGemini(){
   finally{btn.disabled=false;btn.textContent='🧪 Probar IA';}
 }
 async function intLimpiarRegistros(){
-  confirm2('🗑 Limpiar registros antiguos',
-    '¿Eliminar registros de bot log, mensajes enviados y recibidos con más de 30 días?',
-    async function(){
-      try{
-        const r=await api('DELETE','/api/whatsapp/limpiar?dias=30');
-        toast(`Limpieza: ${r.log} logs, ${r.msgs} mensajes enviados, ${r.recib} recibidos eliminados`,'ok');
-        pgInteresados(document.getElementById('mc'));
-      }catch(e){toast('Error: '+e.message,'err');}
-    },null);
+  const dias=prompt('¿Eliminar registros de bot log y mensajes anteriores a cuántos días?\n(Ejemplo: 7 = borra todo antes de los últimos 7 días. Los interesados NO se borran.)','7');
+  if(dias===null) return;
+  const n=parseInt(dias);
+  if(isNaN(n)||n<1){toast('Número de días inválido','err');return;}
+  if(!window.confirm(`¿Confirmar? Se eliminarán bot log, mensajes enviados y recibidos con más de ${n} días.\nLos interesados registrados NO se verán afectados.`)) return;
+  try{
+    const r=await api('DELETE',`/api/whatsapp/limpiar?dias=${n}`);
+    toast(`✓ Eliminados: ${r.log} entradas de log, ${r.msgs} mensajes enviados, ${r.recib} recibidos`,'ok');
+    pgInteresados(document.getElementById('mc'));
+  }catch(e){toast('Error al limpiar: '+e.message,'err');}
 }
 function intFiltrar(carrera){
   document.querySelectorAll('#int-tabla tbody tr').forEach(tr=>{
