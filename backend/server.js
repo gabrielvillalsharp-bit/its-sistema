@@ -718,6 +718,17 @@ function auth(roles = []) {
 const ADM = ['director'];
 const ADM_SEC = ['director'];
 
+// ── DESCARGA DE BASE DE DATOS (solo director) ─────────────────────────────────
+app.get('/api/admin/descargar-db', auth(ADM), (req, res) => {
+  const { DB_PATH } = require('./db');
+  const fs = require('fs');
+  if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'DB no encontrada' });
+  const fecha = new Date().toISOString().slice(0,10);
+  res.setHeader('Content-Disposition', `attachment; filename="its_${fecha}.db"`);
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.sendFile(DB_PATH);
+});
+
 // ── ENDPOINT DE EMERGENCIA: recrear director si no existe ─────────────────────
 app.get('/api/setup', (req, res) => {
   try {
