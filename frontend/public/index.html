@@ -1850,6 +1850,14 @@ async function pgDash(el){
 
   ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
 
+  ${me.rol==='director'?`<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <a href="/api/admin/descargar-db?token=${localStorage.getItem('token')}" download
+      style="display:inline-flex;align-items:center;gap:7px;padding:7px 16px;background:#1e293b;color:#fff;border-radius:9px;font-size:12px;font-weight:700;text-decoration:none;transition:background .15s"
+      onmouseenter="this.style.background='#334155'" onmouseleave="this.style.background='#1e293b'">
+      ⬇️ Descargar base de datos
+    </a>
+  </div>`:''}
+
   <div style="background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:18px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm)">
     <div style="margin-bottom:12px">
       <div style="font-size:15px;font-weight:800;color:#1e293b">⚡ Accesos rápidos</div>
