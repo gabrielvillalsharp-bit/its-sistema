@@ -4453,6 +4453,7 @@ function fAlAll(pag){
   if(anio)   l=l.filter(a=>String(a.curso_anio||a.anio)===anio);
   if(cursoId)l=l.filter(a=>a.curso_id===cursoId);
   if(turno){const ct=new Set((W._cursos||[]).filter(cu=>String(cu.turno)===turno).map(cu=>cu.id));l=l.filter(a=>ct.has(a.curso_id));}
+  const _est=W._alChip||'';if(_est)l=l.filter(a=>a.estado===_est);
   W._alsFiltrados=l;
   if(pag===undefined) W._alsPag=0;
   const p=W._alsPag||0;
@@ -17528,104 +17529,85 @@ async function pgUsuarios(el,initialTab){
   const _inactivos=als.length-_activos;
   const _pctAct=als.length?Math.round(_activos/als.length*100):0;
   const _pctIna=als.length?Math.round(_inactivos/als.length*100):0;
+  const _CHIP_ON='padding:4px 11px;border:1.5px solid #9FE1CB;border-radius:16px;font-size:11px;color:#0F6E56;background:#E1F5EE;font-weight:500;cursor:pointer';
+  const _CHIP_OFF='padding:4px 11px;border:1px solid #C8EFE2;border-radius:16px;font-size:11px;color:#64748b;background:#fff;cursor:pointer';
+  const _SEL_S='font-size:12px;padding:7px 10px;border:1px solid #C8EFE2;border-radius:8px;background:#F5FDFB;color:#374151;flex:1';
   el.innerHTML=`<div style="border:1px solid #9FE1CB;border-radius:14px;overflow:hidden;margin-bottom:18px">
-    <div style="background:#E1F5EE;border-bottom:1px solid #9FE1CB;padding:14px 20px;display:flex;align-items:center;gap:12px">
-      <div style="width:36px;height:36px;background:#0F6E56;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🎓</div>
-      <div>
-        <div style="font-size:15px;font-weight:700;color:#04342C">Alumnos &amp; Usuarios</div>
-        <div style="font-size:11px;color:#1D9E75;margin-top:1px">Gestión de accesos y matrícula</div>
+    <div style="background:#04342C;padding:14px 20px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="width:32px;height:32px;background:rgba(255,255,255,.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🎓</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#E1F5EE">Alumnos &amp; Usuarios</div>
+          <div style="font-size:10px;color:#5DCAA5;margin-top:1px">Gestión de accesos y matrícula</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.2);border-radius:10px;overflow:hidden">
+        <span style="padding:0 12px;font-size:16px;color:#9FE1CB">🔍</span>
+        <input id="filtMaster" placeholder="Buscar por CI, nombre, matrícula o email..." oninput="filtMasterFn()" style="border:none;background:transparent;padding:10px 0;font-size:14px;flex:1;outline:none;color:#fff;font-weight:500;width:100%;caret-color:#5DCAA5" />
+      </div>
+      <input type="hidden" id="filtAlBus"/><input type="hidden" id="filtUsBus"/>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #C8EFE2;background:#F5FDFB;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:5px 14px;border:1.5px solid #0F6E56;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:#0F6E56;cursor:pointer">🎓 Alumnos</button>
+        <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:5px 14px;border:1.5px solid #C8EFE2;border-radius:20px;font-size:11px;font-weight:700;color:#1D9E75;background:transparent;cursor:pointer">🔑 Staff</button>
+      </div>
+      <div id="chips-al" style="display:flex;gap:5px;flex-wrap:wrap">
+        <button style="${_CHIP_ON}" onclick="setAlChip(this,'')">Todos</button>
+        <button style="${_CHIP_OFF}" onclick="setAlChip(this,'Activo')">Activos</button>
+        <button style="${_CHIP_OFF}" onclick="setAlChip(this,'Inactivo')">Inactivos</button>
+        <button style="${_CHIP_OFF}" onclick="setAlChip(this,'Retirado')">Retirados</button>
+        <button style="${_CHIP_OFF}" onclick="setAlChip(this,'Egresado')">Egresados</button>
+      </div>
+      <div id="chips-st" style="display:none;gap:5px;flex-wrap:wrap">
+        <button style="${_CHIP_ON}" onclick="setStChip(this,'')">Todos</button>
+        <button style="${_CHIP_OFF}" onclick="setStChip(this,'director')">Director</button>
+        <button style="${_CHIP_OFF}" onclick="setStChip(this,'docente')">Docentes</button>
+        <button style="${_CHIP_OFF}" onclick="setStChip(this,'alumno')">Alumnos</button>
       </div>
     </div>
-    <div style="display:flex;border-bottom:1px solid #9FE1CB;background:#E1F5EE">
-      <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:10px 20px;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#1D9E75;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;transition:color .18s,border-color .18s,background .18s">🎓 Alumnos</button>
-      <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:10px 20px;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#1D9E75;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;transition:color .18s,border-color .18s,background .18s">🔑 Staff &amp; Accesos</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #C8EFE2">
-      <div style="padding:14px 18px;border-right:1px solid #C8EFE2">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="width:30px;height:30px;border-radius:8px;background:#CCFBF1;display:flex;align-items:center;justify-content:center;font-size:15px">👥</div>
-          <div style="font-size:10px;color:#1D9E75">Total alumnos</div>
-        </div>
-        <div style="font-size:24px;font-weight:700;color:#04342C">${als.length}</div>
-        <div style="height:3px;border-radius:2px;background:#0F6E56;margin-top:8px;width:100%"></div>
-      </div>
-      <div style="padding:14px 18px;border-right:1px solid #C8EFE2">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="width:30px;height:30px;border-radius:8px;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:15px">✅</div>
-          <div style="font-size:10px;color:#1D9E75">Activos</div>
-        </div>
-        <div style="font-size:24px;font-weight:700;color:#065f46">${_activos}</div>
-        <div style="height:3px;border-radius:2px;background:#1D9E75;margin-top:8px;width:${_pctAct}%"></div>
-      </div>
-      <div style="padding:14px 18px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <div style="width:30px;height:30px;border-radius:8px;background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:15px">⚠️</div>
-          <div style="font-size:10px;color:#1D9E75">Inactivos / Retirados</div>
-        </div>
-        <div style="font-size:24px;font-weight:700;color:#991b1b">${_inactivos}</div>
-        <div style="height:3px;border-radius:2px;background:#ef4444;margin-top:8px;width:${_pctIna}%"></div>
-      </div>
-    </div>
-    <div id="panel-alumnos" style="display:none;padding:14px 18px 4px">
-      <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px;justify-content:flex-end">
-        <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
+    <div id="act-al" style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #f1f5f9;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="bs o" onclick="crearAccesosMasivos()">🔑 Crear/Actualizar accesos</button>
         <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
         <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
         <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
-        <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
       </div>
+      <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
+    </div>
+    <div id="act-st" style="display:none;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #f1f5f9;gap:10px">
+      <div style="display:flex;gap:6px">
+        <button class="bs o" onclick="crearAccesosAlumnos()">👥 Crear accesos alumnos</button>
+        <button class="bs o" onclick="reseedDocentes()">🔄 Crear accesos docentes</button>
+      </div>
+      <button class="bn" onclick="mUsuario()">+ Nuevo usuario</button>
+    </div>
+    <div id="panel-alumnos" style="display:none;padding:12px 20px 4px">
       <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px">
-        <div style="flex:1;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
-          <span style="padding:0 9px;font-size:15px">🔍</span>
-          <input id="filtAlBus" placeholder="Buscar por CI o nombre..." oninput="fAlAll()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
-        </div>
-        <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+        <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()" style="${_SEL_S}"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+        <select id="filtAlAnio" onchange="fAlAll()" style="${_SEL_S}"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
       </div>
       <div style="display:flex;gap:7px;align-items:center;margin-bottom:10px">
-        <select id="filtAlAnio" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
-        <select id="filtAlCurso" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
-        <select id="filtAlTurno" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
+        <select id="filtAlCurso" onchange="fAlAll()" style="${_SEL_S};flex:2"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+        <select id="filtAlTurno" onchange="fAlAll()" style="${_SEL_S}"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
       </div>
-      <div style="font-size:13px;color:#64748b;margin-bottom:8px">Total: <strong><span id="alTotal">${als.length}</span></strong> alumnos</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px">Total: <strong><span id="alTotal">${als.length}</span></strong> alumnos</div>
       <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
       <tbody id="altb"></tbody></table></div>
       <div id="alsPagNav" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;font-size:13px"></div></div>
     </div>
-    <div id="panel-staff" style="display:none;padding:14px 18px 4px">
-      <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px;justify-content:flex-end">
-        <button class="bs o" onclick="crearAccesosAlumnos()" title="Crear accesos para alumnos sin usuario">👥 Crear accesos alumnos</button>
-        <button class="bs o" onclick="reseedDocentes()">🔄 Crear accesos docentes</button>
-        <button class="bn" onclick="mUsuario()">+ Nuevo usuario</button>
-      </div>
-      <div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
+    <div id="panel-staff" style="display:none;padding:12px 20px 4px">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#166534">
         ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
         Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
       </div>
       <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px">
-        <div style="flex:1;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
-          <span style="padding:0 9px;font-size:15px">🔍</span>
-          <input id="filtUsBus" placeholder="Buscar nombre o email..." oninput="filtUs()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
-        </div>
-        <select id="filtUsRol" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1">
-          <option value="">Todos los roles</option>
-          <option value="director">Director</option>
-          <option value="docente">Docentes</option>
-          <option value="alumno">Alumnos</option>
-        </select>
+        <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="${_SEL_S};flex:2"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+        <select id="filtUsAnio" onchange="filtUs()" style="${_SEL_S}"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
       </div>
       <div style="display:flex;gap:7px;align-items:center;margin-bottom:10px">
-        <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2">
-          <option value="">Todas las carreras</option>
-          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-        </select>
-        <select id="filtUsAnio" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1">
-          <option value="">Todos los años</option>
-          ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
-        </select>
-        <select id="filtUsCurso" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2">
-          <option value="">Todas las secciones</option>
-          ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
-        </select>
+        <select id="filtUsCurso" onchange="filtUs()" style="${_SEL_S};flex:2"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+        <select id="filtUsRol" onchange="filtUs()" style="${_SEL_S}"><option value="">Todos los roles</option><option value="director">Director</option><option value="docente">Docentes</option><option value="alumno">Alumnos</option></select>
       </div>
       <div id="tbUsuarios">${renderTbUsuarios(data)}</div>
     </div>
@@ -17633,21 +17615,63 @@ async function pgUsuarios(el,initialTab){
   switchUsTab(initialTab);
 }
 function switchUsTab(tab){
-  const pA=document.getElementById('panel-alumnos');
-  const pS=document.getElementById('panel-staff');
-  const bA=document.getElementById('tab-btn-alumnos');
-  const bS=document.getElementById('tab-btn-staff');
+  W._activeUsTab=tab;
+  const pA=document.getElementById('panel-alumnos'), pS=document.getElementById('panel-staff');
+  const bA=document.getElementById('tab-btn-alumnos'), bS=document.getElementById('tab-btn-staff');
+  const cAl=document.getElementById('chips-al'), cSt=document.getElementById('chips-st');
+  const aAl=document.getElementById('act-al'), aSt=document.getElementById('act-st');
   if(!pA||!pS)return;
+  const ON='padding:5px 14px;border:1.5px solid #0F6E56;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:#0F6E56;cursor:pointer';
+  const OFF='padding:5px 14px;border:1.5px solid #C8EFE2;border-radius:20px;font-size:11px;font-weight:700;color:#1D9E75;background:transparent;cursor:pointer';
   if(tab==='alumnos'){
     pA.style.display='';pS.style.display='none';
-    if(bA){bA.style.color='#04342C';bA.style.borderBottomColor='#0F6E56';bA.style.background='#fff';}
-    if(bS){bS.style.color='#1D9E75';bS.style.borderBottomColor='transparent';bS.style.background='transparent';}
+    if(bA)bA.style.cssText=ON; if(bS)bS.style.cssText=OFF;
+    if(cAl)cAl.style.display='flex'; if(cSt)cSt.style.display='none';
+    if(aAl)aAl.style.display='flex'; if(aSt)aSt.style.display='none';
+    const fm=document.getElementById('filtMaster');
+    const fb=document.getElementById('filtAlBus');
+    if(fm&&fb){fb.value=fm.value;}
     fAlAll();
   }else{
     pA.style.display='none';pS.style.display='';
-    if(bS){bS.style.color='#04342C';bS.style.borderBottomColor='#0F6E56';bS.style.background='#fff';}
-    if(bA){bA.style.color='#1D9E75';bA.style.borderBottomColor='transparent';bA.style.background='transparent';}
+    if(bS)bS.style.cssText=ON; if(bA)bA.style.cssText=OFF;
+    if(cSt)cSt.style.display='flex'; if(cAl)cAl.style.display='none';
+    if(aSt)aSt.style.display='flex'; if(aAl)aAl.style.display='none';
+    const fm=document.getElementById('filtMaster');
+    const fu=document.getElementById('filtUsBus');
+    if(fm&&fu){fu.value=fm.value;}
+    filtUs();
   }
+}
+function filtMasterFn(){
+  const val=document.getElementById('filtMaster')?.value||'';
+  if(!W._activeUsTab||W._activeUsTab==='alumnos'){
+    const f=document.getElementById('filtAlBus'); if(f)f.value=val;
+    fAlAll();
+  }else{
+    const f=document.getElementById('filtUsBus'); if(f)f.value=val;
+    filtUs();
+  }
+}
+function setAlChip(el,val){
+  W._alChip=val;
+  document.querySelectorAll('#chips-al button').forEach(b=>{
+    const on=b===el;
+    b.style.cssText=on
+      ?'padding:4px 11px;border:1.5px solid #9FE1CB;border-radius:16px;font-size:11px;color:#0F6E56;background:#E1F5EE;font-weight:500;cursor:pointer'
+      :'padding:4px 11px;border:1px solid #C8EFE2;border-radius:16px;font-size:11px;color:#64748b;background:#fff;cursor:pointer';
+  });
+  fAlAll();
+}
+function setStChip(el,val){
+  document.getElementById('filtUsRol').value=val;
+  document.querySelectorAll('#chips-st button').forEach(b=>{
+    const on=b===el;
+    b.style.cssText=on
+      ?'padding:4px 11px;border:1.5px solid #9FE1CB;border-radius:16px;font-size:11px;color:#0F6E56;background:#E1F5EE;font-weight:500;cursor:pointer'
+      :'padding:4px 11px;border:1px solid #C8EFE2;border-radius:16px;font-size:11px;color:#64748b;background:#fff;cursor:pointer';
+  });
+  filtUs();
 }
 function filtUsCursos(){
   const carrId=v('filtUsCarr');
