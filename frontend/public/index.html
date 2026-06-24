@@ -12216,21 +12216,40 @@ async function verAsistMesGen(){
 
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 async function pgPagos(el){
-  const [pers,carrs,cursos,aranceles]=await Promise.all([
+  const [pers,carrs,cursos,aranceles,stats]=await Promise.all([
     api('GET','/api/periodos'),
     api('GET','/api/carreras'),api('GET','/api/cursos'),
-    api('GET','/api/aranceles').catch(()=>[])
+    api('GET','/api/aranceles').catch(()=>[]),
+    api('GET','/api/pagos/stats').catch(()=>({total:0,conMat:0,sinMat:0,mora:0}))
   ]);
   W._pdata={als:[],pers,aranceles};
   W._pagosCarrs=carrs; W._pagosCursos=cursos; W._kanban={};
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort((a,b)=>Number(a)-Number(b));
+  const pct=(n,d)=>d?Math.round(n/d*100):0;
+  const fmtN=n=>n>=1000?(n/1000).toFixed(1)+'k':String(n);
 
   el.innerHTML=`
-  <div class="ph"><h3>Pagos y matrículas</h3>
-    <div class="ph-right" id="pagosHeaderBtns">
-      <!-- Menú desplegable Finanzas -->
+  <!-- HEADER -->
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;background:#1d4ed8;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <span style="font-size:18px">💳</span>
+      </div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1e3a8a;line-height:1.2">Pagos y matrículas</div>
+        <div style="font-size:11px;color:#3b82f6;margin-top:1px">Gestión de cobros del período activo</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center" id="pagosHeaderBtns">
+      <div style="position:relative;display:inline-block" id="menuImportarWrap">
+        <button class="bs i" onclick="toggleMenuImportar()" style="display:flex;align-items:center;gap:5px;font-size:12px">📊 Importar <span style="font-size:10px">▼</span></button>
+        <div id="menuImportar" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:200;min-width:200px;overflow:hidden">
+          <button onclick="toggleMenuImportar();mImportarPlanilla()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📋 Con carrera y sección</button>
+          <button onclick="toggleMenuImportar();mImportarSinAsignar()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📌 Sin asignar carrera</button>
+        </div>
+      </div>
       <div style="position:relative;display:inline-block" id="menuFinanzasWrap">
-        <button class="bs" onclick="toggleMenuFinanzas()" style="display:flex;align-items:center;gap:5px;background:#4f46e5;color:#fff;border-color:#4f46e5;font-weight:700">💰 Finanzas <span style="font-size:10px">▼</span></button>
+        <button class="bs" onclick="toggleMenuFinanzas()" style="display:flex;align-items:center;gap:5px;background:#1d4ed8;color:#fff;border-color:#1d4ed8;font-weight:700;font-size:12px">💰 Finanzas <span style="font-size:10px">▼</span></button>
         <div id="menuFinanzas" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:300;min-width:200px;overflow:hidden">
           <button onclick="toggleMenuFinanzas();mCuotaLabels()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">⚙ Configurar cuotas</button>
           <button onclick="toggleMenuFinanzas();go('aranceles')" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📋 Aranceles</button>
@@ -12238,52 +12257,75 @@ async function pgPagos(el){
           <button onclick="toggleMenuFinanzas();go('deudores')" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">⚠️ Deudores</button>
         </div>
       </div>
-      <div style="position:relative;display:inline-block" id="menuImportarWrap">
-        <button class="bs i" onclick="toggleMenuImportar()" style="display:flex;align-items:center;gap:5px">📊 Importar <span style="font-size:10px">▼</span></button>
-        <div id="menuImportar" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--bdr);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:200;min-width:200px;overflow:hidden">
-          <button onclick="toggleMenuImportar();mImportarPlanilla()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📋 Con carrera y sección</button>
-          <button onclick="toggleMenuImportar();mImportarSinAsignar()" style="display:block;width:100%;padding:10px 14px;text-align:left;border:none;background:#fff;cursor:pointer;font-size:13px;color:#1e293b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">📌 Sin asignar carrera</button>
-        </div>
+    </div>
+  </div>
+
+  <!-- METRIC CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:12px">
+    <div style="padding:16px 20px;border-right:1px solid #e2e8f0">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+        <div style="width:34px;height:34px;background:#dbeafe;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">👥</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.3">Total alumnos<br><span style="color:#94a3b8;font-size:10px">activos este período</span></div>
       </div>
+      <div style="font-size:28px;font-weight:700;color:#1e3a8a;line-height:1">${fmtN(stats.total)}</div>
+      <div style="height:3px;background:#3b82f6;border-radius:2px;margin-top:10px;width:100%"></div>
+    </div>
+    <div style="padding:16px 20px;border-right:1px solid #e2e8f0">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+        <div style="width:34px;height:34px;background:#dcfce7;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">✅</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.3">Con matrícula<br><span style="color:#94a3b8;font-size:10px">${pct(stats.conMat,stats.total)}% del total</span></div>
+      </div>
+      <div style="font-size:28px;font-weight:700;color:#166534;line-height:1">${fmtN(stats.conMat)}</div>
+      <div style="height:3px;background:#22c55e;border-radius:2px;margin-top:10px;width:${pct(stats.conMat,stats.total)}%"></div>
+    </div>
+    <div style="padding:16px 20px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+        <div style="width:34px;height:34px;background:#fef9c3;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">⚠️</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.3">Sin matrícula<br><span style="color:#94a3b8;font-size:10px">${pct(stats.sinMat,stats.total)}% del total</span></div>
+      </div>
+      <div style="font-size:28px;font-weight:700;color:#854d0e;line-height:1">${fmtN(stats.sinMat)}</div>
+      <div style="height:3px;background:#eab308;border-radius:2px;margin-top:10px;width:${Math.max(pct(stats.sinMat,stats.total),2)}%"></div>
     </div>
   </div>
 
   <!-- VISTA LISTA -->
   <div id="vistaListaPagos">
 
-    <!-- PANEL DE FILTROS -->
-    <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm)">
-      <div style="font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">🔍 Buscar alumno</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <input id="filtPagoBus" placeholder="Escribí nombre, apellido o CI — busca en todas las carreras..." oninput="debounceBusPagos()" style="font-size:13px;border-radius:8px;flex:2;min-width:240px"/>
-        <select id="filtPagoCarr" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:13px;flex:1;min-width:150px">
+    <!-- BÚSQUEDA Y FILTROS -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:12px">
+      <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="flex:2;min-width:220px;display:flex;align-items:center;border:1.5px solid #3b82f6;border-radius:9px;background:#eff6ff;overflow:hidden">
+          <span style="padding:0 10px;font-size:16px;flex-shrink:0">🔍</span>
+          <input id="filtPagoBus" placeholder="Nombre, apellido o CI..." oninput="debounceBusPagos()" style="border:none;background:transparent;padding:9px 0;font-size:13px;flex:1;outline:none;color:inherit"/>
+        </div>
+        <select id="filtPagoCarr" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:12px;flex:1;min-width:140px;background:#f8fafc;border-color:#e2e8f0;color:#374151">
           <option value="">Todas las carreras</option>
           <option value="SIN_ASIGNAR">📌 Sin asignar</option>
           ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
-        <select id="filtPagoAnio" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:13px;min-width:90px">
+        <select id="filtPagoAnio" onchange="filtPagoCursos();cargarAlumnosPagos()" style="font-size:12px;min-width:80px;background:#f8fafc;border-color:#e2e8f0;color:#374151">
           <option value="">Año</option>${anios.map(a=>`<option value="${a}">${a}°</option>`).join('')}
         </select>
-        <select id="filtPagoCurso" onchange="cargarAlumnosPagos()" style="font-size:13px;flex:1;min-width:150px">
+        <select id="filtPagoCurso" onchange="cargarAlumnosPagos()" style="font-size:12px;flex:1;min-width:140px;background:#f8fafc;border-color:#e2e8f0;color:#374151">
           <option value="">Todas las secciones</option>
           ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}
         </select>
-        <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:13px;min-width:140px">
+        <select id="filtKanbanCol" onchange="renderTablaPagos()" style="font-size:12px;min-width:130px;background:#f8fafc;border-color:#e2e8f0;color:#374151">
           <option value="">Todos los estados</option>
           <option value="aldia">✅ Al día</option>
           <option value="mora">⚠️ En mora</option>
           <option value="sinmat">📋 Sin matrícula</option>
         </select>
-        <button class="bs" onclick="limpiarFiltrosPagos()" style="font-size:12px;white-space:nowrap">✕ Limpiar</button>
+        <button class="bs" onclick="limpiarFiltrosPagos()" style="font-size:12px;white-space:nowrap;border-color:#e2e8f0;color:#64748b">✕ Limpiar</button>
       </div>
     </div>
 
     <!-- PLACEHOLDER (visible hasta que se aplique un filtro) -->
-    <div id="pagosPlaceholder" style="background:#fff;border:1px dashed #d1d5db;border-radius:14px;padding:48px 20px;text-align:center;color:#94a3b8">
-      <div style="font-size:36px;margin-bottom:12px">🔍</div>
-      <div style="font-size:15px;font-weight:600;color:#64748b;margin-bottom:6px">Buscá un alumno por nombre o filtrá por carrera</div>
-      <div style="font-size:13px;color:#94a3b8;margin-bottom:4px">Escribí al menos 2 letras en el buscador para ver alumnos de <strong style="color:#64748b">todas las carreras</strong></div>
-      <div style="font-size:12px">O seleccioná una carrera del desplegable para ver todos sus alumnos</div>
+    <div id="pagosPlaceholder" style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:48px 20px;text-align:center">
+      <div style="width:56px;height:56px;background:#dbeafe;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:14px">🔍</div>
+      <div style="font-size:15px;font-weight:600;color:#1e3a8a;margin-bottom:6px">Buscá un alumno para comenzar</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:4px">Escribí nombre, apellido o CI · o seleccioná una carrera</div>
+      <div style="font-size:12px;color:#94a3b8">También podés filtrar por año, sección o estado de pago</div>
     </div>
 
     <!-- TABLA -->

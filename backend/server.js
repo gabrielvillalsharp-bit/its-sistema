@@ -3118,6 +3118,13 @@ app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
   filas.forEach(f => { map[f.alumno_id] = f; });
   res.json(map);
 });
+app.get('/api/pagos/stats', auth(ADM), (req, res) => {
+  const total   = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo'`).get().n;
+  const conMat  = db.prepare(`SELECT COUNT(DISTINCT al.id) as n FROM alumnos al JOIN pagos p ON p.alumno_id=al.id WHERE al.estado='Activo' AND p.estado='Pagado' AND (p.concepto LIKE 'Matr%' OR p.concepto='Matricula')`).get().n;
+  const mora    = db.prepare(`SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo' AND habilitado_pago_pendiente=1`).get().n;
+  res.json({ total, conMat, sinMat: total - conMat, mora });
+});
+
 // Perfil financiero de un alumno (consulta para rol alumno)
 app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
