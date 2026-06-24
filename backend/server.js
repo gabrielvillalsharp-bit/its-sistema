@@ -603,6 +603,33 @@ try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").r
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
 
+// ── MIGRACIÓN DE DATOS: asignar días a materias sin horario ──────────────────
+{
+  const migHorarios = [
+    // [asignacion_id, dia, hora_inicio, hora_fin, turno]
+    ['asig_cos107_1a',              'Martes',  '19:00', '20:20', 1],
+    ['asig_cos107_1b',              'Martes',  '20:40', '22:00', 2],
+    ['asig_crm205_2u',              'Martes',  '20:40', '22:00', 2],
+    ['asig_enf205_2u',              'Viernes', '19:00', '20:20', 1],
+    ['asig_enf204_2u',              'Viernes', '20:40', '22:00', 2],
+    ['asig_iq205_2u',               'Viernes', '19:00', '20:20', 1],
+  ];
+  const updAsig = db.prepare(`UPDATE asignaciones SET dia=?, hora_inicio=?, hora_fin=? WHERE id=? AND (dia IS NULL OR dia='')`);
+  const insHor  = db.prepare(`INSERT OR IGNORE INTO horarios(asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES(?,?,?,?,?,'')`);
+  for (const [id, dia, hi, hf, turno] of migHorarios) {
+    updAsig.run(dia, hi, hf, id);
+    const yaExiste = db.prepare(`SELECT 1 FROM horarios WHERE asignacion_id=?`).get(id);
+    if (!yaExiste) insHor.run(id, dia, turno, hi, hf);
+  }
+  // Criminología: cambiar de Martes a Jueves 1ra hora
+  db.prepare(`UPDATE asignaciones SET dia='Jueves', hora_inicio='19:00', hora_fin='20:20' WHERE id='asig_doc_dominguez_CRM_202_crim_2u' AND dia='Martes'`).run();
+  db.prepare(`UPDATE horarios SET dia='Jueves', turno=1, hora_inicio='19:00', hora_fin='20:20' WHERE asignacion_id='asig_doc_dominguez_CRM_202_crim_2u'`).run();
+  // Eliminar asignación duplicada de Inglés I Farmacia 1° (sin notas reales)
+  db.prepare(`DELETE FROM notas WHERE asignacion_id='asig_doc_jimenez_FAR_106_farm_1u'`).run();
+  db.prepare(`DELETE FROM asignaciones WHERE id='asig_doc_jimenez_FAR_106_farm_1u'`).run();
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // Tablas auxiliares del bot (si no existen se crean aquí)
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS wa_consultas (
