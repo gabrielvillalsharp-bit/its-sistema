@@ -17574,15 +17574,17 @@ async function pgUsuarios(el,initialTab){
         <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
         <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:10px">
-        <div style="flex:2;min-width:180px;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px">
+        <div style="flex:1;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
           <span style="padding:0 9px;font-size:15px">🔍</span>
-          <input id="filtAlBus" placeholder="CI o nombre..." oninput="fAlAll()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
+          <input id="filtAlBus" placeholder="Buscar por CI o nombre..." oninput="fAlAll()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
         </div>
-        <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1;min-width:120px"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">📌 Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
-        <select id="filtAlAnio" onchange="fAlAll()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:100px"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
-        <select id="filtAlCurso" onchange="fAlAll()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1;min-width:130px"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
-        <select id="filtAlTurno" onchange="fAlAll()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:110px"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
+        <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:10px">
+        <select id="filtAlAnio" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
+        <select id="filtAlCurso" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
+        <select id="filtAlTurno" onchange="fAlAll()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1"><option value="">Todos los turnos</option><option value="1">Turno 1 (19:00)</option><option value="2">Turno 2 (20:40)</option></select>
       </div>
       <div style="font-size:13px;color:#64748b;margin-bottom:8px">Total: <strong><span id="alTotal">${als.length}</span></strong> alumnos</div>
       <div class="card"><div class="tw"><table class="als-table"><thead><tr><th>Matrícula</th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Sección</th><th>Est.</th><th></th></tr></thead>
@@ -17599,29 +17601,31 @@ async function pgUsuarios(el,initialTab){
         ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
         Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:10px">
-        <select id="filtUsRol" onchange="filtUs()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:140px">
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:7px">
+        <div style="flex:1;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
+          <span style="padding:0 9px;font-size:15px">🔍</span>
+          <input id="filtUsBus" placeholder="Buscar nombre o email..." oninput="filtUs()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
+        </div>
+        <select id="filtUsRol" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1">
           <option value="">Todos los roles</option>
           <option value="director">Director</option>
           <option value="docente">Docentes</option>
           <option value="alumno">Alumnos</option>
         </select>
-        <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:160px">
+      </div>
+      <div style="display:flex;gap:7px;align-items:center;margin-bottom:10px">
+        <select id="filtUsCarr" onchange="filtUsCursos();filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2">
           <option value="">Todas las carreras</option>
           ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
-        <select id="filtUsAnio" onchange="filtUs()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:110px">
+        <select id="filtUsAnio" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:1">
           <option value="">Todos los años</option>
           ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
         </select>
-        <select id="filtUsCurso" onchange="filtUs()" style="font-size:12px;padding:7px 8px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;min-width:150px">
+        <select id="filtUsCurso" onchange="filtUs()" style="font-size:12px;padding:7px 10px;border:1px solid #9FE1CB;border-radius:8px;background:#E1F5EE;color:#0F6E56;flex:2">
           <option value="">Todas las secciones</option>
           ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
         </select>
-        <div style="flex:2;min-width:200px;display:flex;align-items:center;border:1.5px solid #0F6E56;border-radius:9px;background:#E1F5EE;overflow:hidden">
-          <span style="padding:0 9px;font-size:15px">🔍</span>
-          <input id="filtUsBus" placeholder="Buscar nombre o email..." oninput="filtUs()" style="border:none;background:transparent;padding:8px 0;font-size:13px;flex:1;outline:none;color:#04342C"/>
-        </div>
       </div>
       <div id="tbUsuarios">${renderTbUsuarios(data)}</div>
     </div>
