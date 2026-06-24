@@ -724,6 +724,13 @@ try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER 
   const ins = db.transaction(() => { for (const e of exams) insEx.run(...e); });
   ins();
 }
+// ── MIGRACIÓN: normalizar tipos de examen al estilo técnico ─────────────────
+{
+  db.prepare(`UPDATE examenes SET tipo='final_ord'           WHERE tipo='Final'`).run();
+  db.prepare(`UPDATE examenes SET tipo='final_recuperatorio' WHERE tipo='Final Recuperatorio'`).run();
+  db.prepare(`UPDATE examenes SET tipo='complementario'      WHERE tipo='Complementario'`).run();
+  db.prepare(`UPDATE examenes SET tipo='extraordinario'      WHERE tipo='Extraordinario'`).run();
+}
 // ────────────────────────────────────────────────────────────────────────────
 
 // Tablas auxiliares del bot (si no existen se crean aquí)
@@ -2605,10 +2612,14 @@ app.get('/api/examenes', auth(), (req, res) => {
 const EXAMEN_NOTA_COL = {
   'Parcial':             'parcial',
   'Recuperatorio':       'parcial_recuperatorio',
-  'Final':               'final_ord',
-  'Final Recuperatorio': 'final_recuperatorio',
-  'Complementario':      'complementario',
-  'Extraordinario':      'extraordinario',
+  'Final':               'final_ord',      // legado
+  'Final Recuperatorio': 'final_recuperatorio', // legado
+  'Complementario':      'complementario', // legado
+  'Extraordinario':      'extraordinario', // legado
+  'final_ord':           'final_ord',
+  'final_recuperatorio': 'final_recuperatorio',
+  'complementario':      'complementario',
+  'extraordinario':      'extraordinario',
 };
 
 app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, res) => {
@@ -2681,7 +2692,7 @@ app.post('/api/examenes', auth(ADM), (req, res) => {
 
   try {
     const id = 'ex_' + Date.now();
-    const ptsDefault = tipo==='Parcial'||tipo==='Recuperatorio' ? 20 : tipo==='Extraordinario' ? 100 : 50;
+    const ptsDefault = tipo==='Parcial'||tipo==='Recuperatorio' ? 20 : tipo==='Extraordinario'||tipo==='extraordinario' ? 100 : 50;
     db.prepare('INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,?,?,?,?,?,?,?)').run(id, asignacion_id, tipo, fecha, hora||null, aula||null, periodo_id||null, observacion||null, puntos_max||ptsDefault);
 
     // Procesar unificaciones: crear el mismo examen para otras asignaciones

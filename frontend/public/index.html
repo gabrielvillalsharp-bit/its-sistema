@@ -5077,7 +5077,6 @@ async function pgExamenes(el){
       <button class="bs o" onclick="go('calendario')">📅 Ver calendario</button>
       ${esDir?`<button class="bs" style="background:#fff7ed;border-color:#ea580c;color:#ea580c" onclick="exportarExamenesPDF()">🖨 Exportar PDF</button>`:''}
       ${esDir?`<button class="bs" style="background:#fee2e2;border-color:#dc2626;color:#dc2626" onclick="eliminarRecuperatorios(this)">🗑 Eliminar Recuperatorios</button>`:''}
-      ${esDir?`<button class="bn" style="background:#7c3aed;border-color:#6d28d9" onclick="mPreviewRecuperatoriosParciales(this)">🗓 Generar Recuperatorios Parciales</button>`:''}
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
@@ -5088,10 +5087,10 @@ async function pgExamenes(el){
         <option value="Recuperatorio">Parcial Recuperatorio</option>
       </optgroup>
       <optgroup label="─ Finales ─">
-        <option value="Final">Final Ordinario</option>
-        <option value="Final Recuperatorio">Final Recuperatorio</option>
-        <option value="Complementario">Final Complementario</option>
-        <option value="Extraordinario">Final Extraordinario</option>
+        <option value="final_ord">Final Ordinario</option>
+        <option value="final_recuperatorio">Final Recuperatorio</option>
+        <option value="complementario">Final Complementario</option>
+        <option value="extraordinario">Final Extraordinario</option>
       </optgroup>
     </select>`:''}
     <select id="filtExCarr" onchange="filtExCursos();filtExAll()" style="min-width:150px">
@@ -5119,7 +5118,8 @@ function irANotasAsig(asigId){
 }
 function exRow(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
-  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
+  const TIPO_LBL={Parcial:'Parcial Ord.',Recuperatorio:'Parcial Recup.','Final':'Final Ord.','Final Recuperatorio':'Final Recup.',Complementario:'Complementario',Extraordinario:'Extraordinario',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario'};
+  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv',final_ord:'br',final_recuperatorio:'br',complementario:'ba',extraordinario:'bv'};
   // Calcular estado del examen y habilitación de adjunto
   const hoy=new Date();
   const fechaEx=e.fecha?new Date(e.fecha+'T12:00:00'):null;
@@ -5142,7 +5142,7 @@ function exRow(e){
   return `<tr>
     <td style="white-space:nowrap;font-weight:600">${e.fecha?fmtFecha(e.fecha):'—'}</td>
     <td style="white-space:nowrap">${e.hora||'—'}</td>
-    <td><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px">${e.tipo||'—'}</span></td>
+    <td><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px">${TIPO_LBL[e.tipo]||e.tipo||'—'}</span></td>
     <td><strong>${e.materia_nombre||'—'}</strong></td>
     <td style="font-size:12px">${e.carrera_nombre||'—'}${e.curso_anio?' '+e.curso_anio+'°':''}</td>
     <td style="font-size:12px;white-space:nowrap">${e.curso_division&&e.curso_division!=='U'?'<span class="bx bb" style="font-size:10px">Secc. '+e.curso_division+'</span>':'<span style="color:var(--t2)">Única</span>'}</td>
@@ -5214,7 +5214,8 @@ function renderExsByDay(exs,wrap){
 }
 function exRowNoDate(e){
   const pct=e.total_alumnos?Math.round((e.notas_cargadas||0)/e.total_alumnos*100):0;
-  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv'};
+  const TIPO_LBL2={Parcial:'Parcial Ord.',Recuperatorio:'Parcial Recup.','Final':'Final Ord.','Final Recuperatorio':'Final Recup.',Complementario:'Complementario',Extraordinario:'Extraordinario',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario'};
+  const tipoColor={Parcial:'bb',Recuperatorio:'ba','Final':'br','Final Recuperatorio':'br',Complementario:'ba',Extraordinario:'bv',final_ord:'br',final_recuperatorio:'br',complementario:'ba',extraordinario:'bv'};
   const esDocumentoPropietario=me.rol==='director'||(me.rol==='docente'&&e.docente_id===me.docenteId);
   const td='padding:8px 10px;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle;text-align:center';
   const tdl='padding:8px 10px;border-bottom:1px solid #e2e8f0;vertical-align:middle;text-align:center';
@@ -5241,7 +5242,7 @@ function exRowNoDate(e){
   const cellDelEx=me.rol==='director'?`<button style="font-size:11px;padding:3px 7px;border-radius:4px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer" onclick="delExamen('${e.id}')" title="Eliminar examen">🗑</button>`:'';
   return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
     <td style="${td};text-align:left;font-weight:700;color:#1e293b;font-size:12px;white-space:nowrap">${e.hora||'—'}</td>
-    <td style="${td};text-align:left"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${e.tipo||'—'}</span></td>
+    <td style="${td};text-align:left"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${TIPO_LBL2[e.tipo]||e.tipo||'—'}</span></td>
     <td style="${td};text-align:left"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span></td>
     <td style="${td};text-align:left;font-size:11px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#94a3b8">'+e.curso_anio+'°</span>':''}</td>
     <td style="${td};text-align:left;font-size:11px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
@@ -5572,8 +5573,8 @@ function exportarExamenesPDF(tipoForzado){
   }
   // Sin filtro activo → preguntar qué tipo exportar
   const tiposPresentes=[...new Set(todos.map(e=>e.tipo).filter(Boolean))].sort();
-  const TIPO_LABEL={'Parcial':'Parcial Ordinario','Recuperatorio':'Parcial Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Complementario','Extraordinario':'Extraordinario'};
-  const TIPO_ICON={'Parcial':'🔵','Recuperatorio':'🟣','Final':'🔴','Final Recuperatorio':'🟠','Complementario':'🟢','Extraordinario':'🟤'};
+  const TIPO_LABEL={'Parcial':'Parcial Ordinario','Recuperatorio':'Parcial Recuperatorio','Final':'Final Ordinario','Final Recuperatorio':'Final Recuperatorio','Complementario':'Complementario','Extraordinario':'Extraordinario',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
+  const TIPO_ICON={'Parcial':'🔵','Recuperatorio':'🟣','Final':'🔴','Final Recuperatorio':'🟠','Complementario':'🟢','Extraordinario':'🟤',final_ord:'🔴',final_recuperatorio:'🟠',complementario:'🟢',extraordinario:'🟤'};
   const opts=tiposPresentes.map(t=>`<button style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:#f8fafc;width:100%;text-align:left" onclick="exportarExamenesPDF('${t}')">
     <span style="font-size:18px">${TIPO_ICON[t]||'🔵'}</span>
     <span>${TIPO_LABEL[t]||t}</span>
@@ -5591,9 +5592,9 @@ function exportarExamenesPDF(tipoForzado){
   <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button></div>`,true);
 }
 async function _generarExamenesPDF(exs){
-  const TIPO_LABEL={'Parcial':'Parcial Ord.','Recuperatorio':'Recuperatorio','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Complementario','Extraordinario':'Extraordinario'};
-  const TIPO_COLOR={'Parcial':'#1e40af','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
-  const TIPO_BG={'Parcial':'#dbeafe','Recuperatorio':'#ede9fe','Final':'#fee2e2','Final Recuperatorio':'#ffedd5','Complementario':'#d1fae5','Extraordinario':'#f5f3ff'};
+  const TIPO_LABEL={'Parcial':'Parcial Ord.','Recuperatorio':'Recuperatorio','Final':'Final Ord.','Final Recuperatorio':'Final Recup.','Complementario':'Complementario','Extraordinario':'Extraordinario',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario'};
+  const TIPO_COLOR={'Parcial':'#1e40af','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9',final_ord:'#b91c1c',final_recuperatorio:'#9a3412',complementario:'#065f46',extraordinario:'#6d28d9'};
+  const TIPO_BG={'Parcial':'#dbeafe','Recuperatorio':'#ede9fe','Final':'#fee2e2','Final Recuperatorio':'#ffedd5','Complementario':'#d1fae5','Extraordinario':'#f5f3ff',final_ord:'#fee2e2',final_recuperatorio:'#ffedd5',complementario:'#d1fae5',extraordinario:'#f5f3ff'};
   const DIAS_FULL=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
@@ -6761,16 +6762,16 @@ async function imprimirActa(asigId){
     <button class="bn" style="text-align:left;padding:10px 14px;background:#dcfce7;color:#166534" onclick="cm();selActaExamen('${asigId}','Recuperatorio')">
       📝 Acta Parcial Recuperatorio (50 pts)
     </button>
-    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','Final')">
+    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','final_ord')">
       📜 Acta Final Ordinario (50 pts)
     </button>
-    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','Final Recuperatorio')">
+    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','final_recuperatorio')">
       📜 Acta Final Recuperatorio (50 pts)
     </button>
-    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','Complementario')">
+    <button class="bn" style="text-align:left;padding:10px 14px;background:#fff3e0;color:#e65100" onclick="cm();selActaExamen('${asigId}','complementario')">
       📜 Acta Final Complementario (50 pts)
     </button>
-    <button class="bn" style="text-align:left;padding:10px 14px;background:#f3e5f5;color:#4a148c" onclick="cm();selActaExamen('${asigId}','Extraordinario')">
+    <button class="bn" style="text-align:left;padding:10px 14px;background:#f3e5f5;color:#4a148c" onclick="cm();selActaExamen('${asigId}','extraordinario')">
       ⚡ Acta Extraordinario (100 pts)
     </button>
   </div>
@@ -7276,7 +7277,7 @@ async function renderCalendario(el){
   W._calExs=exsAgrupados; W._calActs=acts||[];
 
   // Colores y helpers
-  const tipoColor=t=>t==='Extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
+  const tipoColor=t=>t==='Extraordinario'||t==='extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'||t==='final_ord'||t==='final_recuperatorio'||t==='complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
   const turnoLabel=e=>e.asig_turno===2?{lbl:'T2 · 20:40',col:'#4a148c'}:{lbl:'T1 · 19:00',col:'#0d47a1'};
   const esAlumno=me.rol==='alumno';
   const esDir=me.rol==='director';
@@ -7286,7 +7287,7 @@ async function renderCalendario(el){
     const tc=tipoColor(e.tipo);
     const prof=e.docente_nombre?`${e.docente_apellido||''} ${e.docente_nombre||''}`.trim():'';
     const cursos=e._cursos?.join(' · ')||e.carrera_nombre||'';
-    const tipoCorto=e.tipo==='Recuperatorio'?'Recup.':e.tipo==='Extraordinario'?'Extra.':e.tipo==='Complementario'?'Compl.':(e.tipo||'');
+    const tipoCorto=e.tipo==='Recuperatorio'?'Recup.':e.tipo==='Extraordinario'||e.tipo==='extraordinario'?'Extra.':e.tipo==='Complementario'||e.tipo==='complementario'?'Compl.':e.tipo==='final_ord'||e.tipo==='Final'?'Final Ord.':e.tipo==='final_recuperatorio'?'Final Rec.':(e.tipo||'');
     return `<div style="background:${tc.bg};border-radius:5px;padding:3px 5px;margin-bottom:2px;font-size:10px;border-left:3px solid ${tc.bdr};cursor:${esAlumno?'default':'pointer'}"
       ${!esAlumno?`onclick="verExamen('${e.id}')" title="${e.tipo} — ${e.materia_nombre||''} — ${prof}"`:''}>
       <div style="display:flex;align-items:center;gap:3px;margin-bottom:1px;overflow:hidden">
@@ -10552,7 +10553,9 @@ async function _iniciarActaExamen(asigId,tipo,tipoLbl){
   const CAMPO_MAP={
     'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio',
     'Final':'final_ord','Final Recuperatorio':'final_recuperatorio',
-    'Complementario':'complementario','Extraordinario':'extraordinario'
+    'Complementario':'complementario','Extraordinario':'extraordinario',
+    'final_ord':'final_ord','final_recuperatorio':'final_recuperatorio',
+    'complementario':'complementario','extraordinario':'extraordinario'
   };
   const campo=CAMPO_MAP[tipo];
   // Cargar datos actuales del acta
@@ -10716,7 +10719,7 @@ async function imprimirActaExamenCerrada(actaId){
     if(!acta){toast('Acta no encontrada','err');return;}
     const actaData=await api('GET','/api/notas/acta/'+acta.asignacion_id);
     const {asig,alumnos,inst}=actaData;
-    const CAMPO_MAP={'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio','Final':'final_ord','Final Recuperatorio':'final_recuperatorio','Complementario':'complementario','Extraordinario':'extraordinario'};
+    const CAMPO_MAP={'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio','Final':'final_ord','Final Recuperatorio':'final_recuperatorio','Complementario':'complementario','Extraordinario':'extraordinario',final_ord:'final_ord',final_recuperatorio:'final_recuperatorio',complementario:'complementario',extraordinario:'extraordinario'};
     const campo=CAMPO_MAP[acta.tipo_examen];
     const conNota=alumnos.filter(a=>a[campo]!==null&&a[campo]!==undefined);
     const faltantes=acta.alumnos_faltantes?JSON.parse(acta.alumnos_faltantes):[];
