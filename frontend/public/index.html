@@ -9166,7 +9166,7 @@ async function pgPapelera(el){
     const hoy  = new Date();
     el.innerHTML=`<div class="ph"><h3>🗑️ Papelera de Reciclaje</h3></div>
     <div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
-      ⚠️ Los registros eliminados se conservan <strong>10 días</strong> y luego se eliminan definitivamente de forma automática.
+      ⚠️ Los registros eliminados se conservan <strong>30 días</strong> y luego se eliminan definitivamente de forma automática.
       Podés restaurarlos en cualquier momento antes de que venzan.
     </div>
     ${data.length===0
@@ -9320,7 +9320,7 @@ async function depEliminarSeleccionados(){
     `<p style="font-size:13px;margin-bottom:8px">Se eliminarán <strong>${chks.length} alumno(s)</strong> del sistema:</p>
      <p style="font-size:12px;color:#6b7280;margin-bottom:10px">${preview}</p>
      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e">
-       ⚠️ Los registros quedan guardados en la <strong>papelera por 10 días</strong> y pueden restaurarse antes de ese plazo.
+       ⚠️ Los registros quedan guardados en la <strong>papelera por 30 días</strong> y pueden restaurarse antes de ese plazo.
      </div>`,
     async function(){
       let ok=0,err=0;
@@ -9333,7 +9333,7 @@ async function depEliminarSeleccionados(){
     },null);
 }
 async function depEliminar(id, nombre){
-  confirm2('🗑 Eliminar alumno',`¿Eliminar completamente a <strong>${nombre}</strong>?<br/><small style="color:#6b7280">Queda guardado en la papelera 10 días.</small>`,
+  confirm2('🗑 Eliminar alumno',`¿Eliminar completamente a <strong>${nombre}</strong>?<br/><small style="color:#6b7280">Queda guardado en la papelera 30 días.</small>`,
     async function(){
       try{await api('DELETE',`/api/alumnos/${id}/completo`);toast('✓ '+nombre+' eliminado','ok');depBuscar();}
       catch(e){toast('Error: '+e.message,'err');}
@@ -9622,7 +9622,7 @@ async function limRenderPap(){
     const data = await api('GET','/api/papelera');
     const hoy  = new Date();
     pane.innerHTML=`<div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
-      ⚠️ Los registros eliminados se conservan <strong>10 días</strong> y luego se eliminan definitivamente de forma automática.
+      ⚠️ Los registros eliminados se conservan <strong>30 días</strong> y luego se eliminan definitivamente de forma automática.
       Podés restaurarlos en cualquier momento antes de que venzan.
     </div>
     ${data.length===0
@@ -9870,7 +9870,7 @@ async function dupAbrirUnificar(id1, id2){
 
     const htm=`
       <div style="font-size:16px;font-weight:900;color:#1a202c;margin-bottom:4px">🔀 Unificar Duplicados</div>
-      <div style="font-size:12px;color:#6b7280;margin-bottom:16px">Todos los pagos, notas y asistencia del eliminado se moverán al conservado. Se guarda copia en la papelera por 10 días.</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:16px">Todos los pagos, notas y asistencia del eliminado se moverán al conservado. Se guarda copia en la papelera por 30 días.</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">
         ${colCard(id1,d1,'Registro 1')}
         ${colCard(id2,d2,'Registro 2')}
@@ -9883,7 +9883,7 @@ async function dupAbrirUnificar(id1, id2){
 
 async function dupConfirmarUnificar(conservar_id, eliminar_id){
   confirm2('🔀 Confirmar unificación',
-    `¿Unificar los registros? Los pagos, notas y asistencia del duplicado se moverán al registro conservado. El duplicado se eliminará (guardado en papelera 10 días).`,
+    `¿Unificar los registros? Los pagos, notas y asistencia del duplicado se moverán al registro conservado. El duplicado se eliminará (guardado en papelera 30 días).`,
     async function(){
       try{
         const r=await api('POST','/api/alumnos/unificar',{conservar_id,eliminar_id});

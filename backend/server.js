@@ -175,7 +175,7 @@ try { db.prepare('ALTER TABLE interesados_bot ADD COLUMN ci TEXT').run(); } catc
 function guardarEnPapelera(tipo, nombreDisplay, datos, eliminadoPor) {
   try {
     const pid    = 'pap_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-    const expira = new Date(Date.now() + 10*24*60*60*1000)
+    const expira = new Date(Date.now() + 30*24*60*60*1000)
       .toLocaleString('sv-SE', { timeZone: 'America/Asuncion' }).replace('T',' ').slice(0,19);
     db.prepare(`INSERT INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en)
       VALUES (?,?,?,?,?,?)`)
