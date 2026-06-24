@@ -1729,9 +1729,10 @@ async function pgDash(el){
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
       ${exams.map(e=>{
-        const colorTipo=e.tipo==='Final'?'#fee2e2':e.tipo==='Recuperatorio'?'#fef3c7':'#dbeafe';
-        const textTipo=e.tipo==='Final'?'#b91c1c':e.tipo==='Recuperatorio'?'#92400e':'#1e40af';
-        const badgeTipo=e.tipo==='Final'?'br':e.tipo==='Recuperatorio'?'ba':'bb';
+        const _TLBL={'Parcial':'Parcial','Recuperatorio':'Rec. Parcial','Final':'Final','Final Recuperatorio':'Rec. Final','Complementario':'Complementario','Extraordinario':'Extraordinario','final_ord':'Final Ordinario','final_recuperatorio':'Rec. Final','complementario':'Complementario','extraordinario':'Extraordinario'};
+        const _esFinal=['Final','final_ord','Final Recuperatorio','final_recuperatorio','Complementario','complementario','Extraordinario','extraordinario'].includes(e.tipo);
+        const _esRecParcial=['Recuperatorio'].includes(e.tipo);
+        const badgeTipo=_esFinal?'br':_esRecParcial?'ba':'bb';
         return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
           <div style="text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 10px;min-width:52px;flex-shrink:0">
             <div style="font-size:18px;font-weight:900;color:#1e293b;line-height:1">${new Date(e.fecha+'T12:00').getDate()}</div>
@@ -1741,7 +1742,7 @@ async function pgDash(el){
             <div style="font-size:13px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.materia_nombre}</div>
             <div style="font-size:11px;color:#64748b;margin-top:2px">${e.hora?'🕐 '+e.hora:''} ${e.aula?'📍 '+e.aula:''}</div>
           </div>
-          <span class="bx ${badgeTipo}" style="flex-shrink:0;font-size:11px">${e.tipo}</span>
+          <span class="bx ${badgeTipo}" style="flex-shrink:0;font-size:11px">${_TLBL[e.tipo]||e.tipo}</span>
         </div>`;
       }).join('')}
       </div>
@@ -17523,11 +17524,40 @@ async function pgUsuarios(el,initialTab){
   W._usData={data,als,carrs,cursos};
   W._als=als;W._carrs=carrs;W._cursos=cursos;W._alsPag=0;
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Alumnos & Usuarios</h3></div>
-  <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:18px">
-    <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .18s,border-color .18s">🎓 Alumnos</button>
-    <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .18s,border-color .18s">🔑 Staff & Accesos</button>
+  const _activos=als.filter(a=>a.estado==='Activo').length;
+  const _inactivos=als.length-_activos;
+  const _pctAct=als.length?Math.round(_activos/als.length*100):0;
+  const _pctIna=als.length?Math.round(_inactivos/als.length*100):0;
+  el.innerHTML=`<div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:10px 10px 0 0;padding:14px 18px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:17px;font-weight:500;color:#04342C;">Alumnos / Staff &amp; Accesos</div>
+        <div style="font-size:12px;color:#0F6E56;margin-top:2px;">Gestión de usuarios del sistema</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div style="background:#fff;border:0.5px solid #9FE1CB;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:11px;font-weight:500;color:#0F6E56;margin-bottom:2px;">Total alumnos</div>
+        <div style="font-size:22px;font-weight:500;color:#04342C;">${als.length}</div>
+        <div style="height:4px;border-radius:2px;background:#E1F5EE;margin-top:6px;"><div style="height:4px;border-radius:2px;background:#0F6E56;width:100%;"></div></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #9FE1CB;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:11px;font-weight:500;color:#0F6E56;margin-bottom:2px;">Activos</div>
+        <div style="font-size:22px;font-weight:500;color:#04342C;">${_activos}</div>
+        <div style="height:4px;border-radius:2px;background:#E1F5EE;margin-top:6px;"><div style="height:4px;border-radius:2px;background:#3B6D11;width:${_pctAct}%;"></div></div>
+      </div>
+      <div style="background:#fff;border:0.5px solid #9FE1CB;border-radius:8px;padding:10px 12px;">
+        <div style="font-size:11px;font-weight:500;color:#0F6E56;margin-bottom:2px;">Inactivos / Retirados</div>
+        <div style="font-size:22px;font-weight:500;color:#04342C;">${_inactivos}</div>
+        <div style="height:4px;border-radius:2px;background:#E1F5EE;margin-top:6px;"><div style="height:4px;border-radius:2px;background:#A32D2D;width:${_pctIna}%;"></div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:0;">
+      <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:#04342C;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .18s,border-color .18s">Alumnos</button>
+      <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:10px 22px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:#04342C;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .18s,border-color .18s">Staff &amp; Accesos</button>
+    </div>
   </div>
+  <div style="border:1px solid #9FE1CB;border-top:none;border-radius:0 0 10px 10px;padding:14px 18px 4px;margin-bottom:18px">
   <div id="panel-alumnos" style="display:none">
     <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px;justify-content:flex-end">
       <button class="bs o" onclick="crearAccesosMasivos()" title="Crear o actualizar accesos para todos los alumnos">🔑 Crear/Actualizar accesos</button>
@@ -17537,7 +17567,7 @@ async function pgUsuarios(el,initialTab){
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div>
     <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px"/>
+      <input id="filtAlBus" placeholder="🔍 CI o nombre..." oninput="fAlAll()" style="min-width:180px;border:1.5px solid #5DCAA5;background:#E1F5EE;color:#04342C;"/>
       <select id="filtAlCarr" onchange="filtAlCursos();fAlAll()"><option value="">Todas las carreras</option><option value="SIN_ASIGNAR">📌 Sin asignar</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
       <select id="filtAlAnio" onchange="fAlAll()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
       <select id="filtAlCurso" onchange="fAlAll()"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select>
@@ -17554,7 +17584,7 @@ async function pgUsuarios(el,initialTab){
       <button class="bs o" onclick="reseedDocentes()">🔄 Crear accesos docentes</button>
       <button class="bn" onclick="mUsuario()">+ Nuevo usuario</button>
     </div>
-    <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
+    <div style="background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px">
       ℹ Contraseña inicial docentes: <code style="background:#fff;padding:1px 6px;border-radius:4px">docente123</code> &nbsp;·&nbsp;
       Contraseña inicial alumnos: <code style="background:#fff;padding:1px 6px;border-radius:4px">[N° CI del alumno]</code>
     </div>
@@ -17577,9 +17607,10 @@ async function pgUsuarios(el,initialTab){
         <option value="">Todas las secciones</option>
         ${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}
       </select>
-      <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px"/>
+      <input id="filtUsBus" placeholder="🔍 Buscar nombre o email..." oninput="filtUs()" style="min-width:200px;border:1.5px solid #5DCAA5;background:#E1F5EE;color:#04342C;"/>
     </div>
     <div id="tbUsuarios">${renderTbUsuarios(data)}</div>
+  </div>
   </div>`;
   switchUsTab(initialTab);
 }
@@ -17591,13 +17622,13 @@ function switchUsTab(tab){
   if(!pA||!pS)return;
   if(tab==='alumnos'){
     pA.style.display='';pS.style.display='none';
-    if(bA){bA.style.color='#1f8246';bA.style.borderBottomColor='#1f8246';}
-    if(bS){bS.style.color='#64748b';bS.style.borderBottomColor='transparent';}
+    if(bA){bA.style.color='#0F6E56';bA.style.borderBottomColor='#0F6E56';}
+    if(bS){bS.style.color='#04342C';bS.style.borderBottomColor='transparent';}
     fAlAll();
   }else{
     pA.style.display='none';pS.style.display='';
-    if(bS){bS.style.color='#dc2626';bS.style.borderBottomColor='#dc2626';}
-    if(bA){bA.style.color='#64748b';bA.style.borderBottomColor='transparent';}
+    if(bS){bS.style.color='#0F6E56';bS.style.borderBottomColor='#0F6E56';}
+    if(bA){bA.style.color='#04342C';bA.style.borderBottomColor='transparent';}
   }
 }
 function filtUsCursos(){
