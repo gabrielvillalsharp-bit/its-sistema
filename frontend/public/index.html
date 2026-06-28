@@ -1864,7 +1864,7 @@ async function pgDash(el){
       <div style="font-size:15px;font-weight:800;color:#1e293b">⚡ Accesos rápidos</div>
       <div style="font-size:12px;color:var(--t3);margin-top:2px">Navegá directamente a las secciones más usadas</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
       <button onclick="go('solicitudes')" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:1px solid #f1f5f9;border-radius:14px;background:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.09)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,0,0,.05)'">
         <div style="width:46px;height:46px;border-radius:50%;background:#f0fdf4;display:flex;align-items:center;justify-content:center">
           <span style="font-size:26px;line-height:1">👥</span>
@@ -1884,6 +1884,13 @@ async function pgDash(el){
         </div>
         <div style="font-size:12px;font-weight:700;color:#1e293b">Notas</div>
         ${(exPendDir||[]).length>0?`<div style="font-size:15px;font-weight:900;color:#dc2626;line-height:1">${(exPendDir||[]).length}</div>`:'<div style="font-size:11px;color:#16a34a;font-weight:600">Al día ✓</div>'}
+      </button>
+      <button onclick="abrirModalSedes()" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 8px 14px;border:2px solid #e0e7ff;border-radius:14px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);cursor:pointer;box-shadow:0 2px 8px rgba(99,102,241,.1);transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(99,102,241,.2)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(99,102,241,.1)'">
+        <div style="width:46px;height:46px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center">
+          <span style="font-size:26px;line-height:1">🏫</span>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#4f46e5">Sedes</div>
+        <div style="font-size:10px;font-weight:600;color:#6366f1;line-height:1;text-align:center">${W._sedeActual||'Pedro Juan C.'}</div>
       </button>
     </div>
     ${me.rol==='director'?`
@@ -17902,9 +17909,74 @@ async function svMiPass(){
   catch(e){msg.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
 
+// ── SEDES ─────────────────────────────────────────────────────────────────────
+function _sedeNombreCorto(id){
+  const nombres={'pjc':'Pedro Juan C.','cc':'Cerro Corá'};
+  return nombres[id]||id;
+}
+
+async function abrirModalSedes(){
+  let sedes=[];
+  try{ sedes=await api('GET','/api/sedes'); }catch(e){ alert('Error cargando sedes: '+e.message); return; }
+  const sedeActual=me?.sede||'pjc';
+  modal(`
+    <div style="max-width:420px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:8px">🏫</div>
+        <h3 style="font-size:18px;font-weight:800;color:#1e293b;margin:0">Seleccionar Sede</h3>
+        <p style="font-size:13px;color:#64748b;margin-top:6px">El sistema cargará los datos de la sede elegida</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${sedes.map(s=>`
+          <button onclick="cambiarSede('${s.id}')" style="display:flex;align-items:center;gap:14px;padding:16px 18px;border:2px solid ${s.id===sedeActual?'#6366f1':'#e2e8f0'};border-radius:14px;background:${s.id===sedeActual?'#f5f3ff':'#fff'};cursor:pointer;transition:all .15s;text-align:left;width:100%" onmouseenter="if('${s.id}'!=='${sedeActual}')this.style.borderColor='#a5b4fc'" onmouseleave="if('${s.id}'!=='${sedeActual}')this.style.borderColor='#e2e8f0'">
+            <div style="width:44px;height:44px;border-radius:12px;background:${s.id===sedeActual?'#ede9fe':'#f1f5f9'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <span style="font-size:22px">🏫</span>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:800;color:${s.id===sedeActual?'#4f46e5':'#1e293b'}">${s.nombre}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">${s.ciudad||''}</div>
+            </div>
+            ${s.id===sedeActual?'<span style="font-size:11px;font-weight:700;color:#6366f1;background:#ede9fe;padding:4px 10px;border-radius:20px">Activa ✓</span>':''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `);
+}
+
+async function cambiarSede(sedeId){
+  if(sedeId===(me?.sede||'pjc')){ cm(); return; }
+  try{
+    const r=await api('POST','/api/cambiar-sede',{sede_id:sedeId});
+    tok=r.token;
+    me={...me,sede:sedeId};
+    localStorage.setItem('its_tk3',tok);
+    W._sedeActual=_sedeNombreCorto(sedeId);
+    cm();
+    await go('dashboard');
+    mostrarToast(`Sede cambiada a: ${r.sede.nombre}`,'success');
+  }catch(e){ alert('Error al cambiar sede: '+e.message); }
+}
+
+function mostrarToast(msg,tipo='info'){
+  const t=document.createElement('div');
+  const bg=tipo==='success'?'#166534':tipo==='error'?'#991b1b':'#1e3a5f';
+  t.style.cssText=`position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${bg};color:#fff;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:700;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3)`;
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3500);
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 if(tok){
-  try{const p=JSON.parse(atob(tok.split('.')[1]));if(p.exp*1000>Date.now()){me=p;startApp();}else{localStorage.removeItem('its_tk3');tok=null;}}
+  try{
+    const p=JSON.parse(atob(tok.split('.')[1]));
+    if(p.exp*1000>Date.now()){
+      me=p;
+      W._sedeActual=_sedeNombreCorto(me.sede||'pjc');
+      startApp();
+    }else{localStorage.removeItem('its_tk3');tok=null;}
+  }
   catch{localStorage.removeItem('its_tk3');tok=null;}
 }
 </script>

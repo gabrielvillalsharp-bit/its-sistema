@@ -806,6 +806,43 @@ try {
 } catch(e) { console.warn('[Migración] Técnicas Faciales:', e.message); }
 
 
+// ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS sedes (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    ciudad TEXT,
+    activa INTEGER DEFAULT 1
+  )`);
+  db.prepare("INSERT OR IGNORE INTO sedes VALUES ('pjc','Pedro Juan Caballero','Pedro Juan Caballero',1)").run();
+  db.prepare("INSERT OR IGNORE INTO sedes VALUES ('cc','Cerro Corá','Cerro Corá',1)").run();
+} catch(e) { console.warn('[Migración] sedes tabla:', e.message); }
+
+try { db.prepare("ALTER TABLE carreras ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
+try { db.prepare("UPDATE carreras SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
+try { db.prepare("ALTER TABLE docentes ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
+try { db.prepare("UPDATE docentes SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
+
+try {
+  const carrerasPJC = db.prepare("SELECT * FROM carreras WHERE sede_id='pjc'").all();
+  const copiarCC = db.transaction(() => {
+    for (const c of carrerasPJC) {
+      const ccId = 'cc_' + c.id;
+      if (!db.prepare("SELECT id FROM carreras WHERE id=?").get(ccId)) {
+        db.prepare("INSERT INTO carreras (id,nombre,codigo,turno,semestres,activa,sede_id) VALUES (?,?,?,?,?,1,'cc')")
+          .run(ccId, c.nombre, c.codigo, c.turno, c.semestres);
+        const mats = db.prepare("SELECT * FROM materias WHERE carrera_id=?").all(c.id);
+        for (const m of mats) {
+          db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,?,?,?,?,?)")
+            .run('cc_'+m.id, ccId, m.nombre, m.codigo, m.horas_semanales, m.anio, m.peso_tp||25, m.peso_parcial||25, m.peso_final||50);
+        }
+      }
+    }
+  });
+  copiarCC();
+  console.log('[Sedes] ✔ Estructura Cerro Corá lista (carreras + materias vacías)');
+} catch(e) { console.warn('[Sedes] Error copiando carreras CC:', e.message); }
+
 // Backup a Google Drive (requiere GOOGLE_SERVICE_ACCOUNT_JSON y GOOGLE_DRIVE_FOLDER_ID en Railway)
 const { cloudBackupDrive } = require('./cloud-backup');
 setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
@@ -904,9 +941,23 @@ app.post('/api/login', loginLimiter, (req, res) => {
     docenteId = doc?.id || null;
   }
   if (u.rol === 'alumno') alumnoId = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(u.id)?.id;
-  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId }, JWT_SECRET, { expiresIn: '8h' });
+  const sede = u.rol === 'director' ? 'pjc' : (u.rol === 'docente' ? (db.prepare('SELECT sede_id FROM docentes WHERE usuario_id=?').get(u.id)?.sede_id || 'pjc') : 'pjc');
+  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId, sede }, JWT_SECRET, { expiresIn: '8h' });
   audit(u.id, 'LOGIN', 'usuarios', u.id, { email: u.email });
-  res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId } });
+  res.json({ token, user: { id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId, alumnoId, sede } });
+});
+
+// ── SEDES ─────────────────────────────────────────────────────────────────────
+app.get('/api/sedes', auth(ADM), (req, res) => {
+  res.json(db.prepare("SELECT * FROM sedes WHERE activa=1 ORDER BY nombre").all());
+});
+app.post('/api/cambiar-sede', auth(ADM), (req, res) => {
+  const { sede_id } = req.body;
+  const sede = db.prepare("SELECT * FROM sedes WHERE id=? AND activa=1").get(sede_id);
+  if (!sede) return res.status(400).json({ error: 'Sede no válida' });
+  const u = req.user;
+  const token = jwt.sign({ id: u.id, nombre: u.nombre, apellido: u.apellido, rol: u.rol, email: u.email, docenteId: u.docenteId, alumnoId: u.alumnoId, sede: sede_id }, JWT_SECRET, { expiresIn: '8h' });
+  res.json({ token, sede });
 });
 
 // ── USUARIOS ──────────────────────────────────────────────────────────────────
@@ -1031,7 +1082,9 @@ app.delete('/api/periodos/:id', auth(ADM), (req, res) => {
 
 // ── CARRERAS ──────────────────────────────────────────────────────────────────
 app.get('/api/carreras', auth(), (req, res) => {
-  const cached = cacheGet('carreras');
+  const sede = req.user.sede || 'pjc';
+  const cacheKey = 'carreras_' + sede;
+  const cached = cacheGet(cacheKey);
   if (cached) return res.json(cached);
   const rows = db.prepare(`
     SELECT c.*,
@@ -1040,75 +1093,83 @@ app.get('/api/carreras', auth(), (req, res) => {
     FROM carreras c
     LEFT JOIN alumnos a ON c.id=a.carrera_id
     LEFT JOIN materias m ON c.id=m.carrera_id
-    GROUP BY c.id ORDER BY c.nombre`).all();
-  const cursosPorCarrera = db.prepare('SELECT * FROM cursos ORDER BY carrera_id,anio,division').all();
+    WHERE c.sede_id=?
+    GROUP BY c.id ORDER BY c.nombre`).all(sede);
+  const cursosPorCarrera = db.prepare('SELECT cu.* FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id WHERE ca.sede_id=? ORDER BY cu.carrera_id,cu.anio,cu.division').all(sede);
   rows.forEach(c => { c.cursos = cursosPorCarrera.filter(cu => cu.carrera_id === c.id); });
-  cacheSet('carreras', rows);
+  cacheSet(cacheKey, rows);
   res.json(rows);
 });
 app.post('/api/carreras', auth(ADM), (req, res) => {
   const { nombre, codigo, turno, semestres } = req.body;
-  const id = codigo.toLowerCase().replace(/\s/g,'_') + '_' + Date.now()%1000;
-  db.prepare('INSERT INTO carreras (id,nombre,codigo,turno,semestres,activa) VALUES (?,?,?,?,?,1)').run(id,nombre,codigo,turno,semestres||4);
-  cacheInvalidate('carreras', 'cursos');
+  const sede = req.user.sede || 'pjc';
+  const prefix = sede === 'pjc' ? '' : sede + '_';
+  const id = prefix + codigo.toLowerCase().replace(/\s/g,'_') + '_' + Date.now()%1000;
+  db.prepare('INSERT INTO carreras (id,nombre,codigo,turno,semestres,activa,sede_id) VALUES (?,?,?,?,?,1,?)').run(id,nombre,codigo,turno,semestres||4,sede);
+  cacheInvalidate('carreras_pjc','carreras_cc','cursos_pjc','cursos_cc');
   res.json({ id });
 });
 app.put('/api/carreras/:id', auth(ADM), (req, res) => {
   const { nombre, codigo, turno, semestres, activa } = req.body;
   db.prepare('UPDATE carreras SET nombre=?,codigo=?,turno=?,semestres=?,activa=? WHERE id=?').run(nombre,codigo,turno,semestres,activa?1:0,req.params.id);
-  cacheInvalidate('carreras', 'cursos');
+  cacheInvalidate('carreras_pjc','carreras_cc','cursos_pjc','cursos_cc');
   res.json({ ok: true });
 });
 app.delete('/api/carreras/:id', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM carreras WHERE id=?').run(req.params.id);
-  cacheInvalidate('carreras', 'cursos');
+  cacheInvalidate('carreras_pjc','carreras_cc','cursos_pjc','cursos_cc');
   res.json({ ok: true });
 });
 
 // ── CURSOS ────────────────────────────────────────────────────────────────────
 app.get('/api/cursos', auth(), (req, res) => {
+  const sede = req.user.sede || 'pjc';
   const { carrera_id } = req.query;
-  // Si filtra por carrera específica, no cachear (resultado varía)
   if (carrera_id) {
     const q = `SELECT cu.*,ca.nombre as carrera_nombre,ca.codigo as carrera_codigo,
       (SELECT COUNT(*) FROM alumnos WHERE curso_id=cu.id AND estado='Activo') as total_alumnos
       FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id
-      WHERE cu.carrera_id=? ORDER BY ca.nombre,cu.anio,cu.division`;
-    return res.json(db.prepare(q).all(carrera_id));
+      WHERE cu.carrera_id=? AND ca.sede_id=? ORDER BY ca.nombre,cu.anio,cu.division`;
+    return res.json(db.prepare(q).all(carrera_id, sede));
   }
-  const cached = cacheGet('cursos');
+  const cacheKey = 'cursos_' + sede;
+  const cached = cacheGet(cacheKey);
   if (cached) return res.json(cached);
   const q = `SELECT cu.*,ca.nombre as carrera_nombre,ca.codigo as carrera_codigo,
     (SELECT COUNT(*) FROM alumnos WHERE curso_id=cu.id AND estado='Activo') as total_alumnos
     FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id
-    ORDER BY ca.nombre,cu.anio,cu.division`;
-  const data = db.prepare(q).all();
-  cacheSet('cursos', data);
+    WHERE ca.sede_id=? ORDER BY ca.nombre,cu.anio,cu.division`;
+  const data = db.prepare(q).all(sede);
+  cacheSet(cacheKey, data);
   res.json(data);
 });
 app.post('/api/cursos', auth(ADM), (req, res) => {
   const { carrera_id, anio, division, turno } = req.body;
   const id = `${carrera_id}_${anio}${(division||'u').toLowerCase()}`;
   db.prepare('INSERT OR IGNORE INTO cursos (id,carrera_id,anio,division,turno) VALUES (?,?,?,?,?)').run(id,carrera_id,anio,division||'U',turno||'');
-  cacheInvalidate('cursos', 'carreras');
+  cacheInvalidate('carreras_pjc','carreras_cc','cursos_pjc','cursos_cc');
   res.json({ id });
 });
 app.delete('/api/cursos/:id', auth(ADM), (req, res) => {
   db.prepare('DELETE FROM cursos WHERE id=?').run(req.params.id);
-  cacheInvalidate('cursos', 'carreras');
+  cacheInvalidate('carreras_pjc','carreras_cc','cursos_pjc','cursos_cc');
   res.json({ ok: true });
 });
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
+  const sede = req.user.sede || 'pjc';
   const { carrera_id } = req.query;
+  if (carrera_id) {
+    const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu
+      FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id
+      WHERE m.carrera_id=? AND c.sede_id=? ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
+    return res.json(db.prepare(q).all(carrera_id, sede));
+  }
   const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu
-    FROM materias m
-    JOIN carreras c ON m.carrera_id=c.id
-    LEFT JOIN cursos cu ON m.curso_id=cu.id
-    ${carrera_id?'WHERE m.carrera_id=?':''}
-    ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
-  res.json(carrera_id ? db.prepare(q).all(carrera_id) : db.prepare(q).all());
+    FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id
+    WHERE c.sede_id=? ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
+  res.json(db.prepare(q).all(sede));
 });
 app.post('/api/materias', auth(ADM), (req, res) => {
   const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id } = req.body;
@@ -1137,16 +1198,18 @@ app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FR
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 app.get('/api/docentes', auth(), (req, res) => {
+  const sede = req.user.sede || 'pjc';
   res.json(db.prepare(`SELECT u.id,u.nombre,u.apellido,u.ci,u.email,u.activo,
-    d.id as docente_id,d.especialidad,d.titulo,d.telefono
-    FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente' ORDER BY u.apellido`).all());
+    d.id as docente_id,d.especialidad,d.titulo,d.telefono,d.sede_id
+    FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente' AND d.sede_id=? ORDER BY u.apellido`).all(sede));
 });
 app.post('/api/docentes', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
+  const sede = req.user.sede || 'pjc';
   const uid = 'u_'+Date.now(), did = 'd_'+Date.now();
   const ciDoc = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
   db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,email,bcrypt.hashSync(password||'123456',10),'docente');
-  db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono) VALUES (?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono);
+  db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono,sede_id) VALUES (?,?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono,sede);
   res.json({ id: uid, docente_id: did });
 });
 app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
@@ -1193,9 +1256,10 @@ app.delete('/api/docentes/:uid', auth(ADM), (req, res) => {
 // ── ALUMNOS ───────────────────────────────────────────────────────────────────
 app.get('/api/alumnos', auth(), (req, res) => {
   const { ci, carrera_id, curso_id, busqueda } = req.query;
-  // Alumnos solo pueden buscar por CI (su propio estado de cuenta)
+  const sede = req.user.sede || 'pjc';
   if (req.user.rol === 'alumno' && !ci) return res.status(403).json({ error: 'Sin acceso' });
-  let where = req.user.rol==='director' ? 'WHERE 1=1' : "WHERE al.estado NOT IN ('Inactivo','Retirado')"; const params = [];
+  let where = req.user.rol==='director' ? 'WHERE (c.sede_id=? OR al.carrera_id IS NULL)' : "WHERE al.estado NOT IN ('Inactivo','Retirado') AND (c.sede_id=? OR al.carrera_id IS NULL)";
+  const params = [sede];
   if (ci)         { where += ' AND (al.ci LIKE ? OR u.ci LIKE ?)'; params.push('%'+ci+'%','%'+ci+'%'); }
   if (carrera_id === 'SIN_ASIGNAR') { where += ' AND al.carrera_id IS NULL'; }
   else if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
@@ -3606,27 +3670,28 @@ app.delete('/api/becas/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', auth(), (req, res) => {
   const hoy = nowDate();
+  const sede = req.user.sede || 'pjc';
   const data = db.transaction(() => {
     const periodo = db.prepare('SELECT id,nombre FROM periodos WHERE activo=1').get();
     return {
-      total_alumnos:  db.prepare("SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo'").get().n,
-      total_docentes: db.prepare("SELECT COUNT(*) as n FROM usuarios WHERE rol='docente' AND activo=1").get().n,
-      total_pagos_mes: db.prepare("SELECT COUNT(*) as n FROM pagos WHERE strftime('%Y-%m',fecha_pago)=strftime('%Y-%m','now') AND estado='Pagado'").get().n,
-      total_carreras: db.prepare("SELECT COUNT(*) as n FROM carreras WHERE activa=1").get().n,
-      total_cursos:   db.prepare("SELECT COUNT(*) as n FROM cursos WHERE activo=1").get().n,
+      total_alumnos:  db.prepare("SELECT COUNT(*) as n FROM alumnos al LEFT JOIN carreras c ON al.carrera_id=c.id WHERE al.estado='Activo' AND (c.sede_id=? OR al.carrera_id IS NULL)").get(sede).n,
+      total_docentes: db.prepare("SELECT COUNT(*) as n FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente' AND u.activo=1 AND d.sede_id=?").get(sede).n,
+      total_pagos_mes: db.prepare("SELECT COUNT(*) as n FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE strftime('%Y-%m',p.fecha_pago)=strftime('%Y-%m','now') AND p.estado='Pagado' AND (c.sede_id=? OR al.carrera_id IS NULL)").get(sede).n,
+      total_carreras: db.prepare("SELECT COUNT(*) as n FROM carreras WHERE activa=1 AND sede_id=?").get(sede).n,
+      total_cursos:   db.prepare("SELECT COUNT(*) as n FROM cursos cu JOIN carreras ca ON cu.carrera_id=ca.id WHERE cu.activo=1 AND ca.sede_id=?").get(sede).n,
       periodo_activo: periodo?.nombre || 'Sin período activo',
-      aprobados:      db.prepare("SELECT COUNT(*) as n FROM notas WHERE estado='Aprobado'").get().n,
-      reprobados:     db.prepare("SELECT COUNT(*) as n FROM notas WHERE estado='Reprobado'").get().n,
-      examenes_hoy:   periodo ? db.prepare("SELECT COUNT(*) as n FROM examenes WHERE fecha=? AND periodo_id=?").get(hoy, periodo.id).n : 0,
-      deudores:       periodo ? db.prepare("SELECT COUNT(*) as n FROM alumnos WHERE estado='Activo' AND id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE '%Matrícula%')").get(periodo.id).n : 0,
-      por_carrera:    db.prepare("SELECT c.nombre,COUNT(a.id) as total FROM carreras c LEFT JOIN alumnos a ON c.id=a.carrera_id AND a.estado='Activo' WHERE c.activa=1 GROUP BY c.id ORDER BY total DESC").all(),
+      aprobados:      db.prepare("SELECT COUNT(*) as n FROM notas n JOIN alumnos al ON n.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE n.estado='Aprobado' AND (c.sede_id=? OR al.carrera_id IS NULL)").get(sede).n,
+      reprobados:     db.prepare("SELECT COUNT(*) as n FROM notas n JOIN alumnos al ON n.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id WHERE n.estado='Reprobado' AND (c.sede_id=? OR al.carrera_id IS NULL)").get(sede).n,
+      examenes_hoy:   periodo ? db.prepare("SELECT COUNT(*) as n FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE e.fecha=? AND e.periodo_id=? AND ca.sede_id=?").get(hoy, periodo.id, sede).n : 0,
+      deudores:       periodo ? db.prepare("SELECT COUNT(*) as n FROM alumnos al LEFT JOIN carreras c ON al.carrera_id=c.id WHERE al.estado='Activo' AND (c.sede_id=? OR al.carrera_id IS NULL) AND al.id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE '%Matrícula%')").get(sede, periodo.id).n : 0,
+      por_carrera:    db.prepare("SELECT c.nombre,COUNT(a.id) as total FROM carreras c LEFT JOIN alumnos a ON c.id=a.carrera_id AND a.estado='Activo' WHERE c.activa=1 AND c.sede_id=? GROUP BY c.id ORDER BY total DESC").all(sede),
       avisos:         db.prepare("SELECT id,titulo,contenido,tipo,fijado,fecha_creacion FROM avisos WHERE activo=1 ORDER BY fijado DESC,fecha_creacion DESC LIMIT 5").all(),
       proximos_examenes: periodo ? db.prepare(`
         SELECT e.fecha,e.hora,e.tipo,m.nombre as materia,ca.nombre as carrera,cu.anio,cu.division
         FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id
         JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id
         JOIN carreras ca ON cu.carrera_id=ca.id
-        WHERE e.fecha>=? AND e.periodo_id=? ORDER BY e.fecha,e.hora LIMIT 5`).all(hoy, periodo.id) : []
+        WHERE e.fecha>=? AND e.periodo_id=? AND ca.sede_id=? ORDER BY e.fecha,e.hora LIMIT 5`).all(hoy, periodo.id, sede) : []
     };
   })();
   res.json(data);
