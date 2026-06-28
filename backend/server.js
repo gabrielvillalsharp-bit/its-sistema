@@ -822,6 +822,10 @@ try { db.prepare("ALTER TABLE carreras ADD COLUMN sede_id TEXT DEFAULT 'pjc'").r
 try { db.prepare("UPDATE carreras SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 try { db.prepare("ALTER TABLE docentes ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
 try { db.prepare("UPDATE docentes SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
+try { db.prepare("ALTER TABLE avisos ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
+try { db.prepare("UPDATE avisos SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
+try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
+try { db.prepare("UPDATE solicitudes_registro SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 
 try {
   const carrerasPJC = db.prepare("SELECT * FROM carreras WHERE sede_id='pjc'").all();
@@ -1809,7 +1813,8 @@ app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
 
 app.get('/api/asignaciones', auth(), (req, res) => {
   const { docente_id, curso_id, periodo_id, materia_id } = req.query;
-  let where = 'WHERE 1=1'; const params = [];
+  const sede = req.user.sede || 'pjc';
+  let where = 'WHERE ca.sede_id=?'; const params = [sede];
   if (docente_id) { where += ' AND a.docente_id=?'; params.push(docente_id); }
   if (curso_id)   { where += ' AND a.curso_id=?';   params.push(curso_id); }
   if (periodo_id) { where += ' AND a.periodo_id=?'; params.push(periodo_id); }
@@ -2350,7 +2355,8 @@ app.post('/api/asistencia/bulk', auth(['director','docente']), (req, res) => {
 });
 app.get('/api/honorarios', auth(ADM), (req, res) => {
   const { docente_id, mes, anio, estado } = req.query;
-  let where = 'WHERE 1=1'; const params = [];
+  const sede = req.user.sede || 'pjc';
+  let where = 'WHERE d.sede_id=?'; const params = [sede];
   if (docente_id)    { where += ' AND h.docente_id=?';  params.push(docente_id); }
   if (estado) { where += ' AND h.estado=?';       params.push(estado); }
   if (anio && mes) {
@@ -2629,18 +2635,17 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
 app.get('/api/examenes', auth(), (req, res) => {
   const { periodo_id, carrera_id, tipo, desde, hasta } = req.query;
-  let where = 'WHERE 1=1'; const params = [];
+  const sede = req.user.sede || 'pjc';
+  let where = 'WHERE ca.sede_id=?'; const params = [sede];
   if (periodo_id) { where += ' AND e.periodo_id=?'; params.push(periodo_id); }
   if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
   if (tipo) { where += ' AND e.tipo=?'; params.push(tipo); }
   if (desde) { where += ' AND e.fecha>=?'; params.push(desde); }
   if (hasta) { where += ' AND e.fecha<=?'; params.push(hasta); }
-  // Docente: solo ve sus propios exámenes (filtrado en server, no en cliente)
   if (req.user.rol === 'docente') {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
   }
-  // Alumno: solo ve exámenes de su propia carrera Y su propio año/curso
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
     if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
@@ -2693,7 +2698,7 @@ const EXAMEN_NOTA_COL = {
 
 app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, res) => {
   const hoy = new Date().toISOString().split('T')[0];
-  // Solo exámenes cuya fecha + 8 días ya pasó
+  const sede = req.user.sede || 'pjc';
   const fechaLimite = new Date();
   fechaLimite.setDate(fechaLimite.getDate() - 8);
   const flStr = fechaLimite.toISOString().split('T')[0];
@@ -2719,8 +2724,8 @@ app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, re
     JOIN carreras ca ON cu.carrera_id=ca.id
     JOIN docentes d ON a.docente_id=d.id
     JOIN usuarios u ON d.usuario_id=u.id
-    WHERE e.fecha <= ?`;
-  const params = [flStr];
+    WHERE e.fecha <= ? AND ca.sede_id=?`;
+  const params = [flStr, sede];
   if (docente_id) { sql += ' AND a.docente_id=?'; params.push(docente_id); }
   sql += ' ORDER BY ca.nombre, cu.anio, m.nombre, e.fecha';
 
@@ -3091,30 +3096,30 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
 app.get('/api/avisos', auth(), (req, res) => {
   const rol = req.user.rol;
   const uid = req.user.id;
-  let whereDestino = '';
+  const sede = req.user.sede || 'pjc';
+  let whereDestino = `AND av.sede_id=?`;
+  const params = [sede];
   if (rol === 'alumno') {
-    whereDestino = "AND (av.destinatario='todos' OR av.destinatario='alumnos')";
+    whereDestino += " AND (av.destinatario='todos' OR av.destinatario='alumnos')";
   } else if (rol === 'docente') {
-    // Docente SOLO ve: sus propios avisos + avisos del director
-    // NUNCA ve avisos de otros docentes
-    whereDestino = `AND (av.usuario_id='${uid}' OR (u.rol='director' AND av.destinatario IN ('todos','docentes')))`;
+    whereDestino += ` AND (av.usuario_id='${uid}' OR (u.rol='director' AND av.destinatario IN ('todos','docentes')))`;
   } else if (rol === 'director') {
-    // Director no ve avisos destinados solo a docentes (recordatorios automáticos de exámenes)
-    whereDestino = `AND (av.destinatario != 'docentes' OR av.usuario_id='${uid}')`;
+    whereDestino += ` AND (av.destinatario != 'docentes' OR av.usuario_id='${uid}')`;
   }
   res.json(db.prepare(`SELECT av.*,u.nombre as autor_nombre,u.apellido as autor_apellido,u.rol as autor_rol
     FROM avisos av JOIN usuarios u ON av.usuario_id=u.id
-    WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all());
+    WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all(...params));
 });
 app.post('/api/avisos', auth(['director','docente']), (req, res) => {
   const { titulo, contenido, tipo, fijado, destinatario } = req.body;
+  const sede = req.user.sede || 'pjc';
   const destMap = {
     'todos':'todos', 'docentes':'docentes', 'alumnos':'alumnos',
     'mis-alumnos':'alumnos', 'director':'todos', 'director-secretaria':'todos'
   };
   const destDB = destMap[destinatario] || 'todos';
   const id = 'av_' + Date.now();
-  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id);
+  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id,sede_id) VALUES (?,?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id,sede);
   audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB});
   res.json({ id });
 });
@@ -3139,7 +3144,8 @@ app.delete('/api/avisos', auth(ADM), (req, res) => {
 // ── PAGOS ─────────────────────────────────────────────────────────────────────
 app.get('/api/pagos', auth(ADM), (req, res) => {
   const { alumno_id, carrera_id, curso_id } = req.query;
-  let where = 'WHERE 1=1'; const params = [];
+  const sede = req.user.sede || 'pjc';
+  let where = 'WHERE c.sede_id=?'; const params = [sede];
   if (alumno_id)  { where += ' AND p.alumno_id=?';    params.push(alumno_id); }
   if (carrera_id) { where += ' AND al.carrera_id=?';  params.push(carrera_id); }
   if (curso_id)   { where += ' AND al.curso_id=?';    params.push(curso_id); }
@@ -3685,7 +3691,7 @@ app.get('/api/dashboard', auth(), (req, res) => {
       examenes_hoy:   periodo ? db.prepare("SELECT COUNT(*) as n FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE e.fecha=? AND e.periodo_id=? AND ca.sede_id=?").get(hoy, periodo.id, sede).n : 0,
       deudores:       periodo ? db.prepare("SELECT COUNT(*) as n FROM alumnos al LEFT JOIN carreras c ON al.carrera_id=c.id WHERE al.estado='Activo' AND (c.sede_id=? OR al.carrera_id IS NULL) AND al.id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE '%Matrícula%')").get(sede, periodo.id).n : 0,
       por_carrera:    db.prepare("SELECT c.nombre,COUNT(a.id) as total FROM carreras c LEFT JOIN alumnos a ON c.id=a.carrera_id AND a.estado='Activo' WHERE c.activa=1 AND c.sede_id=? GROUP BY c.id ORDER BY total DESC").all(sede),
-      avisos:         db.prepare("SELECT id,titulo,contenido,tipo,fijado,fecha_creacion FROM avisos WHERE activo=1 ORDER BY fijado DESC,fecha_creacion DESC LIMIT 5").all(),
+      avisos:         db.prepare("SELECT id,titulo,contenido,tipo,fijado,fecha_creacion FROM avisos WHERE activo=1 AND sede_id=? ORDER BY fijado DESC,fecha_creacion DESC LIMIT 5").all(sede),
       proximos_examenes: periodo ? db.prepare(`
         SELECT e.fecha,e.hora,e.tipo,m.nombre as materia,ca.nombre as carrera,cu.anio,cu.division
         FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id
@@ -7895,13 +7901,15 @@ app.post('/api/periodos/importar-asignaciones', auth(ADM), upload.single('archiv
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 app.get('/api/solicitudes-alumno', auth(ADM), (req, res) => {
+  const sede = req.user.sede || 'pjc';
   res.json(db.prepare(`SELECT s.*, u.nombre as docente_nombre, u.apellido as docente_apellido,
     m.nombre as materia, ca.nombre as carrera
     FROM solicitudes_alumno s
     LEFT JOIN docentes d ON s.docente_id=d.id LEFT JOIN usuarios u ON d.usuario_id=u.id
     LEFT JOIN asignaciones a ON s.asignacion_id=a.id LEFT JOIN materias m ON a.materia_id=m.id
     LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id
-    ORDER BY s.fecha DESC`).all());
+    WHERE (ca.sede_id=? OR ca.id IS NULL)
+    ORDER BY s.fecha DESC`).all(sede));
 });
 // ── VERIFICAR alumno antes de solicitar ─────────────────────────────────────
 app.post('/api/solicitudes-alumno/verificar', auth(['director','docente']), (req, res) => {
@@ -8975,14 +8983,16 @@ app.post('/api/alumnos/unificar', auth(ADM), (req, res) => {
 
 app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   try {
+    const sede = req.user.sede || 'pjc';
     const rows = db.prepare(`
       SELECT sr.*, sr.tipo, sr.alumno_id, c.nombre as carrera_nombre,
         cu.anio as curso_anio, cu.division as curso_division
       FROM solicitudes_registro sr
       JOIN carreras c ON sr.carrera_id=c.id
       LEFT JOIN cursos cu ON sr.curso_id=cu.id
+      WHERE c.sede_id=?
       ORDER BY sr.fecha DESC
-    `).all();
+    `).all(sede);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
