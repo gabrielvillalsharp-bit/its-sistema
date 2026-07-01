@@ -919,7 +919,15 @@ try {
   console.log('[Migración] ' + n + ' exámenes finales reprogramados (19:00, distribución por turno) ✓');
 } catch(e) { console.warn('[Migración] Reprogramación finales:', e.message); }
 
-
+// ── MIGRACIÓN: Reactivar alumna Sindy Recalde Pereira (CON-2026-007) ──────────
+// Estaba marcada 'Inactivo', lo que la ocultaba por completo de la grilla de notas
+// (WHERE al.estado='Activo') aunque el director ya la había habilitado para rendir
+// Parcial Recuperatorio en 5 materias — la casilla nunca podía desbloquearse porque
+// ella ni siquiera aparecía en la lista del docente.
+try {
+  const r = db.prepare("UPDATE alumnos SET estado='Activo' WHERE id='a_1778458688706_zbr' AND estado='Inactivo'").run();
+  if (r.changes) console.log('[Migración] Alumna Sindy Recalde Pereira reactivada (estaba Inactivo) ✓');
+} catch(e) { console.warn('[Migración] Reactivar Sindy Recalde Pereira:', e.message); }
 
 // ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
 try {
@@ -2070,7 +2078,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
       n.final_ord,n.final_recuperatorio,n.complementario,n.final_efectivo,
       n.extraordinario,n.ausente,n.director_pts,
       n.puntaje_total,n.nota_final,n.estado as nota_estado,
-      CASE WHEN EXISTS(
+      CASE WHEN al.habilitado_pago_pendiente=1 OR EXISTS(
         SELECT 1 FROM habilitaciones_examen h
         WHERE h.alumno_id=al.id AND h.asignacion_id=? AND h.habilitado=1
           AND (h.habilitado_recuperatorio=1 OR h.tipo_examen='parcial_recuperatorio')
@@ -5277,6 +5285,14 @@ app.post('/api/alumnos/habilitaciones-bulk', auth(['director','docente']), (req,
         if (!habEspeciales[h.alumno_id]) habEspeciales[h.alumno_id] = [];
         if (!habEspeciales[h.alumno_id].includes('parcial_recuperatorio')) habEspeciales[h.alumno_id].push('parcial_recuperatorio');
       });
+    // FIX: la habilitación especial global del director (habilitado_pago_pendiente) también
+    // debe desbloquear en modo por-asignación — antes solo se aplicaba en modo global, así que
+    // un alumno habilitado por esta vía quedaba con la casilla bloqueada en la grilla de notas.
+    const TIPOS_TODOS_EX = ['parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario'];
+    alumnos.filter(al => al.habilitado_pago_pendiente).forEach(al => {
+      if (!habEspeciales[al.id]) habEspeciales[al.id] = [];
+      TIPOS_TODOS_EX.forEach(t => { if (!habEspeciales[al.id].includes(t)) habEspeciales[al.id].push(t); });
+    });
   } else {
     // Modo global: habilitaciones especiales solo para alumnos con flag de mora
     const habWithFlag = alumnos.filter(al => al.habilitado_pago_pendiente).map(al => al.id);
