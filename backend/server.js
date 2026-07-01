@@ -946,6 +946,69 @@ try {
   }
 } catch(e) { console.warn('[Migración] Fusión duplicado Sindy:', e.message); }
 
+// ── MIGRACIÓN: Unificar duplicados detectados en "Limpieza > Duplicados" ─────
+// Casos SIN conflicto de datos (mismo curso, o sin notas/materias solapadas):
+//   Roman Barreto, Luz Dahiana (RAD-2026-037 vs ALU-2026-002, mismo pago cargado 2 veces)
+//   Fretes, Mabel Ibarra (IQ-2026-050 con pago vs RAD-2026-031 vacía, CI con 1 dígito faltante)
+//   Mancuello Villalba, Lidia Rosa (COS-2026-036 vs COS-2026-109, CI con typo de 1 dígito,
+//     mismo curso, notas en materias distintas sin solapar — no hay pérdida de datos)
+// Usa la misma lógica que POST /api/alumnos/unificar (mueve pagos/notas/asistencia/becas/
+// habilitaciones/constancias, fusiona campos vacíos, y guarda la eliminada en papelera 10 días
+// por si hay que revertir). Casos con conflicto real de datos (notas distintas en la misma
+// materia, o carreras/cursos distintos con datos en ambas) NO se tocan — quedan para que el
+// director decida manualmente desde el panel.
+try {
+  function unificarAlumnos(conservar_id, eliminar_id, etiqueta) {
+    const conservar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(conservar_id);
+    const eliminar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(eliminar_id);
+    if (!conservar || !eliminar) return;
+    db.pragma('foreign_keys = OFF');
+    const unif = db.transaction(() => {
+      db.prepare('SELECT id FROM pagos WHERE alumno_id=?').all(eliminar_id).forEach(p => {
+        db.prepare('UPDATE pagos SET alumno_id=? WHERE id=?').run(conservar_id, p.id);
+      });
+      db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(eliminar_id).forEach(ne => {
+        const exist = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(conservar_id, ne.asignacion_id);
+        if (!exist) {
+          db.prepare('UPDATE notas SET alumno_id=? WHERE id=?').run(conservar_id, ne.id);
+        } else {
+          const campos = ['tp1','tp2','tp3','tp4','tp5','tp_total','parcial','parcial_recuperatorio','parcial_efectivo','final_ord','final_recuperatorio','complementario','extraordinario','final_efectivo','puntaje_total','nota_final','director_pts'];
+          const sets = campos.filter(c => (exist[c]==null||exist[c]==='') && ne[c]!=null && ne[c]!=='').map(c => `${c}=${ne[c]}`);
+          if (sets.length) db.prepare(`UPDATE notas SET ${sets.join(',')} WHERE id=?`).run(exist.id);
+          db.prepare('DELETE FROM notas WHERE id=?').run(ne.id);
+        }
+      });
+      db.prepare('SELECT id, asignacion_id, fecha FROM asistencia WHERE alumno_id=?').all(eliminar_id).forEach(as => {
+        const existeAsist = db.prepare('SELECT id FROM asistencia WHERE alumno_id=? AND asignacion_id=? AND fecha=?').get(conservar_id, as.asignacion_id, as.fecha);
+        if (existeAsist) db.prepare('DELETE FROM asistencia WHERE id=?').run(as.id);
+        else db.prepare('UPDATE asistencia SET alumno_id=? WHERE id=?').run(conservar_id, as.id);
+      });
+      db.prepare('UPDATE becas SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE habilitaciones_examen SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE constancias SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE qr_cambios SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      ['telefono','ci','matricula'].forEach(c => {
+        if ((!conservar[c] || conservar[c]==='') && eliminar[c]) db.prepare(`UPDATE alumnos SET ${c}=? WHERE id=?`).run(eliminar[c], conservar_id);
+      });
+      const pid = 'pap_'+Date.now()+'_dup_'+Math.random().toString(36).slice(2,6);
+      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
+        .run(pid, 'alumno_duplicado', `${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado — ${etiqueta})`,
+          JSON.stringify({ alumno: eliminar, motivo: 'unificacion_duplicados_migracion', conservar_id }), null, expira);
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(eliminar_id);
+      if (eliminar.usuario_id && eliminar.usuario_id !== conservar.usuario_id) {
+        db.prepare('DELETE FROM usuarios WHERE id=?').run(eliminar.usuario_id);
+      }
+    });
+    unif();
+    db.pragma('foreign_keys = ON');
+    console.log(`[Migración] Duplicado unificado (${etiqueta}): conservado ${conservar_id}, eliminado ${eliminar_id} ✓`);
+  }
+  unificarAlumnos('a_1778461783884_hi9', 'a_1778628769891', 'Roman Barreto, Luz Dahiana');
+  unificarAlumnos('a_1778460587065_ofo', 'a_1778461783463_wz3', 'Fretes, Mabel Ibarra');
+  unificarAlumnos('a_1778443282198_ay0', 'a_1781047048561', 'Mancuello Villalba, Lidia Rosa');
+} catch(e) { console.warn('[Migración] Unificar duplicados:', e.message); }
+
 // ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS sedes (
@@ -9065,8 +9128,11 @@ app.post('/api/alumnos/unificar', auth(ADM), (req, res) => {
           log.push(`nota_movida: ${ne.id}`);
         } else {
           // Fusionar: llenar campos nulos en conservar con valores del duplicado
-          const campos = ['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio',
-            'final_ord','final_recuperatorio','complementario','extraordinario','director_pts'];
+          // (incluye tp_total/puntaje_total/nota_final: son calculados, si no se copian
+          // quedan en null aunque los puntajes individuales sí se hayan movido)
+          const campos = ['tp1','tp2','tp3','tp4','tp5','tp_total','parcial','parcial_recuperatorio',
+            'parcial_efectivo','final_ord','final_recuperatorio','complementario','extraordinario',
+            'final_efectivo','puntaje_total','nota_final','director_pts'];
           const sets = campos.filter(c => (exist[c]==null||exist[c]==='') && ne[c]!=null && ne[c]!=='')
             .map(c => `${c}=${ne[c]}`);
           if (sets.length) {
@@ -9077,12 +9143,17 @@ app.post('/api/alumnos/unificar', auth(ADM), (req, res) => {
         }
       });
 
-      // 3. ASISTENCIA — reasignar directo (mismo alumno, mismas fechas son válidas)
-      const cntAsist = db.prepare('SELECT COUNT(*) as n FROM asistencia WHERE alumno_id=?').get(eliminar_id).n;
-      if (cntAsist > 0) {
-        db.prepare('UPDATE asistencia SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
-        log.push(`asistencia_movida: ${cntAsist} registros`);
-      }
+      // 3. ASISTENCIA — reasignar fila por fila (UNIQUE alumno_id+asignacion_id+fecha:
+      //    si ambos ya tienen asistencia para la misma clase/fecha, se descarta la del
+      //    duplicado y se conserva la del registro que queda, en vez de fallar el UPDATE masivo)
+      const asistElim = db.prepare('SELECT id, asignacion_id, fecha FROM asistencia WHERE alumno_id=?').all(eliminar_id);
+      let asistMovida = 0;
+      asistElim.forEach(as => {
+        const existeAsist = db.prepare('SELECT id FROM asistencia WHERE alumno_id=? AND asignacion_id=? AND fecha=?').get(conservar_id, as.asignacion_id, as.fecha);
+        if (existeAsist) db.prepare('DELETE FROM asistencia WHERE id=?').run(as.id);
+        else { db.prepare('UPDATE asistencia SET alumno_id=? WHERE id=?').run(conservar_id, as.id); asistMovida++; }
+      });
+      if (asistElim.length) log.push(`asistencia_movida: ${asistMovida}/${asistElim.length} registros (resto: fecha duplicada, descartado)`);
 
       // 4. BECAS, HABILITACIONES, CONSTANCIAS, QR_CAMBIOS
       db.prepare('UPDATE becas SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
