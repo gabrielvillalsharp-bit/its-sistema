@@ -919,15 +919,32 @@ try {
   console.log('[Migración] ' + n + ' exámenes finales reprogramados (19:00, distribución por turno) ✓');
 } catch(e) { console.warn('[Migración] Reprogramación finales:', e.message); }
 
-// ── MIGRACIÓN: Reactivar alumna Sindy Recalde Pereira (CON-2026-007) ──────────
-// Estaba marcada 'Inactivo', lo que la ocultaba por completo de la grilla de notas
-// (WHERE al.estado='Activo') aunque el director ya la había habilitado para rendir
-// Parcial Recuperatorio en 5 materias — la casilla nunca podía desbloquearse porque
-// ella ni siquiera aparecía en la lista del docente.
+// ── MIGRACIÓN (CORREGIDA): Fusionar ficha duplicada de Sindy Recalde Pereira ──
+// Diagnóstico real: existen DOS fichas de la misma alumna.
+//   a_1778458688706_zbr (CON-2026-007, CI 6690171) — la ficha "vieja": tiene las
+//     5 habilitaciones de Parcial Recuperatorio y los 9 pagos, pero estaba marcada
+//     Inactivo y sus notas están vacías (nunca se cargó nada ahí).
+//   a_1781566133474 (CON-2026-014, sin CI) — ficha duplicada creada después:
+//     Activa, y es la que los docentes vienen usando de hecho (tiene notas reales
+//     cargadas y asistencia), pero no tiene ninguna habilitación ni pago.
+// Un intento anterior de este mismo fix reactivó por error la ficha vieja (vacía),
+// lo que la hizo aparecer como una segunda fila en blanco junto a la ficha real
+// — de ahí el reporte de "se borraron las notas" (no se borró nada, era la ficha
+// vieja duplicada que se volvió visible). Este fix mueve habilitaciones y pagos
+// a la ficha activa real y vuelve a ocultar la duplicada.
 try {
-  const r = db.prepare("UPDATE alumnos SET estado='Activo' WHERE id='a_1778458688706_zbr' AND estado='Inactivo'").run();
-  if (r.changes) console.log('[Migración] Alumna Sindy Recalde Pereira reactivada (estaba Inactivo) ✓');
-} catch(e) { console.warn('[Migración] Reactivar Sindy Recalde Pereira:', e.message); }
+  const oldId = 'a_1778458688706_zbr';
+  const newId = 'a_1781566133474';
+  const oldEx = db.prepare('SELECT id FROM alumnos WHERE id=?').get(oldId);
+  const newEx = db.prepare('SELECT id FROM alumnos WHERE id=?').get(newId);
+  if (oldEx && newEx) {
+    const hMoved = db.prepare('UPDATE habilitaciones_examen SET alumno_id=? WHERE alumno_id=?').run(newId, oldId).changes;
+    const pMoved = db.prepare('UPDATE pagos SET alumno_id=? WHERE alumno_id=?').run(newId, oldId).changes;
+    db.prepare("UPDATE alumnos SET ci=? WHERE id=? AND (ci IS NULL OR ci='')").run('6690171', newId);
+    db.prepare("UPDATE alumnos SET estado='Inactivo' WHERE id=?").run(oldId);
+    console.log(`[Migración] Fusión ficha duplicada Sindy Recalde Pereira: ${hMoved} habilitaciones + ${pMoved} pagos movidos a la ficha activa ✓`);
+  }
+} catch(e) { console.warn('[Migración] Fusión duplicado Sindy:', e.message); }
 
 // ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
 try {
