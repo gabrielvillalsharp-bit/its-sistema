@@ -10894,7 +10894,13 @@ async function imprimirActaExamenCerrada(actaId){
 
 async function guardarTodasNotas(asigId){
   const btn=document.getElementById('btnGuardarNotas');
+  const progWrap=document.getElementById('guardarProgressWrap');
+  const progBar=document.getElementById('guardarProgressBar');
+  const progTxt=document.getElementById('guardarProgressText');
   if(btn){btn.disabled=true;btn.textContent='⏳ Guardando...';}
+  if(progBar){progBar.style.background='#2e7d32';progBar.style.width='0%';}
+  if(progTxt){progTxt.textContent='0%';}
+  if(progWrap){progWrap.style.display='flex';}
   // Leer TODOS los inputs de la grilla directamente del DOM (evita bug del navegador que
   // guarda contraseña y resetea W._nc antes de que se dispare el onchange)
   const campos=['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario'];
@@ -10914,19 +10920,35 @@ async function guardarTodasNotas(asigId){
     merged[alId]={...(merged[alId]||{}), ...Object.fromEntries(Object.entries(nc[alId]).filter(([,v])=>v!==undefined))};
   });
   let guardados=0, errores=0;
-  for(const alId of Object.keys(merged)){
+  const alIds=Object.keys(merged);
+  const total=alIds.length;
+  let hecho=0;
+  for(const alId of alIds){
     try{
       await api('PUT',`/api/notas/${alId}/${asigId}`,merged[alId]);
       guardados++;
     }catch{errores++;}
+    hecho++;
+    const pct=total?Math.round(hecho/total*100):100;
+    if(progBar){progBar.style.width=pct+'%';}
+    if(progTxt){progTxt.textContent=pct+'%';}
   }
   if(btn){btn.disabled=false;btn.textContent='💾 Guardar notas';}
-  if(errores>0){toast(`⚠ ${guardados} guardados, ${errores} con error`,'warn',4000);}
+  if(errores>0){
+    toast(`⚠ ${guardados} guardados, ${errores} con error`,'warn',4000);
+    if(progTxt){progTxt.textContent='⚠ con errores';}
+    if(progBar){progBar.style.background='#dc2626';}
+    setTimeout(()=>{if(progWrap){progWrap.style.display='none';}},3500);
+  }
   else{
     toast(`✓ ${guardados} registros guardados correctamente`,'ok',3000);
     // Marcar botón como guardado visualmente sin recargar la grilla
     if(btn){btn.style.background='#1b5e20';btn.textContent='✓ Guardado';}
-    setTimeout(()=>{if(btn){btn.style.background='#2e7d32';btn.textContent='💾 Guardar notas';}},2500);
+    if(progTxt){progTxt.textContent='✓ Guardado';}
+    setTimeout(()=>{
+      if(btn){btn.style.background='#2e7d32';btn.textContent='💾 Guardar notas';}
+      if(progWrap){progWrap.style.display='none';}
+    },2500);
   }
   // NO llamar W.loadNotas() aquí — causaría que los datos desaparezcan
   // Solo recargar si hubo errores para mostrar el estado actualizado
@@ -11024,14 +11046,15 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${me.rol==='director'?`<button class="bs o" onclick="imprimirActa('${asigId}')">🖨 Acta de notas</button>`:''}
-      ${me.rol==='director'?`<button class="bs i" onclick="mImprimirAsistDia('${asigId}')">📋 Acta asistencia por día</button>`:''}
       ${me.rol==='director'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="pgActasExamen()">📋 Ver actas de examen</button>`:''}
-      ${me.rol==='director'?`<button class="bs" id="btnParcialBloqueo" onclick="toggleParcialBloqueo('${asigId}')"
-        style="background:${W._parcialBloqueado?'#dc2626':'#2563eb'};color:#fff;border-color:${W._parcialBloqueado?'#dc2626':'#2563eb'};font-weight:700;transition:background .2s">
-        ${W._parcialBloqueado?'🔓 Desbloquear parcial':'🔒 Bloquear parcial'}</button>`:''}
       ${me.rol==='docente'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:700" onclick="mGenerarActaExamen('${asigId}')">📋 Generar acta de examen</button>`:''}
       <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
+      <div id="guardarProgressWrap" style="display:none;align-items:center;gap:8px">
+        <div style="width:120px;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+          <div id="guardarProgressBar" style="height:100%;width:0%;background:#2e7d32;transition:width .15s ease-out"></div>
+        </div>
+        <span id="guardarProgressText" style="font-size:11px;font-weight:700;color:#2e7d32;min-width:34px">0%</span>
+      </div>
     </div>
   </div>
   ${me.rol==='docente'&&W._parcialBloqueado?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#991b1b;display:flex;align-items:center;gap:10px">
