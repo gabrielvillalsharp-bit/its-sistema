@@ -1009,6 +1009,67 @@ try {
   unificarAlumnos('a_1778443282198_ay0', 'a_1781047048561', 'Mancuello Villalba, Lidia Rosa');
 } catch(e) { console.warn('[Migración] Unificar duplicados:', e.message); }
 
+// ── MIGRACIÓN: Unificar duplicados restantes (decisión del director) ─────────
+//   Cano Mora, Camili Mariel: conservar RAD-2026-041 (4 materias con nota vs 3,
+//     y ya tiene la nota más alta de "Salud Pública" (19 vs 10) — la fusión no
+//     sobreescribe valores existentes, así que el 19 queda intacto).
+//   Vergara Vega, Helen Diana: conservar la ficha de Cosmiatría (6 materias con
+//     nota); se mueven también los 3 pagos que estaban en la ficha de
+//     Instrumentación Quirúrgica.
+//   Martinez Ribas, Rene Matias: conservar Farmacia 1° (5 materias con nota vs 0);
+//     se mueven también los pagos de la ficha de Farmacia 2°.
+try {
+  function unificarAlumnos2(conservar_id, eliminar_id, etiqueta) {
+    const conservar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(conservar_id);
+    const eliminar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(eliminar_id);
+    if (!conservar || !eliminar) return;
+    db.pragma('foreign_keys = OFF');
+    const unif = db.transaction(() => {
+      db.prepare('SELECT id FROM pagos WHERE alumno_id=?').all(eliminar_id).forEach(p => {
+        db.prepare('UPDATE pagos SET alumno_id=? WHERE id=?').run(conservar_id, p.id);
+      });
+      db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(eliminar_id).forEach(ne => {
+        const exist = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(conservar_id, ne.asignacion_id);
+        if (!exist) {
+          db.prepare('UPDATE notas SET alumno_id=? WHERE id=?').run(conservar_id, ne.id);
+        } else {
+          const campos = ['tp1','tp2','tp3','tp4','tp5','tp_total','parcial','parcial_recuperatorio','parcial_efectivo','final_ord','final_recuperatorio','complementario','extraordinario','final_efectivo','puntaje_total','nota_final','director_pts'];
+          const sets = campos.filter(c => (exist[c]==null||exist[c]==='') && ne[c]!=null && ne[c]!=='').map(c => `${c}=${ne[c]}`);
+          if (sets.length) db.prepare(`UPDATE notas SET ${sets.join(',')} WHERE id=?`).run(exist.id);
+          db.prepare('DELETE FROM notas WHERE id=?').run(ne.id);
+        }
+      });
+      db.prepare('SELECT id, asignacion_id, fecha FROM asistencia WHERE alumno_id=?').all(eliminar_id).forEach(as => {
+        const existeAsist = db.prepare('SELECT id FROM asistencia WHERE alumno_id=? AND asignacion_id=? AND fecha=?').get(conservar_id, as.asignacion_id, as.fecha);
+        if (existeAsist) db.prepare('DELETE FROM asistencia WHERE id=?').run(as.id);
+        else db.prepare('UPDATE asistencia SET alumno_id=? WHERE id=?').run(conservar_id, as.id);
+      });
+      db.prepare('UPDATE becas SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE habilitaciones_examen SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE constancias SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE qr_cambios SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      ['telefono','ci','matricula'].forEach(c => {
+        if ((!conservar[c] || conservar[c]==='') && eliminar[c]) db.prepare(`UPDATE alumnos SET ${c}=? WHERE id=?`).run(eliminar[c], conservar_id);
+      });
+      const pid = 'pap_'+Date.now()+'_dup_'+Math.random().toString(36).slice(2,6);
+      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
+        .run(pid, 'alumno_duplicado', `${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado — ${etiqueta})`,
+          JSON.stringify({ alumno: eliminar, motivo: 'unificacion_duplicados_migracion', conservar_id }), null, expira);
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(eliminar_id);
+      if (eliminar.usuario_id && eliminar.usuario_id !== conservar.usuario_id) {
+        db.prepare('DELETE FROM usuarios WHERE id=?').run(eliminar.usuario_id);
+      }
+    });
+    unif();
+    db.pragma('foreign_keys = ON');
+    console.log(`[Migración] Duplicado unificado (${etiqueta}): conservado ${conservar_id}, eliminado ${eliminar_id} ✓`);
+  }
+  unificarAlumnos2('a_1778461784149_tmq', 'a_1780357984195', 'Cano Mora, Camili Mariel');
+  unificarAlumnos2('a_1778628627552', 'a_1778460585399_9nh', 'Vergara Vega, Helen Diana (conservada en Cosmiatría)');
+  unificarAlumnos2('a_1778460281546_zyf', 'a_1778446683848_4as', 'Martinez Ribas, Rene Matias (conservado en Farmacia 1°)');
+} catch(e) { console.warn('[Migración] Unificar duplicados (decisión director):', e.message); }
+
 // ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS sedes (
