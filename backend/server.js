@@ -8853,6 +8853,48 @@ app.post('/pub/solicitud-registro', (req, res) => {
   res.json({ id, ok: true });
 });
 
+// ── INCORPORACIÓN ACADÉMICA (público) ─────────────────────────────────────────
+// Para alumnos que YA están en el instituto (ya tienen ficha en `alumnos`) pero
+// todavía no tienen acceso al sistema (usuario_id vacío). Distinto de
+// /pub/solicitud-registro, que es para gente que TODAVÍA no es alumna.
+app.post('/pub/incorporacion-academica', (req, res) => {
+  const { nombre, apellido, ci, telefono, carrera_id } = req.body;
+  if (!nombre || !apellido) return res.status(400).json({ error: 'Nombre y apellido son requeridos' });
+  const ciNorm = String(ci||'').replace(/\D/g,'');
+  if (ciNorm.length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
+  if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
+  if (!carrera_id) return res.status(400).json({ error: 'Seleccioná tu carrera' });
+  const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
+  if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+
+  // Buscar alumno existente: primero por CI, si no aparece por nombre+apellido+carrera.
+  // El fallback compara en JS (no en SQL) porque norm() saca espacios y tildes
+  // (ej. "Delvalle Britez") y el lower() de SQLite no hace eso — comparar directo
+  // en SQL no matchearía apellidos compuestos o con acentos.
+  let alumno = db.prepare('SELECT * FROM alumnos WHERE ci=?').get(ciNorm);
+  if (!alumno) {
+    const candidatos = db.prepare('SELECT * FROM alumnos WHERE carrera_id=?').all(carrera_id);
+    alumno = candidatos.find(a => norm(a.nombre) === norm(nombre) && norm(a.apellido) === norm(apellido)) || null;
+  }
+  if (!alumno) {
+    return res.status(404).json({ error: 'No encontramos tu registro como alumno del instituto con esos datos. Verificá que estén bien escritos o comunicate con Dirección.', notfound: true });
+  }
+  if (alumno.usuario_id) {
+    const u = db.prepare('SELECT activo FROM usuarios WHERE id=?').get(alumno.usuario_id);
+    if (u && u.activo) {
+      return res.status(409).json({ error: 'Ya tenés acceso al sistema. Si olvidaste tu contraseña, comunicate con Dirección.', duplicate: true });
+    }
+  }
+  const existSol = db.prepare(`SELECT id FROM solicitudes_registro WHERE estado='pendiente' AND tipo='incorporacion_academica' AND alumno_id=?`).get(alumno.id);
+  if (existSol) return res.status(409).json({ error: 'Ya enviaste una solicitud de acceso. Dirección la va a revisar pronto.', duplicate: true });
+
+  const id = 'sreg_'+Date.now();
+  db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, nombre, apellido, ciNorm, telefono, carrera_id, alumno.id, 'incorporacion_academica');
+  res.json({ id, ok: true, alumno: { nombre: alumno.nombre, apellido: alumno.apellido } });
+});
+
 app.get('/api/qr-cambios', auth(ADM), (req, res) => {
   try {
     const rows = db.prepare(`
@@ -9266,10 +9308,16 @@ app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
     const sede = req.user.sede || 'pjc';
     const rows = db.prepare(`
       SELECT sr.*, sr.tipo, sr.alumno_id, c.nombre as carrera_nombre,
-        cu.anio as curso_anio, cu.division as curso_division
+        cu.anio as curso_anio, cu.division as curso_division,
+        al.nombre as al_nombre, al.apellido as al_apellido, al.matricula as al_matricula,
+        al.usuario_id as al_usuario_id, alc.nombre as al_carrera_nombre,
+        alcu.anio as al_curso_anio, alcu.division as al_curso_division
       FROM solicitudes_registro sr
       JOIN carreras c ON sr.carrera_id=c.id
       LEFT JOIN cursos cu ON sr.curso_id=cu.id
+      LEFT JOIN alumnos al ON sr.alumno_id=al.id
+      LEFT JOIN carreras alc ON al.carrera_id=alc.id
+      LEFT JOIN cursos alcu ON al.curso_id=alcu.id
       WHERE c.sede_id=?
       ORDER BY sr.fecha DESC
     `).all(sede);
@@ -9303,6 +9351,43 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
           db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
           audit(req.user.id,'APROBAR_CAMBIO_CARRERA','solicitudes_registro',req.params.id,{alumno_id:sol.alumno_id,carrera_id:sol.carrera_id});
           return res.json({ ok: true, tipo: 'cambio_carrera' });
+        } catch(e) { return res.status(500).json({ error: e.message }); }
+      }
+      // Shortcut: incorporación académica — el alumno ya existe, solo crear/activar su usuario
+      if (sol.tipo === 'incorporacion_academica' && sol.alumno_id) {
+        try {
+          const alumno = db.prepare('SELECT * FROM alumnos WHERE id=?').get(sol.alumno_id);
+          if (!alumno) return res.status(404).json({ error: 'El alumno ya no existe en el sistema' });
+          const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+          let finalUid = alumno.usuario_id;
+          if (!finalUid) {
+            const ciRaw = String(alumno.ci||sol.ci||'').replace(/[^0-9]/g,'');
+            // Reusar usuario existente por CI (evita choque con UNIQUE usuarios.ci si ya hay
+            // un usuario huérfano con esa cédula, en vez de fallar la aprobación)
+            const existPorCi = ciRaw ? db.prepare('SELECT id FROM usuarios WHERE ci=?').get(ciRaw) : null;
+            if (existPorCi) {
+              finalUid = existPorCi.id;
+              db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
+            } else {
+              let emailFinal = norm(alumno.nombre).slice(0,1)+norm(alumno.apellido)+'@its.edu.py';
+              if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+                emailFinal = norm(alumno.nombre).slice(0,1)+norm(alumno.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+              finalUid = 'u_a_'+Date.now();
+              db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+                .run(finalUid, alumno.nombre, alumno.apellido, ciRaw||null, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
+            }
+            db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(finalUid, alumno.id);
+          } else {
+            db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
+          }
+          db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
+          audit(req.user.id,'APROBAR_INCORPORACION_ACADEMICA','solicitudes_registro',req.params.id,{alumno_id:alumno.id});
+          if (sol.telefono) {
+            const usu = db.prepare('SELECT email FROM usuarios WHERE id=?').get(finalUid);
+            const ciNum = String(alumno.ci||sol.ci||'').replace(/[^0-9]/g,'');
+            enviarBienvenidaQR(sol.telefono, (alumno.nombre+' '+alumno.apellido).trim(), usu?.email||'(ver en el sistema)', ciNum);
+          }
+          return res.json({ ok: true, tipo: 'incorporacion_academica' });
         } catch(e) { return res.status(500).json({ error: e.message }); }
       }
     try {
@@ -9458,6 +9543,7 @@ app.get('/pub/buscar-alumno', (req, res) => {
 
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
 app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
+app.get('/incorporacion-academica', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','incorporacion-academica.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {

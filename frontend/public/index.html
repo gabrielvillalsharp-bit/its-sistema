@@ -1909,6 +1909,22 @@ async function pgDash(el){
         </div>
       </div>
       <div id="link-inscripcion-toast" style="display:none;margin-top:8px;font-size:12px;color:#166534;font-weight:700;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
+    </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:22px">🔑</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#1e40af">Incorporación Académica</div>
+            <div style="font-size:11px;color:#2563eb;margin-top:1px">Para alumnos que ya están en el instituto pero no tienen acceso al sistema</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="copiarLinkIncorpAcad()" class="bs" style="background:#eff6ff;border-color:#93c5fd;color:#1e40af;font-size:12px">📋 Copiar</button>
+          <button onclick="abrirLinkIncorpAcad()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
+        </div>
+      </div>
+      <div id="link-incorpacad-toast" style="display:none;margin-top:8px;font-size:12px;color:#1e40af;font-weight:700;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
     </div>`:''}
   </div>
 
@@ -2000,6 +2016,18 @@ function copiarLinkInscripcion(){
 }
 function abrirLinkInscripcion(){
   window.open('/inscripcion','_blank');
+}
+function copiarLinkIncorpAcad(){
+  const link=location.origin+'/incorporacion-academica';
+  navigator.clipboard.writeText(link).then(()=>{
+    const t=document.getElementById('link-incorpacad-toast');
+    if(t){t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
+  }).catch(()=>{
+    prompt('Copiá este link:',location.origin+'/incorporacion-academica');
+  });
+}
+function abrirLinkIncorpAcad(){
+  window.open('/incorporacion-academica','_blank');
 }
 
 // ── MODAL NOTAS PENDIENTES ───────────────────────────────────────────────────
@@ -8069,6 +8097,20 @@ async function resolverRegistroQr(id, accion){
   await go('solicitudes');
   setTimeout(()=>{const s=document.getElementById('gest-sec-qr');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('qr');},150);
 }
+async function resolverIncorpAcad(id, accion){
+  if(accion==='rechazar'){
+    const motivo=prompt('Motivo del rechazo (opcional):');
+    if(motivo===null)return;
+    await api('PUT','/api/solicitudes-registro/'+id+'/resolver',{accion:'rechazar',motivo});
+  } else {
+    try{
+      await api('PUT','/api/solicitudes-registro/'+id+'/resolver',{accion:'aprobar'});
+      toast('✅ Acceso creado — se le envió el usuario y contraseña por WhatsApp','ok',4000);
+    }catch(e){ toast('Error: '+e.message,'err'); return; }
+  }
+  await go('solicitudes');
+  setTimeout(()=>{const s=document.getElementById('gest-sec-incorpacad');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('incorpacad');},150);
+}
 // ── HUB PAGES ─────────────────────────────────────────────────────────────────
 function _mCard(id,emoji,title,subtitle,iconColor,iconBg,onclickStr,sm){
   const act=onclickStr?`onclick="${onclickStr}"`:`onclick="go('${id}')"`;
@@ -9923,12 +9965,15 @@ async function pgSolicitudes(el){
   const carreras=[...carreraMap.entries()].map(([id,nombre])=>({id,nombre}));
 
   // formulario_web = nuevos alumnos inscriptos por web (solo para agosto 2026)
+  // incorporacion_academica = alumnos YA matriculados que piden acceso al sistema
   // Incorporaciones = alumnos ya vinculados al instituto: qr, cambio_carrera, nuevo, sin tipo
   const regsForm=regs.filter(r=>r.tipo==='formulario_web');
-  const regsIncorp=regs.filter(r=>r.tipo!=='formulario_web');
+  const regsIncorpAcad=regs.filter(r=>r.tipo==='incorporacion_academica');
+  const regsIncorp=regs.filter(r=>r.tipo!=='formulario_web'&&r.tipo!=='incorporacion_academica');
   const regsQr=regsIncorp.filter(r=>r.tipo==='qr'||r.tipo==='cambio_carrera');
   const regsFormPend=regsForm.filter(r=>r.estado==='pendiente');
   const regsQrPend=regsQr.filter(r=>r.estado==='pendiente');
+  const regsIncorpAcadPend=regsIncorpAcad.filter(r=>r.estado==='pendiente');
   const regsPend=regsFormPend; // alias para compatibilidad
   const totalHistPend=pend.length+regsIncorp.filter(r=>r.estado==='pendiente').length;
   const asistPend=(informesPend.length+ausencias.length);
@@ -9956,6 +10001,7 @@ async function pgSolicitudes(el){
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
     ${_gc('inscripcion','🎓','Inscripción Agosto 2026',regsFormPend.length?(regsFormPend.length+' pendiente'+(regsFormPend.length!==1?'s':'')):(regsForm.length?regsForm.length+' recibida'+(regsForm.length!==1?'s':''):'Sin solicitudes'),'#059669','#f0fdf4',regsFormPend.length>0)}
+    ${_gc('incorpacad','🔑','Incorporación Académica',regsIncorpAcadPend.length?(regsIncorpAcadPend.length+' pendiente'+(regsIncorpAcadPend.length!==1?'s':'')):(regsIncorpAcad.length?regsIncorpAcad.length+' recibida'+(regsIncorpAcad.length!==1?'s':''):'Sin solicitudes'),'#1d4ed8','#eff6ff',regsIncorpAcadPend.length>0)}
     ${_gc('qr','📱','Registro QR',regsQrPend.length?(regsQrPend.length+' pendiente'+(regsQrPend.length!==1?'s':'')):(regsQr.length+' total'),'#2563eb','#eff6ff',regsQrPend.length>0)}
     ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','#0369a1','#e0f2fe',totalHistPend>0)}
     ${_gc('inactivos','🗂','Inactivos',inactivos.length+' alumno'+(inactivos.length!==1?'s':''),'#64748b','#f1f5f9',false)}
@@ -10074,6 +10120,50 @@ async function pgSolicitudes(el){
           </div>`;
         }
         return html;
+      })()}
+    </div>
+  </div>
+  <div id="gest-sec-incorpacad" style="display:none;margin-bottom:16px">
+    <div style="background:linear-gradient(135deg,#1e3a8a,#1d4ed8);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div>
+        <span style="color:#fff;font-size:14px;font-weight:800">🔑 Incorporación Académica</span>
+        <span style="color:#bfdbfe;font-size:11px;margin-left:10px">Alumnos ya matriculados pidiendo acceso al sistema</span>
+      </div>
+    </div>
+    <div style="border:1.5px solid #1d4ed8;border-top:none;border-radius:0 0 12px 12px;background:#fff;padding:14px">
+      ${(()=>{
+        if(!regsIncorpAcad.length) return `<div style="text-align:center;padding:30px 20px;color:var(--t3)">
+          <div style="font-size:28px;margin-bottom:8px">✅</div>
+          <div style="font-size:14px;font-weight:600">Sin solicitudes de incorporación académica</div>
+          <div style="font-size:12px;margin-top:5px">Link del formulario:
+            <a href="https://its-sistema-production.up.railway.app/incorporacion-academica" target="_blank" style="color:#1d4ed8;font-weight:600">its-sistema-production.up.railway.app/incorporacion-academica</a>
+          </div>
+        </div>`;
+        function _row(r){
+          const yaTeniaAcceso=!!r.al_usuario_id;
+          const coincideCarrera=r.al_carrera_nombre && r.carrera_nombre && r.al_carrera_nombre===r.carrera_nombre;
+          return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${r.estado==='pendiente'?'#fde68a':r.estado==='aprobado'?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${r.estado==='pendiente'?'#fffbeb':r.estado==='aprobado'?'#f0fdf4':'#fef2f2'}">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+                <span style="font-weight:700;font-size:14px;color:#1e293b">${r.apellido}, ${r.nombre}</span>
+                <span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:600">🔑 Pide acceso</span>
+              </div>
+              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${r.ci||'—'}</strong> · Tel: <strong>${r.telefono||'—'}</strong> · Carrera indicada: <strong>${r.carrera_nombre||'—'}</strong> · ${(r.fecha||'').split(' ')[0]||(r.fecha||'').split('T')[0]}</div>
+              ${r.alumno_id?`<div style="font-size:11px;margin-top:5px;padding:6px 10px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0">
+                <strong style="color:#166534">✓ Encontrado en el sistema:</strong> ${r.al_apellido}, ${r.al_nombre} — Matrícula <strong>${r.al_matricula||'—'}</strong><br/>
+                Carrera actual: <strong style="color:${coincideCarrera?'#166534':'#dc2626'}">${r.al_carrera_nombre||'—'}</strong>${r.al_curso_anio?' · '+r.al_curso_anio+'° año'+(r.al_curso_division&&r.al_curso_division!=='U'?' Secc. '+r.al_curso_division:''):''} ${!coincideCarrera?'⚠️ no coincide con lo que indicó':''}
+                ${yaTeniaAcceso?'<br/><span style="color:#b45309">⚠️ Este alumno ya tiene un usuario creado</span>':''}
+              </div>`:`<div style="font-size:11px;margin-top:5px;color:#dc2626">⚠️ No se encontró ficha de alumno vinculada</div>`}
+              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${r.motivo_rechazo}</div>`:''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+              <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
+              ${r.estado==='pendiente'?`<button class="bn" style="font-size:11px;padding:5px 14px;background:#1d4ed8;border-color:#1e40af" onclick="resolverIncorpAcad('${r.id}','aprobar')">✓ Aprobar y dar acceso</button>
+              <button class="bs d" style="font-size:11px;padding:5px 14px" onclick="resolverIncorpAcad('${r.id}','rechazar')">✕ Rechazar</button>`:''}
+            </div>
+          </div>`;
+        }
+        return regsIncorpAcad.map(_row).join('');
       })()}
     </div>
   </div>
