@@ -7708,6 +7708,14 @@ async function pgNotas(el){
   </div>`:'';
   el.innerHTML=`<div class="ph"><h3>📝 Registro de notas</h3></div>
   ${misMatCards}
+  ${me.rol!=='docente'?`
+  <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.05);position:relative">
+    <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">👤 Buscar alumno</div>
+    <input type="text" id="buscarAlumnoNotasGlobalInp" placeholder="Escribí el nombre, apellido o CI del alumno..." autocomplete="off"
+      oninput="buscarAlumnoNotasGlobal(this.value)"
+      style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.06)"/>
+    <div id="buscarAlumnoNotasGlobalResults" style="display:none;position:absolute;left:16px;right:16px;top:100%;margin-top:4px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:20"></div>
+  </div>`:''}
   <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">🔍 Filtrar por materia</div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
@@ -10616,6 +10624,52 @@ function cambiarAsigNotas(asigId){
   if(!asigId)return;
   W.loadNotas(asigId);
 }
+let _buscarAlumnoNotasTimer=null;
+function buscarAlumnoNotasGlobal(term){
+  clearTimeout(_buscarAlumnoNotasTimer);
+  const box=document.getElementById('buscarAlumnoNotasGlobalResults');
+  if(!box)return;
+  const q=(term||'').trim();
+  if(q.length<2){ box.style.display='none'; box.innerHTML=''; return; }
+  _buscarAlumnoNotasTimer=setTimeout(async()=>{
+    let alumnos=[];
+    try{ alumnos=await api('GET','/api/alumnos?busqueda='+encodeURIComponent(q)); }catch{ return; }
+    alumnos=alumnos.slice(0,10);
+    if(!alumnos.length){
+      box.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
+      box.style.display='block';
+      return;
+    }
+    box.innerHTML=alumnos.map(a=>{
+      const curso=a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' Secc. '+a.curso_division:''}`:'sin curso asignado';
+      return `<div onclick="seleccionarAlumnoNotasGlobal('${a.carrera_id||''}','${a.curso_anio||''}','${(a.display_apellido||'').replace(/'/g,"\\'")}, ${(a.display_nombre||'').replace(/'/g,"\\'")}')"
+        style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background='#fff'">
+        <div style="font-weight:700;color:#1e293b">${a.display_apellido||''}, ${a.display_nombre||''}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">CI: ${a.display_ci||'—'} · ${a.carrera_nombre||'Sin carrera'} · ${curso}</div>
+      </div>`;
+    }).join('');
+    box.style.display='block';
+  },300);
+}
+function seleccionarAlumnoNotasGlobal(carreraId,anio,nombreCompleto){
+  const carrSel=document.getElementById('filtNotaCarr');
+  const anioSel=document.getElementById('filtNotaAnio');
+  if(carrSel && carreraId){ carrSel.value=carreraId; }
+  filtNotasCursos();
+  if(anioSel && anio){ anioSel.value=anio; filtNotasAsigs(); }
+  const box=document.getElementById('buscarAlumnoNotasGlobalResults');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+  const inp=document.getElementById('buscarAlumnoNotasGlobalInp');
+  if(inp) inp.value=nombreCompleto||'';
+  toast('✓ Carrera y año seleccionados — ahora elegí la materia','ok',2500);
+  const selMat=document.getElementById('selAsigNotas');
+  if(selMat) selMat.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+document.addEventListener('click',function(e){
+  const box=document.getElementById('buscarAlumnoNotasGlobalResults');
+  const inp=document.getElementById('buscarAlumnoNotasGlobalInp');
+  if(box && box.style.display==='block' && !box.contains(e.target) && e.target!==inp){ box.style.display='none'; }
+});
 function filtNotasCursos(){
   filtNotasAsigs();
 }
