@@ -7715,7 +7715,8 @@ async function pgNotas(el){
       oninput="buscarAlumnoNotasGlobal(this.value)"
       style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.06)"/>
     <div id="buscarAlumnoNotasGlobalResults" style="display:none;position:absolute;left:16px;right:16px;top:100%;margin-top:4px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:20"></div>
-  </div>`:''}
+  </div>
+  <div id="alumnoNotasResumen"></div>`:''}
   <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">🔍 Filtrar por materia</div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
@@ -10635,14 +10636,15 @@ function buscarAlumnoNotasGlobal(term){
     let alumnos=[];
     try{ alumnos=await api('GET','/api/alumnos?busqueda='+encodeURIComponent(q)); }catch{ return; }
     alumnos=alumnos.slice(0,10);
+    W._buscarAlumnoNotasResults=alumnos;
     if(!alumnos.length){
       box.innerHTML='<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
       box.style.display='block';
       return;
     }
-    box.innerHTML=alumnos.map(a=>{
+    box.innerHTML=alumnos.map((a,idx)=>{
       const curso=a.curso_anio?`${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' Secc. '+a.curso_division:''}`:'sin curso asignado';
-      return `<div onclick="seleccionarAlumnoNotasGlobal('${a.carrera_id||''}','${a.curso_anio||''}','${(a.display_apellido||'').replace(/'/g,"\\'")}, ${(a.display_nombre||'').replace(/'/g,"\\'")}')"
+      return `<div onclick="seleccionarAlumnoNotasGlobal(${idx})"
         style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background='#fff'">
         <div style="font-weight:700;color:#1e293b">${a.display_apellido||''}, ${a.display_nombre||''}</div>
         <div style="font-size:11px;color:#64748b;margin-top:2px">CI: ${a.display_ci||'—'} · ${a.carrera_nombre||'Sin carrera'} · ${curso}</div>
@@ -10651,19 +10653,64 @@ function buscarAlumnoNotasGlobal(term){
     box.style.display='block';
   },300);
 }
-function seleccionarAlumnoNotasGlobal(carreraId,anio,nombreCompleto){
+async function seleccionarAlumnoNotasGlobal(idx){
+  const a=(W._buscarAlumnoNotasResults||[])[idx];
+  if(!a)return;
+  const nombreCompleto=`${a.display_apellido||''}, ${a.display_nombre||''}`;
   const carrSel=document.getElementById('filtNotaCarr');
   const anioSel=document.getElementById('filtNotaAnio');
-  if(carrSel && carreraId){ carrSel.value=carreraId; }
+  if(carrSel && a.carrera_id){ carrSel.value=a.carrera_id; }
   filtNotasCursos();
-  if(anioSel && anio){ anioSel.value=anio; filtNotasAsigs(); }
+  if(anioSel && a.curso_anio){ anioSel.value=String(a.curso_anio); filtNotasAsigs(); }
   const box=document.getElementById('buscarAlumnoNotasGlobalResults');
   if(box){ box.style.display='none'; box.innerHTML=''; }
   const inp=document.getElementById('buscarAlumnoNotasGlobalInp');
-  if(inp) inp.value=nombreCompleto||'';
-  toast('✓ Carrera y año seleccionados — ahora elegí la materia','ok',2500);
-  const selMat=document.getElementById('selAsigNotas');
-  if(selMat) selMat.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(inp) inp.value=nombreCompleto;
+
+  const resumen=document.getElementById('alumnoNotasResumen');
+  if(!resumen)return;
+  resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">Cargando materias de ${nombreCompleto}...</div>`;
+  let notas=[];
+  try{
+    const r=await api('GET','/api/alumnos/'+a.id+'/boletin');
+    notas=r.notas||[];
+  }catch(e){
+    resumen.innerHTML=`<div class="alert-err" style="padding:12px;border-radius:8px">No se pudieron cargar las materias: ${e.message}</div>`;
+    return;
+  }
+  if(!notas.length){
+    resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">${nombreCompleto} no tiene materias asignadas en el período activo.</div>`;
+    return;
+  }
+  const estColor=e=>e==='Aprobado'?'#166534':e==='Reprobado'?'#dc2626':'#64748b';
+  const estBg=e=>e==='Aprobado'?'#f0fdf4':e==='Reprobado'?'#fef2f2':'#f8fafc';
+  resumen.innerHTML=`<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+    <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:10px">📚 Materias de <strong style="color:#1e293b">${nombreCompleto}</strong> — clic en una para cargar/editar sus notas</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${notas.map(n=>`<div onclick="abrirMateriaAlumno('${n.asignacion_id}','${a.id}')"
+        style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:9px;background:${estBg(n.estado)};border:1px solid ${estColor(n.estado)}22;cursor:pointer" onmouseenter="this.style.filter='brightness(0.97)'" onmouseleave="this.style.filter=''">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:13px;color:#1e293b">${n.materia_nombre}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:1px">TP: ${n.tp_total??'—'} · Parcial: ${n.parcial_efectivo??n.parcial??'—'} · Final: ${n.final_efectivo??n.final_ord??'—'}</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff;color:${estColor(n.estado)};white-space:nowrap">${n.estado||'Pendiente'}${n.nota_final!=null?' · '+n.nota_final:''}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+async function abrirMateriaAlumno(asigId,alumnoId){
+  const sel=document.getElementById('selAsigNotas');
+  if(sel) sel.value=asigId;
+  await W.loadNotas(asigId);
+  const alumnos=W._buscarAlumnoNotasResults||[];
+  const a=alumnos.find(x=>x.id===alumnoId);
+  const nombre=a?`${(a.display_apellido||'').toLowerCase()} ${(a.display_nombre||'').toLowerCase()}`.trim():'';
+  const buscInp=document.getElementById('buscarAlumnoNotas');
+  if(buscInp && nombre){ buscInp.value=nombre; filtrarAlumnosNotas(nombre); }
+  setTimeout(()=>{
+    const fila=document.querySelector('tr.nota-row[data-al-id="'+alumnoId+'"]');
+    if(fila) fila.scrollIntoView({behavior:'smooth',block:'center'});
+  },200);
 }
 document.addEventListener('click',function(e){
   const box=document.getElementById('buscarAlumnoNotasGlobalResults');
