@@ -991,7 +991,7 @@ try {
         if ((!conservar[c] || conservar[c]==='') && eliminar[c]) db.prepare(`UPDATE alumnos SET ${c}=? WHERE id=?`).run(eliminar[c], conservar_id);
       });
       const pid = 'pap_'+Date.now()+'_dup_'+Math.random().toString(36).slice(2,6);
-      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      const expira = new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
       db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
         .run(pid, 'alumno_duplicado', `${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado — ${etiqueta})`,
           JSON.stringify({ alumno: eliminar, motivo: 'unificacion_duplicados_migracion', conservar_id }), null, expira);
@@ -1052,7 +1052,7 @@ try {
         if ((!conservar[c] || conservar[c]==='') && eliminar[c]) db.prepare(`UPDATE alumnos SET ${c}=? WHERE id=?`).run(eliminar[c], conservar_id);
       });
       const pid = 'pap_'+Date.now()+'_dup_'+Math.random().toString(36).slice(2,6);
-      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      const expira = new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
       db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
         .run(pid, 'alumno_duplicado', `${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado — ${etiqueta})`,
           JSON.stringify({ alumno: eliminar, motivo: 'unificacion_duplicados_migracion', conservar_id }), null, expira);
@@ -9235,7 +9235,7 @@ app.post('/api/alumnos/unificar', auth(ADM), (req, res) => {
       // 6. Guardar en papelera y borrar duplicado
       const snapElim = { alumno: eliminar, motivo: 'unificacion_duplicados', conservar_id };
       const pid = 'pap_'+Date.now()+'_dup';
-      const expira = new Date(Date.now()+10*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      const expira = new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
       db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
         .run(pid,'alumno_duplicado',`${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado)`,
           JSON.stringify(snapElim), req.user?.id||null, expira);
