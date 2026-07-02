@@ -11046,7 +11046,6 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${bloqueados&&me.rol==='director'?`<span class="bx ba">🔒 ${bloqueados} bloqueados por mora</span>`:''}
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      ${me.rol==='director'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="pgActasExamen()">📋 Ver actas de examen</button>`:''}
       ${me.rol==='docente'?`<button class="bs" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-weight:700" onclick="mGenerarActaExamen('${asigId}')">📋 Generar acta de examen</button>`:''}
       <button class="bn" id="btnGuardarNotas" onclick="guardarTodasNotas('${asigId}')" style="background:#2e7d32;font-size:14px;padding:10px 28px;font-weight:700">💾 Guardar notas</button>
       <div id="guardarProgressWrap" style="display:none;align-items:center;gap:8px">
