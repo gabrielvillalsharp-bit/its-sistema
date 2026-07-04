@@ -88,6 +88,56 @@ try {
   )`).run();
 } catch(e) { console.warn('[Migración] interesados_bot:', e.message); }
 
+// ── MIGRACIÓN: tabla documentos (repositorio institucional tipo Drive) ───────
+// Solo el director sube (doc/excel/ppt/pdf); cualquier usuario logueado puede
+// ver/descargar. Archivos chicos, pocos usuarios subiendo → BLOB en SQLite,
+// igual que el repositorio de programas/contenidos ya existente.
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS documentos (
+    id TEXT PRIMARY KEY,
+    nombre_archivo TEXT NOT NULL,
+    datos BLOB NOT NULL,
+    mime_tipo TEXT,
+    tamano INTEGER,
+    categoria TEXT,
+    descripcion TEXT,
+    subido_por TEXT REFERENCES usuarios(id),
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) { console.warn('[Migración] documentos:', e.message); }
+
+// ── MIGRACIÓN: tablas de formularios (tipo Google Forms) ─────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS formularios (
+    id TEXT PRIMARY KEY,
+    titulo TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por TEXT REFERENCES usuarios(id),
+    fecha_creacion TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    activo INTEGER NOT NULL DEFAULT 1
+  )`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS formulario_preguntas (
+    id TEXT PRIMARY KEY,
+    formulario_id TEXT NOT NULL REFERENCES formularios(id),
+    orden INTEGER NOT NULL DEFAULT 0,
+    tipo TEXT NOT NULL CHECK(tipo IN ('texto','opcion_multiple')),
+    texto_pregunta TEXT NOT NULL,
+    opciones TEXT,
+    requerida INTEGER NOT NULL DEFAULT 0
+  )`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS formulario_respuestas (
+    id TEXT PRIMARY KEY,
+    formulario_id TEXT NOT NULL REFERENCES formularios(id),
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS formulario_respuesta_valores (
+    id TEXT PRIMARY KEY,
+    respuesta_id TEXT NOT NULL REFERENCES formulario_respuestas(id),
+    pregunta_id TEXT NOT NULL REFERENCES formulario_preguntas(id),
+    valor TEXT
+  )`).run();
+} catch(e) { console.warn('[Migración] formularios:', e.message); }
+
 // ── LIMPIEZA: purgar mensajes de grupos mal guardados en wa_recibidos ────────
 try {
   // Eliminar entradas cuyo número tiene formato de grupo (>15 dígitos) o es conocidamente un grupo
@@ -8667,6 +8717,171 @@ app.delete('/api/repositorio/:id', auth(['director','docente']), (req, res) => {
   res.status(403).json({ error: 'La eliminación de archivos no está permitida' });
 });
 
+// ── DOCUMENTOS (repositorio institucional tipo Drive) ─────────────────────────
+app.get('/api/documentos', auth(), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT d.id, d.nombre_archivo, d.mime_tipo, d.tamano, d.categoria, d.descripcion, d.fecha,
+        u.nombre as subido_por_nombre, u.apellido as subido_por_apellido
+      FROM documentos d LEFT JOIN usuarios u ON d.subido_por=u.id
+      ORDER BY d.fecha DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/documentos', auth(ADM), upload.single('archivo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Archivo requerido' });
+  try {
+    const id = 'doc_' + Date.now();
+    db.prepare('INSERT INTO documentos (id,nombre_archivo,datos,mime_tipo,tamano,categoria,descripcion,subido_por) VALUES (?,?,?,?,?,?,?,?)')
+      .run(id, req.file.originalname, req.file.buffer, req.file.mimetype, req.file.size, req.body.categoria||null, req.body.descripcion||null, req.user.id);
+    audit(req.user.id, 'SUBIR_DOCUMENTO', 'documentos', id, { nombre: req.file.originalname });
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/documentos/:id/descargar', auth(), (req, res) => {
+  const d = db.prepare('SELECT * FROM documentos WHERE id=?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Documento no encontrado' });
+  res.setHeader('Content-Type', d.mime_tipo || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(d.nombre_archivo)}"`);
+  res.send(d.datos);
+});
+app.delete('/api/documentos/:id', auth(ADM), (req, res) => {
+  try {
+    const d = db.prepare('SELECT nombre_archivo FROM documentos WHERE id=?').get(req.params.id);
+    if (!d) return res.status(404).json({ error: 'Documento no encontrado' });
+    db.prepare('DELETE FROM documentos WHERE id=?').run(req.params.id);
+    audit(req.user.id, 'ELIMINAR_DOCUMENTO', 'documentos', req.params.id, { nombre: d.nombre_archivo });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── FORMULARIOS (tipo Google Forms) ───────────────────────────────────────────
+app.get('/api/formularios', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT f.*, (SELECT COUNT(*) FROM formulario_respuestas r WHERE r.formulario_id=f.id) as total_respuestas
+      FROM formularios f ORDER BY f.fecha_creacion DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/formularios', auth(ADM), (req, res) => {
+  const { titulo, descripcion } = req.body;
+  if (!titulo) return res.status(400).json({ error: 'Título requerido' });
+  try {
+    const id = 'form_' + Date.now();
+    db.prepare('INSERT INTO formularios (id,titulo,descripcion,creado_por) VALUES (?,?,?,?)').run(id, titulo, descripcion||null, req.user.id);
+    audit(req.user.id, 'CREAR_FORMULARIO', 'formularios', id, { titulo });
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/formularios/:id', auth(ADM), (req, res) => {
+  const f = db.prepare('SELECT * FROM formularios WHERE id=?').get(req.params.id);
+  if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
+  const preguntas = db.prepare('SELECT * FROM formulario_preguntas WHERE formulario_id=? ORDER BY orden').all(req.params.id);
+  res.json({ ...f, preguntas: preguntas.map(p => ({ ...p, opciones: p.opciones ? JSON.parse(p.opciones) : [] })) });
+});
+app.put('/api/formularios/:id', auth(ADM), (req, res) => {
+  const { titulo, descripcion, activo } = req.body;
+  const f = db.prepare('SELECT id FROM formularios WHERE id=?').get(req.params.id);
+  if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
+  try {
+    const sets = []; const vals = [];
+    if (titulo !== undefined) { sets.push('titulo=?'); vals.push(titulo); }
+    if (descripcion !== undefined) { sets.push('descripcion=?'); vals.push(descripcion); }
+    if (activo !== undefined) { sets.push('activo=?'); vals.push(activo ? 1 : 0); }
+    if (sets.length) { vals.push(req.params.id); db.prepare(`UPDATE formularios SET ${sets.join(',')} WHERE id=?`).run(...vals); }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/formularios/:id', auth(ADM), (req, res) => {
+  try {
+    const respIds = db.prepare('SELECT id FROM formulario_respuestas WHERE formulario_id=?').all(req.params.id).map(r=>r.id);
+    respIds.forEach(rid => db.prepare('DELETE FROM formulario_respuesta_valores WHERE respuesta_id=?').run(rid));
+    db.prepare('DELETE FROM formulario_respuestas WHERE formulario_id=?').run(req.params.id);
+    db.prepare('DELETE FROM formulario_preguntas WHERE formulario_id=?').run(req.params.id);
+    db.prepare('DELETE FROM formularios WHERE id=?').run(req.params.id);
+    audit(req.user.id, 'ELIMINAR_FORMULARIO', 'formularios', req.params.id, {});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/formularios/:id/preguntas', auth(ADM), (req, res) => {
+  const { tipo, texto_pregunta, opciones, requerida } = req.body;
+  if (!['texto','opcion_multiple'].includes(tipo)) return res.status(400).json({ error: 'Tipo de pregunta inválido' });
+  if (!texto_pregunta) return res.status(400).json({ error: 'El texto de la pregunta es requerido' });
+  if (tipo === 'opcion_multiple' && (!Array.isArray(opciones) || opciones.filter(o=>o&&o.trim()).length < 2)) {
+    return res.status(400).json({ error: 'Opción múltiple requiere al menos 2 opciones' });
+  }
+  try {
+    const maxOrden = db.prepare('SELECT COALESCE(MAX(orden),-1) m FROM formulario_preguntas WHERE formulario_id=?').get(req.params.id).m;
+    const id = 'preg_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+    db.prepare('INSERT INTO formulario_preguntas (id,formulario_id,orden,tipo,texto_pregunta,opciones,requerida) VALUES (?,?,?,?,?,?,?)')
+      .run(id, req.params.id, maxOrden+1, tipo, texto_pregunta, tipo==='opcion_multiple'?JSON.stringify(opciones.filter(o=>o&&o.trim())):null, requerida?1:0);
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/formularios/:fid/preguntas/:pid', auth(ADM), (req, res) => {
+  const { tipo, texto_pregunta, opciones, requerida } = req.body;
+  try {
+    db.prepare('UPDATE formulario_preguntas SET tipo=?,texto_pregunta=?,opciones=?,requerida=? WHERE id=? AND formulario_id=?')
+      .run(tipo, texto_pregunta, tipo==='opcion_multiple'&&Array.isArray(opciones)?JSON.stringify(opciones.filter(o=>o&&o.trim())):null, requerida?1:0, req.params.pid, req.params.fid);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/formularios/:fid/preguntas/:pid', auth(ADM), (req, res) => {
+  try {
+    db.prepare('DELETE FROM formulario_respuesta_valores WHERE pregunta_id=?').run(req.params.pid);
+    db.prepare('DELETE FROM formulario_preguntas WHERE id=? AND formulario_id=?').run(req.params.pid, req.params.fid);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/formularios/:id/respuestas', auth(ADM), (req, res) => {
+  try {
+    const preguntas = db.prepare('SELECT id, texto_pregunta, orden FROM formulario_preguntas WHERE formulario_id=? ORDER BY orden').all(req.params.id);
+    const respuestas = db.prepare('SELECT id, fecha FROM formulario_respuestas WHERE formulario_id=? ORDER BY fecha DESC').all(req.params.id);
+    const valores = db.prepare(`
+      SELECT v.respuesta_id, v.pregunta_id, v.valor FROM formulario_respuesta_valores v
+      JOIN formulario_respuestas r ON v.respuesta_id=r.id WHERE r.formulario_id=?
+    `).all(req.params.id);
+    const porRespuesta = {};
+    valores.forEach(v => { (porRespuesta[v.respuesta_id]=porRespuesta[v.respuesta_id]||{})[v.pregunta_id]=v.valor; });
+    const filas = respuestas.map(r => ({ id: r.id, fecha: r.fecha, valores: porRespuesta[r.id]||{} }));
+    res.json({ preguntas, respuestas: filas });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── FORMULARIOS: acceso público (sin login) ───────────────────────────────────
+app.get('/pub/formularios/:id', (req, res) => {
+  const f = db.prepare('SELECT id, titulo, descripcion, activo FROM formularios WHERE id=?').get(req.params.id);
+  if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
+  if (!f.activo) return res.status(403).json({ error: 'Este formulario ya no está aceptando respuestas' });
+  const preguntas = db.prepare('SELECT id, orden, tipo, texto_pregunta, opciones, requerida FROM formulario_preguntas WHERE formulario_id=? ORDER BY orden').all(req.params.id);
+  res.json({ ...f, preguntas: preguntas.map(p => ({ ...p, opciones: p.opciones ? JSON.parse(p.opciones) : [] })) });
+});
+app.post('/pub/formularios/:id/responder', (req, res) => {
+  const f = db.prepare('SELECT id, activo FROM formularios WHERE id=?').get(req.params.id);
+  if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
+  if (!f.activo) return res.status(403).json({ error: 'Este formulario ya no está aceptando respuestas' });
+  const { respuestas } = req.body;
+  if (!respuestas || typeof respuestas !== 'object') return res.status(400).json({ error: 'Respuestas inválidas' });
+  try {
+    const preguntas = db.prepare('SELECT id, requerida FROM formulario_preguntas WHERE formulario_id=?').all(req.params.id);
+    for (const p of preguntas) {
+      if (p.requerida && !String(respuestas[p.id]||'').trim()) {
+        return res.status(400).json({ error: 'Faltan responder preguntas obligatorias' });
+      }
+    }
+    const rid = 'resp_' + Date.now();
+    db.prepare('INSERT INTO formulario_respuestas (id,formulario_id) VALUES (?,?)').run(rid, req.params.id);
+    const insVal = db.prepare('INSERT INTO formulario_respuesta_valores (id,respuesta_id,pregunta_id,valor) VALUES (?,?,?,?)');
+    Object.entries(respuestas).forEach(([pid, valor], i) => {
+      if (String(valor||'').trim()) insVal.run('rv_'+Date.now()+'_'+i, rid, pid, String(valor));
+    });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.use((err, req, res, next) => {
   console.error('Error no manejado:', err.message);
   try { audit('sistema', 'ERROR', req.path, null, { error: err.message, method: req.method }); } catch {}
@@ -9544,6 +9759,7 @@ app.get('/pub/buscar-alumno', (req, res) => {
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
 app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
 app.get('/incorporacion-academica', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','incorporacion-academica.html')));
+app.get('/formulario/:id', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','formulario-publico.html')));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {

@@ -1485,6 +1485,7 @@ function go(p, _fromHistory){
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,
     solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,limpieza:pgLimpieza,interesados:pgInteresados,papelera:pgPapelera,
+    documentos:pgDocumentos,formularios:pgFormularios,
     'pagos-pendientes-wa':pgPagosPendientesWA,
     whatsapp:pgWhatsApp,'wa-chat':pgWaChat,
     'repositorio':pgRepositorio,
@@ -6292,6 +6293,215 @@ async function repoTab(tab){
     if(!divC.dataset.loaded){divC.dataset.loaded='1'; await pgRepContenidos(divC);}
   }
 }
+// ── DOCUMENTOS (repositorio institucional tipo Drive) ────────────────────────
+async function pgDocumentos(el){
+  el.innerHTML=`<div class="ph"><h3>🗂️ Documentos institucionales</h3></div>
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:10px">⬆ Subir documento (Word, Excel, PowerPoint, PDF...)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Archivo</label>
+        <input type="file" id="docArchivo" style="width:100%;font-size:13px"/>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Categoría (opcional)</label>
+        <input type="text" id="docCategoria" placeholder="Ej: Actas, Reglamentos..." style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px"/>
+      </div>
+      <div style="flex:2;min-width:200px">
+        <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px">Descripción (opcional)</label>
+        <input type="text" id="docDescripcion" placeholder="Notas sobre el archivo" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px"/>
+      </div>
+      <button class="bn" onclick="subirDocumento()">⬆ Subir</button>
+    </div>
+    <div id="docSubirMsg" style="margin-top:8px;font-size:12px"></div>
+  </div>
+  <div id="docLista"><div class="es">Cargando...</div></div>`;
+  await cargarDocumentos();
+}
+async function cargarDocumentos(){
+  const cont=document.getElementById('docLista');
+  if(!cont)return;
+  let docs=[];
+  try{ docs=await api('GET','/api/documentos'); }catch(e){ cont.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`; return; }
+  if(!docs.length){ cont.innerHTML='<div class="es">Sin documentos subidos todavía.</div>'; return; }
+  const iconoPor=(mime)=>{
+    if(!mime) return '📄';
+    if(mime.includes('word')||mime.includes('document')) return '📄';
+    if(mime.includes('sheet')||mime.includes('excel')) return '📊';
+    if(mime.includes('presentation')||mime.includes('powerpoint')) return '📽️';
+    if(mime.includes('pdf')) return '📕';
+    return '📄';
+  };
+  const fmtSize=(n)=>{ if(!n) return '—'; if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; };
+  cont.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Archivo</th><th>Categoría</th><th>Descripción</th><th>Subido por</th><th>Fecha</th><th>Tamaño</th><th>Acción</th></tr></thead>
+    <tbody>${docs.map(d=>`<tr>
+      <td style="font-weight:600">${iconoPor(d.mime_tipo)} ${d.nombre_archivo}</td>
+      <td style="font-size:12px;color:#64748b">${d.categoria||'—'}</td>
+      <td style="font-size:12px;color:#64748b">${d.descripcion||'—'}</td>
+      <td style="font-size:12px;color:#64748b">${d.subido_por_apellido?d.subido_por_apellido+', '+d.subido_por_nombre:'—'}</td>
+      <td style="font-size:12px;color:#64748b;white-space:nowrap">${(d.fecha||'').slice(0,16)}</td>
+      <td style="font-size:12px;color:#64748b">${fmtSize(d.tamano)}</td>
+      <td><div style="display:flex;gap:5px">
+        <button class="bs" style="font-size:11px" onclick="window.open('/api/documentos/${d.id}/descargar','_blank')">⬇ Descargar</button>
+        <button class="bs d" style="font-size:11px" onclick="eliminarDocumento('${d.id}','${(d.nombre_archivo||'').replace(/'/g,"\\'")}')">🗑</button>
+      </div></td>
+    </tr>`).join('')}</tbody>
+  </table></div></div>`;
+}
+async function subirDocumento(){
+  const inp=document.getElementById('docArchivo');
+  const msg=document.getElementById('docSubirMsg');
+  if(!inp.files.length){ msg.innerHTML='<span style="color:#dc2626">⚠ Seleccioná un archivo primero</span>'; return; }
+  const fd=new FormData();
+  fd.append('archivo', inp.files[0]);
+  fd.append('categoria', document.getElementById('docCategoria').value||'');
+  fd.append('descripcion', document.getElementById('docDescripcion').value||'');
+  msg.innerHTML='<span style="color:#64748b">Subiendo...</span>';
+  try{
+    const token=localStorage.getItem('its_tk3');
+    const res=await fetch('/api/documentos', { method:'POST', headers:{ 'Authorization':'Bearer '+token }, body:fd });
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Error al subir');
+    msg.innerHTML='<span style="color:#059669">✓ Documento subido correctamente</span>';
+    inp.value=''; document.getElementById('docCategoria').value=''; document.getElementById('docDescripcion').value='';
+    await cargarDocumentos();
+  }catch(e){ msg.innerHTML='<span style="color:#dc2626">❌ '+e.message+'</span>'; }
+}
+async function eliminarDocumento(id,nombre){
+  if(!confirm('¿Eliminar "'+nombre+'"? Esta acción no se puede deshacer.'))return;
+  try{ await api('DELETE','/api/documentos/'+id); toast('✓ Documento eliminado','ok'); await cargarDocumentos(); }
+  catch(e){ toast('Error: '+e.message,'err'); }
+}
+
+// ── FORMULARIOS (tipo Google Forms) ───────────────────────────────────────────
+async function pgFormularios(el){
+  el.innerHTML=`<div class="ph"><h3>📝 Formularios</h3>
+    <button class="bn" onclick="mCrearFormulario()">➕ Nuevo formulario</button>
+  </div>
+  <div id="formLista"><div class="es">Cargando...</div></div>`;
+  await cargarFormularios();
+}
+async function cargarFormularios(){
+  const cont=document.getElementById('formLista');
+  if(!cont)return;
+  let forms=[];
+  try{ forms=await api('GET','/api/formularios'); }catch(e){ cont.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`; return; }
+  if(!forms.length){ cont.innerHTML='<div class="es">Todavía no creaste ningún formulario.</div>'; return; }
+  cont.innerHTML=forms.map(f=>`<div class="card" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:700;font-size:14px;color:#1e293b">${f.titulo} ${f.activo?'<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px">Activo</span>':'<span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px">Inactivo</span>'}</div>
+        ${f.descripcion?`<div style="font-size:12px;color:#64748b;margin-top:3px">${f.descripcion}</div>`:''}
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px">📊 ${f.total_respuestas} respuesta${f.total_respuestas!==1?'s':''} · Creado ${(f.fecha_creacion||'').slice(0,10)}</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="bs" style="font-size:11px" onclick="copiarLinkFormulario('${f.id}')">📋 Copiar link</button>
+        <button class="bs" style="font-size:11px" onclick="window.open('/formulario/${f.id}','_blank')">🔗 Abrir</button>
+        <button class="bs" style="font-size:11px" onclick="mEditarPreguntas('${f.id}')">✏️ Preguntas</button>
+        <button class="bs" style="font-size:11px;background:#eff6ff;color:#1d4ed8" onclick="verRespuestasFormulario('${f.id}')">📊 Respuestas</button>
+        <button class="bs" style="font-size:11px" onclick="toggleActivoFormulario('${f.id}',${f.activo?0:1})">${f.activo?'⏸ Pausar':'▶ Reactivar'}</button>
+        <button class="bs d" style="font-size:11px" onclick="eliminarFormulario('${f.id}','${(f.titulo||'').replace(/'/g,"\\'")}')">🗑</button>
+      </div>
+    </div>
+  </div>`).join('');
+}
+function copiarLinkFormulario(id){
+  const link=location.origin+'/formulario/'+id;
+  navigator.clipboard.writeText(link).then(()=>toast('✓ Link copiado — pegalo en tu WhatsApp','ok',3000)).catch(()=>prompt('Copiá este link:',link));
+}
+async function toggleActivoFormulario(id,activo){
+  try{ await api('PUT','/api/formularios/'+id,{activo}); await cargarFormularios(); }
+  catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function eliminarFormulario(id,titulo){
+  if(!confirm('¿Eliminar el formulario "'+titulo+'" y todas sus respuestas? Esta acción no se puede deshacer.'))return;
+  try{ await api('DELETE','/api/formularios/'+id); toast('✓ Formulario eliminado','ok'); await cargarFormularios(); }
+  catch(e){ toast('Error: '+e.message,'err'); }
+}
+function mCrearFormulario(){
+  modal(`<h4>➕ Nuevo formulario</h4><div class="fg">
+    <div class="f"><label>Título <span style="color:var(--red)">*</span></label><input id="nfTitulo" placeholder="Ej: Encuesta de satisfacción"/></div>
+    <div class="f"><label>Descripción (opcional)</label><textarea id="nfDesc" rows="2" placeholder="Qué es este formulario, para quién es..."></textarea></div>
+  </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="crearFormulario()">Crear</button></div>`);
+}
+async function crearFormulario(){
+  const titulo=v('nfTitulo'), descripcion=v('nfDesc');
+  if(!titulo) return alert('El título es obligatorio');
+  try{
+    const r=await api('POST','/api/formularios',{titulo,descripcion});
+    cm(); toast('✓ Formulario creado','ok');
+    await cargarFormularios();
+    mEditarPreguntas(r.id);
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function mEditarPreguntas(id){
+  const f=await api('GET','/api/formularios/'+id);
+  W._formEditando=f;
+  modal(`<h4>✏️ Preguntas — ${f.titulo}</h4>
+    <div id="fpLista" style="margin-bottom:14px">${renderPreguntasList(f.preguntas)}</div>
+    <div style="border-top:1.5px solid #e2e8f0;padding-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">➕ Agregar pregunta</div>
+      <div class="fg">
+        <div class="f"><label>Texto de la pregunta</label><input id="fpTexto" placeholder="Ej: ¿Cómo calificarías...?"/></div>
+        <div class="fr">
+          <div class="f"><label>Tipo</label><select id="fpTipo" onchange="fpTipoChange()">
+            <option value="texto">Texto libre</option>
+            <option value="opcion_multiple">Opción múltiple</option>
+          </select></div>
+          <div class="f" style="display:flex;align-items:flex-end;padding-bottom:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="checkbox" id="fpRequerida" style="width:auto"/> Obligatoria</label>
+          </div>
+        </div>
+        <div class="f" id="fpOpcionesWrap" style="display:none"><label>Opciones (una por línea, mínimo 2)</label><textarea id="fpOpciones" rows="3" placeholder="Opción 1\nOpción 2\nOpción 3"></textarea></div>
+      </div>
+      <button class="bn" style="margin-top:8px" onclick="agregarPregunta('${id}')">➕ Agregar</button>
+    </div>
+    <div class="mf"><button class="bs" onclick="cm();cargarFormularios()">Cerrar</button></div>`);
+}
+function renderPreguntasList(preguntas){
+  if(!preguntas.length) return '<div style="font-size:12px;color:#94a3b8;text-align:center;padding:14px">Sin preguntas todavía. Agregá la primera abajo.</div>';
+  return preguntas.map((p,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;margin-bottom:6px">
+    <div style="min-width:0">
+      <div style="font-size:13px;font-weight:600">${i+1}. ${p.texto_pregunta} ${p.requerida?'<span style="color:#dc2626">*</span>':''}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">${p.tipo==='texto'?'Texto libre':'Opción múltiple: '+(p.opciones||[]).join(', ')}</div>
+    </div>
+    <button class="bs d" style="font-size:11px;flex-shrink:0" onclick="eliminarPregunta('${p.formulario_id}','${p.id}')">🗑</button>
+  </div>`).join('');
+}
+function fpTipoChange(){
+  const tipo=v('fpTipo');
+  document.getElementById('fpOpcionesWrap').style.display=tipo==='opcion_multiple'?'':'none';
+}
+async function agregarPregunta(formId){
+  const tipo=v('fpTipo'), texto_pregunta=v('fpTexto'), requerida=document.getElementById('fpRequerida').checked;
+  if(!texto_pregunta) return alert('Escribí el texto de la pregunta');
+  let opciones=[];
+  if(tipo==='opcion_multiple'){
+    opciones=(v('fpOpciones')||'').split('\n').map(o=>o.trim()).filter(Boolean);
+    if(opciones.length<2) return alert('Opción múltiple necesita al menos 2 opciones');
+  }
+  try{
+    await api('POST','/api/formularios/'+formId+'/preguntas',{tipo,texto_pregunta,opciones,requerida});
+    mEditarPreguntas(formId);
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function eliminarPregunta(formId,pid){
+  if(!confirm('¿Eliminar esta pregunta? Se perderán las respuestas ya guardadas para ella.'))return;
+  try{ await api('DELETE','/api/formularios/'+formId+'/preguntas/'+pid); mEditarPreguntas(formId); }
+  catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function verRespuestasFormulario(id){
+  const data=await api('GET','/api/formularios/'+id+'/respuestas');
+  if(!data.preguntas.length){ modal('<h4>📊 Respuestas</h4><div class="es">Este formulario todavía no tiene preguntas.</div><div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>'); return; }
+  if(!data.respuestas.length){ modal('<h4>📊 Respuestas</h4><div class="es">Todavía no hay respuestas para este formulario.</div><div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>'); return; }
+  const tabla=`<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>Fecha</th>${data.preguntas.map(p=>`<th>${p.texto_pregunta}</th>`).join('')}</tr></thead>
+    <tbody>${data.respuestas.map(r=>`<tr><td style="font-size:11px;white-space:nowrap;color:#64748b">${(r.fecha||'').slice(0,16)}</td>${data.preguntas.map(p=>`<td style="font-size:12px">${r.valores[p.id]||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+  modal(`<h4>📊 Respuestas (${data.respuestas.length})</h4>${tabla}<div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`, true);
+}
+
 async function pgRepProgramas(el){
   const [carrs,mats,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/materias'),api('GET','/api/cursos')]);
   W._repCarrs=carrs; W._repMats=mats; W._repCursos=cursos;
@@ -8204,6 +8414,8 @@ function pgHubPrincipal(el){
     ${_mCardSm('usuarios','🔑','Usuarios','Accesos al sistema','#dc2626','#fef2f2')}
     ${_mCardSm('institucion','🏛️','Institución','Datos del instituto','#64748b','#f8fafc')}
     ${_mCardSm('auditoria','🔍','Auditoría','Registro de acciones','#6d28d9','#f5f3ff')}
+    ${_mCardSm('documentos','🗂️','Documentos','Archivos institucionales','#0d9488','#f0fdfa')}
+    ${_mCardSm('formularios','📝','Formularios','Crear y ver respuestas','#7c3aed','#f5f3ff')}
   </div>`:''}`;
 }
 function pgHubCarreras(el){

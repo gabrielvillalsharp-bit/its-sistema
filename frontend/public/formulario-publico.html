@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Formulario — ITS Santísima Trinidad</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#1a202c}
+.wrap{max-width:560px;margin:0 auto;padding:16px 14px 40px}
+
+.header{background:linear-gradient(160deg,#7c3aed 0%,#6d28d9 60%,#5b21b6 100%);color:#fff;border-radius:18px;padding:24px 20px 20px;margin-bottom:16px;text-align:center;box-shadow:0 6px 24px rgba(109,40,217,.35)}
+.header-logo{width:60px;height:60px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 12px}
+.header h1{font-size:19px;font-weight:900;letter-spacing:-.3px;margin-bottom:4px}
+.header-sub{font-size:13px;opacity:.9;font-weight:600}
+
+.card{background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:12px}
+.card-title{font-size:17px;font-weight:800;color:#1a202c;margin-bottom:6px}
+.card-sub{font-size:13px;color:#718096;margin-bottom:6px;line-height:1.5}
+
+.field{margin-bottom:18px}
+label{font-size:13px;font-weight:700;color:#374151;margin-bottom:7px;display:block;line-height:1.4}
+input[type=text],textarea{width:100%;padding:12px 14px;border:2px solid #e2e8f0;border-radius:12px;font-size:14px;outline:none;transition:border .2s,box-shadow .2s;background:#fafafa;color:#1a202c;font-family:inherit}
+input[type=text]:focus,textarea:focus{border-color:#6d28d9;background:#fff;box-shadow:0 0 0 3px rgba(109,40,217,.12)}
+textarea{resize:vertical;min-height:70px}
+
+.opciones{display:flex;flex-direction:column;gap:8px}
+.opcion-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:border .15s,background .15s}
+.opcion-item.sel{border-color:#6d28d9;background:#f5f3ff}
+.opcion-item input{width:16px;height:16px;accent-color:#6d28d9}
+.opcion-item span{font-size:14px;color:#1a202c}
+
+.btn{width:100%;padding:15px;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:linear-gradient(160deg,#7c3aed,#6d28d9);color:#fff;box-shadow:0 4px 16px rgba(109,40,217,.38)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+.alert{padding:13px 15px;border-radius:10px;font-size:13px;margin-bottom:14px;line-height:1.5}
+.alert-err{background:#fee2e2;color:#991b1b;border:1.5px solid #fecaca}
+
+.loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:20px;color:#718096;font-size:14px}
+.spinner{width:20px;height:20px;border:2.5px solid #e2e8f0;border-top-color:#6d28d9;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.success-screen{text-align:center;padding:28px 12px}
+.success-icon{font-size:70px;margin-bottom:14px;animation:pop .4s ease}
+@keyframes pop{0%{transform:scale(.5)}80%{transform:scale(1.12)}100%{transform:scale(1)}}
+.success-title{font-size:22px;font-weight:900;color:#5b21b6;margin-bottom:10px}
+.success-sub{font-size:14px;color:#4a5568;line-height:1.75}
+.req{color:#dc2626;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading"><div class="spinner"></div> Cargando formulario...</div>
+</div>
+
+<script>
+const FORM_ID = location.pathname.split('/').filter(Boolean).pop();
+let formData = null;
+const respuestas = {};
+
+async function init() {
+  try {
+    const res = await fetch('/pub/formularios/'+FORM_ID);
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('app').innerHTML = `<div class="card"><div class="alert alert-err">❌ ${data.error||'No se pudo cargar el formulario.'}</div></div>`;
+      return;
+    }
+    formData = data;
+    renderForm();
+  } catch(e) {
+    document.getElementById('app').innerHTML = `<div class="card"><div class="alert alert-err">❌ Error al cargar. Intentá de nuevo en unos segundos.</div><button onclick="init()" style="margin-top:12px;padding:10px 20px;border:none;border-radius:8px;background:#6d28d9;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Reintentar</button></div>`;
+  }
+}
+
+function renderForm() {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">📝</div>
+      <h1>ITS Santísima Trinidad</h1>
+      <div class="header-sub">Formulario</div>
+    </div>
+    <div class="card">
+      <div class="card-title">${formData.titulo}</div>
+      ${formData.descripcion?`<div class="card-sub">${formData.descripcion}</div>`:''}
+    </div>
+    <div id="preguntas-wrap"></div>
+    <div class="card">
+      <div id="err-form"></div>
+      <button class="btn btn-primary" id="btn-enviar" onclick="enviar()">📤 Enviar respuestas</button>
+    </div>`;
+  const wrap = document.getElementById('preguntas-wrap');
+  wrap.innerHTML = formData.preguntas.map(p => {
+    if (p.tipo === 'texto') {
+      return `<div class="card"><div class="field" style="margin-bottom:0">
+        <label>${p.texto_pregunta}${p.requerida?'<span class="req">*</span>':''}</label>
+        <textarea id="preg-${p.id}" oninput="respuestas['${p.id}']=this.value"></textarea>
+      </div></div>`;
+    }
+    const opts = (p.opciones||[]).map((o,i) => `
+      <div class="opcion-item" id="opt-${p.id}-${i}" onclick="seleccionarOpcion('${p.id}',${i},'${o.replace(/'/g,"\\'")}')">
+        <input type="radio" name="preg-${p.id}" ${i===0?'':''}/>
+        <span>${o}</span>
+      </div>`).join('');
+    return `<div class="card"><div class="field" style="margin-bottom:0">
+      <label>${p.texto_pregunta}${p.requerida?'<span class="req">*</span>':''}</label>
+      <div class="opciones">${opts}</div>
+    </div></div>`;
+  }).join('');
+}
+
+function seleccionarOpcion(pid, idx, valor) {
+  respuestas[pid] = valor;
+  (formData.preguntas.find(p=>p.id===pid).opciones||[]).forEach((_,i) => {
+    const el = document.getElementById('opt-'+pid+'-'+i);
+    if (el) {
+      el.classList.toggle('sel', i===idx);
+      const radio = el.querySelector('input');
+      if (radio) radio.checked = i===idx;
+    }
+  });
+}
+
+async function enviar() {
+  const err = document.getElementById('err-form');
+  const faltantes = formData.preguntas.filter(p => p.requerida && !String(respuestas[p.id]||'').trim());
+  if (faltantes.length) {
+    err.innerHTML = '<div class="alert alert-err">⚠️ Completá todas las preguntas obligatorias (marcadas con *).</div>';
+    return;
+  }
+  err.innerHTML = '';
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="border-top-color:#fff"></div> Enviando...';
+  try {
+    const res = await fetch('/pub/formularios/'+FORM_ID+'/responder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ respuestas })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      btn.disabled = false;
+      btn.innerHTML = '📤 Enviar respuestas';
+      err.innerHTML = `<div class="alert alert-err">❌ ${data.error}</div>`;
+      return;
+    }
+    renderExito();
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '📤 Enviar respuestas';
+    err.innerHTML = '<div class="alert alert-err">❌ Error de conexión. Verificá tu internet e intentá de nuevo.</div>';
+  }
+}
+
+function renderExito() {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">📝</div>
+      <h1>ITS Santísima Trinidad</h1>
+      <div class="header-sub">Formulario</div>
+    </div>
+    <div class="card">
+      <div class="success-screen">
+        <div class="success-icon">✅</div>
+        <div class="success-title">¡Respuesta enviada!</div>
+        <div class="success-sub">Gracias por completar el formulario.</div>
+      </div>
+    </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
