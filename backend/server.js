@@ -104,6 +104,13 @@ try {
     subido_por TEXT REFERENCES usuarios(id),
     fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   )`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS documento_carpetas (
+    id TEXT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    creado_por TEXT REFERENCES usuarios(id),
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`).run();
+  try { db.prepare('ALTER TABLE documentos ADD COLUMN carpeta_id TEXT REFERENCES documento_carpetas(id)').run(); } catch {}
 } catch(e) { console.warn('[Migración] documentos:', e.message); }
 
 // ── MIGRACIÓN: tablas de formularios (tipo Google Forms) ─────────────────────
@@ -8752,14 +8759,47 @@ app.delete('/api/repositorio/:id', auth(['director','docente']), (req, res) => {
 });
 
 // ── DOCUMENTOS (repositorio institucional tipo Drive) ─────────────────────────
-app.get('/api/documentos', auth(), (req, res) => {
+app.get('/api/documento-carpetas', auth(), (req, res) => {
   try {
     const rows = db.prepare(`
-      SELECT d.id, d.nombre_archivo, d.mime_tipo, d.tamano, d.categoria, d.descripcion, d.fecha,
+      SELECT c.id, c.nombre, c.fecha, (SELECT COUNT(*) FROM documentos d WHERE d.carpeta_id=c.id) as total_archivos
+      FROM documento_carpetas c ORDER BY c.nombre
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/documento-carpetas', auth(ADM), (req, res) => {
+  const { nombre } = req.body;
+  if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'Nombre de carpeta requerido' });
+  try {
+    const id = 'carp_' + Date.now();
+    db.prepare('INSERT INTO documento_carpetas (id,nombre,creado_por) VALUES (?,?,?)').run(id, nombre.trim(), req.user.id);
+    audit(req.user.id, 'CREAR_CARPETA_DOCUMENTOS', 'documento_carpetas', id, { nombre });
+    res.json({ id, ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
+  try {
+    const enUso = db.prepare('SELECT COUNT(*) n FROM documentos WHERE carpeta_id=?').get(req.params.id).n;
+    if (enUso > 0) return res.status(409).json({ error: `La carpeta tiene ${enUso} archivo(s). Movelos o eliminalos antes de borrar la carpeta.` });
+    db.prepare('DELETE FROM documento_carpetas WHERE id=?').run(req.params.id);
+    audit(req.user.id, 'ELIMINAR_CARPETA_DOCUMENTOS', 'documento_carpetas', req.params.id, {});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/documentos', auth(), (req, res) => {
+  try {
+    const { carpeta_id } = req.query;
+    let where = '';
+    const params = [];
+    if (carpeta_id) { where = 'WHERE d.carpeta_id=?'; params.push(carpeta_id); }
+    const rows = db.prepare(`
+      SELECT d.id, d.nombre_archivo, d.mime_tipo, d.tamano, d.categoria, d.descripcion, d.fecha, d.carpeta_id,
         u.nombre as subido_por_nombre, u.apellido as subido_por_apellido
       FROM documentos d LEFT JOIN usuarios u ON d.subido_por=u.id
+      ${where}
       ORDER BY d.fecha DESC
-    `).all();
+    `).all(...params);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -8767,8 +8807,8 @@ app.post('/api/documentos', auth(ADM), upload.single('archivo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Archivo requerido' });
   try {
     const id = 'doc_' + Date.now();
-    db.prepare('INSERT INTO documentos (id,nombre_archivo,datos,mime_tipo,tamano,categoria,descripcion,subido_por) VALUES (?,?,?,?,?,?,?,?)')
-      .run(id, req.file.originalname, req.file.buffer, req.file.mimetype, req.file.size, req.body.categoria||null, req.body.descripcion||null, req.user.id);
+    db.prepare('INSERT INTO documentos (id,nombre_archivo,datos,mime_tipo,tamano,categoria,descripcion,subido_por,carpeta_id) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(id, req.file.originalname, req.file.buffer, req.file.mimetype, req.file.size, req.body.categoria||null, req.body.descripcion||null, req.user.id, req.body.carpeta_id||null);
     audit(req.user.id, 'SUBIR_DOCUMENTO', 'documentos', id, { nombre: req.file.originalname });
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -8779,6 +8819,12 @@ app.get('/api/documentos/:id/descargar', auth(), (req, res) => {
   res.setHeader('Content-Type', d.mime_tipo || 'application/octet-stream');
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(d.nombre_archivo)}"`);
   res.send(d.datos);
+});
+app.put('/api/documentos/:id/mover', auth(ADM), (req, res) => {
+  try {
+    db.prepare('UPDATE documentos SET carpeta_id=? WHERE id=?').run(req.body.carpeta_id||null, req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.delete('/api/documentos/:id', auth(ADM), (req, res) => {
   try {
