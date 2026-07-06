@@ -6326,26 +6326,29 @@ async function cargarDocumentos(){
   let docs=[];
   try{ docs=await api('GET','/api/documentos'); }catch(e){ cont.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`; return; }
   if(!docs.length){ cont.innerHTML='<div class="es">Sin documentos subidos todavía.</div>'; return; }
-  const iconoPor=(mime)=>{
-    if(!mime) return '📄';
-    if(mime.includes('word')||mime.includes('document')) return '📄';
-    if(mime.includes('sheet')||mime.includes('excel')) return '📊';
-    if(mime.includes('presentation')||mime.includes('powerpoint')) return '📽️';
-    if(mime.includes('pdf')) return '📕';
+  const iconoPor=(mime,nombre)=>{
+    const ext=(nombre||'').toLowerCase().split('.').pop();
+    const m=(mime||'').toLowerCase();
+    if(m.includes('sheet')||m.includes('excel')||['xlsx','xls','csv'].includes(ext)) return '📊';
+    if(m.includes('presentation')||m.includes('powerpoint')||['pptx','ppt'].includes(ext)) return '📽️';
+    if(m.includes('pdf')||ext==='pdf') return '📕';
+    if(m.includes('word')||m.includes('document')||['doc','docx'].includes(ext)) return '📄';
+    if(m.includes('image')||['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return '🖼️';
+    if(m.includes('zip')||m.includes('compressed')||['zip','rar','7z'].includes(ext)) return '🗜️';
     return '📄';
   };
   const fmtSize=(n)=>{ if(!n) return '—'; if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; };
   cont.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Archivo</th><th>Categoría</th><th>Descripción</th><th>Subido por</th><th>Fecha</th><th>Tamaño</th><th>Acción</th></tr></thead>
     <tbody>${docs.map(d=>`<tr>
-      <td style="font-weight:600">${iconoPor(d.mime_tipo)} ${d.nombre_archivo}</td>
+      <td style="font-weight:600">${iconoPor(d.mime_tipo,d.nombre_archivo)} ${d.nombre_archivo}</td>
       <td style="font-size:12px;color:#64748b">${d.categoria||'—'}</td>
       <td style="font-size:12px;color:#64748b">${d.descripcion||'—'}</td>
       <td style="font-size:12px;color:#64748b">${d.subido_por_apellido?d.subido_por_apellido+', '+d.subido_por_nombre:'—'}</td>
       <td style="font-size:12px;color:#64748b;white-space:nowrap">${(d.fecha||'').slice(0,16)}</td>
       <td style="font-size:12px;color:#64748b">${fmtSize(d.tamano)}</td>
       <td><div style="display:flex;gap:5px">
-        <button class="bs" style="font-size:11px" onclick="window.open('/api/documentos/${d.id}/descargar','_blank')">⬇ Descargar</button>
+        <button class="bs" style="font-size:11px" onclick="descargarDocumento('${d.id}')">⬇ Descargar</button>
         <button class="bs d" style="font-size:11px" onclick="eliminarDocumento('${d.id}','${(d.nombre_archivo||'').replace(/'/g,"\\'")}')">🗑</button>
       </div></td>
     </tr>`).join('')}</tbody>
@@ -6374,6 +6377,10 @@ async function eliminarDocumento(id,nombre){
   if(!confirm('¿Eliminar "'+nombre+'"? Esta acción no se puede deshacer.'))return;
   try{ await api('DELETE','/api/documentos/'+id); toast('✓ Documento eliminado','ok'); await cargarDocumentos(); }
   catch(e){ toast('Error: '+e.message,'err'); }
+}
+function descargarDocumento(id){
+  const token=localStorage.getItem('its_tk3');
+  window.open('/api/documentos/'+id+'/descargar?token='+encodeURIComponent(token),'_blank');
 }
 
 // ── FORMULARIOS (tipo Google Forms) ───────────────────────────────────────────
