@@ -969,6 +969,40 @@ try {
   console.log('[Migración] ' + n + ' exámenes finales revertidos a su fecha/hora original (v3) ✓');
 } catch(e) { console.warn('[Migración] Revertir reprogramación finales v3:', e.message); }
 
+// ── MIGRACIÓN: Bonus +5 puntos por participación en Desfile Estudiantil ──────
+// El director otorgó 5 puntos (director_pts) a cada alumno que participó en
+// el desfile, en TODAS las materias que cursa en el período activo. Lista de
+// 74 alumnos verificada por nombre contra la planilla de registro (81 filas
+// originales, con 7 duplicados de la misma persona colapsados a 1 cada uno).
+// Se suma (no pisa) sobre cualquier director_pts previo, y se recalcula
+// puntaje/nota/estado con la misma fórmula que usa el endpoint de notas.
+// Guardado en `configuracion` para que no se vuelva a aplicar en cada reinicio.
+try {
+  const YA_APLICADO = db.prepare("SELECT valor FROM configuracion WHERE clave='bonus_desfile_2026_aplicado'").get();
+  if (!YA_APLICADO) {
+    const alumnosDesfile2026 = ["a_1778452927866_dr9","a_1778617099579_vew","a_1778617099706_lb1","a_1778617099390_kln","a_1780610085297","a_1778617098735_1k6","a_1779148835323","a_imp_56_l7qi","a_1778617161902_jwx","a_1780612058269","a_1778617098869_eho","a_1778617162409_v40","a_1778617099326_rvq","a_1779323444008","a_1778617100150_flp","a_imp_101_dwt4","a_imp_40_61j1","a_imp_30_q9bq","a_1778617098935_nnu","a_1778617099643_ify","a_1779323522518","a_imp_6_ic4m","a_1779297344722","a_1778443280611_4x2","a_1778443279925_42i","a_1778617100086_3kn","a_1778443319200_ed8","a_1778443319404_825","a_1779837025015","a_1778443319866_dld","a_1778443319937_kl7","a_1779837002464","a_1778443320280_ode","a_1778443321283_p1l","a_1778459547038_4iw","a_1778459545141_1n5","a_1778459546562_gnv","a_1778458751407_fhf","a_1778459545744_ovb","a_1779147457946","a_1778459546018_c0z","a_1778459547372_oy6","a_1778459547439_cm9","a_1778459545679_ye8","a_1778443398040_c39","a_1778443398178_ydt","a_1778443397972_9bd","a_1778443398244_sgv","a_1778443398314_b0s","a_1778443399141_nkq","a_1778443398798_3us","a_1778459610702_bv1","a_1778459610569_77v","a_1778459610176_xqt","a_1778459610308_ndi","a_1778459610902_8kr","a_1778446682387_d7v","a_1778446683502_h9r","a_1778446682454_f98","a_1778446682809_8s2","a_1778446682957_vju","a_1778446683370_dih","a_1778446682597_i4a","a_1778460586804_8ei","a_1778460585730_0vm","a_1778460586937_vzp","a_1778446814629_fnv","a_1778446813964_cw8","a_1778461784690_obp","a_1778446814694_0lm","a_1778446814500_j3e","a_1778617098803_hhs","a_1778443398453_o40","a_1778443320424_ijy"];
+    const { calcularPuntaje } = require('./db');
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (periodo) {
+      const updNota = db.prepare('UPDATE notas SET director_pts=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+      let alumnosAfectados = 0, notasAfectadas = 0;
+      alumnosDesfile2026.forEach(aid => {
+        const notas = db.prepare('SELECT n.* FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE n.alumno_id=? AND a.periodo_id=?').all(aid, periodo.id);
+        if (!notas.length) return;
+        alumnosAfectados++;
+        notas.forEach(n => {
+          const nuevoDir = (n.director_pts||0) + 5;
+          const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,nuevoDir);
+          updNota.run(nuevoDir, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+          notasAfectadas++;
+        });
+      });
+      db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('bonus_desfile_2026_aplicado','1','Bonus +5pts Desfile Estudiantil 2026 ya aplicado')").run();
+      console.log(`[Migración] Bonus Desfile Estudiantil: +5pts aplicado a ${alumnosAfectados} alumnos (${notasAfectadas} notas) ✓`);
+    }
+  }
+} catch(e) { console.warn('[Migración] Bonus Desfile Estudiantil:', e.message); }
+
 // ── MIGRACIÓN (CORREGIDA): Fusionar ficha duplicada de Sindy Recalde Pereira ──
 // Diagnóstico real: existen DOS fichas de la misma alumna.
 //   a_1778458688706_zbr (CON-2026-007, CI 6690171) — la ficha "vieja": tiene las
