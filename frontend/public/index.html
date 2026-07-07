@@ -885,6 +885,7 @@ body.mob-alumno .mi-asist-cards{display:block!important}
   <div style="font-size:11px;color:#888;margin-top:8px;text-align:center">
     Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula
   </div>
+  <div style="text-align:center;margin-top:8px"><a href="#" onclick="event.preventDefault();mOlvidePassword()" style="font-size:11px;color:#94a3b8;text-decoration:underline;cursor:pointer">¿Olvidaste tu contraseña?</a></div>
 </div>
 </div>
 
@@ -926,6 +927,7 @@ body.mob-alumno .mi-asist-cards{display:block!important}
       <button class="lp2-btn" onclick="doLogin2()">Ingresar al sistema →</button>
       <div id="le2" style="font-size:12px;color:#b91c1c;margin-top:10px;padding:8px 12px;background:#fff3f3;border-radius:8px;display:none;border:1px solid #fca5a5">Email/CI o contraseña incorrectos</div>
       <div class="lp2-hint">Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula</div>
+      <div style="text-align:center;margin-top:8px"><a href="#" onclick="event.preventDefault();mOlvidePassword()" style="font-size:11px;color:#94a3b8;text-decoration:underline;cursor:pointer">¿Olvidaste tu contraseña?</a></div>
     </div>
   </div>
 </div>
@@ -974,6 +976,7 @@ body.mob-alumno .mi-asist-cards{display:block!important}
     <button class="lp3-btn" onclick="doLogin3()">Ingresar al sistema →</button>
     <div id="le3" style="font-size:12px;color:#b91c1c;margin-top:10px;padding:8px 12px;background:#fff3f3;border-radius:8px;display:none;border:1px solid #fca5a5">Email/CI o contraseña incorrectos</div>
     <div class="lp3-hint">Alumnos: usuario = N° de cédula · contraseña = últimos 3 dígitos de tu cédula</div>
+    <div style="text-align:center;margin-top:10px"><a href="#" onclick="event.preventDefault();mOlvidePassword()" style="font-size:12px;color:#94a3b8;text-decoration:underline;cursor:pointer">¿Olvidaste tu contraseña?</a></div>
   </div>
   </div><!-- /lp3-card-outer -->
 </div>
@@ -1139,6 +1142,67 @@ async function doLogin3(){
   }
 }
 function logout(){tok=null;me=null;localStorage.removeItem('its_tk3');hide('lp');hide('lp2');hide('ap');show('lp3');}
+async function mOlvidePassword(){
+  let carreras=[];
+  try{ carreras=await api('GET','/pub/carreras'); }catch(e){ toast('Error de conexión: '+e.message,'err'); return; }
+  modal(`<h4>🔑 ¿Olvidaste tu contraseña?</h4>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Completá tus datos exactamente como están registrados en el sistema. Si todo coincide, vas a poder elegir una nueva contraseña.</p>
+    <div id="opErr"></div>
+    <div class="fg">
+      <div class="fr">
+        <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="opNombre" placeholder="Tu nombre"/></div>
+        <div class="f"><label>Apellido <span style="color:var(--red)">*</span></label><input id="opApellido" placeholder="Tu apellido"/></div>
+      </div>
+      <div class="fr">
+        <div class="f"><label>Cédula de identidad <span style="color:var(--red)">*</span></label><input id="opCi" type="tel" inputmode="numeric" placeholder="Solo números"/></div>
+        <div class="f"><label>Usuario <span style="color:var(--red)">*</span></label><input id="opUsuario" placeholder="Tu número de cédula (usuario)"/></div>
+      </div>
+      <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+        <select id="opCarrera" onchange="opCargarCursos()">
+          <option value="">— Seleccioná tu carrera —</option>
+          ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div class="f"><label>Año y sección <span style="color:var(--red)">*</span></label>
+        <select id="opCurso"><option value="">— Primero seleccioná carrera —</option></select>
+      </div>
+      <div class="f"><label>Número de teléfono <span style="color:var(--red)">*</span></label><input id="opTelefono" type="tel" placeholder="Ej: 0981123456"/></div>
+    </div>
+    <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" id="opBtnVerificar" onclick="opVerificarIdentidad()">Verificar</button></div>`);
+}
+async function opCargarCursos(){
+  const carreraId=v('opCarrera');
+  const sel=document.getElementById('opCurso');
+  if(!sel)return;
+  if(!carreraId){ sel.innerHTML='<option value="">— Primero seleccioná carrera —</option>'; return; }
+  sel.innerHTML='<option value="">Cargando...</option>';
+  try{
+    const cursos=await api('GET','/pub/carrera/'+carreraId+'/cursos');
+    sel.innerHTML='<option value="">— Seleccionar —</option>'+cursos.map(c=>`<option value="${c.id}">${c.anio}° año${c.division&&c.division!=='U'?' Secc. '+c.division:''}</option>`).join('');
+  }catch(e){ sel.innerHTML='<option value="">Error al cargar</option>'; }
+}
+async function opVerificarIdentidad(){
+  const err=document.getElementById('opErr');
+  const nombre=v('opNombre'), apellido=v('opApellido'), ci=v('opCi'), usuario=v('opUsuario'),
+    carrera_id=v('opCarrera'), curso_id=v('opCurso'), telefono=v('opTelefono');
+  if(!nombre||!apellido||!ci||!usuario||!carrera_id||!curso_id||!telefono){
+    err.innerHTML='<div class="alert-err">⚠️ Completá todos los campos.</div>'; return;
+  }
+  const btn=document.getElementById('opBtnVerificar');
+  btn.disabled=true; btn.textContent='Verificando...';
+  err.innerHTML='';
+  try{
+    const r=await api('POST','/pub/olvide-password/verificar',{nombre,apellido,ci,usuario,carrera_id,curso_id,telefono});
+    modal(`<h4>✅ Contraseña restablecida</h4>
+      <p style="font-size:13px;color:var(--t2);line-height:1.6">Tu identidad fue verificada. Tu contraseña se restableció a los <strong>últimos 3 dígitos de tu cédula</strong>:</p>
+      <div style="text-align:center;font-size:28px;font-weight:800;color:#166534;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px;margin:12px 0;letter-spacing:2px">${r.ultimos3}</div>
+      <p style="font-size:12px;color:var(--t3)">Usá tu cédula completa como usuario, y estos 3 dígitos como contraseña para iniciar sesión.</p>
+      <div class="mf"><button class="bn" onclick="cm()">Entendido</button></div>`);
+  }catch(e){
+    err.innerHTML='<div class="alert-err">❌ '+e.message+'</div>';
+    btn.disabled=false; btn.textContent='Verificar';
+  }
+}
 function toggleMobMenu(){
   const sb=document.querySelector('.sb');
   const ov=document.getElementById('mob-overlay');

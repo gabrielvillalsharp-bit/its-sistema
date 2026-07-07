@@ -9842,6 +9842,54 @@ app.get('/pub/buscar-alumno', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── OLVIDÉ MI CONTRASEÑA (público, autoservicio con verificación de identidad) ──
+// Sin email/SMS configurado: se verifica identidad pidiendo varios datos que
+// deben coincidir TODOS con la ficha real del alumno (nombre, CI, usuario,
+// carrera, curso y teléfono). Si coinciden, se resetea la contraseña
+// directamente a los últimos 3 dígitos de la cédula — es el mismo valor que
+// /api/login ya acepta siempre como atajo para alumnos (server.js ~línea 1293),
+// así que no tiene sentido dejar elegir una contraseña personalizada: quedaría
+// pisada la próxima vez que alguien entre con esos 3 dígitos igual.
+app.post('/pub/olvide-password/verificar', (req, res) => {
+  const { nombre, apellido, ci, usuario, carrera_id, curso_id, telefono } = req.body;
+  const norm = s => (s||'').toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!nombre || !apellido) return res.status(400).json({ error: 'Nombre y apellido son requeridos' });
+  const ciNorm = String(ci||'').replace(/[^0-9]/g,'');
+  if (ciNorm.length < 4) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
+  if (!usuario || !usuario.trim()) return res.status(400).json({ error: 'Ingresá tu usuario' });
+  if (!carrera_id || !curso_id) return res.status(400).json({ error: 'Seleccioná tu carrera, año y sección' });
+  const telNorm = String(telefono||'').replace(/[^0-9]/g,'');
+  if (telNorm.length < 7) return res.status(400).json({ error: 'Ingresá tu número de teléfono' });
+
+  const GENERICO = { error: 'Los datos ingresados no coinciden con ningún alumno registrado. Verificá que estén bien escritos.' };
+  try {
+    const alumno = db.prepare(`
+      SELECT al.*, u.id as usuario_real_id, u.ci as usuario_ci, u.email as usuario_email, u.activo as usuario_activo
+      FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id
+      WHERE al.ci=? AND al.estado='Activo'
+    `).get(ciNorm);
+    if (!alumno || !alumno.usuario_real_id) return res.status(404).json(GENERICO);
+    if (norm(alumno.nombre) !== norm(nombre) || norm(alumno.apellido) !== norm(apellido)) return res.status(404).json(GENERICO);
+    if (alumno.carrera_id !== carrera_id || alumno.curso_id !== curso_id) return res.status(404).json(GENERICO);
+    if (String(alumno.telefono||'').replace(/[^0-9]/g,'') !== telNorm) return res.status(404).json(GENERICO);
+    const usuarioIngresado = norm(usuario).replace(/[^a-z0-9@. ]/gi,'').trim();
+    const matchUsuario = (alumno.usuario_ci && alumno.usuario_ci===ciNorm) || (alumno.usuario_email && norm(alumno.usuario_email)===norm(usuario)) || usuarioIngresado===ciNorm;
+    if (!matchUsuario) return res.status(404).json(GENERICO);
+    if (!alumno.usuario_activo) return res.status(403).json({ error: 'Tu usuario está inactivo. Comunicate con Dirección.' });
+
+    const ultimos3 = ciNorm.slice(-3);
+    const hash = require('bcryptjs').hashSync(ciNorm, 10);
+    db.prepare('UPDATE usuarios SET password_hash=? WHERE id=?').run(hash, alumno.usuario_real_id);
+    audit(alumno.usuario_real_id, 'RESET_PASSWORD_AUTOSERVICIO', 'usuarios', alumno.usuario_real_id, {});
+    res.json({ ok: true, ultimos3 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
 app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
 app.get('/incorporacion-academica', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','incorporacion-academica.html')));
