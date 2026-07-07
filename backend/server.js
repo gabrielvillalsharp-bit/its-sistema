@@ -1080,6 +1080,43 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus Desfile Estudiantil:', e.message); }
 
+// ── MIGRACIÓN: Bonus +5 puntos por participación en Event Registration ───────
+// Segunda planilla de participación (277 registros originales, 78 ya marcados
+// duplicados por la propia planilla). Cruce por nombre contra la base real:
+// 144 coincidencias exactas, 48 resueltas por nombre parecido (descartado 1
+// falso positivo), 2 fusionadas como duplicados reales de la misma alumna
+// (con conflicto de notas, resuelto con el puntaje mas alto de las dos), y 3
+// sin resolver (se excluyen del bonus, a pedido del director). Total: 190
+// alumnos unicos. Se suma +5 (no pisa) sobre cualquier director_pts previo,
+// con tope duro de 10 (45 de estos alumnos ya tenian +5 del Desfile Estudiantil
+// y quedan exactamente en 10). Guardado en `configuracion` para no reaplicarse.
+try {
+  const YA_APLICADO2 = db.prepare("SELECT valor FROM configuracion WHERE clave='bonus_event_registration_2026_aplicado'").get();
+  if (!YA_APLICADO2) {
+    const alumnosEventReg2026 = ["a_1778452926661_9xy","a_1778452926795_z3w","a_1778452927866_dr9","a_1778452926931_2aj","a_1778443223309_f35","a_1778452927734_p6r","a_1778443222745_o3m","a_1778443222962_y9s","a_1779406623599","a_1778458689045_4kr","a_1778458688300_76g","a_1778458688577_zar","a_1778443279992_n67","a_imp_0_a4l6","a_imp_2_nqpz","a_imp_93_gjw1","a_1778617162219_wwp","a_1778617162728_962","a_imp_6_ic4m","a_1778617162663_s5h","a_1778617100086_3kn","a_1778617099579_vew","a_1778617161839_00i","a_imp_65_xcbc","a_1778443280195_291","a_1778617098735_1k6","a_1778617162791_8yy","a_imp_9_twnl","a_imp_12_c9rl","a_1779148835323","a_1778628627552","a_imp_18_0yrl","a_imp_20_wtsk","a_1778460585465_8vz","a_1778617162283_w4f","a_imp_62_fbgf","a_imp_121_wfdu","a_1780612058269","a_1778617098594_gkd","a_1778617099326_rvq","a_1778617162918_ha9","a_1778617100150_flp","a_imp_30_q9bq","a_1779297439905","a_1778617098935_nnu","a_1778617099643_ify","a_imp_48_yhxs","a_1778443281726_7uc","a_imp_37_ruxu","a_1778617099133_d07","a_imp_53_8f5f","a_1778617161775_gsp","a_1779149063617","a_1778443280544_tp1","a_1778443280748_b0q","a_1781047343332","a_1778443282198_ay0","a_1778443281379_7ti","a_1778458752721_kbn","a_1778443320730_85x","a_1779834464558","a_1778443319591_2q3","a_1778458752261_jo3","a_1778458751341_g61","a_1778443319937_kl7","a_1778458751602_gg6","a_1778443320003_gfv","a_1778458752653_17v","a_1778443320932_hxw","a_1778443321420_a8c","a_1778458752457_bhp","a_1778458752063_gz5","a_1778458752131_ro1","a_1778545299094","a_1778443319338_2c4","a_1778443319486_ejq","a_1778443319866_dld","a_1779837002464","a_1778443320143_lvk","a_1778443320280_ode","a_1778459547239_e8h","a_1778459545076_ffw","a_1778459548244_t3f","a_1778459546562_gnv","a_1780447201734","a_1778459548176_wdf","a_1778459545679_ye8","a_1778443397972_9bd","a_1778459545744_ovb","a_1778459547707_gi5","a_1778459548110_607","a_1778459546632_xuz","a_1778459545882_e8q","a_1778459546358_fne","a_1778459546290_bzt","a_1780447195052","a_1778459547372_oy6","a_1778459610308_ndi","a_1778459547439_cm9","a_1778459610504_mrv","a_1778459547774_3w0","a_1778443399074_6u4","a_1778458688773_bnp","a_1778459547505_av5","a_1778443398178_ydt","a_1778443398314_b0s","a_1778443398798_3us","a_1778459611103_bu3","a_1778459609780_f4n","a_1778459609911_gb5","a_1778459609978_dgo","a_1778459610638_ar1","a_1778459610702_bv1","a_1778460281546_j83","a_1778459610569_77v","a_1778459610243_gpv","a_1778459610902_8kr","a_1778446682597_i4a","a_1778446788139_4aq","a_1778460587396_kh0","a_1778446787067_5jp","a_1778460586804_8ei","a_1778446788006_ass","a_1778460586407_3nh","a_1778446787342_g7b","a_1779150367342","a_1778446787940_ycb","a_1778446787001_nei","a_1778446788208_zoj","a_1778459544942_x25","a_1778446813360_jr6","a_1778446813565_mwp","a_1778461784625_m8j","a_1778446814694_0lm","a_1778446813833_scy","a_1778461784690_obp","a_1778896860362","a_1779840722704","a_1778446814167_1hw","a_1778446814500_j3e","a_1778446814828_0ue","a_1778896866597","a_1778630286039","a_1778617099959_ycf","a_1778617099706_lb1","a_1778443280680_a6r","a_imp_110_7wyz","a_1778617162346_ikw","a_imp_56_l7qi","a_imp_15_r4nw","a_1778617161902_jwx","a_imp_26_fu8e","a_imp_101_dwt4","a_imp_40_61j1","a_imp_35_k46t","a_imp_136_t2sp","a_imp_129_jxb5","a_1778617162536_foq","a_1778443281243_8en","a_1778617161518_mid","a_1778628770151","a_1778443280337_0bh","a_1779297405103","a_1778458751141_6ue","a_1779837025015","a_1779400841764","a_1778443320576_eke","a_1778459547038_4iw","a_1778459545009_rra","a_1778443397698_x6c","a_1780447993090","a_1778459546018_c0z","a_1778443397769_pbs","a_1780358785664","a_1778443399007_13q","a_1778459610440_yhs","a_1778459610176_xqt","a_1778459611039_cqc","a_1778446787137_7de","a_1778460586474_5fg","a_1778460586937_vzp","a_1778446787544_uhz","a_1778446813631_1tj","a_1778896864098","a_1778461784287_1id","a_1778461783548_vpu","a_1778446813964_cw8","a_1778446814761_ep1","a_1778617099895_3cr","a_1778617162473_ger"];
+    const { calcularPuntaje } = require('./db');
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (periodo) {
+      const updNota = db.prepare('UPDATE notas SET director_pts=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+      let alumnosAfectados2 = 0, notasAfectadas2 = 0;
+      alumnosEventReg2026.forEach(aid => {
+        const notas = db.prepare('SELECT n.* FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE n.alumno_id=? AND a.periodo_id=?').all(aid, periodo.id);
+        if (!notas.length) return;
+        alumnosAfectados2++;
+        notas.forEach(n => {
+          let nuevoDir = (n.director_pts||0) + 5;
+          if (nuevoDir > 10) nuevoDir = 10;
+          const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,nuevoDir);
+          updNota.run(nuevoDir, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+          notasAfectadas2++;
+        });
+      });
+      db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('bonus_event_registration_2026_aplicado','1','Bonus +5pts Event Registration 2026 ya aplicado')").run();
+      console.log(`[Migración] Bonus Event Registration: +5pts aplicado a ${alumnosAfectados2} alumnos (${notasAfectadas2} notas) ✓`);
+    }
+  }
+} catch(e) { console.warn('[Migración] Bonus Event Registration:', e.message); }
+
 // ── MIGRACIÓN (CORREGIDA): Fusionar ficha duplicada de Sindy Recalde Pereira ──
 // Diagnóstico real: existen DOS fichas de la misma alumna.
 //   a_1778458688706_zbr (CON-2026-007, CI 6690171) — la ficha "vieja": tiene las
