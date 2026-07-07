@@ -10878,7 +10878,7 @@ function filtrarHabsGA(){
   if(tabla) tabla.innerHTML=renderHabsGA(d);
   if(cnt) cnt.textContent=d.length+' registros';
 }
-function imprimirHabsGA(){
+async function imprimirHabsGA(){
   const HAB_LABELS={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
   const d=getHabsGAFiltrados();
   if(!d.length){toast('No hay habilitaciones para los filtros seleccionados','err');return;}
@@ -10894,18 +10894,29 @@ function imprimirHabsGA(){
   if(carr) subFiltros.push(carr);
   if(anio) subFiltros.push(anio+'° año');
   if(sec) subFiltros.push('Sección '+sec);
+  const inst=me.institucion_nombre||'Instituto Técnico Superior Santísima Trinidad';
+  let logoSrc='';
+  try{const lr=await api('GET','/api/logo');if(lr&&lr.logo)logoSrc=lr.logo;}catch(e){}
+  const logoHtml=logoSrc?`<img src="${logoSrc}" style="height:60px;width:auto;object-fit:contain" alt="Logo">`:'';
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
   <style>body{font-family:Arial,sans-serif;padding:30px;color:#1a202c;max-width:900px;margin:0 auto}
-  h1{color:#7f1d1d;border-bottom:3px solid #7f1d1d;padding-bottom:10px;font-size:19px}
+  .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #7f1d1d;padding-bottom:12px;margin-bottom:16px}
+  .header-text h2{margin:0 0 2px;font-size:15px;color:#7f1d1d;font-weight:800}
+  .header-text p{margin:0;font-size:10.5px;color:#6b7280}
+  h1{color:#7f1d1d;font-size:19px;margin:0 0 4px}
   .sub{color:#718096;font-size:12px;margin:4px 0 18px}
   table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
   th{background:#fef2f2;color:#7f1d1d;padding:7px 10px;border:1px solid #fecaca;text-align:left}
   td{padding:6px 10px;border:1px solid #e2e8f0}
   tr:nth-child(even) td{background:#fafafa}
   @media print{button{display:none}}</style></head><body>
+  <div class="header">
+    ${logoHtml}
+    <div class="header-text"><h2>${inst}</h2><p>Dirección Académica · Sistema de Gestión Institucional</p></div>
+  </div>
   <h1>✅ ${titulo}</h1>
-  <p class="sub">${subFiltros.length?subFiltros.join(' — ')+' — ':''}${d.length} alumno${d.length!==1?'s':''} habilitado${d.length!==1?'s':''} — Generado el ${new Date().toLocaleDateString('es-PY')} — Instituto Técnico Superior Santísima Trinidad</p>
+  <p class="sub">${subFiltros.length?subFiltros.join(' — ')+' — ':''}${d.length} alumno${d.length!==1?'s':''} habilitado${d.length!==1?'s':''} — Generado el ${new Date().toLocaleDateString('es-PY')}</p>
   <table><thead><tr><th>#</th><th>Alumno</th><th>CI</th><th>Carrera / Año / Sec.</th>${mat?'':'<th>Materia</th>'}<th>Tipo</th><th>Fecha</th></tr></thead><tbody>
   ${d.map((h,i)=>{
     const conPago=(h.motivo||'').toLowerCase().includes('pago de');
@@ -10914,7 +10925,7 @@ function imprimirHabsGA(){
   }).join('')}
   </tbody></table>
   <div style="margin-top:30px;padding-top:15px;border-top:1px solid #e2e8f0;font-size:11px;color:#718096;text-align:center">
-    ITS Santísima Trinidad — ${titulo}
+    ${inst} — ${titulo}
   </div>
   <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
   </body></html>`);
