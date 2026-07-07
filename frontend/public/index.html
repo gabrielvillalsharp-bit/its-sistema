@@ -10802,7 +10802,10 @@ async function pgSolicitudes(el){
       return `
     <div style="background:linear-gradient(135deg,#7f1d1d,#c0392b);border-radius:12px 12px 0 0;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <div><span style="color:#fff;font-size:13px;font-weight:800">✅ Habilitaciones de examen</span><span style="color:#fca5a5;font-size:11px;margin-left:8px">Con pago y sin pago por Dirección</span></div>
-      <span id="habsGA-count" style="color:#fff;font-size:11px;font-weight:700">${(habs||[]).length} registros</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="habsGA-count" style="color:#fff;font-size:11px;font-weight:700">${(habs||[]).length} registros</span>
+        <button onclick="imprimirHabsGA()" style="padding:5px 12px;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🖨 Imprimir PDF</button>
+      </div>
     </div>
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
       <!-- Filtros -->
@@ -10848,7 +10851,7 @@ async function pgSolicitudes(el){
   </div>`;
 }
 
-function filtrarHabsGA(){
+function getHabsGAFiltrados(){
   const carr=v('habsGA-carr')||'';
   const anio=v('habsGA-anio')||'';
   const sec=v('habsGA-sec')||'';
@@ -10856,7 +10859,7 @@ function filtrarHabsGA(){
   const tipo=v('habsGA-tipo')||'';
   const examen=v('habsGA-examen')||'';
   const bus=(v('habsGA-bus')||'').toLowerCase().trim();
-  let d=(W._habsGA||[]).filter(h=>{
+  return (W._habsGA||[]).filter(h=>{
     if(carr && (h.carrera_nombre||'')!==carr) return false;
     if(anio && String(h.anio||'')!==anio) return false;
     if(sec && (h.division||'')!==sec) return false;
@@ -10867,10 +10870,55 @@ function filtrarHabsGA(){
     if(bus && !((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(bus)) return false;
     return true;
   });
+}
+function filtrarHabsGA(){
+  const d=getHabsGAFiltrados();
   const tabla=document.getElementById('habsGA-tabla');
   const cnt=document.getElementById('habsGA-count');
   if(tabla) tabla.innerHTML=renderHabsGA(d);
   if(cnt) cnt.textContent=d.length+' registros';
+}
+function imprimirHabsGA(){
+  const HAB_LABELS={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario'};
+  const d=getHabsGAFiltrados();
+  if(!d.length){toast('No hay habilitaciones para los filtros seleccionados','err');return;}
+  const carr=v('habsGA-carr')||'';
+  const anio=v('habsGA-anio')||'';
+  const sec=v('habsGA-sec')||'';
+  const mat=v('habsGA-mat')||'';
+  const examen=v('habsGA-examen')||'';
+  const examenLabel=HAB_LABELS[examen]||'Examen';
+  let titulo='Lista de habilitación '+examenLabel;
+  if(mat) titulo+=' de '+mat;
+  const subFiltros=[];
+  if(carr) subFiltros.push(carr);
+  if(anio) subFiltros.push(anio+'° año');
+  if(sec) subFiltros.push('Sección '+sec);
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
+  <style>body{font-family:Arial,sans-serif;padding:30px;color:#1a202c;max-width:900px;margin:0 auto}
+  h1{color:#7f1d1d;border-bottom:3px solid #7f1d1d;padding-bottom:10px;font-size:19px}
+  .sub{color:#718096;font-size:12px;margin:4px 0 18px}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  th{background:#fef2f2;color:#7f1d1d;padding:7px 10px;border:1px solid #fecaca;text-align:left}
+  td{padding:6px 10px;border:1px solid #e2e8f0}
+  tr:nth-child(even) td{background:#fafafa}
+  @media print{button{display:none}}</style></head><body>
+  <h1>✅ ${titulo}</h1>
+  <p class="sub">${subFiltros.length?subFiltros.join(' — ')+' — ':''}${d.length} alumno${d.length!==1?'s':''} habilitado${d.length!==1?'s':''} — Generado el ${new Date().toLocaleDateString('es-PY')} — Instituto Técnico Superior Santísima Trinidad</p>
+  <table><thead><tr><th>#</th><th>Alumno</th><th>CI</th><th>Carrera / Año / Sec.</th>${mat?'':'<th>Materia</th>'}<th>Tipo</th><th>Fecha</th></tr></thead><tbody>
+  ${d.map((h,i)=>{
+    const conPago=(h.motivo||'').toLowerCase().includes('pago de');
+    const secTxt=h.division&&h.division!=='U'?' Sec. '+h.division:'';
+    return `<tr><td>${i+1}</td><td>${h.alumno_apellido||''}, ${h.alumno_nombre||''}</td><td>${h.alumno_ci||'—'}</td><td>${h.carrera_nombre||'—'} ${h.anio?h.anio+'° año':''}${secTxt}</td>${mat?'':'<td>'+(h.materia_nombre||'—')+'</td>'}<td>${conPago?'💳 Con pago':'🔓 Sin pago'}</td><td>${(h.fecha||'').split('T')[0]||'—'}</td></tr>`;
+  }).join('')}
+  </tbody></table>
+  <div style="margin-top:30px;padding-top:15px;border-top:1px solid #e2e8f0;font-size:11px;color:#718096;text-align:center">
+    ITS Santísima Trinidad — ${titulo}
+  </div>
+  <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
+  </body></html>`);
+  w.document.close();
 }
 function renderHabsGA(datos){
   const HAB_LABELS={parcial_recuperatorio:'Parcial Recuperatorio',final_ord:'Final Ordinario',final_recuperatorio:'Final Recuperatorio',complementario:'Final Complementario',extraordinario:'Final Extraordinario ⚡'};
