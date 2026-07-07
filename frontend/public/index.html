@@ -7274,6 +7274,49 @@ async function imprimirActaExamen(examenId, tipoOverride){
   }catch(e){toast('Error al generar acta: '+e.message,'err');}
 }
 
+// ── Modal: elegir examen para imprimir acta (Registro de Notas — Director) ────
+async function mImprimirActaNotas(){
+  modal(`<h4>🖨 Imprimir acta</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Seleccioná el examen del cual querés imprimir el acta de notas:</p>
+  <input id="actaModalBus" placeholder="🔍 Buscar por materia, carrera o docente..." oninput="filtrarActaModalList()" style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:10px"/>
+  <div id="actaModalLista" style="max-height:400px;overflow-y:auto">
+    <div style="padding:24px;text-align:center;color:var(--t3)">⏳ Cargando exámenes...</div>
+  </div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button></div>`);
+  try{
+    const exs=await api('GET','/api/examenes');
+    W._actaModalExs=(exs||[]).slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+    filtrarActaModalList();
+  }catch(e){
+    const cont=document.getElementById('actaModalLista');
+    if(cont) cont.innerHTML=`<div style="padding:20px;text-align:center;color:#dc2626;font-size:12px">Error al cargar exámenes: ${e.message}</div>`;
+  }
+}
+function filtrarActaModalList(){
+  const TIPO_LBL={Parcial:'Parcial Ord.',Recuperatorio:'Parcial Recup.',Final:'Final Ord.','Final Recuperatorio':'Final Recup.',Complementario:'Complementario',Extraordinario:'Extraordinario',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario'};
+  const bus=(document.getElementById('actaModalBus')?.value||'').toLowerCase().trim();
+  const cont=document.getElementById('actaModalLista');
+  if(!cont) return;
+  const exs=(W._actaModalExs||[]).filter(e=>{
+    if(!bus) return true;
+    return ((e.materia_nombre||'')+(e.carrera_nombre||'')+(e.docente_nombre||'')+(e.docente_apellido||'')).toLowerCase().includes(bus);
+  });
+  if(!exs.length){ cont.innerHTML='<div style="padding:24px;text-align:center;color:var(--t3);font-size:13px">Sin exámenes para la búsqueda</div>'; return; }
+  cont.innerHTML=exs.map(e=>{
+    const sec=e.curso_division&&e.curso_division!=='U'?' Sec. '+e.curso_division:'';
+    return `<div onclick="cm();imprimirActaExamen('${e.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;cursor:pointer;transition:background .12s" onmouseenter="this.style.background='#f0fdf4'" onmouseleave="this.style.background=''">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;color:#0f172a">${e.materia_nombre||'—'}</div>
+        <div style="font-size:11px;color:#64748b">${e.carrera_nombre||'—'} ${e.curso_anio?e.curso_anio+'°':''}${sec} — ${e.docente_apellido||''} ${e.docente_nombre||''}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-weight:700">${TIPO_LBL[e.tipo]||e.tipo||'—'}</span>
+        <div style="font-size:10px;color:#94a3b8;margin-top:3px">${e.fecha?e.fecha.split('T')[0]:'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ── EDITAR REGISTRO DE ASISTENCIA INDIVIDUAL ──────────────────────────────────
 // ── HORARIO SEMANAL DE CLASES ─────────────────────────────────────────────────
 async function pgCalClases(el){
@@ -8056,7 +8099,9 @@ async function pgNotas(el){
       }).join('')}
     </div>
   </div>`:'';
-  el.innerHTML=`<div class="ph"><h3>📝 Registro de notas</h3></div>
+  el.innerHTML=`<div class="ph"><h3>📝 Registro de notas</h3>
+    ${me.rol==='director'?`<div class="ph-right"><button class="bs o" onclick="mImprimirActaNotas()">🖨 Imprimir acta</button></div>`:''}
+  </div>
   ${misMatCards}
   ${me.rol!=='docente'?`
   <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.05);position:relative">
@@ -10840,6 +10885,12 @@ async function pgSolicitudes(el){
           <option value="extraordinario">Final Extraordinario</option>
         </select>
         <input id="habsGA-bus" placeholder="🔍 Alumno o CI..." oninput="filtrarHabsGA()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;min-width:140px"/>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#7f1d1d;font-weight:700">Desde
+          <input type="date" id="habsGA-fdesde" onchange="filtrarHabsGA()" style="padding:4px 7px;border:1px solid var(--bdr);border-radius:7px;font-size:12px"/>
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#7f1d1d;font-weight:700">Hasta
+          <input type="date" id="habsGA-fhasta" onchange="filtrarHabsGA()" style="padding:4px 7px;border:1px solid var(--bdr);border-radius:7px;font-size:12px"/>
+        </label>
       </div>
       <!-- Tabla -->
       <div id="habsGA-tabla" class="tw">
@@ -10859,6 +10910,8 @@ function getHabsGAFiltrados(){
   const tipo=v('habsGA-tipo')||'';
   const examen=v('habsGA-examen')||'';
   const bus=(v('habsGA-bus')||'').toLowerCase().trim();
+  const fdesde=v('habsGA-fdesde')||'';
+  const fhasta=v('habsGA-fhasta')||'';
   return (W._habsGA||[]).filter(h=>{
     if(carr && (h.carrera_nombre||'')!==carr) return false;
     if(anio && String(h.anio||'')!==anio) return false;
@@ -10868,6 +10921,9 @@ function getHabsGAFiltrados(){
     if(tipo==='pago' && !(h.motivo||'').toLowerCase().includes('pago de')) return false;
     if(tipo==='sinpago' && (h.motivo||'').toLowerCase().includes('pago de')) return false;
     if(bus && !((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(bus)) return false;
+    const fh=(h.fecha||'').split('T')[0];
+    if(fdesde && (!fh || fh<fdesde)) return false;
+    if(fhasta && (!fh || fh>fhasta)) return false;
     return true;
   });
 }
@@ -10890,10 +10946,13 @@ async function imprimirHabsGA(){
   const examenLabel=HAB_LABELS[examen]||'Examen';
   let titulo='Lista de habilitación '+examenLabel;
   if(mat) titulo+=' de '+mat;
+  const fdesde=v('habsGA-fdesde')||'';
+  const fhasta=v('habsGA-fhasta')||'';
   const subFiltros=[];
   if(carr) subFiltros.push(carr);
   if(anio) subFiltros.push(anio+'° año');
   if(sec) subFiltros.push('Sección '+sec);
+  if(fdesde||fhasta) subFiltros.push('Del '+(fdesde||'—')+' al '+(fhasta||'—'));
   const inst=me.institucion_nombre||'Instituto Técnico Superior Santísima Trinidad';
   let logoSrc='';
   try{const lr=await api('GET','/api/logo');if(lr&&lr.logo)logoSrc=lr.logo;}catch(e){}
@@ -10901,13 +10960,13 @@ async function imprimirHabsGA(){
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
   <style>body{font-family:Arial,sans-serif;padding:30px;color:#1a202c;max-width:900px;margin:0 auto}
-  .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #7f1d1d;padding-bottom:12px;margin-bottom:16px}
-  .header-text h2{margin:0 0 2px;font-size:15px;color:#7f1d1d;font-weight:800}
+  .header{display:flex;align-items:center;gap:16px;border-bottom:3px solid #166534;padding-bottom:12px;margin-bottom:16px}
+  .header-text h2{margin:0 0 2px;font-size:15px;color:#166534;font-weight:800}
   .header-text p{margin:0;font-size:10.5px;color:#6b7280}
-  h1{color:#7f1d1d;font-size:19px;margin:0 0 4px}
+  h1{color:#166534;font-size:19px;margin:0 0 4px}
   .sub{color:#718096;font-size:12px;margin:4px 0 18px}
   table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
-  th{background:#fef2f2;color:#7f1d1d;padding:7px 10px;border:1px solid #fecaca;text-align:left}
+  th{background:#f0fdf4;color:#166534;padding:7px 10px;border:1px solid #bbf7d0;text-align:left}
   td{padding:6px 10px;border:1px solid #e2e8f0}
   tr:nth-child(even) td{background:#fafafa}
   @media print{button{display:none}}</style></head><body>
@@ -10927,7 +10986,7 @@ async function imprimirHabsGA(){
   <div style="margin-top:30px;padding-top:15px;border-top:1px solid #e2e8f0;font-size:11px;color:#718096;text-align:center">
     ${inst} — ${titulo}
   </div>
-  <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#7f1d1d;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
+  <div style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>
   </body></html>`);
   w.document.close();
 }
