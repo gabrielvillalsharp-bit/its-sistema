@@ -1117,6 +1117,15 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus Event Registration:', e.message); }
 
+// ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
+// Pedido puntual del director. Respeta el día de clase real (miércoles).
+try {
+  const upd = db.prepare("UPDATE examenes SET fecha='2026-07-15' WHERE id=?");
+  let n = 0;
+  ['ex_ford_asig_doc_romero_ENF_103_enf_1u','ex_ford_asig_doc_romero_RAD_103_rad_1u'].forEach(id => { const r = upd.run(id); if (r.changes) n++; });
+  if (n) console.log(`[Migración] Primeros Auxilios (Romero) movido al 15/07 ✓ (${n} registros)`);
+} catch(e) { console.warn('[Migración] Mover Primeros Auxilios Romero:', e.message); }
+
 // ── MIGRACIÓN (CORREGIDA): Fusionar ficha duplicada de Sindy Recalde Pereira ──
 // Diagnóstico real: existen DOS fichas de la misma alumna.
 //   a_1778458688706_zbr (CON-2026-007, CI 6690171) — la ficha "vieja": tiene las
