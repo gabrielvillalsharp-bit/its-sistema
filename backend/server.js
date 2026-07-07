@@ -982,6 +982,70 @@ try {
   console.log('[Migración] ' + n + ' exámenes finales con fecha/hora definitiva aplicada (v4) ✓');
 } catch(e) { console.warn('[Migración] Reprogramación final examenes v4:', e.message); }
 
+// ── MIGRACIÓN: Fusionar 2 duplicados detectados en planilla Event Registration ──
+// Nataly Gabriela Areco Escobar y Rosana Sequeira Ferreira tenían 2 fichas cada
+// una (mismo curso, misma fecha de ingreso, CI casi idéntica o vacía en un lado).
+// A diferencia de fusiones anteriores, acá SÍ había notas con valores distintos
+// cargadas en ambas fichas para la misma materia (dos docentes cargando notas
+// sin saber que existía la otra ficha) — se conserva el puntaje MÁS ALTO de
+// las dos en cada materia en conflicto, y se mueven todos los pagos sin perder
+// ninguno.
+try {
+  function unificarMayorPuntaje(conservar_id, eliminar_id, etiqueta) {
+    const conservar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(conservar_id);
+    const eliminar = db.prepare('SELECT * FROM alumnos WHERE id=?').get(eliminar_id);
+    if (!conservar || !eliminar) return;
+    db.pragma('foreign_keys = OFF');
+    const campos = ['tp1','tp2','tp3','tp4','tp5','tp_total','parcial','parcial_recuperatorio','parcial_efectivo','final_ord','final_recuperatorio','complementario','extraordinario','final_efectivo','puntaje_total','nota_final','estado','director_pts'];
+    const tx = db.transaction(() => {
+      db.prepare('SELECT id FROM pagos WHERE alumno_id=?').all(eliminar_id).forEach(p => {
+        db.prepare('UPDATE pagos SET alumno_id=? WHERE id=?').run(conservar_id, p.id);
+      });
+      db.prepare('SELECT * FROM notas WHERE alumno_id=?').all(eliminar_id).forEach(ne => {
+        const exist = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(conservar_id, ne.asignacion_id);
+        if (!exist) {
+          db.prepare('UPDATE notas SET alumno_id=? WHERE id=?').run(conservar_id, ne.id);
+        } else {
+          const pExist = exist.puntaje_total ?? -Infinity;
+          const pNe = ne.puntaje_total ?? -Infinity;
+          if (pNe > pExist) {
+            const sets = campos.map(c => c+'=?').join(',');
+            const vals = campos.map(c => ne[c]);
+            db.prepare('UPDATE notas SET '+sets+' WHERE id=?').run(...vals, exist.id);
+          }
+          db.prepare('DELETE FROM notas WHERE id=?').run(ne.id);
+        }
+      });
+      db.prepare('SELECT id, asignacion_id, fecha FROM asistencia WHERE alumno_id=?').all(eliminar_id).forEach(as => {
+        const existeAsist = db.prepare('SELECT id FROM asistencia WHERE alumno_id=? AND asignacion_id=? AND fecha=?').get(conservar_id, as.asignacion_id, as.fecha);
+        if (existeAsist) db.prepare('DELETE FROM asistencia WHERE id=?').run(as.id);
+        else db.prepare('UPDATE asistencia SET alumno_id=? WHERE id=?').run(conservar_id, as.id);
+      });
+      db.prepare('UPDATE becas SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE habilitaciones_examen SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE constancias SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      db.prepare('UPDATE qr_cambios SET alumno_id=? WHERE alumno_id=?').run(conservar_id, eliminar_id);
+      ['telefono','ci','matricula'].forEach(c => {
+        if ((!conservar[c] || conservar[c]==='') && eliminar[c]) db.prepare('UPDATE alumnos SET '+c+'=? WHERE id=?').run(eliminar[c], conservar_id);
+      });
+      const pid = 'pap_'+Date.now()+'_dup_'+Math.random().toString(36).slice(2,6);
+      const expira = new Date(Date.now()+30*24*60*60*1000).toISOString().slice(0,19).replace('T',' ');
+      db.prepare('INSERT OR IGNORE INTO papelera (id,tipo,nombre_display,datos_json,eliminado_por,expira_en) VALUES (?,?,?,?,?,?)')
+        .run(pid, 'alumno_duplicado', `${eliminar.apellido||''}, ${eliminar.nombre||''} (duplicado unificado — ${etiqueta})`,
+          JSON.stringify({ alumno: eliminar, motivo: 'unificacion_duplicados_migracion', conservar_id }), null, expira);
+      db.prepare('DELETE FROM alumnos WHERE id=?').run(eliminar_id);
+      if (eliminar.usuario_id && eliminar.usuario_id !== conservar.usuario_id) {
+        db.prepare('DELETE FROM usuarios WHERE id=?').run(eliminar.usuario_id);
+      }
+    });
+    tx();
+    db.pragma('foreign_keys = ON');
+    console.log(`[Migración] Duplicado unificado (${etiqueta}), notas en conflicto resueltas con el puntaje mas alto ✓`);
+  }
+  unificarMayorPuntaje('a_1778617099895_3cr', 'a_imp_59_ygee', 'Nataly Gabriela Areco Escobar');
+  unificarMayorPuntaje('a_1778617162473_ger', 'a_1778617162536_ojn', 'Rosana Sequeira Ferreira');
+} catch(e) { console.warn('[Migración] Unificar duplicados Event Registration:', e.message); }
+
 // ── MIGRACIÓN: Bonus +5 puntos por participación en Desfile Estudiantil ──────
 // El director otorgó 5 puntos (director_pts) a cada alumno que participó en
 // el desfile, en TODAS las materias que cursa en el período activo. Lista de
