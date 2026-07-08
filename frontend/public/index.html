@@ -1839,7 +1839,7 @@ async function pgDash(el){
     el.innerHTML=`
     ${_dashHero(saludo,me.nombre,fechaCap,periodoActivo,[
       {l:'📚 Mis materias',p:'mis-materias'},{l:'✏️ Notas',p:'notas'},
-      {l:'✅ Asistencia',p:'asistencia'},{l:'🔓 Habilitaciones',p:'habilitaciones-docente'}
+      {l:'📎 Cargar exámenes',p:'calendario'},{l:'🔓 Habilitaciones',p:'habilitaciones-docente'}
     ])}
 
     ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" >${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
