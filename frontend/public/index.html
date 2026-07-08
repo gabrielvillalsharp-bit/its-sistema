@@ -10004,7 +10004,7 @@ function _ppwCard(p){
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
           <div style="flex:1;min-width:200px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Alumno</label>
-            <input list="ppw-alumnos-dl" id="ppw-al-${p.id}" value="${sugerido}" placeholder="Buscar por nombre o CI..." style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+            <input list="ppw-alumnos-dl" id="ppw-al-${p.id}" value="${sugerido}" placeholder="Buscar por nombre o CI..." onchange="ppwConceptoChange('${p.id}')" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
           <div style="flex:1;min-width:140px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Período</label>
@@ -10016,7 +10016,23 @@ function _ppwCard(p){
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <div style="flex:1;min-width:160px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Concepto</label>
-            <input id="ppw-con-${p.id}" placeholder="Ej: Cuota 3" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+            <select id="ppw-con-${p.id}" onchange="ppwConceptoChange('${p.id}')" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+              <option value="">-- Seleccionar concepto --</option>
+              <optgroup label="Matrícula"><option value="Matrícula">Matrícula 2026</option></optgroup>
+              <optgroup label="Cuotas mensuales">${cuotaOptions()}</optgroup>
+              <optgroup label="Exámenes Parciales">
+                <option value="Examen Parcial Ordinario">Parcial Ordinario</option>
+                <option value="Examen Parcial Recuperatorio">Parcial Recuperatorio 🔓</option>
+              </optgroup>
+              <optgroup label="Exámenes Finales">
+                <option value="Examen Final Ordinario">Final Ordinario 🔓</option>
+                <option value="Examen Final Recuperatorio">Final Recuperatorio 🔓</option>
+                <option value="Examen Final Complementario">Final Complementario 🔓</option>
+                <option value="Examen Final Extraordinario">Final Extraordinario ⚡🔓</option>
+              </optgroup>
+              <optgroup label="Otros"><option value="Certificado">Certificado</option><option value="__otro__">Otro (especificar)...</option></optgroup>
+            </select>
+            <input id="ppw-con-otro-${p.id}" placeholder="Especificar concepto..." style="display:none;width:100%;margin-top:4px;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
           <div style="flex:1;min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Monto (Gs.)</label>
@@ -10026,6 +10042,13 @@ function _ppwCard(p){
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Fecha de pago</label>
             <input id="ppw-fec-${p.id}" type="date" value="${p.fecha_sugerida||''}" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
+        </div>
+        <div id="ppw-mat-wrap-${p.id}" style="display:none;margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">🔓 Materia a habilitar <span style="color:#dc2626">*</span></label>
+          <select id="ppw-mat-${p.id}" style="width:100%;padding:8px 10px;border:2px solid #7c3aed;border-radius:8px;font-size:13px">
+            <option value="">-- Seleccioná primero un alumno válido --</option>
+          </select>
+          <div style="font-size:10px;color:#7c3aed;margin-top:3px">Marcado con 🔓: este pago habilita el examen final de esa materia puntual para el docente.</div>
         </div>
         <div id="ppw-ia-${p.id}" style="font-size:11px;color:#7c3aed;margin-bottom:8px">${iaInfo}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -10061,20 +10084,49 @@ function _ppwAlumnoId(p_id){
   );
   return al?al.id:null;
 }
+// Al elegir un concepto de examen con arancel, pedir la materia especifica para poder
+// habilitar automaticamente ese examen puntual (misma logica que "+ Registrar pago").
+async function ppwConceptoChange(id){
+  const sel=document.getElementById('ppw-con-'+id);
+  const otroInp=document.getElementById('ppw-con-otro-'+id);
+  const matWrap=document.getElementById('ppw-mat-wrap-'+id);
+  const matSel=document.getElementById('ppw-mat-'+id);
+  if(!sel) return;
+  if(otroInp) otroInp.style.display = sel.value==='__otro__' ? 'block' : 'none';
+  const esArancel = ARANCEL_CONCEPTOS.includes(sel.value);
+  if(matWrap) matWrap.style.display = esArancel ? 'block' : 'none';
+  if(!esArancel || !matSel) return;
+  const alId=_ppwAlumnoId(id);
+  if(!alId){ matSel.innerHTML='<option value="">-- Seleccioná primero un alumno válido --</option>'; return; }
+  matSel.innerHTML='<option value="">Cargando materias...</option>';
+  try{
+    const asigs=await api('GET','/api/alumnos/'+alId+'/asignaciones-activas');
+    matSel.innerHTML='<option value="">-- Seleccionar materia --</option>'+(asigs||[]).map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
+  }catch(e){ matSel.innerHTML='<option value="">Error al cargar materias</option>'; }
+}
+function _ppwConceptoValor(id){
+  const sel=document.getElementById('ppw-con-'+id);
+  if(!sel) return '';
+  if(sel.value==='__otro__') return (document.getElementById('ppw-con-otro-'+id)?.value||'').trim();
+  return sel.value;
+}
 async function ppwAprobar(id){
   const alumno_id = _ppwAlumnoId(id);
   const periodo_id = document.getElementById('ppw-per-'+id)?.value;
-  const concepto = document.getElementById('ppw-con-'+id)?.value?.trim();
+  const concepto = _ppwConceptoValor(id);
   const monto = document.getElementById('ppw-mon-'+id)?.value;
   const fecha_pago = document.getElementById('ppw-fec-'+id)?.value || null;
+  const esArancel = ARANCEL_CONCEPTOS.includes(concepto);
+  const asignacion_id = esArancel ? (document.getElementById('ppw-mat-'+id)?.value||'') : '';
   if(!alumno_id){toast('Seleccioná un alumno válido de la lista','warn');return;}
-  if(!concepto){toast('Ingresá el concepto del pago','warn');return;}
+  if(!concepto){toast('Seleccioná el concepto del pago','warn');return;}
   if(!monto || parseFloat(monto)<=0){toast('Ingresá un monto válido','warn');return;}
+  if(esArancel && !asignacion_id){toast('Seleccioná la materia a habilitar','warn');return;}
   confirm2('✅ Aprobar pago',`¿Confirmás que este monto realmente ingresó a la cuenta bancaria del Instituto?<br><br>Pago de <strong>${concepto}</strong> por <strong>Gs. ${Number(monto).toLocaleString('es-PY')}</strong>. Se notificará al alumno por WhatsApp.`,
     async function(){
       try{
-        await api('POST',`/api/pagos/pendientes-wa/${id}/aprobar`,{alumno_id,periodo_id,concepto,monto,fecha_pago,medio_pago:'Transferencia'});
-        toast('✓ Pago aprobado y registrado','ok');
+        const r=await api('POST',`/api/pagos/pendientes-wa/${id}/aprobar`,{alumno_id,periodo_id,concepto,monto,fecha_pago,medio_pago:'Transferencia',asignacion_id:asignacion_id||null});
+        toast('✓ Pago aprobado y registrado'+(r.habilitado_examen?' — examen habilitado para el docente':''),'ok',4000);
         document.getElementById('ppw-'+id)?.remove();
       }catch(e){toast('Error: '+e.message,'err');}
     },null);

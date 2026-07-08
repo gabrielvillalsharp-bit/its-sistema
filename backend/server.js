@@ -3756,8 +3756,15 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/pagos', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id, mora_exonerada } = req.body;
+// Registra un pago y, si corresponde (concepto de examen con arancel + asignacion_id),
+// crea automáticamente la habilitación de esa materia puntual y envía la constancia por
+// WhatsApp. Compartida entre el registro manual de pagos (POST /api/pagos) y la aprobación
+// de comprobantes recibidos por WhatsApp (POST /api/pagos/pendientes-wa/:id/aprobar) —
+// antes ese segundo flujo duplicaba solo el INSERT en "pagos" sin esta lógica, así que un
+// pago de arancel aprobado desde un comprobante de WhatsApp NUNCA generaba la habilitación
+// ni aparecía para el docente, aunque el alumno sí hubiera pagado.
+function registrarPagoConHabilitacion(usuarioId, datos) {
+  const { alumno_id, periodo_id, concepto, monto, fecha_pago, comprobante, descuento, beca, medio_pago, asignacion_id, mora_exonerada } = datos;
   const esCuotaMensual = /^cuota\s+\d+/i.test(concepto || '');
   // Mora solo si el vencimiento de ESA cuota ya pasó (día 10 del mes correspondiente)
   // Cuota 1=Marzo(3), Cuota 2=Abril(4), ..., Cuota N → mes N+2
@@ -3777,102 +3784,106 @@ app.post('/api/pagos', auth(ADM), (req, res) => {
     'Examen Final Extraordinario':  'extraordinario',
   };
   const tipoExamen = ARANCEL_TIPO_MAP[concepto] || null;
-  try {
-    // Validar duplicado: mismo alumno + asignacion + tipo_examen
-    if (tipoExamen && asignacion_id) {
-      const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asignacion_id, tipoExamen);
-      if (dup) return res.status(400).json({ error: `El alumno ya tiene habilitación registrada para ${concepto} en esta materia. No se puede pagar dos veces el mismo examen en la misma materia.` });
-    }
-    const id = 'pg_'+Date.now();
-    // Buscar el arancel correspondiente al concepto para validar el monto
-    const al = db.prepare('SELECT carrera_id FROM alumnos WHERE id=?').get(alumno_id);
-    const tipoMap = {
-      'matricula': ['matrícula','matricula'],
-      'cuota': ['cuota'],
-      'parcial': ['parcial ordinario','parcial recuperatorio','examen parcial'],
-      'final': ['final ordinario','final recuperatorio','final complementario','complementario','examen final'],
-      'extraordinario': ['extraordinario'],
-      'certificado': ['certificado']
-    };
-    let arancelEsperado = null;
-    if (al) {
-      const concepto_lower = (concepto||'').toLowerCase();
-      for (const [tipo, keywords] of Object.entries(tipoMap)) {
-        if (keywords.some(k => concepto_lower.includes(k))) {
-          arancelEsperado = db.prepare(
-            "SELECT monto FROM aranceles WHERE tipo=? AND activo=1 AND (carrera_id=? OR carrera_id IS NULL) ORDER BY carrera_id DESC LIMIT 1"
-          ).get(tipo, al.carrera_id);
-          break;
-        }
+  // Validar duplicado: mismo alumno + asignacion + tipo_examen
+  if (tipoExamen && asignacion_id) {
+    const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asignacion_id, tipoExamen);
+    if (dup) { const e = new Error(`El alumno ya tiene habilitación registrada para ${concepto} en esta materia. No se puede pagar dos veces el mismo examen en la misma materia.`); e.status = 400; throw e; }
+  }
+  const id = 'pg_'+Date.now();
+  // Buscar el arancel correspondiente al concepto para validar el monto
+  const al = db.prepare('SELECT carrera_id FROM alumnos WHERE id=?').get(alumno_id);
+  const tipoMap = {
+    'matricula': ['matrícula','matricula'],
+    'cuota': ['cuota'],
+    'parcial': ['parcial ordinario','parcial recuperatorio','examen parcial'],
+    'final': ['final ordinario','final recuperatorio','final complementario','complementario','examen final'],
+    'extraordinario': ['extraordinario'],
+    'certificado': ['certificado']
+  };
+  let arancelEsperado = null;
+  if (al) {
+    const concepto_lower = (concepto||'').toLowerCase();
+    for (const [tipo, keywords] of Object.entries(tipoMap)) {
+      if (keywords.some(k => concepto_lower.includes(k))) {
+        arancelEsperado = db.prepare(
+          "SELECT monto FROM aranceles WHERE tipo=? AND activo=1 AND (carrera_id=? OR carrera_id IS NULL) ORDER BY carrera_id DESC LIMIT 1"
+        ).get(tipo, al.carrera_id);
+        break;
       }
     }
-    const montoPagado = parseFloat(monto)||0;
-    const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
-    const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
-    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id,concepto,montoPagado,fecha_pago,'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null,mora_exonerada?1:0,moraMonto);
-    const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
-    audit(req.user.id,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago, mora_exonerada:mora_exonerada?1:0, mora_monto:moraMonto});
+  }
+  const montoPagado = parseFloat(monto)||0;
+  const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
+  const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
+  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id||null,concepto,montoPagado,fecha_pago||nowDate(),'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null,mora_exonerada?1:0,moraMonto);
+  const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
+  audit(usuarioId,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago, mora_exonerada:mora_exonerada?1:0, mora_monto:moraMonto});
 
-    // Auto-crear habilitación por pago de examen con arancel (para la materia específica)
-    let habilitadoExamen = false;
-    if (tipoExamen && asignacion_id) {
-      const fechaHoy = nowDate();
-      const habId = 'hab_' + Date.now() + '_' + alumno_id;
-      const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
-      db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
-        .run(habId, alumno_id, asignacion_id, tipoExamen, req.user.id, fechaHoy, 'Habilitado por pago de '+concepto, esRecup);
-      habilitadoExamen = true;
-      audit(req.user.id, 'HABILITAR_PAGO_EXAMEN', 'habilitaciones_examen', alumno_id, { concepto, tipo_examen: tipoExamen, asignacion_id });
-    }
+  // Auto-crear habilitación por pago de examen con arancel (para la materia específica)
+  let habilitadoExamen = false;
+  if (tipoExamen && asignacion_id) {
+    const fechaHoy = nowDate();
+    const habId = 'hab_' + Date.now() + '_' + alumno_id;
+    const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
+    db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
+      .run(habId, alumno_id, asignacion_id, tipoExamen, usuarioId, fechaHoy, 'Habilitado por pago de '+concepto, esRecup);
+    habilitadoExamen = true;
+    audit(usuarioId, 'HABILITAR_PAGO_EXAMEN', 'habilitaciones_examen', alumno_id, { concepto, tipo_examen: tipoExamen, asignacion_id });
+  }
 
-    // Enviar constancia de pago por WhatsApp
-    const alFull = db.prepare('SELECT a.nombre, a.apellido, a.telefono FROM alumnos a WHERE a.id=?').get(alumno_id);
-    if (alFull?.telefono) {
-      const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
-      const fechaFmt = (fecha_pago||nowDate()).split('-').reverse().join('/');
-      const montoFmt = 'Gs. '+Number(montoPagado).toLocaleString('es-PY');
-      const nombreCompleto = `${alFull.nombre} ${alFull.apellido}`.trim();
-      // Reemplazar "Cuota N" por nombre del mes completo
-      const MESES_CUOTA = ['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
-      const conceptoDisplay = concepto.replace(/^Cuota (\d+)$/i, (_, n) => {
-        const mes = MESES_CUOTA[parseInt(n)];
-        return mes ? `Cuota ${n} — ${mes}` : concepto;
-      });
-      let lineaMateria = '';
-      if (asignacion_id) {
-        const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
-        if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
-        // Agregar fecha del examen si existe programado
-        if (tipoExamen) {
-          const tipoExDB = {
-            parcial_recuperatorio: 'Recuperatorio',
-            final_ord:             'Final',
-            final_recuperatorio:   'Final Recuperatorio',
-            complementario:        'Complementario',
-            extraordinario:        'Extraordinario'
-          }[tipoExamen];
-          if (tipoExDB) {
-            const examen = db.prepare("SELECT fecha FROM examenes WHERE asignacion_id=? AND tipo=? LIMIT 1").get(asignacion_id, tipoExDB);
-            if (examen?.fecha) {
-              const [ey,em,ed] = examen.fecha.split('-');
-              lineaMateria += `\n• Fecha del examen: ${ed}/${em}/${ey}`;
-            }
+  // Enviar constancia de pago por WhatsApp
+  const alFull = db.prepare('SELECT a.nombre, a.apellido, a.telefono FROM alumnos a WHERE a.id=?').get(alumno_id);
+  if (alFull?.telefono) {
+    const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+    const fechaFmt = (fecha_pago||nowDate()).split('-').reverse().join('/');
+    const montoFmt = 'Gs. '+Number(montoPagado).toLocaleString('es-PY');
+    const nombreCompleto = `${alFull.nombre} ${alFull.apellido}`.trim();
+    // Reemplazar "Cuota N" por nombre del mes completo
+    const MESES_CUOTA = ['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+    const conceptoDisplay = concepto.replace(/^Cuota (\d+)$/i, (_, n) => {
+      const mes = MESES_CUOTA[parseInt(n)];
+      return mes ? `Cuota ${n} — ${mes}` : concepto;
+    });
+    let lineaMateria = '';
+    if (asignacion_id) {
+      const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(asignacion_id);
+      if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
+      // Agregar fecha del examen si existe programado
+      if (tipoExamen) {
+        const tipoExDB = {
+          parcial_recuperatorio: 'Recuperatorio',
+          final_ord:             'Final',
+          final_recuperatorio:   'Final Recuperatorio',
+          complementario:        'Complementario',
+          extraordinario:        'Extraordinario'
+        }[tipoExamen];
+        if (tipoExDB) {
+          const examen = db.prepare("SELECT fecha FROM examenes WHERE asignacion_id=? AND tipo=? LIMIT 1").get(asignacion_id, tipoExDB);
+          if (examen?.fecha) {
+            const [ey,em,ed] = examen.fecha.split('-');
+            lineaMateria += `\n• Fecha del examen: ${ed}/${em}/${ey}`;
           }
         }
       }
-      const pagoTpl = getWASistemaTpl('constancia_pago');
-      const waMsg = pagoTpl
-        .replace(/\{nombre\}/g, nombreCompleto)
-        .replace(/\{concepto\}/g, conceptoDisplay)
-        .replace(/\{materia\}/g, lineaMateria)
-        .replace(/\{monto\}/g, montoFmt)
-        .replace(/\{fecha\}/g, fechaFmt)
-        .replace(/\{url\}/g, APP_URL);
-      sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
     }
+    const pagoTpl = getWASistemaTpl('constancia_pago');
+    const waMsg = pagoTpl
+      .replace(/\{nombre\}/g, nombreCompleto)
+      .replace(/\{concepto\}/g, conceptoDisplay)
+      .replace(/\{materia\}/g, lineaMateria)
+      .replace(/\{monto\}/g, montoFmt)
+      .replace(/\{fecha\}/g, fechaFmt)
+      .replace(/\{url\}/g, APP_URL);
+    sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
+  }
 
-    res.json({ ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  return { ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen };
+}
+app.post('/api/pagos', auth(ADM), (req, res) => {
+  try {
+    const result = registrarPagoConHabilitacion(req.user.id, req.body);
+    res.json(result);
+  } catch(e) { res.status(e.status||500).json({ error: e.message }); }
 });
 // ── PAGOS PENDIENTES POR WHATSAPP (comprobantes de transferencia) ────────────
 app.get('/api/pagos/pendientes-wa', auth(ADM), (req, res) => {
@@ -3901,27 +3912,36 @@ app.post('/api/pagos/leer-comprobante', auth(ADM), upload.single('archivo'), asy
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
-  const { alumno_id, periodo_id, concepto, monto, medio_pago, descuento, fecha_pago } = req.body;
+  const { alumno_id, periodo_id, concepto, monto, medio_pago, descuento, fecha_pago, asignacion_id } = req.body;
   if (!alumno_id || !concepto || monto === undefined) return res.status(400).json({ error: 'alumno_id, concepto y monto son obligatorios' });
   try {
     const pend = db.prepare("SELECT * FROM pagos_pendientes_wa WHERE id=? AND estado='Pendiente'").get(req.params.id);
     if (!pend) return res.status(404).json({ error: 'No encontrado o ya resuelto' });
 
-    const id = 'pg_'+Date.now();
-    const montoNum = parseFloat(monto)||0;
-    db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,medio_pago) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .run(id, alumno_id, periodo_id||null, concepto, montoNum, fecha_pago||nowDate(), 'Pagado', 'Transferencia (comprobante WhatsApp)', descuento||0, medio_pago||'Transferencia');
+    // Misma logica que el registro manual de pagos: si el concepto es un examen con arancel
+    // y se indico la materia (asignacion_id), habilita automaticamente esa materia puntual.
+    const result = registrarPagoConHabilitacion(req.user.id, {
+      alumno_id, periodo_id, concepto, monto, fecha_pago,
+      comprobante: 'Transferencia (comprobante WhatsApp)',
+      descuento, medio_pago: medio_pago||'Transferencia', asignacion_id
+    });
 
     db.prepare("UPDATE pagos_pendientes_wa SET estado='Aprobado', pago_id=?, resuelto_por=?, fecha_resolucion=? WHERE id=?")
-      .run(id, req.user.id, nowStr(), req.params.id);
+      .run(result.id, req.user.id, nowStr(), req.params.id);
 
-    audit(req.user.id, 'APROBAR_PAGO_WA', 'pagos_pendientes_wa', req.params.id, { alumno_id, concepto, monto: montoNum });
+    audit(req.user.id, 'APROBAR_PAGO_WA', 'pagos_pendientes_wa', req.params.id, { alumno_id, concepto, monto: parseFloat(monto)||0, asignacion_id: asignacion_id||null });
 
-    const montoFmt = 'Gs. '+Number(montoNum).toLocaleString('es-PY');
-    enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
+    // Si quien mandó el comprobante por WA usa un número distinto al registrado en la
+    // ficha del alumno, avisarle igual ahí (la constancia detallada ya se envió al
+    // teléfono de la ficha desde registrarPagoConHabilitacion).
+    const alTel = db.prepare('SELECT telefono FROM alumnos WHERE id=?').get(alumno_id)?.telefono;
+    if (pend.numero && normalizarTelefono(pend.numero) !== normalizarTelefono(alTel||'')) {
+      const montoFmt = 'Gs. '+Number(parseFloat(monto)||0).toLocaleString('es-PY');
+      enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
+    }
 
-    res.json({ ok: true, id });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    res.json({ ok: true, id: result.id, habilitado_examen: result.habilitado_examen, tipo_examen: result.tipo_examen });
+  } catch(e) { res.status(e.status||500).json({ error: e.message }); }
 });
 app.post('/api/pagos/pendientes-wa/:id/rechazar', auth(ADM), (req, res) => {
   const { motivo } = req.body;
