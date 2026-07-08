@@ -2117,10 +2117,11 @@ function renderDocHabilitados(datos){
   return datos.map(h=>{
     const sec=h.division&&h.division!=='U'?' Sec. '+h.division:'';
     const conPago=(h.motivo||'').toLowerCase().includes('pago de');
+    const materiaTxt=h.materia_nombre||(h.asignacion_id?'—':'Todas las materias (excepción general)');
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr)">
       <div style="min-width:0;flex:1">
         <div style="font-size:12px;font-weight:700;color:var(--txt)">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</div>
-        <div style="font-size:11px;color:var(--t3)">CI: ${h.alumno_ci||'—'} · ${h.materia_nombre||'—'} · ${h.carrera_nombre||''}${h.anio?' '+h.anio+'°':''}${sec}</div>
+        <div style="font-size:11px;color:var(--t3)">CI: ${h.alumno_ci||'—'} · ${materiaTxt} · ${h.carrera_nombre||''}${h.anio?' '+h.anio+'°':''}${sec}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <span class="bx ${conPago?'bg':'ba'}" style="font-size:10px">${_DOCHAB_TIPO_LBL[h.tipo_examen]||h.tipo_examen||'—'}</span>

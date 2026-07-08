@@ -5957,6 +5957,11 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
 });
 
 // ── HABILITADOS DE MIS MATERIAS (para el docente, ej. desde el celular) ──────
+// IMPORTANTE: usar LEFT JOIN (no JOIN) con asignaciones. Habilitaciones viejas o
+// creadas como excepción "global" (sin materia específica, asignacion_id NULL o
+// apuntando a una asignación que ya no existe) deben seguir siendo visibles para
+// el docente que le da clase a ese alumno — antes un JOIN estricto las hacía
+// desaparecer silenciosamente aunque el panel del director sí las mostraba.
 app.get('/api/docente/habilitados', auth(['docente']), (req, res) => {
   if (!req.user.docenteId) return res.json([]);
   try {
@@ -5968,7 +5973,7 @@ app.get('/api/docente/habilitados', auth(['docente']), (req, res) => {
         COALESCE(cu.division, al_cu.division) as division,
         m.nombre as materia_nombre
       FROM habilitaciones_examen h
-      JOIN asignaciones asig ON h.asignacion_id=asig.id
+      LEFT JOIN asignaciones asig ON h.asignacion_id=asig.id
       LEFT JOIN alumnos al ON h.alumno_id=al.id
       LEFT JOIN materias m ON asig.materia_id=m.id
       LEFT JOIN cursos cu ON asig.curso_id=cu.id
@@ -5976,8 +5981,14 @@ app.get('/api/docente/habilitados', auth(['docente']), (req, res) => {
       LEFT JOIN cursos al_cu ON al.curso_id=al_cu.id
       LEFT JOIN carreras al_ca ON al_cu.carrera_id=al_ca.id
       LEFT JOIN carreras al_carr ON al.carrera_id=al_carr.id
-      WHERE h.habilitado=1 AND asig.docente_id=?
-      ORDER BY h.fecha DESC`).all(req.user.docenteId);
+      WHERE h.habilitado=1 AND (
+        asig.docente_id=?
+        OR (
+          h.asignacion_id IS NULL
+          AND EXISTS (SELECT 1 FROM asignaciones a2 WHERE a2.curso_id=al.curso_id AND a2.docente_id=?)
+        )
+      )
+      ORDER BY h.fecha DESC`).all(req.user.docenteId, req.user.docenteId);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
