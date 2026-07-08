@@ -2084,17 +2084,29 @@ async function pgHabilitacionesDocente(el){
     ]);
     W._docHabs=habsDoc||[];
     const materias=[...new Map((asigs||[]).map(a=>[a.materia_nombre,a.materia_nombre])).values()].sort();
+    // Al entrar, priorizar Final Ordinario (el examen que más se consulta) — el docente puede
+    // cambiar el filtro para ver los demás tipos (parciales, recuperatorios, etc).
+    const TIPO_DEFAULT='final_ord';
+    const inicial=(habsDoc||[]).filter(h=>h.tipo_examen===TIPO_DEFAULT);
     el.innerHTML=`<div class="ph"><h3>🔓 Alumnos habilitados a rendir</h3></div>
     <div class="card card-p">
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <select id="docHab-tipo" onchange="filtrarDocHabilitados()" style="flex:2;min-width:200px;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px;font-weight:600">
+          <option value="${TIPO_DEFAULT}" selected>📜 Final Ordinario</option>
+          <option value="">Todos los exámenes</option>
+          <option value="parcial_recuperatorio">Parcial Recuperatorio</option>
+          <option value="final_recuperatorio">Final Recuperatorio</option>
+          <option value="complementario">Final Complementario</option>
+          <option value="extraordinario">Extraordinario ⚡</option>
+        </select>
         <select id="docHab-mat" onchange="filtrarDocHabilitados()" style="flex:2;min-width:200px;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px">
           <option value="">Todas mis materias</option>
           ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
         </select>
         <input id="docHabBus" placeholder="🔍 Buscar por alumno o CI..." oninput="filtrarDocHabilitados()" style="flex:2;min-width:200px;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px"/>
       </div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:8px" id="docHab-count">${(habsDoc||[]).length} registro${(habsDoc||[]).length!==1?'s':''}</div>
-      <div id="docHabLista">${renderDocHabilitados(habsDoc||[])}</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:8px" id="docHab-count">${inicial.length} registro${inicial.length!==1?'s':''}</div>
+      <div id="docHabLista">${renderDocHabilitados(inicial)}</div>
     </div>`;
   }catch(e){
     el.innerHTML=`<div class="ph"><h3>🔓 Alumnos habilitados a rendir</h3></div><div class="alert-err">❌ ${e.message}</div>`;
@@ -2118,12 +2130,14 @@ function renderDocHabilitados(datos){
   }).join('');
 }
 function filtrarDocHabilitados(){
+  const tipo=document.getElementById('docHab-tipo')?.value||'';
   const mat=document.getElementById('docHab-mat')?.value||'';
   const bus=(document.getElementById('docHabBus')?.value||'').toLowerCase().trim();
   const cont=document.getElementById('docHabLista');
   const cnt=document.getElementById('docHab-count');
   if(!cont) return;
   const datos=(W._docHabs||[]).filter(h=>{
+    if(tipo && h.tipo_examen!==tipo) return false;
     if(mat && (h.materia_nombre||'')!==mat) return false;
     if(bus && !((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')).toLowerCase().includes(bus)) return false;
     return true;
