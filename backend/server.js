@@ -2511,17 +2511,26 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       return res.status(400).json({ error: `La suma de TPs (${tpSum}pts) supera el máximo permitido de 20 puntos. Corrija los valores.` });
     }
     // Bloquear nota final si el alumno tiene cuotas pendientes sin compromiso activo (solo docente)
+    // EXCEPTO si esa materia+examen específico ya fue habilitado por pago de arancel (habilitaciones_examen)
+    // o el alumno tiene la excepción global del director (habilitado_pago_pendiente).
     if (req.user.rol !== 'director') {
-      const camposFinales = ['final_ord','final_recuperatorio','complementario','extraordinario'];
-      const hayFinal = camposFinales.some(c => req.body[c] !== undefined && req.body[c] !== '' && req.body[c] !== null);
-      if (hayFinal) {
+      const campoTipoMap = { final_ord:'final_ord', final_recuperatorio:'final_recuperatorio', complementario:'complementario', extraordinario:'extraordinario' };
+      const camposFinalesConValor = Object.keys(campoTipoMap).filter(c => req.body[c] !== undefined && req.body[c] !== '' && req.body[c] !== null);
+      if (camposFinalesConValor.length) {
         const alPago = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
         if (alPago) {
           const cuotasEst = calcCuotasEstado(alPago);
           const tieneDeuda = cuotasEst.some(cu => cu.diferencia > 0);
-          if (tieneDeuda) {
+          if (tieneDeuda && !alPago.habilitado_pago_pendiente) {
             const compActivo = db.prepare("SELECT id FROM compromisos_pago WHERE alumno_id=? AND estado='pendiente' LIMIT 1").get(req.params.alumno_id);
-            if (!compActivo) return res.status(403).json({ error: 'El alumno tiene cuotas pendientes. El director debe crear un compromiso de pago activo para habilitar las notas finales.' });
+            if (!compActivo) {
+              // Un campo está exceptuado del bloqueo si tiene su propia habilitación por pago de arancel para esta asignación
+              const campoSinHabilitar = camposFinalesConValor.find(c => {
+                const hab = db.prepare('SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=? AND habilitado=1 LIMIT 1').get(req.params.alumno_id, req.params.asig_id, campoTipoMap[c]);
+                return !hab;
+              });
+              if (campoSinHabilitar) return res.status(403).json({ error: 'El alumno tiene cuotas pendientes. El director debe crear un compromiso de pago activo, o habilitar esta materia con el pago del arancel del examen.' });
+            }
           }
         }
       }
