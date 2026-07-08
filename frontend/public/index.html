@@ -1822,12 +1822,13 @@ async function pgDash(el){
     const hoy=new Date().toISOString().split('T')[0];
     const lim=new Date();lim.setDate(lim.getDate()+30);
     const limStr=lim.toISOString().split('T')[0];
-    const [dash,asigs,exams,avs,exPendNotas]=await Promise.all([
+    const [dash,asigs,exams,avs,exPendNotas,habsDoc]=await Promise.all([
       api('GET','/api/dashboard').catch(()=>({})),
       me.docenteId?api('GET','/api/asignaciones?docente_id='+me.docenteId).catch(()=>[]):Promise.resolve([]),
       api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
       api('GET','/api/avisos').catch(()=>[]),
       api('GET','/api/examenes/pendientes-notas').catch(()=>[]),
+      api('GET','/api/docente/habilitados').catch(()=>[]),
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
     const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
@@ -1894,7 +1895,16 @@ async function pgDash(el){
           </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
       </div>
     </div>
+    <div class="card card-p" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <p style="font-size:14px;font-weight:700">✅ Alumnos habilitados a rendir</p>
+        <span style="font-size:11px;color:var(--t3)">${(habsDoc||[]).length} registro${(habsDoc||[]).length!==1?'s':''}</span>
+      </div>
+      <input id="docHabBus" placeholder="🔍 Buscar por alumno, materia o CI..." oninput="filtrarDocHabilitados()" style="width:100%;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px;margin-bottom:10px"/>
+      <div id="docHabLista" style="max-height:340px;overflow-y:auto">${renderDocHabilitados(habsDoc||[])}</div>
+    </div>
     `;
+    W._docHabs=habsDoc||[];
     return;
   }
 
@@ -2070,6 +2080,36 @@ async function pgDash(el){
   </div>
 
   `;
+}
+
+// ── Widget "Alumnos habilitados a rendir" en el dashboard del docente ────────
+const _DOCHAB_TIPO_LBL={parcial_recuperatorio:'Parcial Recup.',final_ord:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario ⚡'};
+function renderDocHabilitados(datos){
+  if(!datos||!datos.length) return '<div class="es" style="padding:20px">Sin alumnos habilitados por el momento</div>';
+  return datos.map(h=>{
+    const sec=h.division&&h.division!=='U'?' Sec. '+h.division:'';
+    const conPago=(h.motivo||'').toLowerCase().includes('pago de');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:12px;font-weight:700;color:var(--txt)">${h.alumno_apellido||''}, ${h.alumno_nombre||''}</div>
+        <div style="font-size:11px;color:var(--t3)">CI: ${h.alumno_ci||'—'} · ${h.materia_nombre||'—'} · ${h.carrera_nombre||''}${h.anio?' '+h.anio+'°':''}${sec}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <span class="bx ${conPago?'bg':'ba'}" style="font-size:10px">${_DOCHAB_TIPO_LBL[h.tipo_examen]||h.tipo_examen||'—'}</span>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${(h.fecha||'').split('T')[0]||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function filtrarDocHabilitados(){
+  const bus=(document.getElementById('docHabBus')?.value||'').toLowerCase().trim();
+  const cont=document.getElementById('docHabLista');
+  if(!cont) return;
+  const datos=(W._docHabs||[]).filter(h=>{
+    if(!bus) return true;
+    return ((h.alumno_apellido||'')+(h.alumno_nombre||'')+(h.alumno_ci||'')+(h.materia_nombre||'')).toLowerCase().includes(bus);
+  });
+  cont.innerHTML=renderDocHabilitados(datos);
 }
 
 function copiarLinkInscripcion(){
@@ -15403,12 +15443,15 @@ function renderMisNotas(notas){
           <div style="font-size:17px;font-weight:800;color:#1d4ed8">${n.parcial_recuperatorio??n.parcial??'—'}</div>
           <div style="font-size:9px;color:#94a3b8">/ 20</div>
         </div>
-        <div style="background:#fff7ed;border-radius:8px;padding:8px;text-align:center">
+        <div style="background:${n.pago_final_pendiente?'#fffbeb':'#fff7ed'};border-radius:8px;padding:8px;text-align:center">
           <div style="font-size:9px;color:#64748b;margin-bottom:2px;font-weight:600">Final${n.complementario!=null?' (comp.)':n.final_recuperatorio!=null?' (rec.)':''}</div>
-          <div style="font-size:17px;font-weight:800;color:#c2410c">${n.complementario??n.final_recuperatorio??n.final_ord??'—'}</div>
-          <div style="font-size:9px;color:#94a3b8">/ 50</div>
+          <div style="font-size:${n.pago_final_pendiente?'10px':'17px'};font-weight:800;color:${n.pago_final_pendiente?'#b45309':'#c2410c'}">${n.pago_final_pendiente?'🔒 Pend. pago':(n.complementario??n.final_recuperatorio??n.final_ord??'—')}</div>
+          ${n.pago_final_pendiente?'':'<div style="font-size:9px;color:#94a3b8">/ 50</div>'}
         </div>
       </div>
+      ${n.pago_final_pendiente?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:11px;color:#92400e">
+        🔒 <strong>El examen ya fue evaluado</strong>, pero el puntaje queda oculto hasta regularizar el pago de esta materia. Consultá con Secretaría.
+      </div>`:''}
       ${n.director_pts!=null?`<div style="background:#f0f9ff;border-radius:6px;padding:5px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:#0369a1">Puntos dirección</span>
         <span style="font-weight:800;color:#0369a1">${n.director_pts} / 10</span>
@@ -15418,7 +15461,9 @@ function renderMisNotas(notas){
           <span style="font-size:11px;color:#64748b">Puntaje total</span>
           ${n.nota_final!=null?`<div style="font-size:11px;color:#64748b;margin-top:1px">Nota: <strong>${n.nota_final}</strong></div>`:''}
         </div>
-        <span style="font-size:26px;font-weight:900;color:${est==='Aprobado'?'#166534':est==='Reprobado'?'#dc2626':'#374151'}">${n.puntaje_total??'—'} <span style="font-size:13px;font-weight:600;color:#94a3b8">/ 100</span></span>
+        ${n.pago_final_pendiente
+          ?`<span style="font-size:13px;font-weight:800;color:#b45309">🔒 Pendiente de pago</span>`
+          :`<span style="font-size:26px;font-weight:900;color:${est==='Aprobado'?'#166534':est==='Reprobado'?'#dc2626':'#374151'}">${n.puntaje_total??'—'} <span style="font-size:13px;font-weight:600;color:#94a3b8">/ 100</span></span>`}
       </div>
     </div>`;
   }).join('')}</div>`;

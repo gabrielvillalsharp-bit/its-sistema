@@ -2543,7 +2543,7 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
 });
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
-  res.json(db.prepare(`
+  const rows = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
       p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
       n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total, n.parcial, n.parcial_recuperatorio,
@@ -2556,7 +2556,36 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
     JOIN materias m ON a.materia_id = m.id
     JOIN periodos p ON a.periodo_id = p.id
     LEFT JOIN notas n ON n.asignacion_id = a.id AND n.alumno_id = al.id
-    WHERE al.id = ? ORDER BY m.nombre`).all(req.params.alumno_id));
+    WHERE al.id = ? ORDER BY m.nombre`).all(req.params.alumno_id);
+
+  // Ocultar el puntaje del examen final si el alumno está en mora de cuotas y no pagó
+  // el arancel de ESA materia específica (misma regla que /api/alumnos/habilitaciones-bulk:
+  // cuotas 1-5 al día = habilitado para todo; en mora = requiere habilitación por asignación).
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  let cuotasAlDia = true;
+  if (periodo) {
+    const cuotasRequeridas = ['Cuota 1', 'Cuota 2', 'Cuota 3', 'Cuota 4', 'Cuota 5'];
+    const conceptos = db.prepare(`SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'`)
+      .all(req.params.alumno_id, periodo.id).map(p => p.concepto);
+    cuotasAlDia = cuotasRequeridas.every(c => conceptos.includes(c));
+  }
+  const FINAL_CAMPOS = ['final_ord', 'final_recuperatorio', 'complementario', 'extraordinario'];
+  let habSet = null;
+  if (!cuotasAlDia) {
+    habSet = new Set(
+      db.prepare(`SELECT asignacion_id, tipo_examen FROM habilitaciones_examen WHERE alumno_id=? AND habilitado=1`)
+        .all(req.params.alumno_id).map(h => h.asignacion_id + '|' + h.tipo_examen)
+    );
+  }
+  const out = rows.map(r => {
+    if (cuotasAlDia) return r;
+    const campoConValor = FINAL_CAMPOS.find(c => r[c] !== null && r[c] !== undefined);
+    if (!campoConValor) return r;
+    if (habSet.has(r.asignacion_id + '|' + campoConValor)) return r;
+    return { ...r, final_ord: null, final_recuperatorio: null, complementario: null, extraordinario: null,
+      puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', pago_final_pendiente: true };
+  });
+  res.json(out);
 });
 
 // Acta de calificaciones por asignación (para imprimir)
@@ -5914,6 +5943,32 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
       LEFT JOIN usuarios uh ON h.habilitado_por=uh.id
       ${where}
       ORDER BY h.fecha DESC`).all(...params);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HABILITADOS DE MIS MATERIAS (para el docente, ej. desde el celular) ──────
+app.get('/api/docente/habilitados', auth(['docente']), (req, res) => {
+  if (!req.user.docenteId) return res.json([]);
+  try {
+    const rows = db.prepare(`
+      SELECT h.id, h.tipo_examen, h.fecha, h.motivo, h.asignacion_id,
+        al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
+        COALESCE(ca.nombre, al_ca.nombre, al_carr.nombre) as carrera_nombre,
+        COALESCE(cu.anio, al_cu.anio) as anio,
+        COALESCE(cu.division, al_cu.division) as division,
+        m.nombre as materia_nombre
+      FROM habilitaciones_examen h
+      JOIN asignaciones asig ON h.asignacion_id=asig.id
+      LEFT JOIN alumnos al ON h.alumno_id=al.id
+      LEFT JOIN materias m ON asig.materia_id=m.id
+      LEFT JOIN cursos cu ON asig.curso_id=cu.id
+      LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN cursos al_cu ON al.curso_id=al_cu.id
+      LEFT JOIN carreras al_ca ON al_cu.carrera_id=al_ca.id
+      LEFT JOIN carreras al_carr ON al.carrera_id=al_carr.id
+      WHERE h.habilitado=1 AND asig.docente_id=?
+      ORDER BY h.fecha DESC`).all(req.user.docenteId);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
