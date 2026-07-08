@@ -840,6 +840,38 @@ try {
   }
 } catch(e) { console.warn('[Migración] aranceles constraint:', e.message); }
 
+// ── MIGRACIÓN: ampliar CHECK constraint de avisos.destinatario (agrega 'director') ──
+// Necesario para que el watchdog de WhatsApp pueda avisar solo al director sin que el
+// aviso también le aparezca a todos los docentes/alumnos.
+try {
+  const avisosSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='avisos'").get()?.sql || '';
+  if (avisosSql && !avisosSql.includes("'director'")) {
+    db.exec(`
+      PRAGMA foreign_keys=OFF;
+      CREATE TABLE IF NOT EXISTS avisos_new (
+        id TEXT PRIMARY KEY,
+        titulo TEXT NOT NULL,
+        contenido TEXT NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'info' CHECK(tipo IN ('info','urgente','examen','administrativo')),
+        fijado INTEGER NOT NULL DEFAULT 0,
+        activo INTEGER NOT NULL DEFAULT 1,
+        destinatario TEXT NOT NULL DEFAULT 'todos' CHECK(destinatario IN ('todos','docentes','alumnos','director')),
+        usuario_id TEXT NOT NULL REFERENCES usuarios(id),
+        fecha_creacion TEXT NOT NULL DEFAULT (datetime('now')),
+        sede_id TEXT DEFAULT 'pjc'
+      );
+      INSERT OR IGNORE INTO avisos_new SELECT
+        id, titulo, contenido, tipo, fijado, activo, destinatario, usuario_id,
+        fecha_creacion, COALESCE(sede_id,'pjc')
+      FROM avisos;
+      DROP TABLE avisos;
+      ALTER TABLE avisos_new RENAME TO avisos;
+      PRAGMA foreign_keys=ON;
+    `);
+    console.log('[Migración] avisos.destinatario CHECK constraint ampliado (+ director) ✓');
+  }
+} catch(e) { console.warn('[Migración] avisos constraint:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
@@ -6821,7 +6853,21 @@ cron.schedule('0 8 * * *', async () => {
 // ── CRON: Recordatorio horario — carga pendiente ≤7h antes del examen ─────────
 // Corre cada hora. Si el examen es hoy, en ≤7h, sin archivo → manda recordatorio.
 // Sigue enviando hora a hora hasta que el docente cargue el archivo.
-// Watchdog WhatsApp: reconecta automáticamente si se cae
+// Watchdog WhatsApp: reconecta automáticamente si se cae, y avisa al director en el
+// sistema (no por WhatsApp, porque justamente eso es lo que puede estar caído) — antes
+// esto era completamente silencioso (solo un console.log) y nadie se enteraba de una
+// caída hasta que un mensaje fallaba o alguien entraba a revisar el panel a mano.
+let _waWatchdogDownSince = null;
+let _waWatchdogLastAlertAt = 0;
+function _avisarDirectorWA(titulo, contenido, urgente) {
+  try {
+    const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+    if (!director) return;
+    const id = 'av_wa_' + Date.now();
+    db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
+      .run(id, titulo, contenido, urgente ? 'urgente' : 'info', urgente ? 1 : 0, 'director', director.id);
+  } catch(e) { console.error('[WA] Watchdog: error creando aviso:', e.message); }
+}
 cron.schedule('*/15 * * * *', async () => {
   const EVO_URL = process.env.EVOLUTION_URL;
   const EVO_KEY = process.env.EVOLUTION_KEY;
@@ -6831,9 +6877,28 @@ cron.schedule('*/15 * * * *', async () => {
     const r = await fetch(`${EVO_URL}/instance/connectionState/${EVO_INSTANCE}`, { headers: { apikey: EVO_KEY } });
     const d = await r.json().catch(() => ({}));
     const state = d?.instance?.state || d?.state || '';
-    if (state && state !== 'open') {
+    const caido = !!state && state !== 'open';
+    if (caido) {
       console.log('[WA] Watchdog: estado', state, '— reconectando...');
       await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
+      const ahora = Date.now();
+      if (!_waWatchdogDownSince) _waWatchdogDownSince = ahora;
+      // Avisar apenas se detecta la caída, y despues como recordatorio cada 2 horas mientras siga caido
+      if (ahora - _waWatchdogLastAlertAt > 2 * 60 * 60 * 1000) {
+        _waWatchdogLastAlertAt = ahora;
+        const minCaido = Math.round((ahora - _waWatchdogDownSince) / 60000);
+        _avisarDirectorWA(
+          '⚠️ WhatsApp desconectado',
+          `El sistema detectó que la conexión de WhatsApp está caída (estado: "${state}")${minCaido ? ' desde hace ~' + minCaido + ' min' : ''}. Se intentó reconectar automáticamente. Si sigue sin funcionar, entrá al panel de WhatsApp y volvé a escanear el código QR.`,
+          true
+        );
+      }
+    } else if (_waWatchdogDownSince) {
+      // Se recuperó sola tras haber estado caída
+      const minCaido = Math.round((Date.now() - _waWatchdogDownSince) / 60000);
+      _avisarDirectorWA('✅ WhatsApp reconectado', `La conexión de WhatsApp se restableció automáticamente (estuvo caída ~${minCaido} min).`, false);
+      _waWatchdogDownSince = null;
+      _waWatchdogLastAlertAt = 0;
     }
   } catch(e) { /* silencioso */ }
 });

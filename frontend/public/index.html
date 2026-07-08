@@ -1831,7 +1831,7 @@ async function pgDash(el){
       api('GET','/api/examenes/pendientes-notas').catch(()=>[]),
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
-    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
+    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.destinatario!=='director');
     const periodoActivo=dash.periodo_activo||'Período activo';
     // Filtrar asignaciones del período activo
     const misAsigs=(asigs||[]).filter(a=>a.periodo_nombre===periodoActivo);
