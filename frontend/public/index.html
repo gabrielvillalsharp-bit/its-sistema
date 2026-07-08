@@ -13349,13 +13349,14 @@ async function selAlumnoPago(alId){
   panel.innerHTML='<div style="padding:40px;text-align:center;color:#888;font-size:14px">⏳ Cargando...</div>';
 
   try{
-    const [rPagos,rHab,rBecas,rHabEspeciales,rDeuda,rCompromiso]=await Promise.all([
+    const [rPagos,rHab,rBecas,rHabEspeciales,rDeuda,rCompromiso,rAsigsActivas]=await Promise.all([
       api('GET','/api/pagos/alumno/'+alId),
       api('GET','/api/alumnos/'+alId+'/habilitacion').catch(()=>({habilitado:true})),
       api('GET','/api/becas?alumno_id='+alId).catch(()=>[]),
       api('GET','/api/habilitaciones/'+alId).catch(()=>[]),
       me.rol==='director'?api('GET','/api/alumnos/'+alId+'/deuda').catch(()=>null):Promise.resolve(null),
-      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/compromiso-pago').catch(()=>[]):Promise.resolve([])
+      me.rol==='director'?api('GET','/api/alumnos/'+alId+'/compromiso-pago').catch(()=>[]):Promise.resolve([]),
+      api('GET','/api/alumnos/'+alId+'/asignaciones-activas').catch(()=>[])
     ]);
     const {pagos:rawPagos,totalPagado,alumno}=rPagos;
     // Normalizar: 'Matrícula 2025' / 'Matrícula 2026' → 'Matrícula' para compatibilidad con datos existentes
@@ -13428,7 +13429,9 @@ async function selAlumnoPago(alId){
       {concepto:'Examen Final Complementario',   lbl:'Final\nComplement.',  icon:'📋'},
       {concepto:'Examen Final Extraordinario',   lbl:'Extraord.\n⚡',       icon:'⚡'},
     ];
-    const ARANCEL_MAX=5;
+    // Tope real = cantidad de materias asignadas al curso del alumno (antes era un 5 fijo que
+    // ocultaba el botón de pago cuando una carrera/año tenía más de 5 materias, ej. Cosmiatría 1°)
+    const ARANCEL_MAX=(rAsigsActivas&&rAsigsActivas.length)?rAsigsActivas.length:5;
     const examenesGrid=examenesArancel.map(({concepto,lbl,icon})=>{
       const pagosEx=(pagos||[]).filter(p=>(p.concepto||'').toLowerCase()===concepto.toLowerCase());
       const pagosConAsig=pagosEx.filter(p=>p.asignacion_id);
