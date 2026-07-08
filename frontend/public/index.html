@@ -9618,38 +9618,51 @@ async function pgPapelera(el){
   el.innerHTML='<div class="ph"><h3>🗑️ Papelera de Reciclaje</h3></div>'+skeletonTable(3,5);
   try{
     const data = await api('GET','/api/papelera');
-    const hoy  = new Date();
+    W._papeleraData=data;
     el.innerHTML=`<div class="ph"><h3>🗑️ Papelera de Reciclaje</h3></div>
     <div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
       ⚠️ Los registros eliminados se conservan <strong>30 días</strong> y luego se eliminan definitivamente de forma automática.
       Podés restaurarlos en cualquier momento antes de que venzan.
     </div>
-    ${data.length===0
-      ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía.</div>'
-      :`<div style="overflow-x:auto"><table class="tbl">
-        <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
-        <tbody>${data.map(d=>{
-          const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
-          const expira = new Date(d.expira_en);
-          const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
-          const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
-          return `<tr>
-            <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
-            <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
-            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
-            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
-            <td style="text-align:center">
-              <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
-            </td>
-            <td>
-              <div style="display:flex;gap:5px">
-                <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="papRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
-                <button class="bs d" style="font-size:11px" onclick="papEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
-              </div>
-            </td>
-          </tr>`;}).join('')}
-        </tbody></table></div>`}`;
+    <input id="papBus" placeholder="🔍 Buscar por nombre o CI..." oninput="filtrarPap()" style="width:100%;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px;margin-bottom:14px"/>
+    <div id="papTbl2"></div>`;
+    renderPapTabla2(data);
   }catch(e){el.innerHTML=`<div class="ph"><h3>🗑️ Papelera</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+}
+function filtrarPap(){
+  const bus=(document.getElementById('papBus')?.value||'').toLowerCase().trim();
+  const data=(W._papeleraData||[]).filter(d=>!bus||(d.nombre_display||'').toLowerCase().includes(bus));
+  renderPapTabla2(data);
+}
+function renderPapTabla2(data){
+  const cont=document.getElementById('papTbl2');
+  if(!cont) return;
+  const hoy=new Date();
+  cont.innerHTML=data.length===0
+    ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía o sin resultados para la búsqueda.</div>'
+    :`<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
+      <tbody>${data.map(d=>{
+        const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
+        const expira = new Date(d.expira_en);
+        const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
+        const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
+        return `<tr>
+          <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
+          <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
+          <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
+          <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
+          <td style="text-align:center">
+            <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="papRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
+              <button class="bs d" style="font-size:11px" onclick="papEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+            </div>
+          </td>
+        </tr>`;}).join('')}
+      </tbody></table></div>`;
 }
 async function papRestore(id, nombre){
   confirm2('♻️ Restaurar registro',`¿Restaurar <strong>${nombre}</strong>? El registro volverá al sistema.`,
@@ -10075,37 +10088,50 @@ async function limRenderPap(){
   pane.innerHTML=skeletonTable(3,5);
   try{
     const data = await api('GET','/api/papelera');
-    const hoy  = new Date();
+    W._papeleraData=data;
     pane.innerHTML=`<div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:13px;color:#92400e;margin-bottom:14px">
       ⚠️ Los registros eliminados se conservan <strong>30 días</strong> y luego se eliminan definitivamente de forma automática.
       Podés restaurarlos en cualquier momento antes de que venzan.
     </div>
-    ${data.length===0
-      ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía.</div>'
-      :`<div style="overflow-x:auto"><table class="tbl">
-        <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
-        <tbody>${data.map(d=>{
-          const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
-          const expira = new Date(d.expira_en);
-          const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
-          const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
-          return `<tr>
-            <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
-            <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
-            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
-            <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
-            <td style="text-align:center">
-              <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
-            </td>
-            <td>
-              <div style="display:flex;gap:5px">
-                <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="limPapRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
-                <button class="bs d" style="font-size:11px" onclick="limPapEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
-              </div>
-            </td>
-          </tr>`;}).join('')}
-        </tbody></table></div>`}`;
+    <input id="papBus" placeholder="🔍 Buscar por nombre o CI..." oninput="filtrarPapelera()" style="width:100%;padding:8px 12px;border:1.5px solid var(--bdr);border-radius:9px;font-size:13px;margin-bottom:14px"/>
+    <div id="papTbl"></div>`;
+    renderPapeleraTabla(data);
   }catch(e){pane.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`;}
+}
+function filtrarPapelera(){
+  const bus=(document.getElementById('papBus')?.value||'').toLowerCase().trim();
+  const data=(W._papeleraData||[]).filter(d=>!bus||(d.nombre_display||'').toLowerCase().includes(bus));
+  renderPapeleraTabla(data);
+}
+function renderPapeleraTabla(data){
+  const cont=document.getElementById('papTbl');
+  if(!cont) return;
+  const hoy=new Date();
+  cont.innerHTML=data.length===0
+    ?'<div style="text-align:center;padding:50px;color:#94a3b8;font-size:15px">🗑️ La papelera está vacía o sin resultados para la búsqueda.</div>'
+    :`<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Tipo</th><th>Nombre / Descripción</th><th>Eliminado</th><th>Expira</th><th>Días restantes</th><th>Acción</th></tr></thead>
+      <tbody>${data.map(d=>{
+        const meta   = _PAP_TIPO[d.tipo]||{ico:'📦',label:d.tipo};
+        const expira = new Date(d.expira_en);
+        const dias   = Math.max(0, Math.ceil((expira-hoy)/(1000*60*60*24)));
+        const diasColor = dias<=2?'#dc2626':dias<=5?'#d97706':'#059669';
+        return `<tr>
+          <td style="white-space:nowrap"><span style="font-size:18px">${meta.ico}</span> <span style="font-size:12px;color:#475569">${meta.label}</span></td>
+          <td style="font-weight:600;max-width:280px;font-size:13px">${d.nombre_display||'—'}</td>
+          <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.fecha_eliminacion||'').slice(0,16)}</td>
+          <td style="font-size:12px;color:#6b7280;white-space:nowrap">${(d.expira_en||'').slice(0,10)}</td>
+          <td style="text-align:center">
+            <span style="background:${diasColor};color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700">${dias}d</span>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="limPapRestore('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">♻️ Restaurar</button>
+              <button class="bs d" style="font-size:11px" onclick="limPapEliminar('${d.id}','${(d.nombre_display||'').replace(/'/g,"\\'")}')">🗑 Eliminar</button>
+            </div>
+          </td>
+        </tr>`;}).join('')}
+      </tbody></table></div>`;
 }
 async function limPapRestore(id, nombre){
   confirm2('♻️ Restaurar registro',`¿Restaurar <strong>${nombre}</strong>? El registro volverá al sistema.`,
@@ -16701,6 +16727,11 @@ async function pgAuditoria(el){
       <div style="font-size:13px;font-weight:700;color:#1e293b">Limpieza</div>
       <div style="font-size:11px;color:#94a3b8;margin-top:2px">Inactivos y duplicados</div>
     </div>
+    <div onclick="verAuditoriaAlumnosPagos()" style="background:#fff;border-radius:14px;padding:16px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.07);border:1.5px solid #bbf7d0;transition:transform .18s,box-shadow .18s" onmouseenter="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 24px rgba(22,101,52,.15)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 2px 10px rgba(0,0,0,.07)'">
+      <div style="font-size:28px;margin-bottom:6px">🎓</div>
+      <div style="font-size:13px;font-weight:700;color:#1e293b">Alumnos y Pagos</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">Historial combinado</div>
+    </div>
   </div>
 
   <div class="ph"><h3>📋 Registro de Auditoría</h3>
@@ -17177,6 +17208,43 @@ async function cargarAuditoria(){
     <p style="font-size:11px;color:var(--t3);margin-top:6px">Mostrando ${regs.length} registros · Última actualización: ${new Date().toLocaleTimeString('es-PY')}</p>`;
   }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
 }
+// Vista combinada: todo lo que le pasó a un alumno (alta, baja, pagos, habilitaciones)
+// en un solo lugar, para investigar casos como "un alumno con sus notas y pagos desapareció".
+async function verAuditoriaAlumnosPagos(){
+  ['audRol','audAccion','audTabla','audDesde','audHasta','audBus'].forEach(id=>{const f=document.getElementById(id);if(f)f.value='';});
+  const el=document.getElementById('audTbl');
+  if(el) el.innerHTML='<div class="es">⏳ Cargando historial de alumnos y pagos...</div>';
+  try{
+    const [rAlumnos,rPagos,rHab]=await Promise.all([
+      api('GET','/api/admin/auditoria?tabla=alumnos&limite=2000'),
+      api('GET','/api/admin/auditoria?tabla=pagos&limite=2000'),
+      api('GET','/api/admin/auditoria?tabla=habilitaciones_examen&limite=2000').catch(()=>({registros:[]})),
+    ]);
+    const regs=[...(rAlumnos.registros||[]),...(rPagos.registros||[]),...(rHab.registros||[])]
+      .sort((a,b)=>(b.fecha||'')>(a.fecha||'')?1:-1);
+    W._auditData=regs;
+    const accionColor={LOGIN:'bg',UPDATE_NOTA:'bb',DELETE:'br',DELETE_COMPLETO:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba'};
+    if(!el)return;
+    if(!regs.length){el.innerHTML='<div class="es">Sin registros de alumnos o pagos</div>';return;}
+    const eliminaciones=regs.filter(r=>r.accion==='DELETE'||r.accion==='DELETE_COMPLETO').length;
+    el.innerHTML=`${eliminaciones?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:12px;color:#991b1b;margin-bottom:12px">
+      ⚠️ Se detectaron <strong>${eliminaciones}</strong> ${eliminaciones!==1?'eliminaciones':'eliminación'} de alumno en este historial. Buscá la fila con el botón "♻️ Ir a Papelera" para restaurar si todavía está dentro del plazo de 30 días.
+    </div>`:''}
+    <div class="card"><div class="tw" style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse;min-width:900px">
+      <thead><tr style="background:#f0f4f8;font-size:11px">
+        <th style="padding:7px 10px;border:1px solid var(--bdr);white-space:nowrap;color:#374151">📅 Fecha / Hora</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">👤 Usuario</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);background:#fffbeb;color:#92400e;font-weight:700">✍ Descripción de la acción</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">⚡ Acción / Módulo</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">🎯 Afecta a</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#374151">🔄 Cambio</th>
+        <th style="padding:7px 10px;border:1px solid var(--bdr);color:#7c3aed">📄 Raw</th>
+      </tr></thead>
+      <tbody id="audBody">${regs.map(r=>audRow(r,accionColor)).join('')}</tbody>
+    </table></div></div>
+    <p style="font-size:11px;color:var(--t3);margin-top:6px">Mostrando ${regs.length} registros combinados de alumnos + pagos + habilitaciones</p>`;
+  }catch(e){if(el)el.innerHTML=`<div class="es">Error: ${e.message}</div>`;}
+}
 function describirAccion(r){
   let det={};
   try{det=JSON.parse(r.detalle||'{}');}catch{}
@@ -17282,6 +17350,10 @@ function describirAccion(r){
     if(tabla==='asignaciones')return `🗑 Eliminó una asignación de docente`;
     if(tabla==='docentes'||tabla==='usuarios') return `🗑 Eliminó el usuario${al?' <strong>'+al+'</strong>':''}`;
     return `🗑 Eliminó un registro${tabla?' en '+tabla:''}`;
+  }
+  if(accion==='DELETE_COMPLETO'){
+    const nombreComp=[det.apellido,det.nombre].filter(Boolean).join(', ')||al;
+    return `🗑 Eliminó completamente al alumno${nombreComp?' <strong>'+nombreComp+'</strong>':''}${ci?' (CI: '+ci+')':''} — incluye notas, pagos y asistencia`;
   }
   if(accion==='CREATE'||accion==='INSERT'){
     if(tabla==='alumnos')        return `👤 Dio de alta al alumno${al?' <strong>'+al+'</strong>':''}${carrera?' en '+carrera:''}`;
@@ -17454,13 +17526,18 @@ function audRow(r,accionColor){
   } else if(det.estado) {
     cambioHtml=`<span style="color:#2563eb">${det.estado}</span>`;
   }
+  // Eliminación de alumno: acceso directo a Papelera para restaurar
+  const esEliminacionAlumno=(r.accion==='DELETE'&&(r.tabla==='alumnos'||r.tabla==='alumnos_grupo'))||r.accion==='DELETE_COMPLETO';
+  if(esEliminacionAlumno){
+    cambioHtml+=`${cambioHtml?'<br>':''}<button onclick="event.stopPropagation();go('papelera')" style="margin-top:3px;font-size:10px;padding:3px 8px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">♻️ Ir a Papelera</button>`;
+  }
 
   // Detalle expandido (JSON legible)
   const detalleExpanded = Object.entries(det).length
     ? Object.entries(det).map(([k,vl])=>`<div style="display:flex;gap:8px;padding:2px 0;border-bottom:1px solid #f0f0f0;font-size:10px"><span style="color:#9ca3af;min-width:120px;flex-shrink:0">${k}</span><span style="color:#374151;font-weight:500;word-break:break-all">${JSON.stringify(vl)}</span></div>`).join('')
     : '<span style="color:#9ca3af;font-size:10px">Sin detalle</span>';
 
-  const accionBadgeMap={LOGIN:'bg',UPDATE_NOTA:'bb',UPDATE_ASISTENCIA:'bb',DELETE:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba',HONORARIO:'ba',CREATE:'bg',INSERT:'bg',UPDATE:'bb',SOLICITUD_ALUMNO:'bb',RESOLVER_ALUMNO:'bg',EGRESO:'bg',CONSTANCIA:'bg',REPARAR:'ba'};
+  const accionBadgeMap={LOGIN:'bg',UPDATE_NOTA:'bb',UPDATE_ASISTENCIA:'bb',DELETE:'br',DELETE_COMPLETO:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba',HONORARIO:'ba',CREATE:'bg',INSERT:'bg',UPDATE:'bb',SOLICITUD_ALUMNO:'bb',RESOLVER_ALUMNO:'bg',EGRESO:'bg',CONSTANCIA:'bg',REPARAR:'ba'};
 
   const tdStyle='padding:5px 8px;border:1px solid var(--bdr);vertical-align:top';
   const descCell=puedNav
