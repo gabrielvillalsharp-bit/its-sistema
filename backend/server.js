@@ -872,6 +872,92 @@ try {
   }
 } catch(e) { console.warn('[Migración] avisos constraint:', e.message); }
 
+// ── MIGRACIÓN DE DATOS: restaura notas perdidas por bug de cache vacio en updN ──
+// Ver commit 5e1d7c1: guardar una nota sin haber cargado antes la grilla completa
+// mandaba la fila entera con campos ausentes como '', que el backend guardaba como
+// NULL, borrando valores reales ya cargados. Detectados 90 casos via auditoria
+// (comparando el valor antes/despues de cada UPDATE_NOTA); esta migracion solo
+// restaura los 49 que SIGUEN vacios ahora mismo -- si un docente ya volvio a
+// cargar el valor a mano mientras tanto, se detecta (campo ya no esta en NULL)
+// y se saltea sin tocarlo. Nunca resta puntos ni pisa un valor existente.
+try {
+  const yaAplicada = db.prepare("SELECT valor FROM configuracion WHERE clave='migracion_restaurar_notas_2026_07'").get();
+  if (!yaAplicada) {
+    const { calcularPuntaje } = require('./db');
+    const restauraciones = [
+      { alumno_id: 'a_1778458688838_x6f', asignacion_id: 'asig_doc_sharp_CON_105_cont_1u', campo: 'parcial', valor: 0 },
+      { alumno_id: 'a_1778458688838_x6f', asignacion_id: 'asig_doc_sharp_CON_105_cont_1u', campo: 'tp1', valor: 5 },
+      { alumno_id: 'a_1778459610968_zkn', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', campo: 'parcial', valor: 0 },
+      { alumno_id: 'a_1778460585799_94w', asignacion_id: 'asig_doc_aguero_IQ_103_instr_1u', campo: 'tp4', valor: 5 },
+      { alumno_id: 'a_1778446683571_30r', asignacion_id: 'asig_doc_jimenez_FAR_203_farm_2u', campo: 'tp4', valor: 4 },
+      { alumno_id: 'a_1778446682734_lce', asignacion_id: 'asig_doc_jimenez_FAR_203_farm_2u', campo: 'tp4', valor: 4 },
+      { alumno_id: 'a_1778617100280_pbz', asignacion_id: 'asig_doc_valenz_COS_105_cosA_1b', campo: 'tp2', valor: 0 },
+      { alumno_id: 'a_1778617162855_1wq', asignacion_id: 'asig_doc_valenz_COS_105_cosA_1b', campo: 'tp2', valor: 0 },
+      { alumno_id: 'a_1778446814694_0lm', asignacion_id: 'asig_doc_aranda_RAD_201_rad_2u', campo: 'tp1', valor: 15 },
+      { alumno_id: 'a_1778446814694_0lm', asignacion_id: 'asig_doc_aranda_RAD_201_rad_2u', campo: 'tp1', valor: 1 },
+      { alumno_id: 'a_1778460586676_y35', asignacion_id: 'asig_doc_aranda_IQ_104_instr_1u', campo: 'tp1', valor: 16 },
+      { alumno_id: 'a_1779838845888', asignacion_id: 'asig_doc_perez_CRM_102_crim_1u', campo: 'tp2', valor: 0 },
+      { alumno_id: 'a_1778458752721_kbn', asignacion_id: 'asig_doc_perez_CRM_102_crim_1u', campo: 'parcial', valor: 9 },
+      { alumno_id: 'a_1778458752063_gz5', asignacion_id: 'asig_doc_perez_CRM_102_crim_1u', campo: 'parcial', valor: 5 },
+      { alumno_id: 'a_1778617162791_8yy', asignacion_id: 'asig_cos102_cosA_1b', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778617161775_gsp', asignacion_id: 'asig_doc_espinola_COS_106_cosA_1b', campo: 'parcial', valor: 8 },
+      { alumno_id: 'a_imp_81_09qy', asignacion_id: 'asig_doc_carballo_COS_103_cosA_1a', campo: 'parcial', valor: 16 },
+      { alumno_id: 'a_imp_35_k46t', asignacion_id: 'asig_doc_carballo_COS_103_cosA_1a', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778443281108_u8o', asignacion_id: 'asig_doc_carballo_COS_204_cosA_2u', campo: 'tp1', valor: 1 },
+      { alumno_id: 'a_1778617162536_foq', asignacion_id: 'asig_cos102_cosA_1b', campo: 'parcial', valor: 19 },
+      { alumno_id: 'a_1778443281792_aby', asignacion_id: 'asig_doc_carballo_COS_205_cosA_2u', campo: 'tp3', valor: 5 },
+      { alumno_id: 'a_1778446682809_8s2', asignacion_id: 'asig_doc_carrillo_FAR_205_farm_2u', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1779323444008', asignacion_id: 'asig_doc_higuchi_COS_101_cosA_1a', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778446787609_p2q', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', campo: 'parcial', valor: 15 },
+      { alumno_id: 'a_1778458751006_376', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 0 },
+      { alumno_id: 'a_1781566133474', asignacion_id: 'asig_doc_gimenez_CON_103_cont_1u', campo: 'parcial', valor: 17 },
+      { alumno_id: 'a_1778458752853_ue0', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 13 },
+      { alumno_id: 'a_1779834471242', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 15 },
+      { alumno_id: 'a_1778458751141_6ue', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778458752653_17v', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 19 },
+      { alumno_id: 'a_1778458752589_4o1', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 16 },
+      { alumno_id: 'a_1779834464558', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 16 },
+      { alumno_id: 'a_1778458752261_jo3', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 17 },
+      { alumno_id: 'a_1778458751996_dyy', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778458751071_249', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 19 },
+      { alumno_id: 'a_1778458751204_apl', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 18 },
+      { alumno_id: 'a_1779834475495', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 13 },
+      { alumno_id: 'a_1778458751271_356', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 11 },
+      { alumno_id: 'a_1778458751602_gg6', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 19 },
+      { alumno_id: 'a_1778458752131_ro1', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 17 },
+      { alumno_id: 'a_1780526717517', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 12 },
+      { alumno_id: 'a_1778458751800_y7v', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 10 },
+      { alumno_id: 'a_1778458752721_kbn', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 18 },
+      { alumno_id: 'a_1778458751341_g61', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 15 },
+      { alumno_id: 'a_1778458752457_bhp', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 14 },
+      { alumno_id: 'a_1778458752063_gz5', asignacion_id: 'asig_doc_ocampos_CRM_101_crim_1u', campo: 'parcial', valor: 15 },
+      { alumno_id: 'a_imp_136_t2sp', asignacion_id: 'asig_doc_higuchi_COS_101_cosA_1b', campo: 'parcial', valor: 20 },
+      { alumno_id: 'a_1778617162663_s5h', asignacion_id: 'asig_doc_higuchi_COS_101_cosA_1b', campo: 'parcial', valor: 15 },
+      { alumno_id: 'a_1778443281792_aby', asignacion_id: 'asig_doc_carballo_COS_205_cosA_2u', campo: 'parcial', valor: 19 },
+    ];
+    const camposValidos = new Set(['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario','director_pts']);
+    let aplicados = 0, salteados = 0;
+    const tx = db.transaction(() => {
+      for (const r of restauraciones) {
+        if (!camposValidos.has(r.campo)) continue;
+        const actual = db.prepare(`SELECT ${r.campo} as v FROM notas WHERE alumno_id=? AND asignacion_id=?`).get(r.alumno_id, r.asignacion_id);
+        if (!actual || actual.v !== null) { salteados++; continue; } // ya tiene valor (docente lo recargo) -> no tocar
+        db.prepare(`UPDATE notas SET ${r.campo}=? WHERE alumno_id=? AND asignacion_id=?`).run(r.valor, r.alumno_id, r.asignacion_id);
+        const fila = db.prepare('SELECT tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,director_pts FROM notas WHERE alumno_id=? AND asignacion_id=?').get(r.alumno_id, r.asignacion_id);
+        const calc = calcularPuntaje(fila.tp1,fila.tp2,fila.tp3,fila.tp4,fila.tp5,fila.parcial,fila.parcial_recuperatorio,fila.final_ord,fila.final_recuperatorio,fila.complementario,fila.extraordinario,fila.director_pts);
+        db.prepare('UPDATE notas SET tp_total=?,puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=? WHERE alumno_id=? AND asignacion_id=?')
+          .run(calc.tp_total, calc.puntaje, calc.nota, calc.estado, calc.parcial_ef, calc.final_ef, r.alumno_id, r.asignacion_id);
+        audit('sistema_migracion', 'RESTAURAR_NOTA_PERDIDA', 'notas', r.alumno_id + '_' + r.asignacion_id, { campo: r.campo, valor_restaurado: r.valor });
+        aplicados++;
+      }
+    });
+    tx();
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)")
+      .run('migracion_restaurar_notas_2026_07', '1', `Restauro ${aplicados} notas, salteo ${salteados} ya recargadas por docentes`);
+    console.log(`[Migración] Restauradas ${aplicados} notas perdidas por bug de cache vacio (${salteados} ya recargadas manualmente, sin tocar) ✓`);
+  }
+} catch(e) { console.warn('[Migración] restaurar notas perdidas:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
