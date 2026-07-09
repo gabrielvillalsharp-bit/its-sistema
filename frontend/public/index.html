@@ -2294,6 +2294,9 @@ async function pgWhatsApp(el){
   ]);
   const docentesR = await api('GET','/api/docentes').catch(()=>[]);
   const conTel = (docentesR||[]).filter(d=>d.telefono);
+  const alumnosR = await api('GET','/api/alumnos').catch(()=>[]);
+  const alumnosConTel = (alumnosR||[]).filter(a=>a.telefono);
+  W._waAlumnos = alumnosConTel;
 
   const stColor = {open:'#16a34a',close:'#dc2626',connecting:'#d97706',desconocido:'#888'}[estadoR.estado]||'#888';
   const stLabel = {open:'✅ Conectado',close:'🔴 Desconectado',connecting:'🟡 Conectando',no_configurado:'⚙️ Sin configurar',error:'⚠️ Error',desconocido:'❓ Desconocido'}[estadoR.estado]||estadoR.estado;
@@ -2419,6 +2422,7 @@ async function pgWhatsApp(el){
       <label style="font-size:12px;color:#555">Destinatario</label>
       <select id="waDestTipo" onchange="waDestChange()" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
         <option value="docente">Docente del sistema</option>
+        <option value="alumno">Alumno (reenviar usuario y contraseña)</option>
         <option value="custom">Número personalizado</option>
       </select>
       <div id="waDestDoc">
@@ -2428,14 +2432,26 @@ async function pgWhatsApp(el){
           ${docOptHTML}
         </select>
       </div>
+      <div id="waDestAlumno" style="display:none">
+        <label style="font-size:12px;color:#555">Buscar alumno (nombre o CI)</label>
+        <input list="wa-alumnos-dl" id="waAlumnoSel" placeholder="Escribí para buscar..." style="width:100%;margin:4px 0 6px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+        <datalist id="wa-alumnos-dl">
+          ${alumnosConTel.map(a=>`<option value="${(a.apellido||'')+', '+(a.nombre||'')+' — CI '+(a.ci||'')}">`).join('')}
+        </datalist>
+        <div style="font-size:11px;padding:8px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;color:#5b21b6;margin-bottom:10px">
+          📨 Le va a llegar por WhatsApp su usuario y contraseña actuales de acceso al sistema (misma plantilla de bienvenida, editable en la pestaña Plantillas). No hace falta escribir un mensaje.
+        </div>
+      </div>
       <div id="waDestCustom" style="display:none">
         <label style="font-size:12px;color:#555">Teléfono (formato 0981XXXXXX o 595981XXXXXX)</label>
         <input id="waTelCustom" type="text" placeholder="0981123456" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
       </div>
-      <label style="font-size:12px;color:#555">Mensaje</label>
-      <textarea id="waMsgInd" rows="5" placeholder="Escribí el mensaje..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      <div id="waMsgIndWrap">
+        <label style="font-size:12px;color:#555">Mensaje</label>
+        <textarea id="waMsgInd" rows="5" placeholder="Escribí el mensaje..." style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="waEnviarInd()" style="background:linear-gradient(135deg,#128C7E,#25D366);color:#fff;border:none;border-radius:8px;padding:9px 20px;cursor:pointer;font-weight:700;font-size:13px">📤 Enviar ahora</button>
+        <button id="waEnviarIndBtn" onclick="waEnviarInd()" style="background:linear-gradient(135deg,#128C7E,#25D366);color:#fff;border:none;border-radius:8px;padding:9px 20px;cursor:pointer;font-weight:700;font-size:13px">📤 Enviar ahora</button>
         <span id="waIndMsg" style="font-size:12px"></span>
       </div>
     </div>
@@ -2976,7 +2992,23 @@ function waDestChange(){
   const t=document.getElementById('waDestTipo')?.value;
   if(!t) return;
   document.getElementById('waDestDoc').style.display=t==='docente'?'block':'none';
+  document.getElementById('waDestAlumno').style.display=t==='alumno'?'block':'none';
   document.getElementById('waDestCustom').style.display=t==='custom'?'block':'none';
+  // Para alumno, el mensaje es una plantilla fija del sistema — no hace falta escribirlo
+  document.getElementById('waMsgIndWrap').style.display=t==='alumno'?'none':'block';
+  const btn=document.getElementById('waEnviarIndBtn');
+  if(btn) btn.textContent=t==='alumno'?'📨 Enviar usuario y contraseña':'📤 Enviar ahora';
+}
+function _waAlumnoId(){
+  const val=(document.getElementById('waAlumnoSel')?.value||'').trim();
+  const ciMatch=val.match(/CI\s+(\S+)/i);
+  const ci=ciMatch?ciMatch[1]:null;
+  const nombrePart=val.split(' — CI')[0].trim().toLowerCase();
+  const al=(W._waAlumnos||[]).find(a=>
+    (ci && (a.ci||'')===ci) ||
+    `${a.apellido}, ${a.nombre}`.trim().toLowerCase()===nombrePart
+  );
+  return al?al.id:null;
 }
 function waProgTipoChange(){
   const t=document.getElementById('waProgTipo')?.value;
@@ -2984,6 +3016,18 @@ function waProgTipoChange(){
 }
 async function waEnviarInd(){
   const tipo=document.getElementById('waDestTipo')?.value;
+  const info=document.getElementById('waIndMsg');
+  if(tipo==='alumno'){
+    const alId=_waAlumnoId();
+    if(!alId){info.innerHTML='<span style="color:#dc2626">Elegí un alumno válido de la lista</span>';return;}
+    info.innerHTML='<span style="color:#888">Enviando...</span>';
+    try{
+      await api('POST','/api/whatsapp/enviar-credenciales/'+alId,{});
+      info.innerHTML='<span style="color:#16a34a">✓ Usuario y contraseña enviados por WhatsApp</span>';
+      document.getElementById('waAlumnoSel').value='';
+    }catch(e){info.innerHTML=`<span style="color:#dc2626">${e.message}</span>`;}
+    return;
+  }
   let tel='',nombre='',did='';
   if(tipo==='docente'){
     const sel=document.getElementById('waDocSel');
@@ -2994,7 +3038,6 @@ async function waEnviarInd(){
     tel=document.getElementById('waTelCustom')?.value||'';
   }
   const msg=document.getElementById('waMsgInd')?.value?.trim()||'';
-  const info=document.getElementById('waIndMsg');
   if(!tel||!msg){info.innerHTML='<span style="color:#dc2626">Completá teléfono y mensaje</span>';return;}
   info.innerHTML='<span style="color:#888">Enviando...</span>';
   try{

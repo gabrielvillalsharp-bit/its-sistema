@@ -7594,6 +7594,40 @@ app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   res.json({ ok: true, id });
 });
 
+// ── WHATSAPP GESTIÓN: reenviar usuario y contraseña a un alumno ──────────────
+// Reutiliza la plantilla "bienvenida_qr" (editable por el director) para que un
+// alumno reciba de nuevo su usuario (email) y contraseña (CI) por WhatsApp con un
+// solo click, sin tener que ir a buscar los datos manualmente en la ficha. La
+// contraseña que se informa (CI completo) siempre es válida para iniciar sesión,
+// ya que /api/login acepta el CI completo o sus últimos 3 dígitos como atajo
+// permanente para alumnos, sin importar si después cambiaron la contraseña.
+app.post('/api/whatsapp/enviar-credenciales/:alumno_id', auth(ADM), async (req, res) => {
+  try {
+    const al = db.prepare(`
+      SELECT a.nombre, a.apellido, a.ci, a.telefono, u.email
+      FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+      WHERE a.id=?`).get(req.params.alumno_id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    if (!al.telefono) return res.status(400).json({ error: 'El alumno no tiene teléfono registrado en su ficha' });
+    if (!al.email) return res.status(400).json({ error: 'El alumno no tiene un usuario del sistema vinculado' });
+    const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+    const nombreCompleto = `${al.nombre||''} ${al.apellido||''}`.trim();
+    const msg = getWASistemaTpl('bienvenida_qr')
+      .replace(/\{nombre\}/g, nombreCompleto)
+      .replace(/\{email\}/g, al.email||'')
+      .replace(/\{ci\}/g, al.ci||'(tu número de cédula)')
+      .replace(/\{url\}/g, APP_URL);
+    const waRes = await sendWhatsApp(al.telefono, msg);
+    const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+    db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(id,'individual','alumno',req.params.alumno_id,nombreCompleto,al.telefono,msg,waRes.ok?'enviado':'fallido',req.user.id);
+    audit(req.user.id,'WA_ENVIAR_CREDENCIALES','alumnos',req.params.alumno_id,{ telefono: al.telefono, ok: waRes.ok });
+    if (!waRes.ok) return res.status(500).json({ error: waRes.error || 'No se pudo enviar. Verificá la conexión WhatsApp.' });
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── WHATSAPP GESTIÓN: envío masivo ────────────────────────────────────────────
 app.post('/api/whatsapp/masivo', auth(ADM), async (req, res) => {
   const { mensaje, filtro } = req.body; // filtro: 'todos'|'con_telefono'
