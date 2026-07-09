@@ -5851,6 +5851,56 @@ cron.schedule('0 3 * * *', () => {
   } catch(e) { console.error('[PAPELERA PURGE]', e.message); }
 }, { timezone: 'America/Asuncion' });
 
+// ── CRON: Chequeo nocturno de integridad de datos (diario 02:30, antes de la purga) ──
+// Detecta anomalías que en el pasado causaron reportes de "el alumno desapareció con
+// sus notas y pagos" sin que nadie se enterara hasta semanas después: registros
+// huérfanos (apuntan a un alumno/asignación que ya no existe), alumnos activos que no
+// pueden iniciar sesión, y alumnos en Papelera a punto de purgarse para siempre.
+// Avisa al director en el sistema, igual que el watchdog de WhatsApp.
+cron.schedule('30 2 * * *', () => {
+  try {
+    const problemas = [];
+
+    const sinUsuario = db.prepare(`
+      SELECT nombre, apellido FROM alumnos
+      WHERE estado='Activo' AND (usuario_id IS NULL OR NOT EXISTS (SELECT 1 FROM usuarios u WHERE u.id=alumnos.usuario_id))
+    `).all();
+    if (sinUsuario.length) problemas.push(`👤 <strong>${sinUsuario.length} alumno(s) activo(s) sin usuario vinculado</strong> (no pueden iniciar sesión): ${sinUsuario.slice(0,5).map(a=>a.apellido+', '+a.nombre).join('; ')}${sinUsuario.length>5?'…':''}`);
+
+    const pagosHuerfanos = db.prepare(`SELECT COUNT(*) n FROM pagos p WHERE NOT EXISTS (SELECT 1 FROM alumnos a WHERE a.id=p.alumno_id)`).get().n;
+    if (pagosHuerfanos) problemas.push(`💳 <strong>${pagosHuerfanos} pago(s) huérfano(s)</strong> (apuntan a un alumno que ya no existe en el sistema)`);
+
+    const notasHuerfanas = db.prepare(`SELECT COUNT(*) n FROM notas nt WHERE NOT EXISTS (SELECT 1 FROM alumnos a WHERE a.id=nt.alumno_id)`).get().n;
+    if (notasHuerfanas) problemas.push(`✏️ <strong>${notasHuerfanas} nota(s) huérfana(s)</strong> (alumno inexistente)`);
+
+    const habsHuerfanasAlumno = db.prepare(`SELECT COUNT(*) n FROM habilitaciones_examen h WHERE NOT EXISTS (SELECT 1 FROM alumnos a WHERE a.id=h.alumno_id)`).get().n;
+    if (habsHuerfanasAlumno) problemas.push(`🔓 <strong>${habsHuerfanasAlumno} habilitación(es) huérfana(s)</strong> (alumno inexistente)`);
+
+    const habsAsigHuerfana = db.prepare(`SELECT COUNT(*) n FROM habilitaciones_examen h WHERE h.asignacion_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM asignaciones a WHERE a.id=h.asignacion_id)`).get().n;
+    if (habsAsigHuerfana) problemas.push(`🔗 <strong>${habsAsigHuerfana} habilitación(es) con materia eliminada</strong> (la materia/asignación ya no existe)`);
+
+    const porVencer = db.prepare(`SELECT nombre_display FROM papelera WHERE tipo IN ('alumno','alumno_completo') AND expira_en <= datetime('now','+3 days')`).all();
+    if (porVencer.length) problemas.push(`🗑️ <strong>${porVencer.length} alumno(s) en Papelera se eliminan definitivamente en menos de 3 días</strong>: ${porVencer.slice(0,5).map(p=>p.nombre_display).join('; ')}${porVencer.length>5?'…':''}. Restaurá desde Limpieza → Papelera si fue un error.`);
+
+    const sinCarreraCurso = db.prepare(`SELECT COUNT(*) n FROM alumnos WHERE estado='Activo' AND (carrera_id IS NULL OR curso_id IS NULL)`).get().n;
+    if (sinCarreraCurso) problemas.push(`🎓 <strong>${sinCarreraCurso} alumno(s) activo(s) sin carrera o curso asignado</strong>`);
+
+    if (problemas.length) {
+      const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+      if (director) {
+        const id = 'av_integ_' + Date.now();
+        const contenido = 'El chequeo nocturno de integridad de datos encontró lo siguiente:<br><ul style="margin:6px 0 0;padding-left:18px">'
+          + problemas.map(p => `<li style="margin-bottom:4px">${p}</li>`).join('') + '</ul>';
+        db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
+          .run(id, `🔍 Chequeo de integridad: ${problemas.length} alerta${problemas.length!==1?'s':''}`, contenido, 'urgente', 1, 'director', director.id);
+      }
+      console.log(`[Integridad] ${problemas.length} problema(s) detectado(s), aviso creado`);
+    } else {
+      console.log('[Integridad] Sin problemas detectados');
+    }
+  } catch(e) { console.error('[Integridad] Error:', e.message); }
+}, { timezone: 'America/Asuncion' });
+
 console.log('⏰ Backup programado: todos los días a las 23:00 (hora Paraguay) → Volume + GitHub');
 
 // Backup inmediato al iniciar (5s de gracia para que la DB esté lista)
