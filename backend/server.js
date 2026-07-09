@@ -3769,6 +3769,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
     const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
     const montoUnit = parseFloat(monto_unitario) || 0;
     let registros = 0;
+    const idsHabilitados = [];
     const insertLote = db.transaction(() => {
       asignacion_ids.forEach((asig_id, i) => {
         const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asig_id, tipoExamen);
@@ -3781,9 +3782,35 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .run(habId, alumno_id, asig_id, tipoExamen, req.user.id, fechaHoy, `Habilitado por pago de ${concepto} (lote)`, esRecup);
         audit(req.user.id, 'PAGO_LOTE', 'pagos', pid, { alumno_id, alumno: alNom ? `${alNom.apellido}, ${alNom.nombre}` : alumno_id, concepto, monto: montoUnit, asignacion_id: asig_id });
         registros++;
+        idsHabilitados.push(asig_id);
       });
     });
     insertLote();
+
+    // Enviar UNA constancia por WhatsApp consolidando todas las materias del lote —
+    // antes este endpoint (usado cuando se habilita mas de una materia a la vez, el
+    // caso mas comun) nunca avisaba nada al alumno, a diferencia del pago individual.
+    if (registros > 0) {
+      const alFull = db.prepare('SELECT nombre, apellido, telefono FROM alumnos WHERE id=?').get(alumno_id);
+      if (alFull?.telefono) {
+        const phs = idsHabilitados.map(() => '?').join(',');
+        const materias = db.prepare(`SELECT m.nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id IN (${phs})`).all(...idsHabilitados);
+        const listaMaterias = materias.map(m => m.nombre).join(', ');
+        const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+        const fechaFmt = (fecha_pago || fechaHoy).split('-').reverse().join('/');
+        const montoTotalFmt = 'Gs. ' + Number(montoUnit * registros).toLocaleString('es-PY');
+        const nombreCompleto = `${alFull.nombre || ''} ${alFull.apellido || ''}`.trim();
+        const waMsg = getWASistemaTpl('constancia_pago')
+          .replace(/\{nombre\}/g, nombreCompleto)
+          .replace(/\{concepto\}/g, concepto)
+          .replace(/\{materia\}/g, `\n• Materias habilitadas (${registros}): ${listaMaterias}`)
+          .replace(/\{monto\}/g, montoTotalFmt)
+          .replace(/\{fecha\}/g, fechaFmt)
+          .replace(/\{url\}/g, APP_URL);
+        sendWhatsApp(alFull.telefono, waMsg).catch(() => {});
+      }
+    }
+
     res.json({ ok: true, registros });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
