@@ -12111,7 +12111,20 @@ W.updN=async(aId,asigId,campo,val)=>{
       return;
     }
   }
-  if(!W._nc[aId])W._nc[aId]={};
+  // IMPORTANTE: si todavía no tenemos en cache las notas actuales de este alumno
+  // (ej. se llegó a esta celda por un camino que no pasó por la carga completa de
+  // la grilla), NO arrancar de un objeto vacío — cada guardado manda la fila
+  // completa, así que un campo ausente en el cache se guarda como vacío y BORRA
+  // el valor real que ya existía en la base (esto pasó de verdad: una nota de
+  // Parcial que existía desde junio quedó en blanco al editar el Final en julio).
+  // Se hidrata el cache desde el servidor antes de aceptar el primer edit.
+  if(!W._nc[aId]){
+    try{
+      const actuales=await api('GET','/api/notas/asignacion/'+asigId);
+      const al=(actuales?.alumnos||[]).find(a=>a.id===aId);
+      W._nc[aId]=al?{tp1:al.tp1,tp2:al.tp2,tp3:al.tp3,tp4:al.tp4,tp5:al.tp5,parcial:al.parcial,parcial_recuperatorio:al.parcial_recuperatorio,final_ord:al.final_ord,final_recuperatorio:al.final_recuperatorio,complementario:al.complementario,extraordinario:al.extraordinario,director_pts:al.director_pts}:{};
+    }catch(e){ W._nc[aId]={}; }
+  }
   // Validar suma de TPs ≤ 20 antes de aceptar el cambio
   if(['tp1','tp2','tp3','tp4'].includes(campo)){
     const newVal=val===''?null:Math.round(Number(val));
