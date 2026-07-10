@@ -6036,14 +6036,12 @@ cron.schedule('30 2 * * *', () => {
 
     if (problemas.length) {
       const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
-      if (director) {
-        const id = 'av_integ_' + Date.now();
-        const contenido = 'El chequeo nocturno de integridad de datos encontró lo siguiente:<br><ul style="margin:6px 0 0;padding-left:18px">'
-          + problemas.map(p => `<li style="margin-bottom:4px">${p}</li>`).join('') + '</ul>';
-        db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
-          .run(id, `🔍 Chequeo de integridad: ${problemas.length} alerta${problemas.length!==1?'s':''}`, contenido, 'urgente', 1, 'director', director.id);
-      }
-      console.log(`[Integridad] ${problemas.length} problema(s) detectado(s), aviso creado`);
+      const contenido = 'El chequeo nocturno de integridad de datos encontró lo siguiente:<br><ul style="margin:6px 0 0;padding-left:18px">'
+        + problemas.map(p => `<li style="margin-bottom:4px">${p}</li>`).join('') + '</ul>';
+      // Ya no se crea un aviso visible en la pantalla de inicio (pedido del director,
+      // la pantalla estaba muy cargada). Queda registrado en auditoría para consulta.
+      audit(director?director.id:null, 'CHEQUEO_INTEGRIDAD', 'sistema', null, { problemas, contenido });
+      console.log(`[Integridad] ${problemas.length} problema(s) detectado(s), registrado en auditoría`);
     } else {
       console.log('[Integridad] Sin problemas detectados');
     }
