@@ -2692,7 +2692,7 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
       p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
       n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total, n.parcial, n.parcial_recuperatorio,
       n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario, n.ausente,
-      n.puntaje_total, n.nota_final, n.estado, n.parcial_efectivo, n.final_efectivo
+      n.puntaje_total, n.nota_final, n.estado, n.parcial_efectivo, n.final_efectivo, n.director_pts
     FROM alumnos al
     JOIN cursos cu ON al.curso_id = cu.id
     JOIN carreras ca ON cu.carrera_id = ca.id
