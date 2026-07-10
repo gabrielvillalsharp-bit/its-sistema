@@ -1278,6 +1278,16 @@ try {
   if (n) console.log(`[Migración] Primeros Auxilios (Romero) movido al 15/07 ✓ (${n} registros)`);
 } catch(e) { console.warn('[Migración] Mover Primeros Auxilios Romero:', e.message); }
 
+// ── MIGRACIÓN: Limpiar avisos de "Chequeo de integridad" ya generados ─────────
+// El chequeo nocturno de integridad dejó de crear avisos visibles en el inicio
+// (pedido del director, pantalla muy cargada — sigue registrado en auditoría).
+// Esto borra los avisos de ese tipo que ya se habían generado en noches previas
+// y que seguían apareciendo en Inicio y en Avisos aunque el código ya no los cree.
+try {
+  const r = db.prepare("DELETE FROM avisos WHERE id LIKE 'av_integ_%' OR titulo LIKE '🔍 Chequeo de integridad%'").run();
+  if (r.changes) console.log(`[Migración] ${r.changes} aviso(s) de chequeo de integridad eliminado(s) ✓`);
+} catch(e) { console.warn('[Migración] Limpiar avisos de integridad:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Física Radiológica (Paulo Higuchi) al 15/07 ────
 // Pedido puntual del director, EXCEPCIÓN explícita a la regla de día-de-clase:
 // la materia se cursa los lunes, pero el 13/07 (lunes más cercano) Higuchi ya
