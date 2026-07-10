@@ -2659,12 +2659,29 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       if (!hab) return res.status(403).json({ error: 'El alumno no está habilitado para el recuperatorio en esta materia' });
     }
     const { calcularPuntaje } = require('./db');
+    // Guardar el estado ANTES de sobreescribir -- antes la auditoría solo guardaba lo que se
+    // mandó, no lo que había, así que reconstruir un incidente de perdida de datos llevaba horas.
+    const antes = db.prepare(`SELECT ${campos.join(',')} FROM notas WHERE alumno_id=? AND asignacion_id=?`).get(req.params.alumno_id, req.params.asig_id) || {};
     // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
     const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);
     const campos_q = campos.map(c=>`${c}=?`).join(',');
     const extra = ',tp_total=?,puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=?';
     db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.tp_total, nota.puntaje, nota.nota, nota.estado, nota.parcial_ef, nota.final_ef, req.params.alumno_id, req.params.asig_id);
-    audit(req.user.id,'UPDATE_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,{campos:req.body});
+    audit(req.user.id,'UPDATE_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,{antes,campos:req.body});
+    // Detección en tiempo real de posible pérdida de datos: si algún campo tenía valor y ahora
+    // se guarda vacío, dejar un registro aparte en Auditoría (sin avisar al director) para poder
+    // encontrarlo al toque en vez de tener que reconstruirlo del historial completo como esta vez.
+    const perdidos = campos.filter(c => {
+      if (!(c in req.body)) return false; // campo ni siquiera formaba parte de este guardado (ej. "ausente" o "parcial" para un docente) -- no es perdida
+      const teniaAntes = antes[c] !== undefined && antes[c] !== null && antes[c] !== '';
+      const vNuevo = req.body[c];
+      const quedaVacio = vNuevo === '' || vNuevo === undefined || vNuevo === null;
+      return teniaAntes && quedaVacio;
+    });
+    if (perdidos.length) {
+      audit(req.user.id,'POSIBLE_PERDIDA_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,
+        { campos_perdidos: perdidos, valores_perdidos: Object.fromEntries(perdidos.map(c=>[c,antes[c]])) });
+    }
     res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_ef, final_efectivo: nota.final_ef });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
