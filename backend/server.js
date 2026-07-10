@@ -1198,6 +1198,40 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus Desfile Estudiantil:', e.message); }
 
+// ── MIGRACIÓN: Bonus +5 puntos — nuevos registros Desfile Estudiantil (planilla 2) ──
+// Segunda planilla "Nuevos_Alumnos_Desfile.xlsx" (20 filas, ninguna duplicada dentro
+// de la propia planilla). Cruce por nombre contra snapshot fresco de producción:
+// coincidencia exacta o por solapamiento de palabras + carrera/año consistente para
+// las 20. Igual que el bonus anterior: se suma (no pisa) sobre cualquier director_pts
+// previo -- varios de estos alumnos ya tenían +5 del bonus anterior y quedan en 10 -- ,
+// se aplica a TODAS las materias que cursa en el período activo, y se recalcula
+// puntaje/nota/estado con la misma fórmula que usa el endpoint de notas.
+try {
+  const YA_APLICADO = db.prepare("SELECT valor FROM configuracion WHERE clave='bonus_desfile_2026_nuevos_aplicado'").get();
+  if (!YA_APLICADO) {
+    const alumnosDesfileNuevos2026 = ["a_1778443319486_ejq","a_imp_103_0klo","a_1778443282335_g10","a_1778458751341_g61","a_1778458751204_apl","a_1778545299094","a_1779834475495","a_1778458751141_6ue","a_1778458752457_bhp","a_1778458752853_ue0","a_1778458751602_gg6","a_1779834471242","a_1778458752721_kbn","a_1778458752523_ast","a_1778458751006_376","a_1778458752261_jo3","a_1779834464558","a_1778458752131_ro1","a_1778458751800_y7v","a_1778458752653_17v"];
+    const { calcularPuntaje } = require('./db');
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (periodo) {
+      const updNota = db.prepare('UPDATE notas SET director_pts=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+      let alumnosAfectados = 0, notasAfectadas = 0;
+      alumnosDesfileNuevos2026.forEach(aid => {
+        const notas = db.prepare('SELECT n.* FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE n.alumno_id=? AND a.periodo_id=?').all(aid, periodo.id);
+        if (!notas.length) return;
+        alumnosAfectados++;
+        notas.forEach(n => {
+          const nuevoDir = (n.director_pts||0) + 5;
+          const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,nuevoDir);
+          updNota.run(nuevoDir, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+          notasAfectadas++;
+        });
+      });
+      db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('bonus_desfile_2026_nuevos_aplicado','1','Bonus +5pts Desfile Estudiantil (planilla nuevos registros) ya aplicado')").run();
+      console.log(`[Migración] Bonus Desfile Estudiantil (nuevos): +5pts aplicado a ${alumnosAfectados} alumnos (${notasAfectadas} notas) ✓`);
+    }
+  }
+} catch(e) { console.warn('[Migración] Bonus Desfile Estudiantil (nuevos):', e.message); }
+
 // ── MIGRACIÓN: Bonus +5 puntos por participación en Event Registration ───────
 // Segunda planilla de participación (277 registros originales, 78 ya marcados
 // duplicados por la propia planilla). Cruce por nombre contra la base real:
