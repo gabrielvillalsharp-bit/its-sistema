@@ -1278,6 +1278,18 @@ try {
   if (n) console.log(`[Migración] Primeros Auxilios (Romero) movido al 15/07 ✓ (${n} registros)`);
 } catch(e) { console.warn('[Migración] Mover Primeros Auxilios Romero:', e.message); }
 
+// ── MIGRACIÓN: Mover examen de Física Radiológica (Paulo Higuchi) al 15/07 ────
+// Pedido puntual del director, EXCEPCIÓN explícita a la regla de día-de-clase:
+// la materia se cursa los lunes, pero el 13/07 (lunes más cercano) Higuchi ya
+// tenía 2 exámenes a las 19:00 (Anatomía y Fisiología Humana, Enfermería y
+// Radiología) y el director prefirió el miércoles 15/07 antes que esperar al
+// lunes 27/07. Verificado sin choque de aula/docente a esa hora (los únicos
+// otros exámenes del 15/07 19:00 son de Romero, materia y año distintos).
+try {
+  const r = db.prepare("UPDATE examenes SET fecha='2026-07-15' WHERE id='ex_ford_asig_doc_higuchi_RAD_202_rad_2u'").run();
+  if (r.changes) console.log('[Migración] Física Radiológica (Higuchi) movido al 15/07 — excepción día de clase ✓');
+} catch(e) { console.warn('[Migración] Mover Física Radiológica Higuchi:', e.message); }
+
 // ── MIGRACIÓN (CORREGIDA): Fusionar ficha duplicada de Sindy Recalde Pereira ──
 // Diagnóstico real: existen DOS fichas de la misma alumna.
 //   a_1778458688706_zbr (CON-2026-007, CI 6690171) — la ficha "vieja": tiene las
