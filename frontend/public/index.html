@@ -2338,11 +2338,7 @@ async function pgWhatsApp(el){
     const telBadge = hasTel?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✓ Tiene tel.</span>':'<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">✗ Sin tel.</span>';
     const nombre = (d.apellido||'')+', '+(d.nombre||'');
     const btn = hasTel?'<button onclick="waTestDoc(\''+d.telefono+'\',\''+nombre.replace(/'/g,"\\'")+'\')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:11px;color:#2563eb">📤 Probar</button>':'';
-    const activo = d.wa_recordatorios_activo!==0;
-    const toggle = '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:'+(activo?'#166534':'#991b1b')+';font-weight:600">'
-      +'<input type="checkbox" '+(activo?'checked':'')+' onchange="waToggleRecordatorio(\''+d.docente_id+'\',this.checked,this)" style="width:15px;height:15px;cursor:pointer">'
-      +(activo?'Recibe recordatorios':'No recibe')+'</label>';
-    return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:7px 8px;color:#333;font-weight:600">'+nombre+'</td><td style="padding:7px 8px;color:#555;font-family:monospace">'+(d.telefono||'—')+'</td><td style="padding:7px 8px">'+telBadge+'</td><td style="padding:7px 8px">'+toggle+'</td><td style="padding:7px 8px">'+btn+'</td></tr>';
+    return '<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:7px 8px;color:#333;font-weight:600">'+nombre+'</td><td style="padding:7px 8px;color:#555;font-family:monospace">'+(d.telefono||'—')+'</td><td style="padding:7px 8px">'+telBadge+'</td><td style="padding:7px 8px">'+btn+'</td></tr>';
   }).join('');
 
   const leerTodosBtn = noLeidos>0?'<button onclick="waLeerTodos()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">✓ Marcar todos como leídos</button>':'';
@@ -2535,15 +2531,13 @@ async function pgWhatsApp(el){
   <!-- Panel: Docentes -->
   <div id="wa-panel-docentes" style="display:none">
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px">
-      <h3 style="margin:0 0 4px;font-size:14px;color:#333">👥 Estado de teléfonos — Docentes</h3>
-      <p style="margin:0 0 14px;font-size:11px;color:#888">Desmarcá "Recibe recordatorios" para que un docente puntual no reciba los avisos automáticos de examen (48h/24h/12h/6h/4h/3h). El envío manual (📤 Probar) no se ve afectado.</p>
+      <h3 style="margin:0 0 14px;font-size:14px;color:#333">👥 Estado de teléfonos — Docentes</h3>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:#f8fafc">
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Docente</th>
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Teléfono</th>
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Estado</th>
-            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Recordatorios automáticos</th>
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Acción</th>
           </tr></thead>
           <tbody>
@@ -3086,18 +3080,6 @@ async function waTestDoc(tel,nombre){
     await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:`🧪 *ITS — Prueba de conexión*\nHola Prof. ${nombre.split(',')[1]?.trim()||nombre}, este es un mensaje de prueba del sistema. ✅`,destinatario_nombre:nombre});
     alert('✓ Mensaje de prueba enviado');
   }catch(e){alert('Error: '+e.message);}
-}
-async function waToggleRecordatorio(docenteId,checked,cbEl){
-  try{
-    await api('PUT','/api/docentes/'+docenteId+'/wa-recordatorios',{activo:checked});
-    const label=cbEl.closest('label');
-    label.style.color=checked?'#166534':'#991b1b';
-    label.lastChild.textContent=checked?'Recibe recordatorios':'No recibe';
-    toast(checked?'✓ Volverá a recibir recordatorios':'✓ Ya no recibirá recordatorios automáticos','ok');
-  }catch(e){
-    cbEl.checked=!checked;
-    alert('Error: '+e.message);
-  }
 }
 function waVerFiltro(panel, filtroEst){
   waTab(panel);
