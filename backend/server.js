@@ -1344,6 +1344,26 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus +5pts Ozuna Sanches:', e.message); }
 
+// ── MIGRACIÓN: Corregir escala de notas (tabla de referencia) ────────────────
+// La tabla `escala_notas` (solo de referencia/visualización — el cálculo real
+// de la nota ya usa estos cortes en calcularPuntaje(), ver db.js) tenía valores
+// por defecto desactualizados (60-69.99=2, 70-79.99=3, etc.) que no coincidían
+// con la lógica real. El director confirmó la escala correcta: 1=0-69
+// Reprobado, 2=70-77, 3=78-85, 4=86-93, 5=94-100.
+try {
+  const YA_APLICADA_ESC = db.prepare("SELECT valor FROM configuracion WHERE clave='escala_notas_corregida_2026_07'").get();
+  if (!YA_APLICADA_ESC) {
+    const updEsc = db.prepare('UPDATE escala_notas SET puntaje_min=?, puntaje_max=? WHERE nota=?');
+    updEsc.run(0,  69.99, 1);
+    updEsc.run(70, 77.99, 2);
+    updEsc.run(78, 85.99, 3);
+    updEsc.run(86, 93.99, 4);
+    updEsc.run(94, 100,   5);
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('escala_notas_corregida_2026_07','1','Escala de notas corregida para coincidir con calcularPuntaje(): 1=0-69, 2=70-77, 3=78-85, 4=86-93, 5=94-100')").run();
+    console.log('[Migración] Escala de notas corregida (1:0-69 / 2:70-77 / 3:78-85 / 4:86-93 / 5:94-100) ✓');
+  }
+} catch(e) { console.warn('[Migración] Escala de notas:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
 // Pedido puntual del director. Respeta el día de clase real (miércoles).
 try {
