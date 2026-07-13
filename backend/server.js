@@ -1269,6 +1269,40 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus Event Registration:', e.message); }
 
+// ── MIGRACIÓN: Bonus general +2 puntos de dirección para todos los alumnos ───
+// Pedido del director: a todo alumno Activo que aún no tenga el tope de 10
+// director_pts en una materia (del período activo), sumarle +2 (no pisa el
+// valor previo — varios ya tienen 5 o 10 de los bonus de Desfile/Event
+// Registration y sencillamente no reciben más si ya están en 10). Tope duro
+// en 10. Se aplica a todas las materias que cursa cada alumno en el período
+// activo. Guardado en `configuracion` para no reaplicarse en cada reinicio.
+try {
+  const YA_APLICADO3 = db.prepare("SELECT valor FROM configuracion WHERE clave='bonus_dir_pts_general_2_2026_07_aplicado'").get();
+  if (!YA_APLICADO3) {
+    const { calcularPuntaje } = require('./db');
+    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    if (periodo) {
+      const notasPendientes = db.prepare(`
+        SELECT n.* FROM notas n
+        JOIN asignaciones a ON n.asignacion_id = a.id
+        JOIN alumnos al ON n.alumno_id = al.id
+        WHERE a.periodo_id = ? AND al.estado = 'Activo' AND COALESCE(n.director_pts,0) < 10
+      `).all(periodo.id);
+      const updNota = db.prepare('UPDATE notas SET director_pts=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+      const alumnosAfectados3 = new Set();
+      notasPendientes.forEach(n => {
+        let nuevoDir = (n.director_pts||0) + 2;
+        if (nuevoDir > 10) nuevoDir = 10;
+        const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,nuevoDir);
+        updNota.run(nuevoDir, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+        alumnosAfectados3.add(n.alumno_id);
+      });
+      db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('bonus_dir_pts_general_2_2026_07_aplicado','1','Bonus general +2pts dirección (todos los alumnos activos bajo el tope de 10) ya aplicado')").run();
+      console.log(`[Migración] Bonus general +2pts dirección: aplicado a ${alumnosAfectados3.size} alumnos (${notasPendientes.length} notas) ✓`);
+    }
+  }
+} catch(e) { console.warn('[Migración] Bonus general +2pts dirección:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
 // Pedido puntual del director. Respeta el día de clase real (miércoles).
 try {
@@ -1466,6 +1500,7 @@ try {
 try { db.prepare("ALTER TABLE carreras ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
 try { db.prepare("UPDATE carreras SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 try { db.prepare("ALTER TABLE docentes ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
+try { db.prepare('ALTER TABLE docentes ADD COLUMN wa_recordatorios_activo INTEGER NOT NULL DEFAULT 1').run(); } catch {}
 try { db.prepare("UPDATE docentes SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 try { db.prepare("ALTER TABLE avisos ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
 try { db.prepare("UPDATE avisos SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
@@ -1849,8 +1884,16 @@ app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FR
 app.get('/api/docentes', auth(), (req, res) => {
   const sede = req.user.sede || 'pjc';
   res.json(db.prepare(`SELECT u.id,u.nombre,u.apellido,u.ci,u.email,u.activo,
-    d.id as docente_id,d.especialidad,d.titulo,d.telefono,d.sede_id
+    d.id as docente_id,d.especialidad,d.titulo,d.telefono,d.sede_id,
+    COALESCE(d.wa_recordatorios_activo,1) as wa_recordatorios_activo
     FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente' AND d.sede_id=? ORDER BY u.apellido`).all(sede));
+});
+app.put('/api/docentes/:docente_id/wa-recordatorios', auth(ADM), (req, res) => {
+  const { activo } = req.body;
+  const r = db.prepare('UPDATE docentes SET wa_recordatorios_activo=? WHERE id=?').run(activo ? 1 : 0, req.params.docente_id);
+  if (!r.changes) return res.status(404).json({ error: 'Docente no encontrado' });
+  audit(req.user.id, 'WA_RECORDATORIOS_TOGGLE', 'docentes', req.params.docente_id, { activo: !!activo });
+  res.json({ ok: true });
 });
 app.post('/api/docentes', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
@@ -6904,13 +6947,13 @@ function pyNow() {
   const s = new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' });
   return new Date(s);
 }
-// ── HELPER: verificar horario permitido (08:00 – 21:00 Paraguay, lunes a viernes) ─────────
+// ── HELPER: verificar horario permitido (08:00 – 20:00 Paraguay, lunes a viernes) ─────────
 function enHoraPermitida() {
   const py = pyNow();
   const h   = py.getHours();
   const dia = py.getDay(); // 0=domingo, 6=sábado
   if (dia === 0 || dia === 6) return false; // prohibido sábado y domingo
-  return h >= 8 && h < 17;                 // sólo 08:00–16:59
+  return h >= 8 && h < 20;                 // sólo 08:00–19:59
 }
 
 function buildWaMsg(tplKey, vars) {
@@ -6945,7 +6988,8 @@ const qExamenes = `
   LEFT JOIN docentes d ON a.docente_id=d.id
   LEFT JOIN usuarios u ON d.usuario_id=u.id
   WHERE e.fecha=?
-    AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')`;
+    AND (e.archivo_nombre IS NULL OR e.archivo_nombre='')
+    AND (d.wa_recordatorios_activo IS NULL OR d.wa_recordatorios_activo=1)`;
 
 async function procesarIntervalos(intervalos, usarHora = false) {
   const hoy = new Date();
@@ -6989,22 +7033,37 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
-// ⏸ Cambiar a false para reactivar todos los crons automáticos de WA a docentes
-const WA_AUTO_PAUSADO = true;
+// ⏸ Cambiar a true para pausar todos los crons automáticos de WA a docentes
+const WA_AUTO_PAUSADO = false;
 
-// ── CRON: Recordatorio 24h — corre a las 8:00 AM lunes a viernes ────────────
+// ── MIGRACIÓN: activar recordatorios de examen (48h/24h/12h/6h/4h/3h) y ──────
+// desactivar los avisos de "archivo sin cargar" (aviso24/urgente) y "puntajes
+// sin cargar" — Gabriel pidió solo los recordatorios de examen por ahora.
+try {
+  const yaAplicada = db.prepare("SELECT valor FROM configuracion WHERE clave='migracion_wa_reglas_examen_2026_07'").get();
+  if (!yaAplicada) {
+    const setRegla = db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)");
+    ['48h','24h','12h','6h','4h','3h'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '1', `Regla WA ${k}`));
+    ['aviso24','urgente','puntajes'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '0', `Regla WA ${k}`));
+    setRegla.run('migracion_wa_reglas_examen_2026_07', '1', 'Migración: activar recordatorios de examen, desactivar avisos de carga/puntajes');
+    console.log('[Migración] Reglas WA de examen activadas (48h/24h/12h/6h/4h/3h); avisos de carga/puntajes desactivados');
+  }
+} catch(e) { console.warn('[Migración] Reglas WA examen:', e.message); }
+
+// ── CRON: Recordatorios 48h / 24h — corre a las 8:00 AM lunes a viernes ─────
 cron.schedule('0 8 * * 1-5', async () => {
   if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
   if (!enHoraPermitida()) return;
   try {
     const total = await procesarIntervalos([
+      { horas: 48, label: '48h' },
       { horas: 24, label: '24h' },
     ]);
-    console.log(`✓ Cron WA 24h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 24h error:', e.message); }
+    console.log(`✓ Cron WA 48h/24h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 48/24h error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
-// ── CRON: Recordatorios 12h / 6h — corre cada hora ───────────────────────────
+// ── CRON: Recordatorios 12h / 6h / 4h / 3h — corre cada hora ─────────────────
 // Usa ventana ±30 min sobre la hora del examen para no perder ninguno.
 // La tabla notif_wa_enviadas previene duplicados aunque el cron corra varias veces.
 cron.schedule('0 * * * 1-5', async () => {
@@ -7014,9 +7073,11 @@ cron.schedule('0 * * * 1-5', async () => {
     const total = await procesarIntervalos([
       { horas: 12, label: '12h' },
       { horas: 6,  label: '6h'  },
+      { horas: 4,  label: '4h'  },
+      { horas: 3,  label: '3h'  },
     ], true);
-    if (total > 0) console.log(`✓ Cron WA 12h/6h: ${total} mensajes enviados`);
-  } catch(e) { console.error('Cron 12/6h error:', e.message); }
+    if (total > 0) console.log(`✓ Cron WA 12h/6h/4h/3h: ${total} mensajes enviados`);
+  } catch(e) { console.error('Cron 12/6/4/3h error:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
 
@@ -7041,6 +7102,7 @@ const stmtExamSinArch = db.prepare(`
     AND d.id != 'doc_mareco'
     AND u.activo = 1
     AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
+    AND (d.wa_recordatorios_activo IS NULL OR d.wa_recordatorios_activo = 1)
 `);
 
 cron.schedule('0 8 * * *', async () => {
@@ -7215,6 +7277,7 @@ async function enviarAvisosPuntajesPendientes(forzar = false) {
       AND u.activo = 1
       AND d.id != 'doc_mareco'
       AND d.telefono IS NOT NULL AND trim(d.telefono) != ''
+      AND (d.wa_recordatorios_activo IS NULL OR d.wa_recordatorios_activo = 1)
     ORDER BY d.id, ca.nombre, cu.anio, m.nombre
   `).all(flStr);
 
@@ -7310,12 +7373,13 @@ app.post('/api/examenes/:id/whatsapp', auth(ADM), async (req, res) => {
 // ── WHATSAPP: reglas automáticas (listar / editar / activar-desactivar) ────────
 const WA_REGLAS_DEF = [
   { key:'72h',     label:'72 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
-  { key:'48h',     label:'48 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
+  { key:'48h',     label:'48 horas antes del examen',   cron:'8:00 AM — lun a vie', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
   { key:'36h',     label:'36 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
   { key:'24h',     label:'24 horas antes del examen',   cron:'8:00 AM — lun a vie', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {hora}' },
   { key:'12h',     label:'12 horas antes del examen',   cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'6h',      label:'6 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
-  { key:'3h',      label:'3 horas antes (desactivado)',  cron:'—',                  tipo:'recordatorio', defaultActiva:false, vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'4h',      label:'4 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'3h',      label:'3 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'aviso24',   label:'Aviso: archivo pendiente 24h',  cron:'7:00 AM — diario',   tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'urgente',   label:'Urgente: sin archivo ≤7h',      cron:'Cada hora',           tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
   { key:'puntajes',  label:'Aviso: puntajes sin cargar ≥8d',cron:'9:00 AM — lun a vie', tipo:'notas',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {dias}' },
@@ -7327,6 +7391,7 @@ const WA_TPL_DEFAULTS = {
   '24h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
   '12h':    '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue lo antes posible desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
   '6h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
+  '4h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias!\n_Administración — ITS Santísima Trinidad._',
   '3h':     '📋 *ITS Santísima Trinidad*\n\nEstimado/a Prof. {docente}, le recordamos que tiene *{tipo}* de *{materia}* programado el *{fecha}* a las *{hora}* ({carrera} {curso}).\n\nAún no registramos el archivo del examen en el sistema. Le pedimos que lo cargue a la brevedad desde el portal institucional.\n\n¡Muchas gracias por su comprensión!\n_Administración — ITS Santísima Trinidad._',
   'aviso24':'📋 *Aviso Institucional — Carga de Examen Pendiente*\n\nEstimado/a Prof. {docente}, le informamos que *mañana* tiene examen programado:\n\n📚 *{materia}* ({tipo})\n🎓 {carrera} — {curso}\n🕐 Hora: {hora}\n\nLa institución solicita la carga del archivo del examen con *24 horas de anticipación*.\n\nPor favor, *cargue el archivo lo más pronto posible* ingresando al sistema.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
   'urgente':  '⏰ *Recordatorio Urgente — Archivo de Examen Sin Cargar*\n\nEstimado/a Prof. {docente}:\n\nSu examen de *{materia}* ({tipo}) está programado en *{horas_rest}* y aún no se registra el archivo.\n\n🎓 {carrera} — {curso}\n🕐 Hora programada: {hora}\n\nPor favor, *cargue el archivo lo más pronto posible*.\n\n¡Muchas gracias!\n\n_Mensaje automático — Sistema de Gestión ITS._',
