@@ -1303,6 +1303,47 @@ try {
   }
 } catch(e) { console.warn('[Migración] Bonus general +2pts dirección:', e.message); }
 
+// ── MIGRACIÓN: Bonus +5 puntos — Andreia Micheli Ozuna Sanches (Instrumentación Quirúrgica 2°) ──
+// Pedido puntual del director. Se busca por nombre (normalizado, sin acentos)
+// dentro de la carrera Instrumentación Quirúrgica ('instr'), curso 2° año, para
+// no depender de un id hardcodeado. Se suma (no pisa) sobre cualquier
+// director_pts previo, tope duro en 10, aplicado a todas las materias que
+// cursa en el período activo.
+try {
+  const YA_APLICADO4 = db.prepare("SELECT valor FROM configuracion WHERE clave='bonus_dir_pts_ozuna_sanches_5_2026_07_aplicado'").get();
+  if (!YA_APLICADO4) {
+    const norm = s => (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+    const objetivoTokens = norm('Andreia Micheli Ozuna Sanches').split(/\s+/).filter(Boolean);
+    const candidatas = db.prepare(`
+      SELECT al.id, al.nombre, al.apellido FROM alumnos al
+      JOIN cursos cu ON al.curso_id = cu.id
+      WHERE al.carrera_id='instr' AND cu.anio=2
+    `).all();
+    const match = candidatas.find(al => {
+      const tokensAl = norm(`${al.nombre||''} ${al.apellido||''}`).split(/\s+/).filter(Boolean);
+      return objetivoTokens.every(t => tokensAl.includes(t));
+    });
+    if (match) {
+      const { calcularPuntaje } = require('./db');
+      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+      if (periodo) {
+        const notas = db.prepare('SELECT n.* FROM notas n JOIN asignaciones a ON n.asignacion_id=a.id WHERE n.alumno_id=? AND a.periodo_id=?').all(match.id, periodo.id);
+        const updNota = db.prepare('UPDATE notas SET director_pts=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+        notas.forEach(n => {
+          let nuevoDir = (n.director_pts||0) + 5;
+          if (nuevoDir > 10) nuevoDir = 10;
+          const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,nuevoDir);
+          updNota.run(nuevoDir, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+        });
+        db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('bonus_dir_pts_ozuna_sanches_5_2026_07_aplicado','1','Bonus +5pts dirección — Andreia Micheli Ozuna Sanches (Instrumentación Quirúrgica 2°) ya aplicado')").run();
+        console.log(`[Migración] Bonus +5pts dirección: aplicado a ${match.apellido}, ${match.nombre} (${notas.length} notas) ✓`);
+      }
+    } else {
+      console.warn('[Migración] Bonus +5pts Ozuna Sanches: no se encontró alumna con ese nombre en Instrumentación Quirúrgica 2° año — revisar manualmente');
+    }
+  }
+} catch(e) { console.warn('[Migración] Bonus +5pts Ozuna Sanches:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
 // Pedido puntual del director. Respeta el día de clase real (miércoles).
 try {
