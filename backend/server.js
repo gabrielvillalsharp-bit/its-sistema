@@ -2935,8 +2935,11 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     db.prepare(`UPDATE notas SET ${campos_q}${extra} WHERE alumno_id=? AND asignacion_id=?`).run(...vals, nota.tp_total, nota.puntaje, nota.nota, nota.estado, nota.parcial_ef, nota.final_ef, req.params.alumno_id, req.params.asig_id);
     audit(req.user.id,'UPDATE_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,{antes,campos:req.body});
     // Detección en tiempo real de posible pérdida de datos: si algún campo tenía valor y ahora
-    // se guarda vacío, dejar un registro aparte en Auditoría (sin avisar al director) para poder
-    // encontrarlo al toque en vez de tener que reconstruirlo del historial completo como esta vez.
+    // se guarda vacío, dejar un registro aparte en Auditoría para poder encontrarlo al toque en
+    // vez de tener que reconstruirlo del historial completo como pasó con Villar/Natalia (costó
+    // 66 notas perdidas y 2 meses sin que nadie se enterara). Además: aviso no-banner para el
+    // director (queda en Avisos, no interrumpe Inicio) y WhatsApp al profesor Gabriel Sharp,
+    // pedido explícito del director para no depender de que alguien revise auditoría a mano.
     const perdidos = campos.filter(c => {
       if (!(c in req.body)) return false; // campo ni siquiera formaba parte de este guardado (ej. "ausente" o "parcial" para un docente) -- no es perdida
       const teniaAntes = antes[c] !== undefined && antes[c] !== null && antes[c] !== '';
@@ -2947,6 +2950,23 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     if (perdidos.length) {
       audit(req.user.id,'POSIBLE_PERDIDA_NOTA','notas',`${req.params.alumno_id}_${req.params.asig_id}`,
         { campos_perdidos: perdidos, valores_perdidos: Object.fromEntries(perdidos.map(c=>[c,antes[c]])) });
+      try {
+        const al = db.prepare('SELECT nombre,apellido FROM alumnos WHERE id=?').get(req.params.alumno_id);
+        const asigInfo = db.prepare('SELECT m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.asig_id);
+        const detalle = perdidos.map(c => `${c}: tenía ${antes[c]}, quedó vacío`).join('; ');
+        const alumnoTxt = al ? `${al.apellido}, ${al.nombre}` : req.params.alumno_id;
+        const materiaTxt = asigInfo?.materia || req.params.asig_id;
+        const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+        if (director) {
+          db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
+            .run('av_perdnota_' + Date.now(), '⚠️ Posible pérdida de nota', `Alumno: <strong>${alumnoTxt}</strong> — Materia: <strong>${materiaTxt}</strong><br>${detalle}`, 'info', 0, 'director', director.id);
+        }
+        const docSharp = db.prepare("SELECT telefono FROM docentes WHERE id='doc_sharp'").get();
+        if (docSharp?.telefono) {
+          const msg = `⚠️ Posible pérdida de nota detectada\nAlumno: ${alumnoTxt}\nMateria: ${materiaTxt}\n${detalle}`;
+          sendWhatsApp(docSharp.telefono, msg).catch(()=>{});
+        }
+      } catch(e) { console.warn('[POSIBLE_PERDIDA_NOTA] Error al avisar:', e.message); }
     }
     res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_ef, final_efectivo: nota.final_ef });
   } catch(e) { res.status(500).json({ error: e.message }); }
