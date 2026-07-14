@@ -3851,12 +3851,15 @@ app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) =
 // ── RECUPERATORIOS FINALES — Preview automático ──────────────────────────────
 // Excepción total al cronograma normal: acá SÍ se ignora el día de clase real
 // de cada asignación (a diferencia de los recuperatorios parciales) porque el
-// director pidió que cada alumno habilitado rinda 1 materia por día hasta
-// terminar, sin importar qué día de la semana le tocaría esa materia.
-// Solo entran alumnos Activos con habilitación de pago vigente para
-// 'final_recuperatorio' en esa materia puntual, y que estén Reprobados sin
-// recuperatorio cargado todavía. Se arma un grafo de conflictos (dos materias
-// no pueden coincidir el mismo día si comparten al menos un alumno) y se
+// director pidió que cada alumno rinda 1 materia por día hasta terminar, sin
+// importar qué día de la semana le tocaría esa materia.
+// El calendario se arma para TODOS los alumnos Activos Reprobados (sin
+// recuperatorio cargado todavía), independientemente de si ya pagaron o no —
+// el pago (habilitaciones_examen tipo_examen='final_recuperatorio') sigue
+// siendo requisito para que el docente pueda cargar la nota después, igual
+// que en los finales ordinarios, pero no bloquea que la fecha exista y se
+// publique en el calendario. Se arma un grafo de conflictos (dos materias no
+// pueden coincidir el mismo día si comparten al menos un alumno) y se
 // colorea en la menor cantidad de días posible a partir de fecha_inicio,
 // saltando sábados y domingos.
 app.get('/api/examenes/preview-recuperatorios-finales', auth(ADM), (req, res) => {
@@ -3892,9 +3895,6 @@ app.get('/api/examenes/preview-recuperatorios-finales', auth(ADM), (req, res) =>
       JOIN docentes d     ON a.docente_id    = d.id
       JOIN usuarios u     ON d.usuario_id    = u.id
       JOIN alumnos al     ON n.alumno_id     = al.id
-      JOIN habilitaciones_examen h ON h.alumno_id = n.alumno_id
-        AND h.asignacion_id = n.asignacion_id
-        AND h.tipo_examen = 'final_recuperatorio' AND h.habilitado = 1
       WHERE a.periodo_id = ? AND n.estado = 'Reprobado' AND n.final_recuperatorio IS NULL
         AND al.estado = 'Activo'
     `).all(periodo.id);
@@ -4028,7 +4028,7 @@ app.post('/api/examenes/crear-recuperatorios-finales', auth(ADM), (req, res) => 
           db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
             avId,
             `📋 Final Recuperatorio — ${p.materia}`,
-            `Se programó el Final Recuperatorio de <strong>${p.materia}</strong> (${p.carrera} ${p.anio}°) para el <strong>${p.fecha}</strong> a las <strong>${p.hora}</strong>. Alumnos habilitados: ${p.cantidad_alumnos}.`,
+            `Se programó el Final Recuperatorio de <strong>${p.materia}</strong> (${p.carrera} ${p.anio}°) para el <strong>${p.fecha}</strong> a las <strong>${p.hora}</strong>. Alumnos: ${p.cantidad_alumnos} (recordá que solo pueden rendir los que hayan pagado y estén habilitados).`,
             'info', 0, 'docentes', info.doc_uid
           );
         }
