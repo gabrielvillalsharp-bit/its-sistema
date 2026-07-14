@@ -958,6 +958,111 @@ try {
   }
 } catch(e) { console.warn('[Migración] restaurar notas perdidas:', e.message); }
 
+// ── MIGRACIÓN: Restaurar "parcial" perdido por bug de payload de docente ─────
+// Causa raíz DISTINTA a la de arriba: el frontend nunca manda el campo "parcial"
+// en el payload de un docente (a propósito, para que no lo edite libremente), pero
+// el backend interpretaba "campo ausente" como "vaciar ese campo" -- así que CADA
+// guardado de un docente de CUALQUIER otro campo (tp1, final, etc.) borraba el
+// parcial ya cargado. Encontrado al investigar el reporte de Blanca Villar
+// ("cargué las parciales el 26/05 y ya no aparecen"), y confirmado que afectaba a
+// 6 docentes / 8 asignaciones en total (incluye el caso reportado de Natalia
+// Martínez). El backend ya está corregido (ver el PUT de notas: ahora conserva el
+// valor existente si el campo no vino en el request). Esto solo restaura los 66
+// valores que TODAVÍA están vacíos hoy -- si un docente ya lo recargó a mano
+// mientras tanto, se detecta (campo ya no está en NULL) y se saltea sin tocarlo.
+try {
+  const yaAplicada2 = db.prepare("SELECT valor FROM configuracion WHERE clave='migracion_restaurar_parcial_2026_07_2'").get();
+  if (!yaAplicada2) {
+    const { calcularPuntaje } = require('./db');
+    const restauracionesParcial = [
+      { alumno_id: 'a_1778446786868_gtd', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 19 },
+      { alumno_id: 'a_1778446787001_nei', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 14 },
+      { alumno_id: 'a_1778446787067_5jp', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 20 },
+      { alumno_id: 'a_1778446787137_7de', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 15 },
+      { alumno_id: 'a_1778446787270_pts', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 19 },
+      { alumno_id: 'a_1778446787342_g7b', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 20 },
+      { alumno_id: 'a_1778446787544_uhz', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 20 },
+      { alumno_id: 'a_1778446787940_ycb', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 14 },
+      { alumno_id: 'a_1778446788139_4aq', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 19 },
+      { alumno_id: 'a_1778446788208_zoj', asignacion_id: 'asig_doc_natalia_IQ_203_instr_2u', valor: 17 },
+      { alumno_id: 'a_1778446813292_nyz', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 19 },
+      { alumno_id: 'a_1778446813360_jr6', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 16 },
+      { alumno_id: 'a_1778446813428_qlv', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 20 },
+      { alumno_id: 'a_1778446813565_mwp', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 11 },
+      { alumno_id: 'a_1778446813631_1tj', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 20 },
+      { alumno_id: 'a_1778446813833_scy', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 15 },
+      { alumno_id: 'a_1778446813964_cw8', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 18 },
+      { alumno_id: 'a_1778446814101_6ht', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 18 },
+      { alumno_id: 'a_1778446814167_1hw', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 18 },
+      { alumno_id: 'a_1778446814629_fnv', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 19 },
+      { alumno_id: 'a_1778446814694_0lm', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 14 },
+      { alumno_id: 'a_1778446814761_ep1', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 11 },
+      { alumno_id: 'a_1778446814828_0ue', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 18 },
+      { alumno_id: 'a_1778459609780_f4n', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459609911_gb5', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459609978_dgo', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610107_f7p', asignacion_id: 'asig_doc_rojas_FAR_101_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610107_f7p', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610176_xqt', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610243_gpv', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610308_ndi', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610440_yhs', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610569_77v', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610638_ar1', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610702_bv1', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610767_k6h', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459610902_8kr', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459611039_cqc', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778459611103_bu3', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778460281546_j83', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778460281546_zyf', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778460585663_l25', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460585730_0vm', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586341_6fl', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586407_3nh', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586474_5fg', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586541_yoq', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586676_y35', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586741_r9h', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460586804_8ei', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460587001_w8d', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460587261_jna', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460587331_50a', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778460587396_kh0', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1778617162473_ger', asignacion_id: 'asig_cos102_cosA_1b', valor: 18 },
+      { alumno_id: 'a_1778460585465_8vz', asignacion_id: 'asig_doc_higuchi_COS_101_cosA_1b', valor: 19 },
+      { alumno_id: 'a_1779150367342', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1779150423136', asignacion_id: 'asig_doc_rojas_FAR_101_farm_1u', valor: 20 },
+      { alumno_id: 'a_1779150423136', asignacion_id: 'asig_doc_villar_FAR_102_farm_1u', valor: 20 },
+      { alumno_id: 'a_1778896860362', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 14 },
+      { alumno_id: 'a_1778896866597', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 17 },
+      { alumno_id: 'a_1778896864098', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 20 },
+      { alumno_id: 'a_1778461784690_obp', asignacion_id: 'asig_doc_natalia_RAD_204_rad_2u', valor: 17 },
+      { alumno_id: 'a_1778446788277_97x', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1779920496517', asignacion_id: 'asig_doc_villar_IQ_102_instr_1u', valor: 20 },
+      { alumno_id: 'a_1781566133474', asignacion_id: 'asig_doc_gimenez_CON_104_cont_1u', valor: 20 },
+    ];
+    let aplicados2 = 0, salteados2 = 0;
+    const tx2 = db.transaction(() => {
+      for (const r of restauracionesParcial) {
+        const actual = db.prepare('SELECT parcial FROM notas WHERE alumno_id=? AND asignacion_id=?').get(r.alumno_id, r.asignacion_id);
+        if (!actual || actual.parcial !== null) { salteados2++; continue; } // ya tiene valor -> no tocar
+        db.prepare('UPDATE notas SET parcial=? WHERE alumno_id=? AND asignacion_id=?').run(r.valor, r.alumno_id, r.asignacion_id);
+        const fila = db.prepare('SELECT tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,director_pts FROM notas WHERE alumno_id=? AND asignacion_id=?').get(r.alumno_id, r.asignacion_id);
+        const calc = calcularPuntaje(fila.tp1,fila.tp2,fila.tp3,fila.tp4,fila.tp5,fila.parcial,fila.parcial_recuperatorio,fila.final_ord,fila.final_recuperatorio,fila.complementario,fila.extraordinario,fila.director_pts);
+        db.prepare('UPDATE notas SET tp_total=?,puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=? WHERE alumno_id=? AND asignacion_id=?')
+          .run(calc.tp_total, calc.puntaje, calc.nota, calc.estado, calc.parcial_ef, calc.final_ef, r.alumno_id, r.asignacion_id);
+        audit('sistema_migracion', 'RESTAURAR_NOTA_PERDIDA', 'notas', r.alumno_id + '_' + r.asignacion_id, { campo: 'parcial', valor_restaurado: r.valor, causa: 'bug_payload_docente_omite_parcial' });
+        aplicados2++;
+      }
+    });
+    tx2();
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)")
+      .run('migracion_restaurar_parcial_2026_07_2', '1', `Restauro ${aplicados2} parciales, salteo ${salteados2} ya recargados por docentes`);
+    console.log(`[Migración] Restaurados ${aplicados2} parciales perdidos por bug de payload de docente (${salteados2} ya recargados manualmente, sin tocar) ✓`);
+  }
+} catch(e) { console.warn('[Migración] restaurar parcial perdido:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
@@ -2778,7 +2883,15 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
         return res.status(400).json({ error: `La nota "${c}" tiene valor decimal (${v}). Solo se permiten números enteros.` });
       }
     }
+    // Traer el estado actual ANTES de calcular vals: si un campo no vino en este
+    // guardado (ej. "parcial" se omite a propósito para docentes), hay que conservar
+    // su valor existente en vez de tratarlo como vacío -- de lo contrario cada guardado
+    // de CUALQUIER otro campo borra silenciosamente los campos ausentes del payload
+    // (esto pasó de verdad: guardar "final_ord" como docente borraba el "parcial" ya
+    // cargado, porque el payload del docente nunca incluye ese campo).
+    const antes = db.prepare(`SELECT ${campos.join(',')} FROM notas WHERE alumno_id=? AND asignacion_id=?`).get(req.params.alumno_id, req.params.asig_id) || {};
     const vals = campos.map(c => {
+      if (!(c in req.body)) return antes[c] ?? null;
       const v = req.body[c];
       if (v === '' || v === undefined || v === null) return null;
       return Math.round(Number(String(v).replace(',', '.')));
@@ -2819,9 +2932,6 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
       if (!hab) return res.status(403).json({ error: 'El alumno no está habilitado para el recuperatorio en esta materia' });
     }
     const { calcularPuntaje } = require('./db');
-    // Guardar el estado ANTES de sobreescribir -- antes la auditoría solo guardaba lo que se
-    // mandó, no lo que había, así que reconstruir un incidente de perdida de datos llevaba horas.
-    const antes = db.prepare(`SELECT ${campos.join(',')} FROM notas WHERE alumno_id=? AND asignacion_id=?`).get(req.params.alumno_id, req.params.asig_id) || {};
     // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
     const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);
     const campos_q = campos.map(c=>`${c}=?`).join(',');
