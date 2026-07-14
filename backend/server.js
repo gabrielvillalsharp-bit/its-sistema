@@ -2890,12 +2890,8 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     // (esto pasó de verdad: guardar "final_ord" como docente borraba el "parcial" ya
     // cargado, porque el payload del docente nunca incluye ese campo).
     const antes = db.prepare(`SELECT ${campos.join(',')} FROM notas WHERE alumno_id=? AND asignacion_id=?`).get(req.params.alumno_id, req.params.asig_id) || {};
-    const vals = campos.map(c => {
-      if (!(c in req.body)) return antes[c] ?? null;
-      const v = req.body[c];
-      if (v === '' || v === undefined || v === null) return null;
-      return Math.round(Number(String(v).replace(',', '.')));
-    });
+    const { mergeCamposNota } = require('./db');
+    const vals = mergeCamposNota(campos, antes, req.body);
     // Validar que la suma de TPs (tp1+tp2+tp3+tp4) no supere 20 puntos
     const tpSum = [vals[0],vals[1],vals[2],vals[3]].reduce((s,v)=>s+(v??0),0);
     if (tpSum > 20) {

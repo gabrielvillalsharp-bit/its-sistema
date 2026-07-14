@@ -125,6 +125,24 @@ db.pragma('cache_size = -32000');   // 32 MB de caché en memoria
 db.pragma('synchronous = NORMAL');  // más rápido, igual de seguro con WAL
 db.pragma('temp_store = MEMORY');   // tablas temporales en RAM
 
+// ── MERGE DE CAMPOS PARA GUARDADO PARCIAL (notas) ────────────────────────────
+// Regla de oro, violada dos veces ya con costo real (ver commits de julio 2026
+// sobre pérdida de notas): un campo AUSENTE del payload de un guardado NUNCA
+// significa "vaciar ese campo" -- significa "este guardado no lo tocó". Cualquier
+// endpoint que escriba varios campos de una fila a partir de un payload parcial
+// (distintos roles mandan distintos subconjuntos de campos) tiene que usar este
+// patrón: mergear contra el valor actual en DB, nunca contra `null`/`undefined`
+// por defecto. Extraído a función aparte para poder testearlo sin levantar el
+// servidor entero (ver backend/mergeCamposNota.test.js).
+function mergeCamposNota(campos, antes, body) {
+  return campos.map(c => {
+    if (!(c in body)) return (antes && antes[c] !== undefined) ? antes[c] : null;
+    const v = body[c];
+    if (v === '' || v === undefined || v === null) return null;
+    return Math.round(Number(String(v).replace(',', '.')));
+  });
+}
+
 // ── CÁLCULO DE PUNTAJE (lógica ITS) ──────────────────────────────────────────
 // Parcial: si hay recuperatorio, REEMPLAZA al ordinario (no importa cuál es mayor)
 // TPs: 4 campos independientes, suma simple (max 5 cada uno, max 20 total)
@@ -1119,7 +1137,7 @@ function init() {
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
 
-module.exports = { db, init, calcularPuntaje, seedHorarios, migrateMatrixV2, migrateMatrixV3, DB_PATH };
+module.exports = { db, init, calcularPuntaje, mergeCamposNota, seedHorarios, migrateMatrixV2, migrateMatrixV3, DB_PATH };
 
 // ── MIGRACIÓN DE MATERIAS — agrega materias/asignaciones faltantes del cronograma PDF ──
 function migrarMateriasParciales() {
