@@ -8923,6 +8923,47 @@ app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
   res.json({ alumno: al, notas, institucion: inst });
 });
 
+// Cargar puntos de dirección en TODAS las materias del alumno de una sola vez
+// (desde el buscador de "Registro de notas"). Misma regla de siempre: suma sobre
+// el valor existente, nunca lo pisa, y respeta el tope de 10 puntos por materia.
+app.post('/api/alumnos/:id/director-pts-bulk', auth(['director']), (req, res) => {
+  try {
+    const puntos = Number(req.body.puntos);
+    if (!Number.isFinite(puntos) || puntos === 0) return res.status(400).json({ error: 'Puntos inválido' });
+    const al = db.prepare('SELECT id, curso_id, carrera_id FROM alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    const asigs = db.prepare(`
+      SELECT a.id FROM asignaciones a
+      JOIN periodos p ON a.periodo_id=p.id
+      WHERE p.activo=1 AND (
+        a.curso_id=?
+        OR (? IS NOT NULL AND ? IS NULL AND a.curso_id IN (SELECT id FROM cursos WHERE carrera_id=?))
+      )`).all(al.curso_id, al.carrera_id, al.curso_id, al.carrera_id);
+
+    const { calcularPuntaje } = require('./db');
+    let actualizadas = 0;
+    const tx = db.transaction(() => {
+      for (const { id: asigId } of asigs) {
+        db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)')
+          .run('n_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), al.id, asigId, 'Pendiente');
+        const fila = db.prepare('SELECT tp1,tp2,tp3,tp4,tp5,parcial,parcial_recuperatorio,final_ord,final_recuperatorio,complementario,extraordinario,director_pts FROM notas WHERE alumno_id=? AND asignacion_id=?').get(al.id, asigId);
+        const antes = fila.director_pts;
+        const nuevo = Math.max(0, Math.min(10, (antes || 0) + puntos));
+        if (nuevo === antes) continue; // ya está en el tope o no cambia -- no tocar
+        db.prepare('UPDATE notas SET director_pts=? WHERE alumno_id=? AND asignacion_id=?').run(nuevo, al.id, asigId);
+        const calc = calcularPuntaje(fila.tp1, fila.tp2, fila.tp3, fila.tp4, fila.tp5, fila.parcial, fila.parcial_recuperatorio, fila.final_ord, fila.final_recuperatorio, fila.complementario, fila.extraordinario, nuevo);
+        db.prepare('UPDATE notas SET tp_total=?,puntaje_total=?,nota_final=?,estado=?,parcial_efectivo=?,final_efectivo=? WHERE alumno_id=? AND asignacion_id=?')
+          .run(calc.tp_total, calc.puntaje, calc.nota, calc.estado, calc.parcial_ef, calc.final_ef, al.id, asigId);
+        audit(req.user.id, 'UPDATE_NOTA', 'notas', `${al.id}_${asigId}`, { antes: { director_pts: antes }, campos: { director_pts: nuevo }, origen: 'director_pts_bulk' });
+        actualizadas++;
+      }
+    });
+    tx();
+    res.json({ ok: true, materias_actualizadas: actualizadas, materias_totales: asigs.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Verificar si existe pago de constancia
 app.get('/api/constancias/pago/:alumno_id', auth(ADM), (req, res) => {
   const pago = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto='Constancia de estudios' ORDER BY fecha_pago DESC LIMIT 1").get(req.params.alumno_id);
