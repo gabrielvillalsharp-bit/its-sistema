@@ -1670,6 +1670,12 @@ try { db.prepare('ALTER TABLE docentes ADD COLUMN wa_recordatorios_activo INTEGE
 try { db.prepare("UPDATE docentes SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 try { db.prepare("ALTER TABLE avisos ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
 try { db.prepare("UPDATE avisos SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
+// ── Avisos académicos vs. del sistema (pedido del director, para mejor organización) ──
+// 'academico': exámenes, notas, reemplazos, comunicados — todo lo que ya existía.
+// 'sistema': solo los avisos técnicos/infraestructura (hoy, únicamente el watchdog de
+// WhatsApp — conexión caída/restablecida). Clasificación retroactiva por prefijo de id.
+try { db.prepare("ALTER TABLE avisos ADD COLUMN categoria TEXT NOT NULL DEFAULT 'academico'").run(); } catch {}
+try { db.prepare("UPDATE avisos SET categoria='sistema' WHERE id LIKE 'av\\_wa\\_%' ESCAPE '\\'").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN sede_id TEXT DEFAULT 'pjc'").run(); } catch {}
 try { db.prepare("UPDATE solicitudes_registro SET sede_id='pjc' WHERE sede_id IS NULL").run(); } catch {}
 
@@ -4234,16 +4240,17 @@ app.get('/api/avisos', auth(), (req, res) => {
     WHERE av.activo=1 ${whereDestino} ORDER BY av.fijado DESC,av.fecha_creacion DESC LIMIT 100`).all(...params));
 });
 app.post('/api/avisos', auth(['director','docente']), (req, res) => {
-  const { titulo, contenido, tipo, fijado, destinatario } = req.body;
+  const { titulo, contenido, tipo, fijado, destinatario, categoria } = req.body;
   const sede = req.user.sede || 'pjc';
   const destMap = {
     'todos':'todos', 'docentes':'docentes', 'alumnos':'alumnos',
     'mis-alumnos':'alumnos', 'director':'todos', 'director-secretaria':'todos'
   };
   const destDB = destMap[destinatario] || 'todos';
+  const catDB = categoria === 'sistema' ? 'sistema' : 'academico';
   const id = 'av_' + Date.now();
-  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id,sede_id) VALUES (?,?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id,sede);
-  audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB});
+  db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id,sede_id,categoria) VALUES (?,?,?,?,?,?,?,?,?)').run(id,titulo,contenido,tipo||'info',fijado?1:0,destDB,req.user.id,sede,catDB);
+  audit(req.user.id,'AVISO','avisos',id,{titulo,destinatario,destDB,categoria:catDB});
   res.json({ id });
 });
 app.put('/api/avisos/:id', auth(ADM), (req, res) => {
@@ -7540,8 +7547,8 @@ function _avisarDirectorWA(titulo, contenido, urgente) {
     const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
     if (!director) return;
     const id = 'av_wa_' + Date.now();
-    db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
-      .run(id, titulo, contenido, urgente ? 'urgente' : 'info', urgente ? 1 : 0, 'director', director.id);
+    db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id,categoria) VALUES (?,?,?,?,?,?,?,?)')
+      .run(id, titulo, contenido, urgente ? 'urgente' : 'info', urgente ? 1 : 0, 'director', director.id, 'sistema');
   } catch(e) { console.error('[WA] Watchdog: error creando aviso:', e.message); }
 }
 cron.schedule('*/15 * * * *', async () => {

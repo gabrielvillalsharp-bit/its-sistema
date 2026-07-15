@@ -3682,10 +3682,16 @@ async function pgAvisos(el){
     else{checkNotifAvisos();}
   }
   const avisosLeidos=avisos.filter(a=>vistos.has(a.id));
+  // Avisos académicos vs. del sistema (pedido del director, para mejor organización) —
+  // 'sistema' hoy es solo lo técnico/infraestructura (ej. watchdog de WhatsApp); todo lo
+  // demás (exámenes, notas, reemplazos, comunicados) es 'academico'.
+  const avisosAcademicos=avisos.filter(a=>(a.categoria||'academico')!=='sistema');
+  const avisosSistema=avisos.filter(a=>a.categoria==='sistema');
+  W._avisosCatActiva=W._avisosCatActiva||'academico';
   function renderAvisoCard(a,leido=false){
     const tipoIco={urgente:'🔴',examen:'🔵',administrativo:'🟡',info:'🟢'};
     const ico=tipoIco[a.tipo]||'⚪';
-    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" data-tipo="${a.tipo}" style="${leido?'opacity:0.6;border-left-style:dashed;':''}cursor:pointer;position:relative" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
+    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" data-tipo="${a.tipo}" data-categoria="${a.categoria||'academico'}" style="${leido?'opacity:0.6;border-left-style:dashed;':''}cursor:pointer;position:relative" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
     ${!leido?'<div style="position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#3b82f6"></div>':''}
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;padding-right:${!leido?'16px':'0'}">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${ico} ${a.titulo}</span>
@@ -3703,13 +3709,65 @@ async function pgAvisos(el){
   </div>`;
   }
   W.filtrarAvisosTipo=function(tipo){
-    document.querySelectorAll('.aviso-tipo-btn').forEach(b=>b.style.background=b.dataset.tipo===tipo?'var(--green)':'#f1f5f9');
-    document.querySelectorAll('.aviso-tipo-btn').forEach(b=>b.style.color=b.dataset.tipo===tipo?'#fff':'var(--t2)');
-    document.querySelectorAll('[data-tipo]').forEach(c=>{
+    const cont=document.getElementById('avisos-cat-'+W._avisosCatActiva);
+    if(!cont)return;
+    cont.querySelectorAll('.aviso-tipo-btn').forEach(b=>{b.style.background=b.dataset.tipo===tipo?'var(--green)':'#f1f5f9';b.style.color=b.dataset.tipo===tipo?'#fff':'var(--t2)';});
+    cont.querySelectorAll('[data-tipo]:not(.aviso-tipo-btn)').forEach(c=>{
       c.style.display=(!tipo||c.dataset.tipo===tipo)?'block':'none';
     });
   };
+  W.avisosCambiarCategoria=function(cat){
+    W._avisosCatActiva=cat;
+    ['academico','sistema'].forEach(c=>{
+      const cont=document.getElementById('avisos-cat-'+c);
+      if(cont) cont.style.display=(c===cat)?'block':'none';
+    });
+    document.querySelectorAll('.aviso-cat-btn').forEach(b=>{
+      const on=b.dataset.cat===cat;
+      b.style.background=on?'var(--green)':'#f1f5f9';
+      b.style.color=on?'#fff':'var(--t2)';
+    });
+  };
   W.marcarAvisoLeido=marcarAvisoLeido;
+
+  function buildCatSeccion(subset,catKey){
+    const sinLeer=subset.filter(a=>!vistos.has(a.id));
+    const leidos=subset.filter(a=>vistos.has(a.id));
+    if(!subset.length) return '<div class="es">✅ No hay avisos en esta categoría</div>';
+    const chip=(tipo,label,bdr,bg,clr)=>{
+      const n=tipo?subset.filter(a=>a.tipo===tipo).length:subset.length;
+      if(tipo&&!n)return'';
+      const activo=tipo===''; // "Todos" arranca activo
+      return `<button class="aviso-tipo-btn" data-tipo="${tipo}" onclick="filtrarAvisosTipo('${tipo}')" style="padding:4px 12px;border:1px solid ${bdr};border-radius:20px;font-size:12px;cursor:pointer;background:${activo?'var(--green)':bg};color:${activo?'#fff':clr};font-weight:600;transition:all .15s">${label} (${n})</button>`;
+    };
+    return `
+    <!-- Filtros por tipo -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+      <span style="font-size:12px;font-weight:700;color:var(--t2);white-space:nowrap">Filtrar:</span>
+      ${chip('','Todos','var(--bdr)','var(--green)','#fff')}
+      ${sinLeer.length?`<button class="aviso-tipo-btn" data-tipo="sinleer" onclick="document.querySelectorAll('#avisos-cat-${catKey} [data-tipo]:not(.aviso-tipo-btn)').forEach(c=>c.style.display=!vistos.has(c.id.replace('av-',''))?'block':'none')" style="padding:4px 12px;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;cursor:pointer;background:#eff6ff;color:#1d4ed8;font-weight:600">🔵 Sin leer (${sinLeer.length})</button>`:''}
+      ${chip('urgente','🔴 Urgente','#fca5a5','#fef2f2','#dc2626')}
+      ${chip('examen','📅 Examen','#bfdbfe','#eff6ff','#1e40af')}
+      ${chip('administrativo','🟡 Admin','#fde68a','#fffbeb','#92400e')}
+      ${chip('info','🟢 Info','#bbf7d0','#f0fdf4','#166534')}
+    </div>
+    <!-- Sin leer -->
+    ${sinLeer.length?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="flex:1;height:1px;background:#bfdbfe"></div>
+      <span style="font-size:11px;font-weight:800;color:#1d4ed8;white-space:nowrap">🔵 SIN LEER — ${sinLeer.length}</span>
+      <div style="flex:1;height:1px;background:#bfdbfe"></div>
+      ${puedeEditar?`<button onclick="[...document.querySelectorAll('#avisos-cat-${catKey} [id^=av-]')].forEach(c=>c.click())" style="padding:4px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Leer todos</button>`:''}
+    </div>
+    ${sinLeer.map(a=>renderAvisoCard(a,false)).join('')}`:''}
+    <!-- Leídos -->
+    ${leidos.length?`<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px">
+      <div style="flex:1;height:1px;background:#e2e8f0"></div>
+      <span style="font-size:11px;font-weight:700;color:var(--t3);white-space:nowrap">✓ YA LEÍDOS — ${leidos.length}</span>
+      <div style="flex:1;height:1px;background:#e2e8f0"></div>
+    </div>
+    ${leidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
+    ${!sinLeer.length&&!leidos.length?`<div class="es">✅ No hay avisos disponibles</div>`:''}`;
+  }
 
   async function limpiarAvisosLeidos(){
     const ids=[...vistos]; // IDs de avisos ya leídos
@@ -3834,34 +3892,17 @@ async function pgAvisos(el){
   </div>`:''}
 
   ${avisos.length?`
-  <!-- Filtros por tipo -->
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <span style="font-size:12px;font-weight:700;color:var(--t2);white-space:nowrap">Filtrar:</span>
-    <button class="aviso-tipo-btn" data-tipo="" onclick="filtrarAvisosTipo('')" style="padding:4px 12px;border:1px solid var(--bdr);border-radius:20px;font-size:12px;cursor:pointer;background:var(--green);color:#fff;font-weight:600;transition:all .15s">Todos (${avisos.length})</button>
-    ${avisosSinLeer.length?`<button class="aviso-tipo-btn" data-tipo="sinleer" onclick="document.querySelectorAll('[data-tipo]').forEach(c=>c.style.display=!vistos.has(Number(c.id.replace('av-','')))?'block':'none')" style="padding:4px 12px;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;cursor:pointer;background:#eff6ff;color:#1d4ed8;font-weight:600">🔵 Sin leer (${avisosSinLeer.length})</button>`:''}
-    ${avisos.filter(a=>a.tipo==='urgente').length?`<button class="aviso-tipo-btn" data-tipo="urgente" onclick="filtrarAvisosTipo('urgente')" style="padding:4px 12px;border:1px solid #fca5a5;border-radius:20px;font-size:12px;cursor:pointer;background:#fef2f2;color:#dc2626;font-weight:600">🔴 Urgente (${avisos.filter(a=>a.tipo==='urgente').length})</button>`:''}
-    ${avisos.filter(a=>a.tipo==='examen').length?`<button class="aviso-tipo-btn" data-tipo="examen" onclick="filtrarAvisosTipo('examen')" style="padding:4px 12px;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;cursor:pointer;background:#eff6ff;color:#1e40af;font-weight:600">📅 Examen (${avisos.filter(a=>a.tipo==='examen').length})</button>`:''}
-    ${avisos.filter(a=>a.tipo==='administrativo').length?`<button class="aviso-tipo-btn" data-tipo="administrativo" onclick="filtrarAvisosTipo('administrativo')" style="padding:4px 12px;border:1px solid #fde68a;border-radius:20px;font-size:12px;cursor:pointer;background:#fffbeb;color:#92400e;font-weight:600">🟡 Admin (${avisos.filter(a=>a.tipo==='administrativo').length})</button>`:''}
-    ${avisos.filter(a=>a.tipo==='info').length?`<button class="aviso-tipo-btn" data-tipo="info" onclick="filtrarAvisosTipo('info')" style="padding:4px 12px;border:1px solid #bbf7d0;border-radius:20px;font-size:12px;cursor:pointer;background:#f0fdf4;color:#166534;font-weight:600">🟢 Info (${avisos.filter(a=>a.tipo==='info').length})</button>`:''}
+  <!-- Categorías: Académicos vs. Sistema -->
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="aviso-cat-btn" data-cat="academico" onclick="avisosCambiarCategoria('academico')" style="padding:7px 16px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;cursor:pointer;background:${W._avisosCatActiva==='academico'?'var(--green)':'#f1f5f9'};color:${W._avisosCatActiva==='academico'?'#fff':'var(--t2)'};font-weight:700">📚 Académicos (${avisosAcademicos.length})</button>
+    <button class="aviso-cat-btn" data-cat="sistema" onclick="avisosCambiarCategoria('sistema')" style="padding:7px 16px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;cursor:pointer;background:${W._avisosCatActiva==='sistema'?'var(--green)':'#f1f5f9'};color:${W._avisosCatActiva==='sistema'?'#fff':'var(--t2)'};font-weight:700">⚙️ Sistema (${avisosSistema.length})</button>
   </div>
-  <!-- Sin leer -->
-  ${avisosSinLeer.length?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-    <div style="flex:1;height:1px;background:#bfdbfe"></div>
-    <span style="font-size:11px;font-weight:800;color:#1d4ed8;white-space:nowrap">🔵 SIN LEER — ${avisosSinLeer.length}</span>
-    <div style="flex:1;height:1px;background:#bfdbfe"></div>
-    ${puedeEditar?`<button onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" style="padding:4px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Leer todos</button>`:''}
-  </div>
-  ${avisosSinLeer.map(a=>renderAvisoCard(a,false)).join('')}`:''}
-  <!-- Leídos -->
-  ${avisosLeidos.length?`<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px">
-    <div style="flex:1;height:1px;background:#e2e8f0"></div>
-    <span style="font-size:11px;font-weight:700;color:var(--t3);white-space:nowrap">✓ YA LEÍDOS — ${avisosLeidos.length}</span>
-    <div style="flex:1;height:1px;background:#e2e8f0"></div>
-  </div>
-  ${avisosLeidos.map(a=>renderAvisoCard(a,true)).join('')}`:''}
-  ${!avisosSinLeer.length&&!avisosLeidos.length?`<div class="es">✅ No hay avisos disponibles</div>`:''}`:'<div class="es">✅ No hay avisos disponibles</div>'}
+  <div id="avisos-cat-academico" style="display:${W._avisosCatActiva==='academico'?'block':'none'}">${buildCatSeccion(avisosAcademicos,'academico')}</div>
+  <div id="avisos-cat-sistema" style="display:${W._avisosCatActiva==='sistema'?'block':'none'}">${buildCatSeccion(avisosSistema,'sistema')}</div>
+  `:'<div class="es">✅ No hay avisos disponibles</div>'}
   `;
 }
+function avisosCambiarCategoria(cat){W.avisosCambiarCategoria(cat);}
 function mAvisoDirector(){
   modal(`<h4>✉ Mensaje al Director</h4>
   <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Este mensaje será visible solo para el Director.</p>
@@ -3912,6 +3953,7 @@ function mAviso(){
     <div class="f"><label>Tipo</label><select id="avtp"><option value="info">Información general</option><option value="examen">Examen</option><option value="administrativo">Administrativo</option><option value="urgente">Urgente</option></select></div>
     <div class="f"><label>¿Fijar arriba?</label><select id="avf"><option value="0">No</option><option value="1">Sí</option></select></div>
   </div>
+  ${esDirector?`<div class="f"><label>Categoría</label><select id="avcat"><option value="academico">📚 Académico</option><option value="sistema">⚙️ Sistema</option></select></div>`:''}
   <div class="f"><label>Público objetivo</label><select id="avdest">${optsDestino}</select></div>
   ${filtroCombo}
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svAviso()">Publicar</button></div>`);
@@ -3928,9 +3970,10 @@ async function svAviso(){
   const destinatario=document.getElementById('avdest')?.value||'todos';
   const tipo=document.getElementById('avtp')?.value||'info';
   const fijado=document.getElementById('avf')?.value==='1';
+  const categoria=document.getElementById('avcat')?.value||'academico';
   if(!destinatario){toast('Seleccioná un destinatario','warn');return;}
   try{
-    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario});
+    await api('POST','/api/avisos',{titulo,contenido:c,tipo,fijado,destinatario,categoria});
     cm();go('avisos');
     toast('✓ Aviso publicado correctamente','ok',3000);
   }catch(e){toast('Error al publicar: '+e.message,'err');}
