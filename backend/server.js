@@ -3979,18 +3979,15 @@ app.post('/api/examenes/crear-recuperatorios-parciales', auth(ADM), (req, res) =
 // de cada asignación (a diferencia de los recuperatorios parciales) porque el
 // director pidió que cada alumno rinda 1 materia por día hasta terminar, sin
 // importar qué día de la semana le tocaría esa materia.
-// El calendario se arma para TODO alumno Activo que ya tenga un final
-// ordinario cargado y no haya rendido el recuperatorio todavía — no se limita
-// a Reprobados: un alumno Aprobado que no quedó conforme con su puntaje
-// también puede solicitar el recuperatorio final para intentar subirlo. Se
-// incluye independientemente de si ya pagó o no — el pago
-// (habilitaciones_examen tipo_examen='final_recuperatorio') sigue siendo
-// requisito para que el docente pueda cargar la nota después, igual que en
-// los finales ordinarios, pero no bloquea que la fecha exista y se publique
-// en el calendario. Se arma un grafo de conflictos (dos materias no
-// pueden coincidir el mismo día si comparten al menos un alumno) y se
-// colorea en la menor cantidad de días posible a partir de fecha_inicio,
-// saltando sábados y domingos.
+// El director pidió que el calendario se arme para TODAS las materias del
+// período activo, sin importar si el final ordinario ya se cargó o siquiera
+// se rindió todavía — la fecha se publica igual (el pago/habilitación sigue
+// siendo requisito aparte para que el docente pueda cargar la nota de cada
+// alumno puntual, pero no condiciona si la fecha existe). Se toman todos los
+// alumnos Activos de cada curso (no solo los que ya tienen nota) para armar
+// el grafo de conflictos (dos materias no pueden coincidir el mismo día si
+// comparten al menos un alumno) y se colorea en la menor cantidad de días
+// posible a partir de fecha_inicio, saltando sábados y domingos.
 app.get('/api/examenes/preview-recuperatorios-finales', auth(ADM), (req, res) => {
   try {
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
@@ -4009,42 +4006,42 @@ app.get('/api/examenes/preview-recuperatorios-finales', auth(ADM), (req, res) =>
       db.prepare("SELECT asignacion_id FROM examenes WHERE tipo='final_recuperatorio'").all().map(r => r.asignacion_id)
     );
 
-    const rows = db.prepare(`
-      SELECT n.alumno_id, n.asignacion_id, a.docente_id,
+    const asigs = db.prepare(`
+      SELECT a.id as asignacion_id, a.docente_id, a.curso_id,
         m.nombre as materia_nombre,
         cu.anio as curso_anio, cu.division as curso_division,
         ca.nombre as carrera_nombre,
-        u.nombre as doc_nombre, u.apellido as doc_apellido,
-        al.nombre as al_nombre, al.apellido as al_apellido
-      FROM notas n
-      JOIN asignaciones a ON n.asignacion_id = a.id
-      JOIN materias m     ON a.materia_id    = m.id
-      JOIN cursos cu      ON a.curso_id      = cu.id
-      JOIN carreras ca    ON cu.carrera_id   = ca.id
-      JOIN docentes d     ON a.docente_id    = d.id
-      JOIN usuarios u     ON d.usuario_id    = u.id
-      JOIN alumnos al     ON n.alumno_id     = al.id
-      WHERE a.periodo_id = ? AND n.final_ord IS NOT NULL AND n.final_recuperatorio IS NULL
-        AND al.estado = 'Activo'
+        u.nombre as doc_nombre, u.apellido as doc_apellido
+      FROM asignaciones a
+      JOIN materias m  ON a.materia_id  = m.id
+      JOIN cursos cu   ON a.curso_id    = cu.id
+      JOIN carreras ca ON cu.carrera_id = ca.id
+      JOIN docentes d  ON a.docente_id  = d.id
+      JOIN usuarios u  ON d.usuario_id  = u.id
+      WHERE a.periodo_id = ?
     `).all(periodo.id);
+
+    const alumnosCurso = {};
+    [...new Set(asigs.map(a => a.curso_id))].forEach(cid => {
+      alumnosCurso[cid] = db.prepare("SELECT id, nombre, apellido FROM alumnos WHERE curso_id=? AND estado='Activo'").all(cid);
+    });
 
     const grupos = {};   // asignacion_id -> { info, alumnos: [{id,nombre}] }
     const yaProgramadas = new Set();
-    rows.forEach(r => {
-      if (yaRecup.has(r.asignacion_id)) { yaProgramadas.add(r.asignacion_id); return; }
-      if (!grupos[r.asignacion_id]) {
-        grupos[r.asignacion_id] = {
-          asignacion_id: r.asignacion_id,
-          materia: r.materia_nombre,
-          carrera: r.carrera_nombre,
-          anio: r.curso_anio,
-          division: r.curso_division,
-          docente_id: r.docente_id,
-          docente: `${r.doc_apellido||''}, ${r.doc_nombre||''}`,
-          alumnos: []
-        };
-      }
-      grupos[r.asignacion_id].alumnos.push({ id: r.alumno_id, nombre: `${r.al_apellido||''}, ${r.al_nombre||''}` });
+    asigs.forEach(a => {
+      if (yaRecup.has(a.asignacion_id)) { yaProgramadas.add(a.asignacion_id); return; }
+      const alumnos = alumnosCurso[a.curso_id] || [];
+      if (!alumnos.length) return; // curso sin alumnos activos — nada que programar
+      grupos[a.asignacion_id] = {
+        asignacion_id: a.asignacion_id,
+        materia: a.materia_nombre,
+        carrera: a.carrera_nombre,
+        anio: a.curso_anio,
+        division: a.curso_division,
+        docente_id: a.docente_id,
+        docente: `${a.doc_apellido||''}, ${a.doc_nombre||''}`,
+        alumnos: alumnos.map(al => ({ id: al.id, nombre: `${al.apellido||''}, ${al.nombre||''}` }))
+      };
     });
 
     const ids = Object.keys(grupos);

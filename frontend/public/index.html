@@ -5771,7 +5771,7 @@ async function mPreviewRecuperatoriosFinales(){
   modal(`<div style="text-align:center;padding:40px 20px">
     <div style="font-size:32px;margin-bottom:12px">⏳</div>
     <div style="font-size:15px;font-weight:600;color:#374151">Generando cronograma...</div>
-    <div style="font-size:12px;color:#9ca3af;margin-top:6px">Todo alumno con final ya rendido (reprobado o no) sin recuperatorio cargado</div>
+    <div style="font-size:12px;color:#9ca3af;margin-top:6px">Todas las materias del período activo, tengan o no nota cargada</div>
   </div>`,true);
   try{
     const d=await api('GET','/api/examenes/preview-recuperatorios-finales');
@@ -5809,7 +5809,7 @@ async function mPreviewRecuperatoriosFinales(){
     modal(`<div style="max-width:720px;max-height:80vh;overflow-y:auto">
       <h4 style="margin:0 0 4px">🗓 Preview — Recuperatorios Finales</h4>
       <div style="font-size:12px;color:#6b7280;margin-bottom:14px">Excepción: 1 materia por día por alumno, sin respetar el día de clase habitual · Desde ${fecha_inicio}</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px">⚠️ Incluye a todo alumno con final ya rendido (reprobado o aprobado que quiere subir el puntaje). El pago sigue siendo obligatorio para que el docente pueda cargar la nota de cada alumno.</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px">⚠️ Incluye todas las materias del período activo, tengan o no el final ya cargado — se publica la fecha para todos los alumnos activos del curso. El pago sigue siendo obligatorio para que el docente pueda cargar la nota de cada alumno.</div>
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
         <span style="background:#e0e7ff;color:#4338ca;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">📅 ${dias_utilizados} día${dias_utilizados!==1?'s':''}</span>
         <span style="background:#dcfce7;color:#166534;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600">✅ ${total_examenes} exámenes</span>
