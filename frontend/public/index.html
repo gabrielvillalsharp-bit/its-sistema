@@ -1831,7 +1831,7 @@ async function pgDash(el){
       api('GET','/api/examenes/pendientes-notas').catch(()=>[]),
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
-    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.destinatario!=='director');
+    const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.destinatario!=='director'&&a.categoria!=='sistema');
     const periodoActivo=dash.periodo_activo||'Período activo';
     // Filtrar asignaciones del período activo
     const misAsigs=(asigs||[]).filter(a=>a.periodo_nombre===periodoActivo);
@@ -1912,7 +1912,10 @@ async function pgDash(el){
   const _solDocPend = (solDocentes||[]).filter(s=>s.estado==='pendiente');
   const _solTotalPend = _solQRPend.length + _solBotPend.length + _solDocPend.length;
   const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
-  const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente'));
+  // Avisos de categoría 'sistema' (ej. WhatsApp desconectado/reconectado) no se muestran
+  // como banner en Inicio — quedan solo en la sección Avisos → pestaña ⚙️ Sistema, para
+  // mantener la pantalla de Inicio despejada (pedido explícito del director).
+  const avisosAlert=(d.avisos||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.categoria!=='sistema');
   const qa=[];
   el.innerHTML=`
   ${_dashHero(saludo,me.nombre,fechaCap,d.periodo_activo,qa)}

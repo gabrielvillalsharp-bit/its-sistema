@@ -1469,6 +1469,66 @@ try {
   }
 } catch(e) { console.warn('[Migración] Escala de notas:', e.message); }
 
+// ── MIGRACIÓN: Restaurar nota perdida — Dermatología Básica (bug #3, oninput) ──
+// Detectado por el aviso "Posible pérdida de nota" del 2026-07-17 20:42:46 —
+// el docente Carballo tenía cargado final_ord=4 y quedó vacío. Confirmado
+// contra snapshot que sigue en NULL en producción (no se autocorrigió como los
+// demás casos del mismo día). Se restaura solo si sigue en NULL (no pisa un
+// valor real distinto que el docente haya cargado después).
+try {
+  const YA_APLICADA_REST1 = db.prepare("SELECT valor FROM configuracion WHERE clave='restaura_nota_dermato_azrt_2026_07_17'").get();
+  if (!YA_APLICADA_REST1) {
+    const { calcularPuntaje } = require('./db');
+    const n = db.prepare("SELECT * FROM notas WHERE alumno_id='a_imp_22_azrt' AND asignacion_id='asig_cos107_1b'").get();
+    if (n && n.final_ord === null) {
+      const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,4,n.final_recuperatorio,n.complementario,n.extraordinario,n.director_pts);
+      db.prepare('UPDATE notas SET final_ord=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?')
+        .run(4, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+      console.log('[Migración] Restaurada nota perdida — Dermatología Básica (final_ord=4) ✓');
+    }
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('restaura_nota_dermato_azrt_2026_07_17','1','Restauración puntual final_ord=4 perdido el 2026-07-17')").run();
+  }
+} catch(e) { console.warn('[Migración] Restaurar nota Dermatología:', e.message); }
+
+// ── MIGRACIÓN: Restaurar 10 "parcial" perdidos por el bug #2 (barrido incompleto) ──
+// El primer barrido (commit 85dac0b, 66 casos) no cubrió estos 10: reconstruidos
+// cruzando TODO el historial de auditoría (UPDATE_NOTA) contra el estado actual —
+// se toma el último valor real de "parcial" que existía justo antes de un guardado
+// que lo omitió (el patrón exacto del bug #2), y se confirma que sigue en NULL
+// ahora mismo (si alguien lo volvió a cargar con un valor real después, no se toca).
+// 6 de los 10 son de Anatomía y Fisiología Humana (Enfermería 1°, docente Higuchi) —
+// coincide con el reporte de alumnos de esa materia el 2026-07-17.
+try {
+  const YA_APLICADA_REST2 = db.prepare("SELECT valor FROM configuracion WHERE clave='restaura_parcial_barrido2_2026_07_17'").get();
+  if (!YA_APLICADA_REST2) {
+    const { calcularPuntaje } = require('./db');
+    const casos = [
+      ['a_imp_121_wfdu', 'asig_doc_higuchi_COS_101_cosA_1b', 10],
+      ['a_1778617162473_ger', 'asig_doc_higuchi_COS_101_cosA_1b', 17],
+      ['a_imp_12_c9rl', 'asig_doc_higuchi_COS_101_cosA_1b', 20],
+      ['a_1778443281792_aby', 'asig_doc_carballo_COS_205_cosA_2u', 19],
+      ['a_1778458688773_bnp', 'asig_doc_higuchi_ENF_101_enf_1u', 13],
+      ['a_1778459545141_1n5', 'asig_doc_higuchi_ENF_101_enf_1u', 20],
+      ['a_1778459545406_7nv', 'asig_doc_higuchi_ENF_101_enf_1u', 10],
+      ['a_1778459545608_tac', 'asig_doc_higuchi_ENF_101_enf_1u', 9],
+      ['a_1778459545744_ovb', 'asig_doc_higuchi_ENF_101_enf_1u', 16],
+      ['a_1778459545076_ffw', 'asig_doc_higuchi_ENF_101_enf_1u', 19],
+    ];
+    const updNota = db.prepare('UPDATE notas SET parcial=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+    let restaurados = 0;
+    casos.forEach(([alumnoId, asigId, valor]) => {
+      const n = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(alumnoId, asigId);
+      if (n && n.parcial === null) {
+        const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,valor,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario,n.director_pts);
+        updNota.run(valor, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+        restaurados++;
+      }
+    });
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('restaura_parcial_barrido2_2026_07_17','1','Segundo barrido: 10 valores de parcial perdidos por bug #2 que el primer barrido no cubrió')").run();
+    console.log(`[Migración] Segundo barrido bug #2: ${restaurados}/10 valores de parcial restaurados ✓`);
+  }
+} catch(e) { console.warn('[Migración] Segundo barrido bug #2:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
 // Pedido puntual del director. Respeta el día de clase real (miércoles).
 try {
@@ -4868,7 +4928,7 @@ app.get('/api/dashboard', auth(), (req, res) => {
       examenes_hoy:   periodo ? db.prepare("SELECT COUNT(*) as n FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id WHERE e.fecha=? AND e.periodo_id=? AND ca.sede_id=?").get(hoy, periodo.id, sede).n : 0,
       deudores:       periodo ? db.prepare("SELECT COUNT(*) as n FROM alumnos al LEFT JOIN carreras c ON al.carrera_id=c.id WHERE al.estado='Activo' AND (c.sede_id=? OR al.carrera_id IS NULL) AND al.id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE '%Matrícula%')").get(sede, periodo.id).n : 0,
       por_carrera:    db.prepare("SELECT c.nombre,COUNT(a.id) as total FROM carreras c LEFT JOIN alumnos a ON c.id=a.carrera_id AND a.estado='Activo' WHERE c.activa=1 AND c.sede_id=? GROUP BY c.id ORDER BY total DESC").all(sede),
-      avisos:         db.prepare("SELECT id,titulo,contenido,tipo,fijado,fecha_creacion FROM avisos WHERE activo=1 AND sede_id=? ORDER BY fijado DESC,fecha_creacion DESC LIMIT 5").all(sede),
+      avisos:         db.prepare("SELECT id,titulo,contenido,tipo,fijado,fecha_creacion,categoria,destinatario FROM avisos WHERE activo=1 AND sede_id=? ORDER BY fijado DESC,fecha_creacion DESC LIMIT 5").all(sede),
       proximos_examenes: periodo ? db.prepare(`
         SELECT e.fecha,e.hora,e.tipo,m.nombre as materia,ca.nombre as carrera,cu.anio,cu.division
         FROM examenes e JOIN asignaciones a ON e.asignacion_id=a.id
