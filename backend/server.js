@@ -7601,7 +7601,6 @@ cron.schedule('0 8 * * *', async () => {
 // esto era completamente silencioso (solo un console.log) y nadie se enteraba de una
 // caída hasta que un mensaje fallaba o alguien entraba a revisar el panel a mano.
 let _waWatchdogDownSince = null;
-let _waWatchdogLastAlertAt = 0;
 function _avisarDirectorWA(titulo, contenido, urgente) {
   try {
     const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
@@ -7625,14 +7624,14 @@ cron.schedule('*/15 * * * *', async () => {
       console.log('[WA] Watchdog: estado', state, '— reconectando...');
       await fetch(`${EVO_URL}/instance/connect/${EVO_INSTANCE}`, { method: 'GET', headers: { apikey: EVO_KEY } });
       const ahora = Date.now();
-      if (!_waWatchdogDownSince) _waWatchdogDownSince = ahora;
-      // Avisar apenas se detecta la caída, y despues como recordatorio cada 2 horas mientras siga caido
-      if (ahora - _waWatchdogLastAlertAt > 2 * 60 * 60 * 1000) {
-        _waWatchdogLastAlertAt = ahora;
-        const minCaido = Math.round((ahora - _waWatchdogDownSince) / 60000);
+      // Avisar UNA sola vez por caída (no repetir cada 2h) — el estado en vivo lo
+      // muestra el indicador fijo con borde animado en la barra superior mientras
+      // dure la desconexión, así no se acumulan avisos repetidos en la bandeja.
+      if (!_waWatchdogDownSince) {
+        _waWatchdogDownSince = ahora;
         _avisarDirectorWA(
           '⚠️ WhatsApp desconectado',
-          `El sistema detectó que la conexión de WhatsApp está caída (estado: "${state}")${minCaido ? ' desde hace ~' + minCaido + ' min' : ''}. Se intentó reconectar automáticamente. Si sigue sin funcionar, entrá al panel de WhatsApp y volvé a escanear el código QR.`,
+          `El sistema detectó que la conexión de WhatsApp está caída (estado: "${state}"). Se intentó reconectar automáticamente. Si sigue sin funcionar, entrá al panel de WhatsApp y volvé a escanear el código QR.`,
           true
         );
       }
@@ -7641,9 +7640,18 @@ cron.schedule('*/15 * * * *', async () => {
       const minCaido = Math.round((Date.now() - _waWatchdogDownSince) / 60000);
       _avisarDirectorWA('✅ WhatsApp reconectado', `La conexión de WhatsApp se restableció automáticamente (estuvo caída ~${minCaido} min).`, false);
       _waWatchdogDownSince = null;
-      _waWatchdogLastAlertAt = 0;
     }
   } catch(e) { /* silencioso */ }
+});
+
+// ── Estado en vivo del watchdog (liviano, no golpea la API de Evolution) ─────
+// Lo usa el indicador fijo con borde animado en la barra superior — se puede
+// consultar cada 60s sin generar carga externa, a diferencia de /whatsapp/estado.
+app.get('/api/whatsapp/watchdog-estado', auth(ADM), (req, res) => {
+  res.json({
+    caido: !!_waWatchdogDownSince,
+    desde: _waWatchdogDownSince ? new Date(_waWatchdogDownSince).toISOString() : null,
+  });
 });
 
 cron.schedule('0 * * * *', async () => {

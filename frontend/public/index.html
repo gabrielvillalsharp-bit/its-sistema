@@ -645,6 +645,7 @@ body.mob-alumno .mi-asist-cards{display:block!important}
 .saved-ok{display:inline-block;font-size:10px;color:#2e7d32;font-weight:700;margin-left:4px;animation:fadeInQ .3s ease}
 @keyframes fadeInQ{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 @keyframes pulse-bell{0%,100%{transform:scale(1)}40%{transform:scale(1.25) rotate(-8deg)}60%{transform:scale(1.2) rotate(8deg)}}
+@keyframes waGlow{0%,100%{box-shadow:0 0 3px 1px rgba(255,80,80,.5);border:1.5px solid rgba(255,120,120,.6)}50%{box-shadow:0 0 12px 4px rgba(255,60,60,.95);border:1.5px solid rgba(255,180,180,1)}}
 @keyframes navSlideIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}
 @keyframes navFadeGroup{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes dotPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.4)}70%{box-shadow:0 0 0 5px rgba(229,57,53,0)}}
@@ -994,6 +995,9 @@ body.mob-alumno .mi-asist-cards{display:block!important}
   <div class="tr2">
     <span id="un" style="font-size:13px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.30)"></span>
     <span id="rp" class="rp"></span>
+    <button id="wa-status-pill" onclick="go('whatsapp')" title="WhatsApp desconectado — clic para ver el panel" style="display:none;background:#7f1d1d;color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px;animation:waGlow 1.6s ease-in-out infinite">
+      🔴 WhatsApp desconectado
+    </button>
     <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
       🔔 <span id="notif-bell-count">0</span>
     </button>
@@ -1374,6 +1378,17 @@ function startApp(){
       W._avisosPendientes=total;
       W._avisosSinLeer=nuevos.length;
     }catch{}
+    // ── Indicador fijo de WhatsApp desconectado (solo director) ──────────────
+    // Consulta el estado en vivo del watchdog (liviano, no golpea Evolution API)
+    // y muestra/oculta el pill con borde animado — reemplaza los avisos repetidos
+    // cada 2h que antes llenaban la bandeja mientras la conexión seguía caída.
+    if(me.rol==='director'){
+      try{
+        const wd=await api('GET','/api/whatsapp/watchdog-estado');
+        const pill=document.getElementById('wa-status-pill');
+        if(pill) pill.style.display=wd.caido?'inline-block':'none';
+      }catch{}
+    }
   }
   checkNotifAvisos();
   setInterval(checkNotifAvisos,60000);
