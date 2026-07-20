@@ -6747,6 +6747,7 @@ app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
         cu.anio as anio, cu.division as division,
         m.nombre as materia_nombre,
         ud.nombre as doc_nombre, ud.apellido as doc_apellido,
+        e.fecha as fecha_examen, e.hora as hora_examen,
         n.parcial, n.parcial_recuperatorio, n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario
       FROM habilitaciones_examen h
       JOIN alumnos al   ON h.alumno_id=al.id
@@ -6757,6 +6758,7 @@ app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
       LEFT JOIN docentes d ON a.docente_id=d.id
       LEFT JOIN usuarios ud ON d.usuario_id=ud.id
       LEFT JOIN notas n ON n.alumno_id=h.alumno_id AND n.asignacion_id=h.asignacion_id
+      LEFT JOIN examenes e ON e.asignacion_id=h.asignacion_id AND e.tipo=h.tipo_examen
       WHERE h.habilitado=1 AND al.estado='Activo'
       ORDER BY ca.nombre, cu.anio, m.nombre, al.apellido
     `).all();
@@ -6770,6 +6772,7 @@ app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
         materia_nombre: r.materia_nombre, asignacion_id: r.asignacion_id,
         docente_nombre: r.doc_apellido ? `${r.doc_apellido}, ${r.doc_nombre||''}` : null,
         tipo_examen: r.tipo_examen, fecha_habilitacion: r.fecha_habilitacion,
+        fecha_examen: r.fecha_examen, hora_examen: r.hora_examen,
       }));
     res.json(pendientes);
   } catch(e) { res.status(500).json({ error: e.message }); }
