@@ -846,6 +846,31 @@ function init() {
       console.log('✓ Migración habilitaciones_examen: CHECK constraint expandido');
     }
   } catch(e) { console.error('Error migrando habilitaciones_examen:', e.message); }
+  // Migración: expandir wa_mensajes.tipo para incluir 'bienvenida' — enviarBienvenidaQR()
+  // insertaba tipo='bienvenida' pero el CHECK original no lo permitía, así que el INSERT
+  // fallaba en silencio (capturado por el catch) y esos envíos nunca quedaban en el
+  // Historial, sin forma de saber si el mensaje realmente había llegado o no.
+  try {
+    const schRowWA = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='wa_mensajes'").get();
+    if (schRowWA && schRowWA.sql && schRowWA.sql.includes("CHECK(tipo IN ('individual','masivo','programado','aviso'))")) {
+      db.exec(`CREATE TABLE wa_mensajes_v2 (
+        id TEXT PRIMARY KEY,
+        tipo TEXT NOT NULL DEFAULT 'individual' CHECK(tipo IN ('individual','masivo','programado','aviso','bienvenida')),
+        destinatario_tipo TEXT DEFAULT 'custom' CHECK(destinatario_tipo IN ('docente','alumno','custom')),
+        destinatario_id TEXT,
+        destinatario_nombre TEXT,
+        destinatario_telefono TEXT NOT NULL,
+        mensaje TEXT NOT NULL,
+        estado TEXT DEFAULT 'enviado' CHECK(estado IN ('enviado','fallido')),
+        enviado_por TEXT,
+        fecha TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec(`INSERT INTO wa_mensajes_v2 SELECT * FROM wa_mensajes`);
+      db.exec(`DROP TABLE wa_mensajes`);
+      db.exec(`ALTER TABLE wa_mensajes_v2 RENAME TO wa_mensajes`);
+      console.log('✓ Migración wa_mensajes: CHECK de tipo expandido para incluir bienvenida');
+    }
+  } catch(e) { console.error('Error migrando wa_mensajes:', e.message); }
   try { db.prepare("ALTER TABLE materias ADD COLUMN dia TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN turno INTEGER").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN curso_id TEXT").run(); } catch {}
