@@ -7407,10 +7407,14 @@ async function sendWhatsApp(phone, message) {
   }
   const mensajeVariado = waVariarTexto(message);
 
+  // WA_PROVIDER fuerza cuál usar sin tener que borrar/reponer credenciales en Railway
+  // cada vez que se quiere probar el otro camino. Valores: 'twilio' | 'evolution'.
+  // Si no está seteada, se usa Twilio por defecto en cuanto sus variables existen.
+  const WA_PROVIDER = (process.env.WA_PROVIDER || '').toLowerCase();
   const TW_SID  = process.env.TWILIO_ACCOUNT_SID;
   const TW_TOK  = process.env.TWILIO_AUTH_TOKEN;
   const TW_FROM = process.env.TWILIO_WHATSAPP_FROM;
-  if (TW_SID && TW_TOK && TW_FROM) {
+  if (WA_PROVIDER !== 'evolution' && TW_SID && TW_TOK && TW_FROM) {
     console.log(`[WA-Twilio] Enviando a ${numero} (${enviados+1}/${WA_LIMITE_DIARIO} hoy)`);
     return await _sendWhatsAppTwilio(numero, mensajeVariado, TW_SID, TW_TOK, TW_FROM);
   }
