@@ -7365,14 +7365,35 @@ function waVariarTexto(mensaje) {
   return ap + mensaje + ci;
 }
 
-async function sendWhatsApp(phone, message) {
-  const EVO_URL      = process.env.EVOLUTION_URL;
-  const EVO_KEY      = process.env.EVOLUTION_KEY;
-  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
-  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) {
-    console.warn('[WA] Variables EVOLUTION_URL / EVOLUTION_KEY / EVOLUTION_INSTANCE no configuradas');
-    return { ok: false, error: 'Evolution API no configurada (variables de entorno faltantes)' };
+// Twilio (API oficial de WhatsApp Business) — reemplaza a Evolution API, que quedó
+// restringida por Meta para envío automatizado (ver memoria del proyecto, 2026-07-20).
+// Si TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_WHATSAPP_FROM están configurados se
+// usa Twilio; si no, cae al camino viejo de Evolution API (por si hace falta volver
+// atrás momentáneamente). TWILIO_WHATSAPP_FROM va con el prefijo completo, ej:
+// 'whatsapp:+14155238886' (sandbox) o 'whatsapp:+595XXXXXXXXX' (número de producción).
+async function _sendWhatsAppTwilio(numero, texto, sid, token, from) {
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const body = new URLSearchParams({ From: from, To: `whatsapp:+${numero}`, Body: texto });
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) {
+      console.log(`[WA-Twilio] ✅ Enviado a ${numero} → sid:${data.sid}`);
+      return { ok: true, numero };
+    }
+    console.warn(`[WA-Twilio] Falló: ${resp.status} → ${JSON.stringify(data).slice(0, 300)}`);
+    return { ok: false, error: `Twilio: ${data.message || resp.status}`, numero };
+  } catch(e) {
+    console.error('[WA-Twilio] Error fetch:', e.message);
+    return { ok: false, error: e.message, numero };
   }
+}
+async function sendWhatsApp(phone, message) {
   const numero = normalizarTelefono(phone);
   if (!numero) {
     console.warn('[WA] Teléfono inválido:', phone);
@@ -7384,13 +7405,28 @@ async function sendWhatsApp(phone, message) {
     console.warn(`[WA] Límite diario alcanzado (${enviados}/${WA_LIMITE_DIARIO}). Mensaje no enviado.`);
     return { ok: false, error: `Límite diario de ${WA_LIMITE_DIARIO} mensajes alcanzado` };
   }
-  // Variación de texto anti-spam
   const mensajeVariado = waVariarTexto(message);
+
+  const TW_SID  = process.env.TWILIO_ACCOUNT_SID;
+  const TW_TOK  = process.env.TWILIO_AUTH_TOKEN;
+  const TW_FROM = process.env.TWILIO_WHATSAPP_FROM;
+  if (TW_SID && TW_TOK && TW_FROM) {
+    console.log(`[WA-Twilio] Enviando a ${numero} (${enviados+1}/${WA_LIMITE_DIARIO} hoy)`);
+    return await _sendWhatsAppTwilio(numero, mensajeVariado, TW_SID, TW_TOK, TW_FROM);
+  }
+
+  // ── Camino viejo: Evolution API (fallback si Twilio no está configurado) ──────
+  const EVO_URL      = process.env.EVOLUTION_URL;
+  const EVO_KEY      = process.env.EVOLUTION_KEY;
+  const EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  if (!EVO_URL || !EVO_KEY || !EVO_INSTANCE) {
+    console.warn('[WA] Ni Twilio ni Evolution API están configurados');
+    return { ok: false, error: 'WhatsApp no configurado (faltan variables de entorno)' };
+  }
   const headers = { 'Content-Type': 'application/json', 'apikey': EVO_KEY };
   const baseUrl = EVO_URL.replace(/\/+$/, '');
   const url = `${baseUrl}/message/sendText/${EVO_INSTANCE}`;
   console.log(`[WA] Enviando a ${numero} (${enviados+1}/${WA_LIMITE_DIARIO} hoy)`);
-  // Intentar formato v2 primero, luego v1 como fallback
   const payloads = [
     { number: numero, textMessage: { text: mensajeVariado } },
     { number: numero, text: mensajeVariado },
