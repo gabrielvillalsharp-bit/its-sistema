@@ -6732,6 +6732,49 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── HABILITADOS SIN NOTA CARGADA: pagó/se habilitó para rendir, pero el docente ──
+// todavía no cargó la nota de ese examen puntual. Pedido del director para la
+// sección Gestión de Alumnos → tarjeta "Pagó, falta nota", agrupada por
+// carrera → año → materia. h.tipo_examen coincide 1:1 con el nombre de la
+// columna en `notas` (final_ord, final_recuperatorio, parcial_recuperatorio,
+// complementario, extraordinario), así que se puede leer directo con COALESCE.
+app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT h.id as hab_id, h.tipo_examen, h.fecha as fecha_habilitacion, h.asignacion_id,
+        al.id as alumno_id, al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
+        ca.id as carrera_id, ca.nombre as carrera_nombre,
+        cu.anio as anio, cu.division as division,
+        m.nombre as materia_nombre,
+        ud.nombre as doc_nombre, ud.apellido as doc_apellido,
+        n.parcial, n.parcial_recuperatorio, n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario
+      FROM habilitaciones_examen h
+      JOIN alumnos al   ON h.alumno_id=al.id
+      JOIN asignaciones a ON h.asignacion_id=a.id
+      JOIN materias m   ON a.materia_id=m.id
+      JOIN cursos cu    ON a.curso_id=cu.id
+      JOIN carreras ca  ON cu.carrera_id=ca.id
+      LEFT JOIN docentes d ON a.docente_id=d.id
+      LEFT JOIN usuarios ud ON d.usuario_id=ud.id
+      LEFT JOIN notas n ON n.alumno_id=h.alumno_id AND n.asignacion_id=h.asignacion_id
+      WHERE h.habilitado=1 AND al.estado='Activo'
+      ORDER BY ca.nombre, cu.anio, m.nombre, al.apellido
+    `).all();
+    const pendientes = rows
+      .filter(r => r[r.tipo_examen] === null || r[r.tipo_examen] === undefined)
+      .map(r => ({
+        hab_id: r.hab_id, alumno_id: r.alumno_id,
+        alumno_nombre: `${r.alumno_apellido||''}, ${r.alumno_nombre||''}`, alumno_ci: r.alumno_ci,
+        carrera_id: r.carrera_id, carrera_nombre: r.carrera_nombre,
+        anio: r.anio, division: r.division,
+        materia_nombre: r.materia_nombre, asignacion_id: r.asignacion_id,
+        docente_nombre: r.doc_apellido ? `${r.doc_apellido}, ${r.doc_nombre||''}` : null,
+        tipo_examen: r.tipo_examen, fecha_habilitacion: r.fecha_habilitacion,
+      }));
+    res.json(pendientes);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── HABILITADOS DE MIS MATERIAS (para el docente, ej. desde el celular) ──────
 // IMPORTANTE: usar LEFT JOIN (no JOIN) con asignaciones. Habilitaciones viejas o
 // creadas como excepción "global" (sin materia específica, asignacion_id NULL o
