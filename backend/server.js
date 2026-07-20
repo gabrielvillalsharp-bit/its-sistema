@@ -7526,8 +7526,12 @@ async function procesarIntervalos(intervalos, usarHora = false) {
   return total;
 }
 
-// ⏸ Cambiar a true para pausar todos los crons automáticos de WA a docentes
-const WA_AUTO_PAUSADO = false;
+// ⏸ Pausado el 2026-07-20 — el número quedó restringido por WhatsApp/Meta para
+// envío automatizado (mensajes se "envían" con key válida pero no se entregan;
+// confirmado que el envío manual desde el mismo número sí funciona normal).
+// Cambiar a false para reactivar todos los crons automáticos de WA a docentes,
+// pero solo después de resolver la restricción (ver memoria del proyecto).
+const WA_AUTO_PAUSADO = true;
 
 // ── MIGRACIÓN: activar recordatorios de examen (48h/24h/12h/6h/4h/3h) y ──────
 // desactivar los avisos de "archivo sin cargar" (aviso24/urgente) y "puntajes
