@@ -12003,31 +12003,40 @@ async function guardarTodasNotas(asigId){
   if(progBar){progBar.style.background='#2e7d32';progBar.style.width='0%';}
   if(progTxt){progTxt.textContent='0%';}
   if(progWrap){progWrap.style.display='flex';}
-  // Leer TODOS los inputs de la grilla directamente del DOM (evita bug del navegador que
-  // guarda contraseña y resetea W._nc antes de que se dispare el onchange)
+  // Leer del DOM SOLO los campos marcados "sucio" (realmente tocados por la persona en
+  // esta sesión, vía el oninput/onchange de cada celda). Los campos nunca tocados se
+  // omiten del payload por completo -- así el backend los conserva tal cual están en la
+  // base (mergeCamposNota), en vez de resetearlos con lo que la pantalla mostraba desde
+  // antes de abrir la página. Esto evita pisar cambios hechos por otra persona mientras
+  // esta pestaña estaba abierta sin recargar (bug real: pestaña vieja + "Guardar todas"
+  // borró un final_ord cargado días después por el docente en otra sesión).
   const campos=['tp1','tp2','tp3','tp4','tp5','parcial','parcial_recuperatorio','final_ord','final_recuperatorio','complementario','extraordinario'];
   const nc={};
   document.querySelectorAll('[data-al-id]').forEach(row=>{
     const alId=row.dataset.alId;
     if(!alId)return;
-    nc[alId]=nc[alId]||{};
     campos.forEach(campo=>{
       const inp=row.querySelector(`[data-campo="${campo}"]`);
-      if(inp){const v=inp.value.trim();nc[alId][campo]=v===''?null:parseFloat(v);}
+      if(inp && inp.dataset.sucio==='1'){
+        nc[alId]=nc[alId]||{};
+        const v=inp.value.trim();
+        nc[alId][campo]=v===''?null:parseFloat(v);
+      }
     });
   });
-  // Fusionar con W._nc por si hay datos ya cargados
-  const merged={...W._nc};
-  Object.keys(nc).forEach(alId=>{
-    merged[alId]={...(merged[alId]||{}), ...Object.fromEntries(Object.entries(nc[alId]).filter(([,v])=>v!==undefined))};
-  });
   let guardados=0, errores=0;
-  const alIds=Object.keys(merged);
+  const alIds=Object.keys(nc);
   const total=alIds.length;
   let hecho=0;
+  if(!total){
+    if(btn){btn.disabled=false;btn.textContent='💾 Guardar notas';}
+    if(progWrap){progWrap.style.display='none';}
+    toast('No hay cambios sin guardar','warn',2500);
+    return;
+  }
   for(const alId of alIds){
     try{
-      await api('PUT',`/api/notas/${alId}/${asigId}`,merged[alId]);
+      await api('PUT',`/api/notas/${alId}/${asigId}`,nc[alId]);
       guardados++;
     }catch{errores++;}
     hecho++;
@@ -12253,7 +12262,7 @@ W.loadNotas=async(asigId,_tipo)=>{
     const cellBase=`border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0;vertical-align:middle;`;
     const inp=(campo,max,val,bg,dis,clr='#0f172a')=>`<td class="${dis?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${dis?'#f8fafc':bg}">
       <input class="nota-inp" data-campo="${campo}" type="number" min="0" max="${max}" step="1" value="${val??''}" placeholder="${dis?'🔒':'·'}" ${dis?'disabled':''}
-        autocomplete="off" onchange="updN('${a.id}','${asigId}','${campo}',this.value)"
+        autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','${campo}',this.value)"
         style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${val!=null?'700':'400'};color:${dis?'#94a3b8':val!=null?clr:'#64748b'};border-radius:4px"/></td>`;
     const celdaMora=me.rol==='director'?`<td style="${cellBase}padding:5px 6px;text-align:center;background:${bloqueado?'#fff1f2':'#ffffff'};min-width:88px" id="mora-${a.id}">
       ${bloqueado
@@ -12276,38 +12285,38 @@ W.loadNotas=async(asigId,_tipo)=>{
       ${inp('tp3',5,a.tp3,'#ffffff',disabledBase,'#15803d')}
       <td class="${disabledBase?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledBase?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1">
         <input class="nota-inp" data-campo="tp4" type="number" min="0" max="5" step="1" value="${a.tp4??''}" placeholder="${disabledBase?'🔒':'·'}" ${disabledBase?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','tp4',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','tp4',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.tp4!=null?'700':'400'};color:${disabledBase?'#94a3b8':a.tp4!=null?'#15803d':'#64748b'}"/></td>
       <td style="${cellBase}padding:4px 8px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1;font-weight:800;font-size:14px;color:#374151" id="tptot-${a.id}">${a.tp_total??'—'}</td>
       ${inp('parcial',20,a.parcial,'#ffffff',disabledParcialOrd,'#1d4ed8')}
       <td class="${disabledParcialRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledParcialRec?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
         <input class="nota-inp" data-campo="parcial_recuperatorio" type="number" min="0" max="20" step="1" value="${a.parcial_recuperatorio??''}" placeholder="${disabledParcialRec?'🔒':'·'}" ${disabledParcialRec?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','parcial_recuperatorio',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.parcial_recuperatorio!=null?'700':'400'};color:${disabledParcialRec?'#94a3b8':'#92400e'}" title="${disabledParcialRec?'Requiere habilitación':''}"/>
         ${a.parcial_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       ${inp('final_ord',50,a.final_ord,'#ffffff',disabledFinalOrd,'#9a3412')}
       <td class="${disabledFinalRec?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledFinalRec?'#f8fafc':'#ffffff'};position:relative">
         <input class="nota-inp" data-campo="final_recuperatorio" type="number" min="0" max="50" step="1" value="${a.final_recuperatorio??''}" placeholder="${disabledFinalRec?'🔒':'·'}" ${disabledFinalRec?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','final_recuperatorio',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','final_recuperatorio',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.final_recuperatorio!=null?'700':'400'};color:${disabledFinalRec?'#94a3b8':'#92400e'}"/>
         ${a.final_recuperatorio!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fef08a;color:#854d0e;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       <td class="${disabledComplem?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledComplem?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
         <input class="nota-inp" data-campo="complementario" type="number" min="0" max="50" step="1" value="${a.complementario??''}" placeholder="${disabledComplem?'🔒':'·'}" ${disabledComplem?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','complementario',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','complementario',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.complementario!=null?'700':'400'};color:${disabledComplem?'#94a3b8':'#9f1239'}"/>
         ${a.complementario!=null?`<span style="position:absolute;top:1px;right:2px;font-size:7px;background:#fce7f3;color:#be185d;padding:0 3px;border-radius:3px;font-weight:700">▲</span>`:''}
       </td>
       <td class="${disabledExtraord?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:${disabledExtraord?'#f8fafc':'#ffffff'};border-right:1px solid #cbd5e1;position:relative">
         <input class="nota-inp" data-campo="extraordinario" type="number" min="0" max="100" step="1" value="${a.extraordinario??''}" placeholder="${disabledExtraord?'🔒':'·'}" ${disabledExtraord?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','extraordinario',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','extraordinario',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.extraordinario!=null?'800':'400'};color:${disabledExtraord?'#94a3b8':'#7e22ce'}"/>
         ${a.extraordinario!=null?`<span style="position:absolute;bottom:1px;right:2px;font-size:7px;background:#e9d5ff;color:#6d28d9;padding:0 3px;border-radius:3px;font-weight:700">RST</span>`:''}
       </td>
       <td class="${me.rol!=='director'?'nota-cell-l':'nota-cell-e'}" style="${cellBase}padding:1px 2px;text-align:center;background:#ffffff;border-right:1px solid #cbd5e1;position:relative">
         <input class="nota-inp" data-campo="director_pts" type="number" min="0" max="10" step="1" value="${a.director_pts??''}" placeholder="${me.rol!=='director'?'🔒':'·'}" ${me.rol!=='director'?'disabled':''}
-          autocomplete="off" onchange="updN('${a.id}','${asigId}','director_pts',this.value)"
+          autocomplete="off" onchange="this.dataset.sucio='1';updN('${a.id}','${asigId}','director_pts',this.value)"
           style="width:46px;text-align:center;border:none;background:transparent;padding:4px 2px;font-size:13px;font-weight:${a.director_pts!=null?'800':'400'};color:${me.rol!=='director'?'#93c5fd':'#1d4ed8'}" title="${me.rol!=='director'?'Solo director':'Puntos de dirección'}"/>
       </td>
       <td style="${cellBase}padding:6px 10px;text-align:center;background:#f1f5f9;border-right:1px solid #cbd5e1" id="tot-${a.id}">
