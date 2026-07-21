@@ -9926,13 +9926,13 @@ async function pgDepuracion(el){
       <div style="flex:1;min-width:160px">
         <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Carrera</label>
         <select id="dep-carrera" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px" onchange="depCambiarCarrera('${cursosJ}')">
-          <option value="">— Seleccionar carrera —</option>
+          <option value="">🌐 Todas las carreras</option>
           ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
       </div>
       <div style="flex:1;min-width:140px">
         <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Sección</label>
-        <select id="dep-curso" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px">
+        <select id="dep-curso" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px" disabled>
           <option value="">— Todas —</option>
         </select>
       </div>
@@ -9945,6 +9945,14 @@ function depCambiarCarrera(cursosStr){
   const cursos=JSON.parse(cursosStr.replace(/&quot;/g,'"'));
   const cid=document.getElementById('dep-carrera').value;
   const sel=document.getElementById('dep-curso');
+  if(!cid){
+    // "Todas las carreras" -- la sección no aplica sin una carrera puntual
+    sel.innerHTML='<option value="">— Todas —</option>';
+    sel.value='';
+    sel.disabled=true;
+    return;
+  }
+  sel.disabled=false;
   sel.innerHTML='<option value="">— Todas las secciones —</option>'+
     cursos.filter(c=>c.carrera_id===cid).map(c=>`<option value="${c.id}">${c.anio}° Año${c.division&&c.division!=='U'?' Sección '+c.division:''}</option>`).join('');
 }
@@ -9952,8 +9960,7 @@ async function depBuscar(){
   const cid=document.getElementById('dep-carrera').value;
   const cuid=document.getElementById('dep-curso').value;
   const res=document.getElementById('dep-results');
-  if(!cid){toast('Seleccioná una carrera','warn');return;}
-  res.innerHTML='<div class="es">Buscando inactivos...</div>';
+  res.innerHTML=`<div class="es">Buscando inactivos${cid?'':' en todas las carreras'}...</div>`;
   try{
     const data=await api('GET',`/api/alumnos/depuracion?carrera_id=${cid}${cuid?'&curso_id='+cuid:''}`);
     if(!data.length){res.innerHTML='<div style="text-align:center;padding:32px;color:#059669;font-size:14px">✅ No se encontraron alumnos con 12+ ausencias consecutivas.</div>';return;}
@@ -9963,13 +9970,14 @@ async function depBuscar(){
       <td style="padding:9px 12px;font-weight:700">${a.apellido}, ${a.nombre}</td>
       <td style="padding:9px 12px;font-family:monospace;font-size:12px">${a.ci||'—'}</td>
       <td style="padding:9px 12px;font-size:12px">${a.telefono||'—'}</td>
+      <td style="padding:9px 12px;font-size:12px">${a.carrera_nombre||'—'}</td>
       <td style="padding:9px 12px;text-align:center;font-size:12px">${a.curso_anio||'?'}°${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''}</td>
       <td style="padding:9px 12px;text-align:center"><span style="background:${bdr};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${a.racha_ausencias} ❌</span></td>
       <td style="padding:9px 12px;text-align:center;font-size:11px">${badge}</td>
       <td style="padding:9px 12px;text-align:center"><button style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer" onclick="depEliminar('${a.id}','${(a.apellido+', '+a.nombre).replace(/'/g,"\\'")}')">🗑</button></td></tr>`;
     const thead=(bgH,gCls)=>`<thead><tr style="background:${bgH}">
-      <th style="padding:8px 12px;text-align:center;width:36px"><input type="checkbox" title="Seleccionar todos" onchange="depToggleAll('${gCls}',this.checked)"/></th>
-      <th style="padding:8px 12px;text-align:left">Alumno</th><th>CI</th><th>Teléfono</th><th style="text-align:center">Curso</th><th style="text-align:center">Ausencias</th><th style="text-align:center">Estado</th><th style="text-align:center">Acción</th></tr></thead>`;
+      <th style="padding:8px 12px;text-align:center;width:36px"><input type="checkbox" title="Seleccionar todos de este grupo" onchange="depToggleAll('${gCls}',this.checked)"/></th>
+      <th style="padding:8px 12px;text-align:left">Alumno</th><th>CI</th><th>Teléfono</th><th>Carrera</th><th style="text-align:center">Curso</th><th style="text-align:center">Ausencias</th><th style="text-align:center">Estado</th><th style="text-align:center">Acción</th></tr></thead>`;
     const tabla=(titulo,color,bgH,filas,gCls)=>filas.length?`
       <div style="margin-bottom:6px;font-weight:800;color:${color};font-size:13px">${titulo}: ${filas.length}</div>
       <div style="overflow-x:auto;margin-bottom:16px;border-radius:10px;border:2px solid ${bgH}">
@@ -9980,8 +9988,11 @@ async function depBuscar(){
       </div>`:'';
     res.innerHTML=
       `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-        <div style="font-size:13px;color:#6b7280">Se encontraron <strong>${data.length} alumno(s)</strong> con 12+ ausencias consecutivas.</div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:13px;color:#6b7280">Se encontraron <strong>${data.length} alumno(s)</strong> con 12+ ausencias consecutivas${cid?'':' en todas las carreras'}.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#374151;font-weight:700;cursor:pointer">
+            <input type="checkbox" id="dep-chk-all" onchange="depToggleTodos(this.checked)"/> Seleccionar todos
+          </label>
           <span id="dep-sel-cnt" style="font-size:12px;color:#64748b;font-weight:600">0 seleccionados</span>
           <button id="dep-btn-bulk" onclick="depEliminarSeleccionados()" disabled style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;opacity:.4;transition:opacity .2s">🗑 Eliminar seleccionados</button>
         </div>
@@ -9995,14 +10006,25 @@ async function depBuscar(){
   }catch(e){res.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`;}
 }
 function depUpdSel(){
-  const n=document.querySelectorAll('.dep-chk:checked').length;
+  const todos=[...document.querySelectorAll('.dep-chk')];
+  const n=todos.filter(c=>c.checked).length;
   const sp=document.getElementById('dep-sel-cnt');
   const btn=document.getElementById('dep-btn-bulk');
   if(sp) sp.textContent=n+' seleccionado'+(n!==1?'s':'');
   if(btn){btn.disabled=n===0;btn.style.opacity=n===0?'.4':'1';}
+  // Sincronizar el checkbox global "Seleccionar todos" (tildado / vacío / indeterminado)
+  const chkAll=document.getElementById('dep-chk-all');
+  if(chkAll){
+    chkAll.checked=todos.length>0 && n===todos.length;
+    chkAll.indeterminate=n>0 && n<todos.length;
+  }
 }
 function depToggleAll(cls,checked){
   document.querySelectorAll('.dep-chk.'+cls).forEach(c=>{c.checked=checked;});
+  depUpdSel();
+}
+function depToggleTodos(checked){
+  document.querySelectorAll('.dep-chk').forEach(c=>{c.checked=checked;});
   depUpdSel();
 }
 async function depEliminarSeleccionados(){
@@ -10446,13 +10468,13 @@ async function limRenderDep(){
       <div style="flex:1;min-width:160px">
         <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Carrera</label>
         <select id="dep-carrera" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px" onchange="depCambiarCarrera('${cursosJ}')">
-          <option value="">— Seleccionar carrera —</option>
+          <option value="">🌐 Todas las carreras</option>
           ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
         </select>
       </div>
       <div style="flex:1;min-width:140px">
         <label style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;display:block;margin-bottom:4px">Sección</label>
-        <select id="dep-curso" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px">
+        <select id="dep-curso" style="width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px" disabled>
           <option value="">— Todas —</option>
         </select>
       </div>

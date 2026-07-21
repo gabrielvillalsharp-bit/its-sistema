@@ -10434,7 +10434,7 @@ app.get('/api/qr-cambios', auth(ADM), (req, res) => {
 app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
   try {
     const { carrera_id, curso_id } = req.query;
-    if (!carrera_id) return res.status(400).json({ error: 'carrera_id requerido' });
+    // carrera_id es opcional: si no viene, se busca en TODAS las carreras a la vez.
     let q = `SELECT a.id, COALESCE(a.nombre,u.nombre,'') as nombre,
       COALESCE(a.apellido,u.apellido,'') as apellido,
       COALESCE(a.ci,u.ci,'') as ci, a.telefono, a.carrera_id, a.curso_id,
@@ -10443,9 +10443,10 @@ app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
       LEFT JOIN usuarios u ON a.usuario_id=u.id
       LEFT JOIN carreras c ON a.carrera_id=c.id
       LEFT JOIN cursos cu ON a.curso_id=cu.id
-      WHERE a.estado='Activo' AND a.carrera_id=?`;
-    const params = [carrera_id];
-    if (curso_id) { q += ' AND a.curso_id=?'; params.push(curso_id); }
+      WHERE a.estado='Activo'`;
+    const params = [];
+    if (carrera_id) { q += ' AND a.carrera_id=?'; params.push(carrera_id); }
+    if (curso_id)   { q += ' AND a.curso_id=?';   params.push(curso_id); }
     const alumnos = db.prepare(q).all(...params);
 
     const resultado = [];
