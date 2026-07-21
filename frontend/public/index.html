@@ -995,12 +995,6 @@ body.mob-alumno .mi-asist-cards{display:block!important}
   <div class="tr2">
     <span id="un" style="font-size:13px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.30)"></span>
     <span id="rp" class="rp"></span>
-    <button id="wa-status-pill" onclick="go('whatsapp')" title="WhatsApp desconectado — clic para ver el panel" style="display:none;background:#7f1d1d;color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px;animation:waGlow 1.6s ease-in-out infinite">
-      🔴 WhatsApp desconectado
-    </button>
-    <button id="notif-bell-btn" onclick="go('avisos')" title="Avisos pendientes" style="display:none;position:relative;background:#e53935;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;animation:pulse-bell .9s infinite;margin-right:4px">
-      🔔 <span id="notif-bell-count">0</span>
-    </button>
     <button class="xb tb-exit-full" onclick="logout()">Salir</button>
     <button class="xb tb-exit-mini" onclick="logout()" title="Salir" style="display:none">⏏</button>
   </div>
@@ -1385,8 +1379,8 @@ function startApp(){
     if(me.rol==='director'){
       try{
         const wd=await api('GET','/api/whatsapp/watchdog-estado');
-        const pill=document.getElementById('wa-status-pill');
-        if(pill) pill.style.display=wd.caido?'inline-block':'none';
+        const pillSidebar=document.getElementById('wa-status-pill-sidebar');
+        if(pillSidebar) pillSidebar.style.display=wd.caido?'block':'none';
         const pillHome=document.getElementById('wa-status-pill-inicio');
         if(pillHome) pillHome.style.display=wd.caido?'inline-block':'none';
       }catch{}
@@ -1486,6 +1480,9 @@ function buildNav(){
     <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#b91c1c,#dc2626);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
       <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
+    </button>
+    <button id="wa-status-pill-sidebar" onclick="go('whatsapp')" title="WhatsApp desconectado — clic para ver el panel" style="display:none;width:100%;margin-bottom:8px;background:#7f1d1d;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;animation:waGlow 1.6s ease-in-out infinite">
+      🔴 WhatsApp desconectado
     </button>`+
   groups.map((g,idx)=>{
     return `<div>
