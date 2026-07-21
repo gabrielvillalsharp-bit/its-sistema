@@ -1379,8 +1379,6 @@ function startApp(){
     if(me.rol==='director'){
       try{
         const wd=await api('GET','/api/whatsapp/watchdog-estado');
-        const pillSidebar=document.getElementById('wa-status-pill-sidebar');
-        if(pillSidebar) pillSidebar.style.display=wd.caido?'block':'none';
         const pillHome=document.getElementById('wa-status-pill-inicio');
         if(pillHome) pillHome.style.display=wd.caido?'inline-block':'none';
       }catch{}
@@ -1480,9 +1478,6 @@ function buildNav(){
     <button id="nav-avisos-btn" onclick="go('avisos')" style="display:none;width:100%;margin-bottom:8px;background:linear-gradient(90deg,#b91c1c,#dc2626);color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left">
       <span style="font-size:15px;animation:pulse-bell 1s infinite;display:inline-block;margin-right:6px">🔔</span>
       <span id="nav-avisos-txt" class="ni-lbl">Avisos sin leer</span>
-    </button>
-    <button id="wa-status-pill-sidebar" onclick="go('whatsapp')" title="WhatsApp desconectado — clic para ver el panel" style="display:none;width:100%;margin-bottom:8px;background:#7f1d1d;color:#fff;border:none;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;text-align:left;animation:waGlow 1.6s ease-in-out infinite">
-      🔴 WhatsApp desconectado
     </button>`+
   groups.map((g,idx)=>{
     return `<div>
@@ -1942,14 +1937,6 @@ async function pgDash(el){
   </div>
 
   ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
-
-  ${me.rol==='director'?`<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-    <a href="/api/admin/descargar-db?token=${localStorage.getItem('its_tk3')}" download
-      style="display:inline-flex;align-items:center;gap:7px;padding:7px 16px;background:#1e293b;color:#fff;border-radius:9px;font-size:12px;font-weight:700;text-decoration:none;transition:background .15s"
-      onmouseenter="this.style.background='#334155'" onmouseleave="this.style.background='#1e293b'">
-      ⬇️ Descargar base de datos
-    </a>
-  </div>`:''}
 
   <div style="background:#fff;border:1px solid var(--bdr);border-radius:16px;padding:18px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm)">
     <div style="margin-bottom:12px">
@@ -17203,6 +17190,8 @@ async function pgAuditoria(el){
       <strong>🛡 Respaldo de datos</strong>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="descargarBackupDB()" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💾 Descargar backup (.db)</button>
+        <a href="/api/admin/descargar-db?token=${localStorage.getItem('its_tk3')}" download
+          style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;color:#fff;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">⬇️ Descargar base de datos</a>
         <button onclick="probarBackupGitHub()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">🔄 Probar backup GitHub</button>
         <button onclick="verDiagnosticoDisco()" style="background:#d97706;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">💿 Uso de disco</button>
       </div>
