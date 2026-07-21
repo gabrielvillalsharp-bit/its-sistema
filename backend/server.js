@@ -1529,6 +1529,36 @@ try {
   }
 } catch(e) { console.warn('[Migración] Segundo barrido bug #2:', e.message); }
 
+// ── MIGRACIÓN: Restaurar 2 final_ord perdidos — Anatomía y Fisiología Humana ──
+// Detectados por los avisos "Posible pérdida de nota" del 2026-07-20 21:55.
+// Confirmado contra snapshot que ambos siguen en NULL (los otros dos avisos del
+// mismo lote — Romero Cortaza y Arroquia Martinez Rosa — ya se autocorrigieron
+// solos, no necesitan restauración). La materia real es la de Farmacia
+// (asig_doc_rojas_FAR_101_farm_1u) — hay varias asignaciones distintas con el
+// mismo nombre "Anatomía y Fisiología Humana" en otras carreras.
+try {
+  const YA_APLICADA_REST3 = db.prepare("SELECT valor FROM configuracion WHERE clave='restaura_final_ord_anatomia_farm_2026_07_20'").get();
+  if (!YA_APLICADA_REST3) {
+    const { calcularPuntaje } = require('./db');
+    const casos = [
+      ['a_1779150423136',    'asig_doc_rojas_FAR_101_farm_1u', 50],
+      ['a_1778459610107_f7p','asig_doc_rojas_FAR_101_farm_1u', 50],
+    ];
+    const updNota = db.prepare('UPDATE notas SET final_ord=?, tp_total=?, puntaje_total=?, nota_final=?, estado=?, parcial_efectivo=?, final_efectivo=? WHERE id=?');
+    let restaurados3 = 0;
+    casos.forEach(([alumnoId, asigId, valor]) => {
+      const n = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(alumnoId, asigId);
+      if (n && n.final_ord === null) {
+        const r = calcularPuntaje(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,valor,n.final_recuperatorio,n.complementario,n.extraordinario,n.director_pts);
+        updNota.run(valor, r.tp_total, r.puntaje, r.nota, r.estado, r.parcial_ef, r.final_ef, n.id);
+        restaurados3++;
+      }
+    });
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES ('restaura_final_ord_anatomia_farm_2026_07_20','1','Restaura 2 final_ord=50 perdidos en Anatomía y Fisiología Humana (Farmacia, Rojas)')").run();
+    console.log(`[Migración] Restaurados ${restaurados3}/2 final_ord — Anatomía y Fisiología Humana (Farmacia) ✓`);
+  }
+} catch(e) { console.warn('[Migración] Restaurar final_ord Anatomía Farmacia:', e.message); }
+
 // ── MIGRACIÓN: Mover examen de Primeros Auxilios (Micheli Romero) al 15/07 ────
 // Pedido puntual del director. Respeta el día de clase real (miércoles).
 try {
