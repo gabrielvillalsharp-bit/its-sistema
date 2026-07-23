@@ -1166,6 +1166,38 @@ function init() {
       db.prepare("DELETE FROM solicitudes_registro WHERE ci=? AND nombre LIKE 'TestClaude%'").run(ci);
     });
   } catch(e) { console.warn('[DB] Limpieza solicitudes de prueba:', e.message); }
+
+  // Carga puntual (2026-07-23): puntajes de Técnicas Radiológicas III (prof. Marcial
+  // Palacios) entregados por planilla del director. Se busca al alumno por CI (algunos
+  // traían un dígito mal tipeado en la planilla, corregido acá contra la CI real) y se
+  // carga en `final_ord` — único campo vacío para todos ellos en esa asignación.
+  try {
+    const asigTecRad = 'asig_doc_palacios_RAD_205_rad_2u';
+    const puntajesTecRad = [
+      ['6938023', 44], ['4798278', 46], ['3963900', 42], ['7363571', 38],
+      ['7760902', 50], ['7290257', 40], ['4689552', 38], ['3240933', 32],
+      ['7133874', 44], ['7396069', 50], ['3870521', 40], ['5097018', 42],
+      ['7464341', 40], ['3421194', 46], ['7379468', 50], ['5942567', 40],
+      ['6629243', 40], ['5000861', 46], ['6600844', 38], ['7044329', 42],
+    ];
+    const asigExiste = db.prepare('SELECT id FROM asignaciones WHERE id=?').get(asigTecRad);
+    if (asigExiste) {
+      let cargados = 0;
+      puntajesTecRad.forEach(([ci, puntaje]) => {
+        const al = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
+        if (!al) { console.warn(`[Carga TecRad] No se encontró alumno con CI ${ci}`); return; }
+        const actual = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(al.id, asigTecRad);
+        if (!actual || actual.final_ord !== null) return; // ya tiene un valor — no pisar
+        const r = calcularPuntaje(actual.tp1, actual.tp2, actual.tp3, actual.tp4, actual.tp5,
+          actual.parcial, actual.parcial_recuperatorio, puntaje, actual.final_recuperatorio,
+          actual.complementario, actual.extraordinario, actual.director_pts);
+        db.prepare(`UPDATE notas SET final_ord=?, final_efectivo=?, puntaje_total=?, nota_final=?, estado=? WHERE id=?`)
+          .run(puntaje, r.final_ef, r.puntaje, r.nota, r.estado, actual.id);
+        cargados++;
+      });
+      if (cargados > 0) console.log(`[Carga TecRad] ✓ ${cargados} puntajes de Técnicas Radiológicas III (Palacios) cargados`);
+    }
+  } catch(e) { console.warn('[DB] Carga puntajes TecRad:', e.message); }
   autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
