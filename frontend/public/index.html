@@ -18814,6 +18814,7 @@ async function pgUsuarios(el,initialTab){
       <div style="display:flex;gap:4px;flex-shrink:0">
         <button id="tab-btn-alumnos" onclick="switchUsTab('alumnos')" style="padding:5px 14px;border:1.5px solid #0F6E56;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:#0F6E56;cursor:pointer">🎓 Alumnos</button>
         <button id="tab-btn-staff" onclick="switchUsTab('staff')" style="padding:5px 14px;border:1.5px solid #C8EFE2;border-radius:20px;font-size:11px;font-weight:700;color:#1D9E75;background:transparent;cursor:pointer">🔑 Staff</button>
+        <button id="tab-btn-sinacceso" onclick="switchUsTab('sinacceso')" style="padding:5px 14px;border:1.5px solid #C8EFE2;border-radius:20px;font-size:11px;font-weight:700;color:#1D9E75;background:transparent;cursor:pointer">🚫 Sin acceso</button>
       </div>
       <div id="chips-al" style="display:flex;gap:5px;flex-wrap:wrap">
         <button style="${_CHIP_ON}" onclick="setAlChip(this,'')">Todos</button>
@@ -18874,37 +18875,94 @@ async function pgUsuarios(el,initialTab){
       </div>
       <div id="tbUsuarios">${renderTbUsuarios(data)}</div>
     </div>
+    <div id="panel-sinacceso" style="display:none;padding:12px 20px 16px">
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#9a3412">
+        ℹ Alumnos que todavía no tienen usuario ni contraseña para ingresar al sistema. Se cruza con los mensajes de bienvenida (QR) ya enviados y con el registro de auditoría para dar contexto.
+      </div>
+      <div id="tbSinAcceso"><div class="es">Cargando...</div></div>
+    </div>
   </div>`;
   switchUsTab(initialTab);
 }
 function switchUsTab(tab){
   W._activeUsTab=tab;
-  const pA=document.getElementById('panel-alumnos'), pS=document.getElementById('panel-staff');
-  const bA=document.getElementById('tab-btn-alumnos'), bS=document.getElementById('tab-btn-staff');
+  const pA=document.getElementById('panel-alumnos'), pS=document.getElementById('panel-staff'), pN=document.getElementById('panel-sinacceso');
+  const bA=document.getElementById('tab-btn-alumnos'), bS=document.getElementById('tab-btn-staff'), bN=document.getElementById('tab-btn-sinacceso');
   const cAl=document.getElementById('chips-al'), cSt=document.getElementById('chips-st');
   const aAl=document.getElementById('act-al'), aSt=document.getElementById('act-st');
   if(!pA||!pS)return;
   const ON='padding:5px 14px;border:1.5px solid #0F6E56;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:#0F6E56;cursor:pointer';
   const OFF='padding:5px 14px;border:1.5px solid #C8EFE2;border-radius:20px;font-size:11px;font-weight:700;color:#1D9E75;background:transparent;cursor:pointer';
+  pA.style.display='none';pS.style.display='none';if(pN)pN.style.display='none';
+  if(bA)bA.style.cssText=OFF; if(bS)bS.style.cssText=OFF; if(bN)bN.style.cssText=OFF;
+  if(cAl)cAl.style.display='none'; if(cSt)cSt.style.display='none';
+  if(aAl)aAl.style.display='none'; if(aSt)aSt.style.display='none';
   if(tab==='alumnos'){
-    pA.style.display='';pS.style.display='none';
-    if(bA)bA.style.cssText=ON; if(bS)bS.style.cssText=OFF;
-    if(cAl)cAl.style.display='flex'; if(cSt)cSt.style.display='none';
-    if(aAl)aAl.style.display='flex'; if(aSt)aSt.style.display='none';
+    pA.style.display='';
+    if(bA)bA.style.cssText=ON;
+    if(cAl)cAl.style.display='flex';
+    if(aAl)aAl.style.display='flex';
     const fm=document.getElementById('filtMaster');
     const fb=document.getElementById('filtAlBus');
     if(fm&&fb){fb.value=fm.value;}
     fAlAll();
+  }else if(tab==='sinacceso'){
+    if(pN)pN.style.display='';
+    if(bN)bN.style.cssText=ON;
+    cargarSinAcceso();
   }else{
-    pA.style.display='none';pS.style.display='';
-    if(bS)bS.style.cssText=ON; if(bA)bA.style.cssText=OFF;
-    if(cSt)cSt.style.display='flex'; if(cAl)cAl.style.display='none';
-    if(aSt)aSt.style.display='flex'; if(aAl)aAl.style.display='none';
+    pS.style.display='';
+    if(bS)bS.style.cssText=ON;
+    if(cSt)cSt.style.display='flex';
+    if(aSt)aSt.style.display='flex';
     const fm=document.getElementById('filtMaster');
     const fu=document.getElementById('filtUsBus');
     if(fm&&fu){fu.value=fm.value;}
     filtUs();
   }
+}
+async function cargarSinAcceso(){
+  const tb=document.getElementById('tbSinAcceso');
+  if(!tb)return;
+  try{
+    const lista=await api('GET','/api/alumnos/sin-acceso');
+    W._sinAcceso=lista;
+    tb.innerHTML=renderSinAcceso(lista);
+  }catch(e){tb.innerHTML=`<div class="es">Error al cargar: ${e.message}</div>`;}
+}
+function renderSinAcceso(lista){
+  if(!lista.length)return'<div class="es">✓ Todos los alumnos tienen usuario y contraseña</div>';
+  return`<div style="font-size:12px;color:#64748b;margin-bottom:8px">Total sin acceso: <strong>${lista.length}</strong></div>
+  <div class="card"><div class="tw"><table class="als-table"><thead><tr>
+    <th>Alumno</th><th>C.I.</th><th>Carrera / Sección</th><th>Bienvenida QR</th><th>Auditoría</th><th></th>
+  </tr></thead><tbody>
+  ${lista.map(a=>{
+    const wa=a.wa_bienvenida_enviada
+      ?`<span class="bx ${a.wa_bienvenida_enviada.estado==='enviado'?'bg':'br'}" title="${a.wa_bienvenida_enviada.fecha}">${a.wa_bienvenida_enviada.estado==='enviado'?'✓ Enviada':'✗ Falló'}</span><div style="font-size:9px;color:#94a3b8;margin-top:2px">${a.wa_bienvenida_enviada.fecha}</div>`
+      :`<span style="font-size:11px;color:#94a3b8">— Nunca enviada</span>`;
+    const aud=a.ultima_auditoria
+      ?`<div style="font-size:11px;color:#374151">${a.ultima_auditoria.accion}</div><div style="font-size:9px;color:#94a3b8">${a.ultima_auditoria.fecha}</div>`
+      :`<span style="font-size:11px;color:#94a3b8">Sin registro</span>`;
+    return`<tr>
+      <td><strong>${a.apellido||''}</strong>, ${a.nombre||''}${a.matricula?`<div style="font-size:9px;color:#94a3b8">Mat. ${a.matricula}</div>`:''}</td>
+      <td style="font-size:12px">${a.ci||'<span style=\"color:#dc2626\">Sin CI</span>'}</td>
+      <td style="font-size:12px">${a.carrera_nombre||'—'} ${a.curso_anio?a.curso_anio+'°'+(a.curso_division==='U'?'':a.curso_division):''}</td>
+      <td>${wa}</td>
+      <td>${aud}</td>
+      <td><button class="bs o" ${a.ci?'':'disabled title="Cargar el CI del alumno primero"'} onclick="crearAccesoInd('${a.id}')">🔑 Crear acceso</button></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div></div>`;
+}
+async function crearAccesoInd(id){
+  const al=(W._sinAcceso||[]).find(a=>a.id===id);
+  const nombre=al?`${al.nombre} ${al.apellido}`:'este alumno';
+  if(!confirm(`¿Crear usuario y contraseña para ${nombre}?\n\nUsuario: se genera con su nombre\nContraseña inicial: su número de cédula\n\nSi tiene teléfono cargado, se le enviará el mensaje de bienvenida con el QR y sus credenciales.`))return;
+  try{
+    const r=await api('POST',`/api/alumnos/${id}/crear-acceso`,{});
+    toast(`✓ Acceso creado — usuario: ${r.email}${r.wa_enviado?' · WhatsApp de bienvenida enviado':''}`,'ok',7000);
+    cargarSinAcceso();
+  }catch(e){toast('Error: '+e.message,'err',5000);}
 }
 function filtMasterFn(){
   const val=document.getElementById('filtMaster')?.value||'';

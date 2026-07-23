@@ -2436,6 +2436,57 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
   res.json({ creados, actualizados, errores: errores.slice(0,5) });
 });
 
+// ── ALUMNOS SIN ACCESO (sin usuario/contraseña) — cruza con envío de bienvenida QR y auditoría ──
+app.get('/api/alumnos/sin-acceso', auth(ADM), (req, res) => {
+  const sinAcceso = db.prepare(`
+    SELECT al.id, al.nombre, al.apellido, al.ci, al.telefono, al.matricula, al.estado,
+      c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+    FROM alumnos al
+    LEFT JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id
+    WHERE al.usuario_id IS NULL
+    ORDER BY al.apellido, al.nombre`).all();
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  const resultado = sinAcceso.map(al => {
+    const nombreCompleto = norm(al.nombre)+norm(al.apellido);
+    // Cruce con WhatsApp de bienvenida: ¿ya se le mandó el QR con credenciales alguna vez?
+    const wa = db.prepare(`SELECT estado, fecha FROM wa_mensajes WHERE tipo='bienvenida' AND
+        (destinatario_telefono=? OR replace(replace(lower(destinatario_nombre),' ',''),'.','')=?)
+        ORDER BY fecha DESC LIMIT 1`).get(al.telefono||'', nombreCompleto);
+    // Cruce con auditoría: última acción relacionada a este alumno (alta, solicitud, etc.)
+    const aud = db.prepare(`SELECT accion, fecha FROM auditoria WHERE registro_id=? OR registro_id LIKE ?
+        ORDER BY fecha DESC LIMIT 1`).get(al.id, al.id+'\_%');
+    return {
+      ...al,
+      wa_bienvenida_enviada: wa ? { estado: wa.estado, fecha: wa.fecha } : null,
+      ultima_auditoria: aud ? { accion: aud.accion, fecha: aud.fecha } : null,
+    };
+  });
+  res.json(resultado);
+});
+
+// ── Crear acceso (usuario/contraseña) para UN alumno puntual ──────────────────
+app.post('/api/alumnos/:id/crear-acceso', auth(ADM), (req, res) => {
+  const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  if (al.usuario_id) return res.status(400).json({ error: 'Este alumno ya tiene usuario' });
+  const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
+  if (!ciRaw) return res.status(400).json({ error: 'El alumno no tiene CI cargado — no se puede crear la contraseña inicial' });
+  const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+  let email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'@its.edu.py';
+  if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(email))
+    email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'.'+ciRaw.slice(-3)+'@its.edu.py';
+  const uid = 'u_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
+  try {
+    db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+      .run(uid, al.nombre, al.apellido, ciRaw, email, bcrypt.hashSync(ciRaw, 10), 'alumno');
+    db.prepare('UPDATE alumnos SET usuario_id=? WHERE id=?').run(uid, al.id);
+    audit(req.user.id, 'CREAR_ACCESO', 'usuarios', uid, { alumno_id: al.id, nombre: al.nombre+' '+al.apellido, email });
+    if (al.telefono) enviarBienvenidaQR(al.telefono, (al.nombre+' '+al.apellido).trim(), email, ciRaw);
+    res.json({ ok: true, email, ci: ciRaw, wa_enviado: !!al.telefono });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── PREVISUALIZAR cuántos alumnos tiene un grupo (ANTES de :id para evitar conflicto de rutas) ──
 app.get('/api/alumnos/grupo/count', auth(ADM), (req, res) => {
   try {
