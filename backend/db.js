@@ -1158,6 +1158,14 @@ function init() {
     `).run();
     if (fixed.changes > 0) console.log(`[DB] Recalculados tp_total en ${fixed.changes} registros`);
   } catch(e) { console.warn('[DB] No se pudo recalcular tp_total:', e.message); }
+  // Limpieza puntual: solicitudes de prueba insertadas al reproducir en vivo el bug
+  // del QR de autorregistro (2026-07-23) — no son alumnos reales.
+  try {
+    const testCIs = ['9999999', '8888888'];
+    testCIs.forEach(ci => {
+      db.prepare("DELETE FROM solicitudes_registro WHERE ci=? AND nombre LIKE 'TestClaude%'").run(ci);
+    });
+  } catch(e) { console.warn('[DB] Limpieza solicitudes de prueba:', e.message); }
   autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }

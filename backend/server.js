@@ -10266,7 +10266,15 @@ const pubLimiter = rateLimit({ windowMs: 60*1000, max: 80 });
 app.use('/pub', pubLimiter);
 
 app.get('/pub/carreras', (req, res) => {
-  const rows = db.prepare('SELECT id, nombre, codigo FROM carreras WHERE activa=1 ORDER BY nombre').all();
+  // Solo carreras con al menos una sección (curso) cargada — evita mostrar la
+  // estructura "espejo" de una sede todavía sin operar (ej. Cerro Corá, sede 'cc',
+  // que ya tiene carreras/materias precargadas pero cero secciones reales). Sin este
+  // filtro, cada carrera aparecía duplicada en el selector del QR público y los
+  // alumnos que elegían la copia vacía se quedaban sin poder avanzar en el formulario.
+  const rows = db.prepare(`
+    SELECT c.id, c.nombre, c.codigo FROM carreras c
+    WHERE c.activa=1 AND EXISTS (SELECT 1 FROM cursos cu WHERE cu.carrera_id=c.id AND cu.activo=1)
+    ORDER BY c.nombre`).all();
   res.json(rows);
 });
 
@@ -10421,6 +10429,18 @@ app.post('/pub/solicitud-registro', (req, res) => {
   const id = 'sreg_'+Date.now();
   db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(id, nombre, apellido, ci||'', telefono, carrera_id, curso_id||null, alumno_id||null, tipo||'nuevo');
+  // Avisar al director: hasta ahora estas solicitudes quedaban invisibles salvo que
+  // entrara manualmente al widget de Inicio — no generaban ningún aviso ni notificación,
+  // por lo que alumnos completaban el formulario del QR y "no llegaba" ninguna señal al director.
+  try {
+    const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+    const carreraNom = db.prepare('SELECT nombre FROM carreras WHERE id=?').get(carrera_id)?.nombre || carrera_id;
+    if (director) {
+      db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
+        .run('av_solreg_' + Date.now(), '📝 Nueva solicitud de registro (QR)', `Alumno: <strong>${apellido}, ${nombre}</strong> — Carrera: <strong>${carreraNom}</strong><br>CI: ${ci||'—'} · Tel: ${telefono}<br>Revisar y aprobar en Alumnos y Usuarios.`, 'info', 0, 'director', director.id);
+    }
+  } catch(e) { console.warn('[SOLICITUD_REGISTRO] Error al avisar:', e.message); }
+  audit('sistema_publico', 'SOLICITUD_REGISTRO', 'solicitudes_registro', id, { nombre, apellido, ci, carrera_id });
   res.json({ id, ok: true });
 });
 
