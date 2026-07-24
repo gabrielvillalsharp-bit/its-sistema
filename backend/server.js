@@ -2465,6 +2465,28 @@ app.get('/api/alumnos/sin-acceso', auth(ADM), (req, res) => {
   res.json(resultado);
 });
 
+// ── Buscar UN alumno puntual (por nombre/apellido/CI) y ver si tiene acceso ────
+// Complementa a /api/alumnos/sin-acceso: esa lista se arma automáticamente, pero
+// el director puede necesitar confirmar el estado de un alumno específico que no
+// esté seguro si aparece ahí (por eso busca en TODA la tabla alumnos, sin filtrar
+// por sede/carrera/estado como hace el resto del sistema, y sin tocar `usuarios`).
+app.get('/api/alumnos/buscar-acceso', auth(ADM), (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  const like = '%' + q + '%';
+  const rows = db.prepare(`
+    SELECT al.id, al.nombre, al.apellido, al.ci, al.telefono, al.matricula, al.estado,
+      al.usuario_id, u.email as usuario_email, u.activo as usuario_activo,
+      c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+    FROM alumnos al
+    LEFT JOIN carreras c ON al.carrera_id=c.id
+    LEFT JOIN cursos cu ON al.curso_id=cu.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    WHERE al.nombre LIKE ? OR al.apellido LIKE ? OR al.ci LIKE ?
+    ORDER BY al.apellido, al.nombre LIMIT 30`).all(like, like, like);
+  res.json(rows.map(al => ({ ...al, tiene_acceso: !!al.usuario_id })));
+});
+
 // ── Crear acceso (usuario/contraseña) para UN alumno puntual ──────────────────
 app.post('/api/alumnos/:id/crear-acceso', auth(ADM), (req, res) => {
   const al = db.prepare('SELECT * FROM alumnos WHERE id=?').get(req.params.id);

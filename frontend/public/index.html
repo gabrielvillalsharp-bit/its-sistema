@@ -18879,6 +18879,13 @@ async function pgUsuarios(el,initialTab){
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;color:#9a3412">
         ℹ Alumnos que todavía no tienen usuario ni contraseña para ingresar al sistema. Se cruza con los mensajes de bienvenida (QR) ya enviados y con el registro de auditoría para dar contexto.
       </div>
+      <div style="background:#f8fafc;border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">🔍 Buscar un alumno puntual (por si no aparece en la lista de abajo)</div>
+        <div style="display:flex;gap:7px">
+          <input id="buscarAccesoQ" placeholder="Nombre, apellido o CI del alumno..." oninput="buscarAccesoDebounced()" style="flex:1;font-size:13px;padding:7px 10px;border:1px solid var(--bdr);border-radius:8px"/>
+        </div>
+        <div id="buscarAccesoResult" style="margin-top:8px"></div>
+      </div>
       <div id="tbSinAcceso"><div class="es">Cargando...</div></div>
     </div>
   </div>`;
@@ -18955,14 +18962,50 @@ function renderSinAcceso(lista){
   </tbody></table></div></div>`;
 }
 async function crearAccesoInd(id){
-  const al=(W._sinAcceso||[]).find(a=>a.id===id);
+  const al=(W._sinAcceso||[]).find(a=>a.id===id)||(W._buscarAcceso||[]).find(a=>a.id===id);
   const nombre=al?`${al.nombre} ${al.apellido}`:'este alumno';
   if(!confirm(`¿Crear usuario y contraseña para ${nombre}?\n\nUsuario: se genera con su nombre\nContraseña inicial: su número de cédula\n\nSi tiene teléfono cargado, se le enviará el mensaje de bienvenida con el QR y sus credenciales.`))return;
   try{
     const r=await api('POST',`/api/alumnos/${id}/crear-acceso`,{});
     toast(`✓ Acceso creado — usuario: ${r.email}${r.wa_enviado?' · WhatsApp de bienvenida enviado':''}`,'ok',7000);
     cargarSinAcceso();
+    const q=document.getElementById('buscarAccesoQ');
+    if(q&&q.value.trim().length>=2) buscarAcceso(q.value.trim());
   }catch(e){toast('Error: '+e.message,'err',5000);}
+}
+let _buscarAccesoTimer=null;
+function buscarAccesoDebounced(){
+  clearTimeout(_buscarAccesoTimer);
+  const q=(document.getElementById('buscarAccesoQ')?.value||'').trim();
+  const box=document.getElementById('buscarAccesoResult');
+  if(q.length<2){ if(box)box.innerHTML=''; return; }
+  _buscarAccesoTimer=setTimeout(()=>buscarAcceso(q),350);
+}
+async function buscarAcceso(q){
+  const box=document.getElementById('buscarAccesoResult');
+  if(!box)return;
+  box.innerHTML='<div class="es">Buscando...</div>';
+  try{
+    const lista=await api('GET','/api/alumnos/buscar-acceso?q='+encodeURIComponent(q));
+    W._buscarAcceso=lista;
+    if(!lista.length){ box.innerHTML='<div class="es">No se encontró ningún alumno con esos datos en la sección Alumnos.</div>'; return; }
+    box.innerHTML=`<div class="card"><div class="tw"><table class="als-table"><thead><tr>
+      <th>Alumno</th><th>C.I.</th><th>Carrera / Sección</th><th>Acceso</th><th></th>
+    </tr></thead><tbody>
+    ${lista.map(a=>{
+      const estadoAcceso=a.tiene_acceso
+        ?`<span class="bx bg">✓ Tiene acceso</span>${a.usuario_email?`<div style="font-size:9px;color:#94a3b8;margin-top:2px">${a.usuario_email}${a.usuario_activo?'':' · inactivo'}</div>`:''}`
+        :`<span class="bx br">✗ Sin acceso</span>`;
+      return`<tr>
+        <td><strong>${a.apellido||''}</strong>, ${a.nombre||''}${a.matricula?`<div style="font-size:9px;color:#94a3b8">Mat. ${a.matricula}</div>`:''}<div style="font-size:9px;color:#94a3b8">${a.estado||''}</div></td>
+        <td style="font-size:12px">${a.ci||'<span style=\"color:#dc2626\">Sin CI</span>'}</td>
+        <td style="font-size:12px">${a.carrera_nombre||'—'} ${a.curso_anio?a.curso_anio+'°'+(a.curso_division==='U'?'':a.curso_division):''}</td>
+        <td>${estadoAcceso}</td>
+        <td>${a.tiene_acceso?'':`<button class="bs o" ${a.ci?'':'disabled title="Cargar el CI del alumno primero"'} onclick="crearAccesoInd('${a.id}')">🔑 Crear acceso</button>`}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div></div>`;
+  }catch(e){box.innerHTML=`<div class="es">Error al buscar: ${e.message}</div>`;}
 }
 function filtMasterFn(){
   const val=document.getElementById('filtMaster')?.value||'';
