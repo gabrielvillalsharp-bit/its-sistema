@@ -14128,7 +14128,12 @@ async function selAlumnoPago(alId){
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">💸 Exonerar deuda</button>`:''}
-          ${me.rol==='director'?`<button id="btnLiberarNotas-${alId}" onclick="toggleLiberarNotas('${alId}')" style="background:${al.notas_liberadas?'rgba(34,197,94,.25)':'rgba(255,255,255,.15)'};color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">${al.notas_liberadas?'🔓 Notas liberadas — clic para bloquear':'🔒 Liberar acceso a notas'}</button>`:''}
+          ${(()=>{
+            if(me.rol!=='director')return'';
+            const liberadoActivo=al.notas_liberadas_hasta&&new Date(al.notas_liberadas_hasta.replace(' ','T')+'Z')>new Date();
+            const horaVence=liberadoActivo?new Date(al.notas_liberadas_hasta.replace(' ','T')+'Z').toLocaleString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+            return `<button id="btnLiberarNotas-${alId}" data-liberado="${liberadoActivo?'1':'0'}" onclick="toggleLiberarNotas('${alId}')" style="background:${liberadoActivo?'rgba(34,197,94,.25)':'rgba(255,255,255,.15)'};color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600" title="${liberadoActivo?'Vence automáticamente el '+horaVence:'Libera el acceso por 48hs'}">${liberadoActivo?'🔓 Notas liberadas (vence '+horaVence+') — clic para bloquear':'🔒 Liberar acceso a notas (48hs)'}</button>`;
+          })()}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${(al.nombre||'').replace(/'/g,"\\'")}','${(al.apellido||'').replace(/'/g,"\\'")}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
@@ -14394,12 +14399,12 @@ async function confirmarExoneracion(alId, deudaNeta){
 
 async function toggleLiberarNotas(alId){
   const btn=document.getElementById('btnLiberarNotas-'+alId);
-  const yaLiberado=btn?.textContent.includes('liberadas');
-  const accion=yaLiberado?'volver a bloquear':'liberar';
-  if(!confirm(`¿Confirmás ${accion} el acceso a "Mis notas" de este alumno?${yaLiberado?'':'\n\nEsto le permite ver sus puntajes aunque tenga cuotas mensuales pendientes.'}`))return;
+  const yaLiberado=btn?.dataset.liberado==='1';
+  const accion=yaLiberado?'volver a bloquear':'liberar por 48 horas';
+  if(!confirm(`¿Confirmás ${accion} el acceso a "Mis notas" de este alumno?${yaLiberado?'':'\n\nEsto le permite ver su proceso y los puntajes de sus materias durante 48hs aunque tenga cuotas mensuales pendientes. Pasado ese tiempo se bloquea de nuevo automáticamente.'}`))return;
   try{
     const r=await api('PUT',`/api/alumnos/${alId}/liberar-notas`,{liberar:!yaLiberado});
-    toast(r.liberado?'✓ Acceso a notas liberado':'✓ Acceso a notas bloqueado nuevamente','ok');
+    toast(r.liberado?'✓ Acceso a notas liberado por 48hs':'✓ Acceso a notas bloqueado nuevamente','ok');
     selAlumnoPago(alId);
   }catch(e){toast('Error: '+e.message,'err');}
 }
