@@ -15859,6 +15859,19 @@ async function pgMisMat(el){
 async function pgMisNotas(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
   el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
+  const mora=await api('GET','/api/alumnos/'+me.alumnoId+'/estado-mora').catch(()=>null);
+  if(mora?.bloqueado){
+    el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3></div>
+    <div style="background:#fef2f2;border:2px solid #fecaca;border-radius:14px;padding:32px 24px;text-align:center;max-width:520px;margin:20px auto">
+      <div style="font-size:44px;margin-bottom:10px">🔒</div>
+      <div style="font-size:17px;font-weight:800;color:#991b1b;margin-bottom:10px">Deuda pendiente de mensualidad</div>
+      <p style="font-size:14px;color:#7f1d1d;line-height:1.6;margin-bottom:16px">Razón por la cual no podrá acceder a los puntajes de sus materias. Para más información, por favor dirigirse a Dirección.</p>
+      <div style="background:#fff;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:#991b1b;display:inline-block">
+        Cuotas pendientes: <strong>${(mora.cuotas_faltantes||[]).length}</strong> (${(mora.cuotas_faltantes||[]).join(', ')})
+      </div>
+    </div>`;
+    return;
+  }
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
   W._misNotas=notas;
   const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))].sort();

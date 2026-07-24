@@ -3141,7 +3141,42 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── MORA: cantidad de meses de mensualidad (cuota) vencidos y no pagados ──────
+// Cuota 1=marzo ... Cuota 10=diciembre, Cuota 11=enero, Cuota 12=febrero (año
+// escolar paraguayo). "Vencidas" = todas las cuotas desde el inicio del período
+// hasta el mes actual inclusive; cuenta cuántas de esas NO están pagadas.
+const MES_A_CUOTA_NUM = { 3:1, 4:2, 5:3, 6:4, 7:5, 8:6, 9:7, 10:8, 11:9, 12:10, 1:11, 2:12 };
+function calcularMesesDeuda(alumno_id) {
+  const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (!periodo) return { meses_deuda: 0, cuotas_faltantes: [] };
+  const cuotaActual = MES_A_CUOTA_NUM[pyNow().getMonth() + 1] || 1;
+  const cuotasVencidas = Array.from({ length: cuotaActual }, (_, i) => 'Cuota ' + (i + 1));
+  const conceptosPagados = db.prepare(
+    `SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'`
+  ).all(alumno_id, periodo.id).map(p => p.concepto);
+  const cuotas_faltantes = cuotasVencidas.filter(c => !conceptosPagados.includes(c));
+  return { meses_deuda: cuotas_faltantes.length, cuotas_faltantes };
+}
+const UMBRAL_BLOQUEO_NOTAS = 3; // meses de mensualidad adeudados para ocultar puntajes al alumno
+const MSG_MORA_NOTAS = 'Deuda pendiente de mensualidad, razón por la cual no podrá acceder a los puntajes de sus materias. Para más información, por favor dirigirse a Dirección.';
+
+// ── VERIFICAR ESTADO DE MORA — para mostrar el aviso antes de cargar notas ────
+app.get('/api/alumnos/:id/estado-mora', auth(), (req, res) => {
+  if (req.user.rol === 'alumno' && req.user.alumnoId !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
+  const { meses_deuda, cuotas_faltantes } = calcularMesesDeuda(req.params.id);
+  res.json({ meses_deuda, cuotas_faltantes, bloqueado: meses_deuda >= UMBRAL_BLOQUEO_NOTAS, mensaje: MSG_MORA_NOTAS });
+});
+
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
+  // Si el propio alumno tiene 3+ meses de mensualidad sin pagar, no se cargan
+  // las notas en absoluto — se corta acá para no exponer los puntajes reales
+  // en la respuesta aunque el frontend decida no mostrarlos.
+  if (req.user.rol === 'alumno') {
+    const { meses_deuda } = calcularMesesDeuda(req.params.alumno_id);
+    if (meses_deuda >= UMBRAL_BLOQUEO_NOTAS) {
+      return res.json([]);
+    }
+  }
   const rows = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
       p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
