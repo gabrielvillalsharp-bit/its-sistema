@@ -1158,6 +1158,9 @@ function init() {
     `).run();
     if (fixed.changes > 0) console.log(`[DB] Recalculados tp_total en ${fixed.changes} registros`);
   } catch(e) { console.warn('[DB] No se pudo recalcular tp_total:', e.message); }
+  // Liberación manual del bloqueo de notas por mora (independiente de habilitado_pago_pendiente,
+  // que solo habilita exámenes) — el director puede liberar el acceso a "Mis notas" alumno por alumno.
+  try { db.prepare('ALTER TABLE alumnos ADD COLUMN notas_liberadas INTEGER NOT NULL DEFAULT 0').run(); } catch {}
   // Limpieza puntual: solicitudes de prueba insertadas al reproducir en vivo el bug
   // del QR de autorregistro (2026-07-23) — no son alumnos reales.
   try {

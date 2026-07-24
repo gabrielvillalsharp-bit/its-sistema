@@ -14128,7 +14128,7 @@ async function selAlumnoPago(alId){
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">💸 Exonerar deuda</button>`:''}
-          ${me.rol==='director'?`<button onclick="mCompromisoPago('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">📋 Compromiso de pago</button>`:''}
+          ${me.rol==='director'?`<button id="btnLiberarNotas-${alId}" onclick="toggleLiberarNotas('${alId}')" style="background:${al.notas_liberadas?'rgba(34,197,94,.25)':'rgba(255,255,255,.15)'};color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">${al.notas_liberadas?'🔓 Notas liberadas — clic para bloquear':'🔒 Liberar acceso a notas'}</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${(al.nombre||'').replace(/'/g,"\\'")}','${(al.apellido||'').replace(/'/g,"\\'")}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
@@ -14392,6 +14392,17 @@ async function confirmarExoneracion(alId, deudaNeta){
   }catch(e){showToast('Error: '+e.message,'err');}
 }
 
+async function toggleLiberarNotas(alId){
+  const btn=document.getElementById('btnLiberarNotas-'+alId);
+  const yaLiberado=btn?.textContent.includes('liberadas');
+  const accion=yaLiberado?'volver a bloquear':'liberar';
+  if(!confirm(`¿Confirmás ${accion} el acceso a "Mis notas" de este alumno?${yaLiberado?'':'\n\nEsto le permite ver sus puntajes aunque tenga cuotas mensuales pendientes.'}`))return;
+  try{
+    const r=await api('PUT',`/api/alumnos/${alId}/liberar-notas`,{liberar:!yaLiberado});
+    toast(r.liberado?'✓ Acceso a notas liberado':'✓ Acceso a notas bloqueado nuevamente','ok');
+    selAlumnoPago(alId);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 function mCompromisoPago(alId){
   const hoy=new Date();
   const enDiez=new Date(hoy); enDiez.setDate(hoy.getDate()+10);

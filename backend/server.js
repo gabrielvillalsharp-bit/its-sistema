@@ -3159,19 +3159,33 @@ function calcularMesesDeuda(alumno_id) {
 }
 const UMBRAL_BLOQUEO_NOTAS = 1; // meses de mensualidad adeudados para ocultar puntajes al alumno
 const MSG_MORA_NOTAS = 'Por mantener una o más cuotas mensuales impagas, el acceso a su proceso y a los puntajes de sus materias se encuentra temporalmente restringido. Le solicitamos dirigirse a Dirección para regularizar su situación.';
+function notasLiberadas(alumno_id) {
+  return !!db.prepare('SELECT notas_liberadas FROM alumnos WHERE id=?').get(alumno_id)?.notas_liberadas;
+}
 
 // ── VERIFICAR ESTADO DE MORA — para mostrar el aviso antes de cargar notas ────
 app.get('/api/alumnos/:id/estado-mora', auth(), (req, res) => {
   if (req.user.rol === 'alumno' && req.user.alumnoId !== req.params.id) return res.status(403).json({ error: 'Sin acceso' });
   const { meses_deuda, cuotas_faltantes } = calcularMesesDeuda(req.params.id);
-  res.json({ meses_deuda, cuotas_faltantes, bloqueado: meses_deuda >= UMBRAL_BLOQUEO_NOTAS, mensaje: MSG_MORA_NOTAS });
+  const liberado = notasLiberadas(req.params.id);
+  res.json({ meses_deuda, cuotas_faltantes, liberado, bloqueado: !liberado && meses_deuda >= UMBRAL_BLOQUEO_NOTAS, mensaje: MSG_MORA_NOTAS });
+});
+
+// ── LIBERAR / RE-BLOQUEAR manualmente el acceso a notas de UN alumno (solo director) ──
+app.put('/api/alumnos/:id/liberar-notas', auth(ADM), (req, res) => {
+  const al = db.prepare('SELECT id FROM alumnos WHERE id=?').get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const liberar = !!req.body.liberar;
+  db.prepare('UPDATE alumnos SET notas_liberadas=? WHERE id=?').run(liberar ? 1 : 0, req.params.id);
+  audit(req.user.id, liberar ? 'LIBERAR_NOTAS' : 'BLOQUEAR_NOTAS', 'alumnos', req.params.id, { liberar });
+  res.json({ ok: true, liberado: liberar });
 });
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
-  // Si el propio alumno tiene 3+ meses de mensualidad sin pagar, no se cargan
-  // las notas en absoluto — se corta acá para no exponer los puntajes reales
-  // en la respuesta aunque el frontend decida no mostrarlos.
-  if (req.user.rol === 'alumno') {
+  // Si el propio alumno tiene mensualidades sin pagar (y el director no liberó el
+  // acceso manualmente), no se cargan las notas en absoluto — se corta acá para no
+  // exponer los puntajes reales en la respuesta aunque el frontend no los muestre.
+  if (req.user.rol === 'alumno' && !notasLiberadas(req.params.alumno_id)) {
     const { meses_deuda } = calcularMesesDeuda(req.params.alumno_id);
     if (meses_deuda >= UMBRAL_BLOQUEO_NOTAS) {
       return res.json([]);
