@@ -3157,8 +3157,8 @@ function calcularMesesDeuda(alumno_id) {
   const cuotas_faltantes = cuotasVencidas.filter(c => !conceptosPagados.includes(c));
   return { meses_deuda: cuotas_faltantes.length, cuotas_faltantes };
 }
-const UMBRAL_BLOQUEO_NOTAS = 3; // meses de mensualidad adeudados para ocultar puntajes al alumno
-const MSG_MORA_NOTAS = 'Deuda pendiente de mensualidad, razón por la cual no podrá acceder a los puntajes de sus materias. Para más información, por favor dirigirse a Dirección.';
+const UMBRAL_BLOQUEO_NOTAS = 1; // meses de mensualidad adeudados para ocultar puntajes al alumno
+const MSG_MORA_NOTAS = 'Por mantener una o más cuotas mensuales impagas, el acceso a su proceso y a los puntajes de sus materias se encuentra temporalmente restringido. Le solicitamos dirigirse a Dirección para regularizar su situación.';
 
 // ── VERIFICAR ESTADO DE MORA — para mostrar el aviso antes de cargar notas ────
 app.get('/api/alumnos/:id/estado-mora', auth(), (req, res) => {
