@@ -15877,13 +15877,17 @@ async function pgMisNotas(el){
   el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
   const mora=await api('GET','/api/alumnos/'+me.alumnoId+'/estado-mora').catch(()=>null);
   if(mora?.bloqueado){
+    const nCuotas=(mora.cuotas_faltantes||[]).length;
     el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3></div>
-    <div style="background:#fef2f2;border:2px solid #fecaca;border-radius:14px;padding:32px 24px;text-align:center;max-width:520px;margin:20px auto">
-      <div style="font-size:44px;margin-bottom:10px">🔒</div>
-      <div style="font-size:17px;font-weight:800;color:#991b1b;margin-bottom:10px">Deuda pendiente de mensualidad</div>
-      <p style="font-size:14px;color:#7f1d1d;line-height:1.6;margin-bottom:16px">${mora.mensaje||'Estimado/a alumno/a, le informamos que su cuenta registra una o más cuotas mensuales pendientes de pago. Por dicho motivo, el acceso a su proceso académico y a los puntajes de sus materias se encuentra temporalmente restringido. Le solicitamos gentilmente dirigirse a Dirección para regularizar su situación.'}</p>
-      <div style="background:#fff;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:#991b1b;display:inline-block">
-        Cuotas pendientes: <strong>${(mora.cuotas_faltantes||[]).length}</strong> (${(mora.cuotas_faltantes||[]).join(', ')})
+    <div style="background:#fff;border:1px solid #f3c6c1;border-radius:12px;padding:18px 18px 16px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 1px 2px rgba(0,0,0,.04);max-width:560px;margin:20px auto">
+      <div style="flex:none;width:38px;height:38px;border-radius:50%;background:#fdecea;border:1px solid #f3c6c1;display:flex;align-items:center;justify-content:center;font-size:17px">🔒</div>
+      <div style="flex:1;min-width:0">
+        <strong style="display:block;font-size:14px;color:#1e293b;margin-bottom:3px">Deuda pendiente de mensualidad</strong>
+        <p style="margin:0 0 10px;font-size:12.5px;color:#64748b;line-height:1.55">${mora.mensaje||'Estimado/a alumno/a: para poder acceder a sus notas debe ponerse al día con sus cuotas mensuales.'}</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:2px">
+          <span style="font-size:11px;color:#a15c00;font-weight:700;display:flex;align-items:center;gap:5px">⚠ ${nCuotas} cuota${nCuotas===1?'':'s'} pendiente${nCuotas===1?'':'s'} — regularizar en Dirección</span>
+          <button onclick="go('mi-estado-cuenta')" style="font-size:11.5px;font-weight:700;color:#fff;background:#0F6E56;border:none;border-radius:7px;padding:6px 12px;cursor:pointer">Ver mi cuenta</button>
+        </div>
       </div>
     </div>`;
     return;

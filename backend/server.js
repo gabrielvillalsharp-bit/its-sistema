@@ -3158,7 +3158,7 @@ function calcularMesesDeuda(alumno_id) {
   return { meses_deuda: cuotas_faltantes.length, cuotas_faltantes };
 }
 const UMBRAL_BLOQUEO_NOTAS = 1; // meses de mensualidad adeudados para ocultar puntajes al alumno
-const MSG_MORA_NOTAS = 'Estimado/a alumno/a, le informamos que su cuenta registra una o más cuotas mensuales pendientes de pago. Por dicho motivo, el acceso a su proceso académico y a los puntajes de sus materias se encuentra temporalmente restringido. Le solicitamos gentilmente dirigirse a Dirección para regularizar su situación.';
+const MSG_MORA_NOTAS = 'Estimado/a alumno/a: para poder acceder a su proceso y a los puntajes de sus materias debe ponerse al día con sus cuotas mensuales. Diríjase a Dirección para regularizar su situación.';
 const LIBERAR_NOTAS_HORAS = 48; // la liberación manual del director vence sola a las 48hs
 function notasLiberadasHasta(alumno_id) {
   return db.prepare('SELECT notas_liberadas_hasta FROM alumnos WHERE id=?').get(alumno_id)?.notas_liberadas_hasta || null;
