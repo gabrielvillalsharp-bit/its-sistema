@@ -3194,14 +3194,11 @@ app.put('/api/alumnos/:id/liberar-notas', auth(ADM), (req, res) => {
 
 app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
   // Si el propio alumno tiene mensualidades sin pagar (y el director no liberó el
-  // acceso manualmente), no se cargan las notas en absoluto — se corta acá para no
-  // exponer los puntajes reales en la respuesta aunque el frontend no los muestre.
-  if (req.user.rol === 'alumno' && !notasLiberadas(req.params.alumno_id)) {
-    const { meses_deuda } = calcularMesesDeuda(req.params.alumno_id);
-    if (meses_deuda >= UMBRAL_BLOQUEO_NOTAS) {
-      return res.json([]);
-    }
-  }
+  // acceso manualmente), NO se bloquea toda la pantalla — solo se oculta la nota
+  // final/calificación de cada materia (TP y Parcial siguen visibles). Se resuelve
+  // más abajo, junto con el ocultamiento ya existente por arancel de examen impago.
+  const alumnoEnMoraMensualidad = req.user.rol === 'alumno' && !notasLiberadas(req.params.alumno_id)
+    && calcularMesesDeuda(req.params.alumno_id).meses_deuda >= UMBRAL_BLOQUEO_NOTAS;
   const rows = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
       p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
@@ -3237,12 +3234,24 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
     );
   }
   const out = rows.map(r => {
-    if (cuotasAlDia) return r;
-    const campoConValor = FINAL_CAMPOS.find(c => r[c] !== null && r[c] !== undefined);
-    if (!campoConValor) return r;
-    if (habSet.has(r.asignacion_id + '|' + campoConValor)) return r;
-    return { ...r, final_ord: null, final_recuperatorio: null, complementario: null, extraordinario: null,
-      puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', pago_final_pendiente: true };
+    let row = r;
+    if (!cuotasAlDia) {
+      const campoConValor = FINAL_CAMPOS.find(c => row[c] !== null && row[c] !== undefined);
+      if (campoConValor && !habSet.has(row.asignacion_id + '|' + campoConValor)) {
+        row = { ...row, final_ord: null, final_recuperatorio: null, complementario: null, extraordinario: null,
+          puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', pago_final_pendiente: true };
+      }
+    }
+    // Mora de mensualidad (1+ meses): oculta la nota final igual, con mensaje propio,
+    // salvo que ya esté oculta por el motivo de arriba (arancel de examen impago).
+    if (alumnoEnMoraMensualidad && !row.pago_final_pendiente) {
+      const campoConValor = FINAL_CAMPOS.find(c => row[c] !== null && row[c] !== undefined);
+      if (campoConValor) {
+        row = { ...row, final_ord: null, final_recuperatorio: null, complementario: null, extraordinario: null,
+          puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', mora_mensualidad_pendiente: true };
+      }
+    }
+    return row;
   });
   res.json(out);
 });

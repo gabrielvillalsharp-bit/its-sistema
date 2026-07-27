@@ -15875,23 +15875,6 @@ async function pgMisMat(el){
 async function pgMisNotas(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
   el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
-  const mora=await api('GET','/api/alumnos/'+me.alumnoId+'/estado-mora').catch(()=>null);
-  if(mora?.bloqueado){
-    const nCuotas=(mora.cuotas_faltantes||[]).length;
-    el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3></div>
-    <div style="background:#fff;border:1px solid #f3c6c1;border-radius:12px;padding:18px 18px 16px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 1px 2px rgba(0,0,0,.04);max-width:560px;margin:20px auto">
-      <div style="flex:none;width:38px;height:38px;border-radius:50%;background:#fdecea;border:1px solid #f3c6c1;display:flex;align-items:center;justify-content:center;font-size:17px">🔒</div>
-      <div style="flex:1;min-width:0">
-        <strong style="display:block;font-size:14px;color:#1e293b;margin-bottom:3px">Deuda pendiente de mensualidad</strong>
-        <p style="margin:0 0 10px;font-size:12.5px;color:#64748b;line-height:1.55">${mora.mensaje||'Estimado/a alumno/a: para poder acceder a sus notas debe ponerse al día con sus cuotas mensuales.'}</p>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:2px">
-          <span style="font-size:11px;color:#a15c00;font-weight:700;display:flex;align-items:center;gap:5px">⚠ ${nCuotas} cuota${nCuotas===1?'':'s'} pendiente${nCuotas===1?'':'s'} — regularizar en Dirección</span>
-          <button onclick="go('mi-estado-cuenta')" style="font-size:11.5px;font-weight:700;color:#fff;background:#0F6E56;border:none;border-radius:7px;padding:6px 12px;cursor:pointer">Ver mi cuenta</button>
-        </div>
-      </div>
-    </div>`;
-    return;
-  }
   const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
   W._misNotas=notas;
   const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))].sort();
@@ -15945,14 +15928,19 @@ function renderMisNotas(notas){
           <div style="font-size:17px;font-weight:800;color:#1d4ed8">${n.parcial_recuperatorio??n.parcial??'—'}</div>
           <div style="font-size:9px;color:#94a3b8">/ 20</div>
         </div>
-        <div style="background:${n.pago_final_pendiente?'#fffbeb':'#fff7ed'};border-radius:8px;padding:8px;text-align:center">
+        <div style="background:${n.pago_final_pendiente||n.mora_mensualidad_pendiente?'#fffbeb':'#fff7ed'};border-radius:8px;padding:8px;text-align:center">
           <div style="font-size:9px;color:#64748b;margin-bottom:2px;font-weight:600">Final${n.complementario!=null?' (comp.)':n.final_recuperatorio!=null?' (rec.)':''}</div>
-          <div style="font-size:${n.pago_final_pendiente?'10px':'17px'};font-weight:800;color:${n.pago_final_pendiente?'#b45309':'#c2410c'}">${n.pago_final_pendiente?'🔒 Pend. pago':(n.complementario??n.final_recuperatorio??n.final_ord??'—')}</div>
-          ${n.pago_final_pendiente?'':'<div style="font-size:9px;color:#94a3b8">/ 50</div>'}
+          ${n.mora_mensualidad_pendiente
+            ?`<div style="font-size:10px;font-weight:800;color:#b45309;line-height:1.3">🔒 Debe ponerse al día</div><div style="font-size:8.5px;font-weight:600;color:#c2410c;line-height:1.3;margin-top:1px">para ver su calificación final</div>`
+            :`<div style="font-size:${n.pago_final_pendiente?'10px':'17px'};font-weight:800;color:${n.pago_final_pendiente?'#b45309':'#c2410c'}">${n.pago_final_pendiente?'🔒 Pend. pago':(n.complementario??n.final_recuperatorio??n.final_ord??'—')}</div>`}
+          ${n.pago_final_pendiente||n.mora_mensualidad_pendiente?'':'<div style="font-size:9px;color:#94a3b8">/ 50</div>'}
         </div>
       </div>
       ${n.pago_final_pendiente?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:11px;color:#92400e">
         🔒 <strong>El examen ya fue evaluado</strong>, pero el puntaje queda oculto hasta regularizar el pago de esta materia. Consultá con Secretaría.
+      </div>`:''}
+      ${n.mora_mensualidad_pendiente?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:11px;color:#92400e">
+        🔒 <strong>Debe ponerse al día</strong> con sus cuotas mensuales para visualizar su calificación final. Diríjase a Dirección.
       </div>`:''}
       ${n.director_pts!=null?`<div style="background:#f0f9ff;border-radius:6px;padding:5px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:#0369a1">Puntos dirección</span>
@@ -15963,8 +15951,8 @@ function renderMisNotas(notas){
           <span style="font-size:11px;color:#64748b">Puntaje total</span>
           ${n.nota_final!=null?`<div style="font-size:11px;color:#64748b;margin-top:1px">Nota: <strong>${n.nota_final}</strong></div>`:''}
         </div>
-        ${n.pago_final_pendiente
-          ?`<span style="font-size:13px;font-weight:800;color:#b45309">🔒 Pendiente de pago</span>`
+        ${n.pago_final_pendiente||n.mora_mensualidad_pendiente
+          ?`<span style="font-size:13px;font-weight:800;color:#b45309">🔒 ${n.mora_mensualidad_pendiente?'Debe ponerse al día':'Pendiente de pago'}</span>`
           :`<span style="font-size:26px;font-weight:900;color:${est==='Aprobado'?'#166534':est==='Reprobado'?'#dc2626':'#374151'}">${n.puntaje_total??'—'} <span style="font-size:13px;font-weight:600;color:#94a3b8">/ 100</span></span>`}
       </div>
     </div>`;

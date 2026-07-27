@@ -1202,6 +1202,38 @@ function init() {
       if (cargados > 0) console.log(`[Carga TecRad] ✓ ${cargados} puntajes de Técnicas Radiológicas III (Palacios) cargados`);
     }
   } catch(e) { console.warn('[DB] Carga puntajes TecRad:', e.message); }
+
+  // Carga puntual (2026-07-25): Examen Final de Introducción al Derecho (Criminalística
+  // 1er año, prof. Gabriel Villalba Sharp), planilla "planilla_examen_final.xlsx". Se
+  // busca por CI; un alumno de la planilla no traía CI ("Rosalba Martinez Villalba") y
+  // se identificó por coincidencia exacta de nombre/apellido dentro de esa misma sección.
+  try {
+    const asigDerecho = 'asig_doc_sharp_CRM_105_crim_1u';
+    const puntajesDerecho = [
+      ['5596356', 25], ['5312991', 50], ['6917673', 43], ['5284217', 44],
+      ['9259490', 20], ['8118459', 30], ['9444970', 50], ['4431023', 50],
+      ['5900461', 39], ['6146486', 37], ['6826530', 20], ['8959709', 46],
+      ['8541571', 38], ['7044175', 28], ['6100827', 34], ['6820340', 17],
+      ['7255653', 50], ['7060617', 16], ['6324832', 50], ['8421897', 31],
+    ];
+    const asigExisteDer = db.prepare('SELECT id FROM asignaciones WHERE id=?').get(asigDerecho);
+    if (asigExisteDer) {
+      let cargados = 0;
+      puntajesDerecho.forEach(([ci, puntaje]) => {
+        const al = db.prepare('SELECT id FROM alumnos WHERE ci=?').get(ci);
+        if (!al) { console.warn(`[Carga Derecho] No se encontró alumno con CI ${ci}`); return; }
+        const actual = db.prepare('SELECT * FROM notas WHERE alumno_id=? AND asignacion_id=?').get(al.id, asigDerecho);
+        if (!actual || actual.final_ord !== null) return; // ya tiene un valor — no pisar
+        const r = calcularPuntaje(actual.tp1, actual.tp2, actual.tp3, actual.tp4, actual.tp5,
+          actual.parcial, actual.parcial_recuperatorio, puntaje, actual.final_recuperatorio,
+          actual.complementario, actual.extraordinario, actual.director_pts);
+        db.prepare(`UPDATE notas SET final_ord=?, final_efectivo=?, puntaje_total=?, nota_final=?, estado=? WHERE id=?`)
+          .run(puntaje, r.final_ef, r.puntaje, r.nota, r.estado, actual.id);
+        cargados++;
+      });
+      if (cargados > 0) console.log(`[Carga Derecho] ✓ ${cargados} puntajes de Introducción al Derecho (Criminalística 1°) cargados`);
+    }
+  } catch(e) { console.warn('[DB] Carga puntajes Introducción al Derecho:', e.message); }
   autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }
