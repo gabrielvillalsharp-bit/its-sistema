@@ -15810,6 +15810,9 @@ function mBeca(){
       ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
   </div>
+  <div class="f"><label>Buscar alumno por nombre o C.I.</label>
+    <input id="bcBusq" placeholder="Escribí para buscar..." oninput="filtBecaAls()"/>
+  </div>
   <div class="f"><label>Alumno <span style="color:var(--red)">*</span></label>
     <select id="bcal" style="width:100%"><option value="">— Seleccionar alumno —</option>${(als||[]).map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre||''} ${a.curso_anio?a.curso_anio+'°':''}</option>`).join('')}</select>
   </div>
@@ -15828,13 +15831,16 @@ function mBeca(){
 </div><div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svBeca()">Guardar</button></div>`);
 }
 function filtBecaAls(){
-  const carrId=v('bcCarr'), anio=v('bcAnio');
+  const carrId=v('bcCarr'), anio=v('bcAnio'), busq=(v('bcBusq')||'').trim().toLowerCase();
   const sel=document.getElementById('bcal');
   if(!sel)return;
+  const valAnterior=sel.value;
   let als=W._bdata?.als||[];
   if(carrId) als=als.filter(a=>a.carrera_id===carrId);
   if(anio)   als=als.filter(a=>String(a.curso_anio)===anio);
+  if(busq)   als=als.filter(a=>`${a.display_nombre||''} ${a.display_apellido||''} ${a.display_ci||''}`.toLowerCase().includes(busq));
   sel.innerHTML='<option value="">— Seleccionar alumno —</option>'+als.map(a=>`<option value="${a.id}">${a.display_apellido||''}, ${a.display_nombre||''} — ${a.carrera_nombre||''} ${a.curso_anio?a.curso_anio+'°':''}</option>`).join('');
+  if(als.some(a=>a.id===valAnterior)) sel.value=valAnterior;
 }
 
 // ── MI ÁREA DOCENTE ───────────────────────────────────────────────────────────
