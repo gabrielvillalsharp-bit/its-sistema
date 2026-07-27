@@ -3146,7 +3146,17 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
 // escolar paraguayo). "Vencidas" = todas las cuotas desde el inicio del período
 // hasta el mes actual inclusive; cuenta cuántas de esas NO están pagadas.
 const MES_A_CUOTA_NUM = { 3:1, 4:2, 5:3, 6:4, 7:5, 8:6, 9:7, 10:8, 11:9, 12:10, 1:11, 2:12 };
+function tieneBecaTotal(alumno_id) {
+  const hoy = nowDate();
+  return !!db.prepare(
+    `SELECT 1 FROM becas WHERE alumno_id=? AND tipo='Beca Total' AND activa=1
+       AND fecha_inicio<=? AND (fecha_fin IS NULL OR fecha_fin>=?) LIMIT 1`
+  ).get(alumno_id, hoy, hoy);
+}
 function calcularMesesDeuda(alumno_id) {
+  // Beca Total: exonerada de la mensualidad — nunca "debe" cuotas, aunque no las
+  // pague. Sigue sujeta al arancel de examen (regla aparte, sin cambios).
+  if (tieneBecaTotal(alumno_id)) return { meses_deuda: 0, cuotas_faltantes: [], becado_total: true };
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) return { meses_deuda: 0, cuotas_faltantes: [] };
   const cuotaActual = MES_A_CUOTA_NUM[pyNow().getMonth() + 1] || 1;
