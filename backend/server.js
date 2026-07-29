@@ -3143,9 +3143,18 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
 
 // ── MORA: cantidad de meses de mensualidad (cuota) vencidos y no pagados ──────
 // Cuota 1=marzo ... Cuota 10=diciembre, Cuota 11=enero, Cuota 12=febrero (año
-// escolar paraguayo). "Vencidas" = todas las cuotas desde el inicio del período
-// hasta el mes actual inclusive; cuenta cuántas de esas NO están pagadas.
+// escolar paraguayo). Hay 10 días de gracia: la cuota de un mes recién se
+// considera "vencida" (bloquea notas) a partir del día 11 del mes SIGUIENTE.
+// Ej.: la cuota de julio no bloquea hasta el 11 de agosto — antes de esa fecha
+// el alumno puede haber pagado dentro del margen normal y no debe verse afectado.
 const MES_A_CUOTA_NUM = { 3:1, 4:2, 5:3, 6:4, 7:5, 8:6, 9:7, 10:8, 11:9, 12:10, 1:11, 2:12 };
+function cuotaLimiteVencida() {
+  const hoy = pyNow();
+  const cuotaMesActual = MES_A_CUOTA_NUM[hoy.getMonth() + 1] || 1;
+  // Con gracia hasta el 9 inclusive: desde el 10 del mes ya vence la cuota del mes anterior.
+  const limite = hoy.getDate() >= 10 ? cuotaMesActual - 1 : cuotaMesActual - 2;
+  return Math.max(0, limite);
+}
 function tieneBecaTotal(alumno_id) {
   const hoy = nowDate();
   return !!db.prepare(
@@ -3159,8 +3168,8 @@ function calcularMesesDeuda(alumno_id) {
   if (tieneBecaTotal(alumno_id)) return { meses_deuda: 0, cuotas_faltantes: [], becado_total: true };
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) return { meses_deuda: 0, cuotas_faltantes: [] };
-  const cuotaActual = MES_A_CUOTA_NUM[pyNow().getMonth() + 1] || 1;
-  const cuotasVencidas = Array.from({ length: cuotaActual }, (_, i) => 'Cuota ' + (i + 1));
+  const cuotaLimite = cuotaLimiteVencida();
+  const cuotasVencidas = Array.from({ length: cuotaLimite }, (_, i) => 'Cuota ' + (i + 1));
   const conceptosPagados = db.prepare(
     `SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'`
   ).all(alumno_id, periodo.id).map(p => p.concepto);
