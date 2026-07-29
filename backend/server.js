@@ -3143,16 +3143,17 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
 
 // ── MORA: cantidad de meses de mensualidad (cuota) vencidos y no pagados ──────
 // Cuota 1=marzo ... Cuota 10=diciembre, Cuota 11=enero, Cuota 12=febrero (año
-// escolar paraguayo). Hay 10 días de gracia: la cuota de un mes recién se
-// considera "vencida" (bloquea notas) a partir del día 11 del mes SIGUIENTE.
-// Ej.: la cuota de julio no bloquea hasta el 11 de agosto — antes de esa fecha
-// el alumno puede haber pagado dentro del margen normal y no debe verse afectado.
+// escolar paraguayo). La cuota de CADA mes vence el día 10 de ese mismo mes:
+// hasta el 10 inclusive hay margen para pagarla, desde el 11 ya bloquea si sigue
+// impaga. Ej.: la cuota de julio vence el 10 de julio — recién bloquea desde el
+// 11 de julio si para esa fecha no se pagó.
 const MES_A_CUOTA_NUM = { 3:1, 4:2, 5:3, 6:4, 7:5, 8:6, 9:7, 10:8, 11:9, 12:10, 1:11, 2:12 };
 function cuotaLimiteVencida() {
   const hoy = pyNow();
   const cuotaMesActual = MES_A_CUOTA_NUM[hoy.getMonth() + 1] || 1;
-  // Con gracia hasta el 9 inclusive: desde el 10 del mes ya vence la cuota del mes anterior.
-  const limite = hoy.getDate() >= 10 ? cuotaMesActual - 1 : cuotaMesActual - 2;
+  // Del 1 al 10 del mes: todavía no se exige la cuota de este mes (margen normal).
+  // Del 11 en adelante: la cuota de este mes ya entra a la cuenta de vencidas.
+  const limite = hoy.getDate() > 10 ? cuotaMesActual : cuotaMesActual - 1;
   return Math.max(0, limite);
 }
 function tieneBecaTotal(alumno_id) {
