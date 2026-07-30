@@ -91,19 +91,13 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 .perfil-box,.objetivo{font-size:14.5px;line-height:1.7;color:var(--ink)}
 .perfil-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px;box-shadow:0 1px 3px rgba(15,35,27,.05)}
 
-.salida{display:grid;gap:8px}
-.salida li{
-  list-style:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  padding:11px 13px;font-size:13.5px;color:var(--ink-soft);display:flex;gap:9px;align-items:flex-start;
-  box-shadow:0 1px 2px rgba(15,35,27,.03);
-}
-.salida li::before{content:"→";color:var(--brand);font-weight:700;flex-shrink:0}
+.salida-li{display:flex;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+.salida-li:first-child{border-top:none}
+.salida-li::before{content:"→";color:var(--brand);font-weight:700;flex-shrink:0}
 
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 13px}
-.stat.full{grid-column:1/-1}
-.stat .l{font-size:9.5px;color:var(--ink-dim);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.stat .v{font-size:13.5px;font-weight:700;color:var(--ink)}
+.stat-row{display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}
+.stat-row:first-child{border-top:none}
+.stat-row b{color:var(--ink)}
 
 .reqs{display:grid;gap:7px}
 .reqs li{list-style:none;font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px}
@@ -119,13 +113,22 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 .hook{background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:12px;padding:15px 16px;font-size:13.5px;line-height:1.6;color:#4a3510}
 .hook b{color:var(--gold)}
 
-.nav-hint{
-  display:flex;align-items:center;gap:8px;margin-top:22px;padding:10px 13px;
-  background:var(--gold-bg);border:1px dashed var(--gold-line);border-radius:10px;
-  font-size:12px;color:#6b5223;line-height:1.5;
+/* tarjetas desplegables — reemplazan al bloque de texto fijo */
+.tile{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;cursor:pointer;
+  overflow:hidden;transition:box-shadow .2s,border-color .2s;margin-bottom:12px;
 }
-.nav-hint .ico{font-size:15px;flex-shrink:0}
-.nav-fixed{display:flex;gap:8px;margin-top:10px}
+.tile:hover{border-color:var(--brand-lt);box-shadow:0 8px 20px rgba(15,110,86,.1)}
+.tile-head{display:flex;align-items:center;gap:11px;padding:16px 16px}
+.tile-ico{font-size:21px;flex-shrink:0}
+.tile-title{font-family:var(--serif);font-size:16px;color:var(--ink);font-weight:700;flex:1}
+.tile-chev{font-size:13px;color:var(--ink-dim);transition:transform .3s}
+.tile.open .tile-chev{transform:rotate(90deg);color:var(--brand)}
+.tile-body{max-height:0;overflow:hidden;transition:max-height .38s cubic-bezier(.3,.8,.3,1)}
+.tile.open .tile-body{max-height:700px}
+.tile-body-inner{padding:0 16px 18px;font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
+
+.nav-fixed{display:flex;gap:8px;margin-top:16px}
 .btn-main{
   flex:1;background:var(--brand);color:#fff;font-weight:800;font-size:14px;padding:14px 18px;
   border-radius:100px;text-decoration:none;text-align:center;box-shadow:0 10px 26px rgba(15,110,86,.28);
@@ -232,88 +235,82 @@ CARRERAS.forEach((c, i) => {
 });
 
 function dots(step){
-  return `<div class="steps-dots">${[1,2,3,4].map(n=>`<span class="${n===step?'on':''}"></span>`).join('')}</div>`;
+  return `<div class="steps-dots">${[1,2,3].map(n=>`<span class="${n===step?'on':''}"></span>`).join('')}</div>`;
 }
 function topbar(c, step){
   return `<div class="topbar">
     <button class="back-btn" onclick="goHome()">← Todas las carreras</button>
-    <div class="progress">${c.cod} · ${step}/4</div>
+    <div class="progress">${c.cod} · ${step}/3</div>
   </div>`;
 }
+function tile(id, ico, title, bodyHtml, openByDefault){
+  return `
+    <div class="tile${openByDefault ? ' open' : ''}" id="tile-${id}" onclick="toggleTile('${id}')">
+      <div class="tile-head">
+        <span class="tile-ico">${ico}</span>
+        <span class="tile-title">${title}</span>
+        <span class="tile-chev">▸</span>
+      </div>
+      <div class="tile-body"><div class="tile-body-inner">${bodyHtml}</div></div>
+    </div>`;
+}
+function toggleTile(id){
+  const t = document.getElementById('tile-' + id);
+  if (t) t.classList.toggle('open');
+}
 
-function renderStep1(c){
+function renderStep1(c){ // Descripción + Objetivo
   return `
     ${topbar(c,1)}
     <div class="kicker">Técnico Superior · 2 años · Nocturno</div>
     <h2 class="carrera-name">${c.nombre}</h2>
     ${dots(1)}
-    <div class="sec-label">Descripción de la carrera</div>
-    <div class="perfil-box">${c.perfil}</div>
-    <div class="nav-hint"><span class="ico">👉</span><span>Presioná el botón de abajo para ver la página siguiente — si no, te vas a perder el objetivo, la salida laboral, el horario y los valores.</span></div>
+    ${tile('desc','📖','Descripción de la carrera', `<p style="margin:0">${c.perfil}</p>`, true)}
+    ${tile('obj','🎯','Objetivo de la carrera', `<p style="margin:0">${c.objetivo}</p>`)}
     <div class="nav-fixed">
-      <button class="btn-main" onclick="stepSub(1)">Objetivo y salida laboral →</button>
+      <button class="btn-main" onclick="stepSub(1)">Salida laboral y horarios →</button>
     </div>
   `;
 }
-function renderStep2(c){
+function renderStep2(c){ // Salida laboral + Horarios
   return `
     ${topbar(c,2)}
     <div class="kicker">${c.nombre}</div>
-    <div class="subpage-title">Objetivo y salida laboral</div>
+    <div class="subpage-title">Salida laboral y horarios</div>
     ${dots(2)}
-    <div class="sec-label">Objetivo de la carrera</div>
-    <div class="objetivo">${c.objetivo}</div>
-    <div class="sec-label">Salida laboral</div>
-    <ul class="salida">${c.salida.map(s => `<li>${s}</li>`).join('')}</ul>
-    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Horarios y valores" para continuar.</span></div>
+    ${tile('sal','💼','Salida laboral', c.salida.map(s=>`<div class="salida-li">${s}</div>`).join(''), true)}
+    ${tile('hor','🕐','Horarios y duración', `
+      <div class="stat-row"><span>Duración</span><b>2 años</b></div>
+      <div class="stat-row"><span>Turno</span><b>19:00 / 20:40 hs</b></div>
+      <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
-      <button class="btn-main" onclick="stepSub(1)">Horarios y valores →</button>
+      <button class="btn-main" onclick="stepSub(1)">Valores y requisitos →</button>
     </div>
   `;
 }
-function renderStep3(c){
+function renderStep3(c){ // Valores + Requisitos
   return `
     ${topbar(c,3)}
     <div class="kicker">${c.nombre}</div>
-    <div class="subpage-title">Horarios y valores</div>
+    <div class="subpage-title">Valores y requisitos</div>
     ${dots(3)}
-    <div class="sec-label">Horarios y duración</div>
-    <div class="stats">
-      <div class="stat"><div class="l">Duración</div><div class="v">2 años</div></div>
-      <div class="stat"><div class="l">Turno</div><div class="v">19:00 / 20:40 hs</div></div>
-      <div class="stat full"><div class="l">Días de cursada</div><div class="v">${c.dias}</div></div>
-    </div>
-    <div class="sec-label">Valores</div>
-    <div class="precio-grid">
-      <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
-      <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
-    </div>
-    <div class="sec-label">¿Por qué elegirla?</div>
-    <div class="hook">💡 ${c.hook}</div>
-    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Requisitos" para ver qué documentos necesitás y cómo anotarte.</span></div>
-    <div class="nav-fixed">
-      <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
-      <button class="btn-main" onclick="stepSub(1)">Requisitos →</button>
-    </div>
-  `;
-}
-function renderStep4(c){
-  return `
-    ${topbar(c,4)}
-    <div class="kicker">${c.nombre}</div>
-    <div class="subpage-title">Requisitos para inscribirte</div>
-    ${dots(4)}
-    <div class="sec-label">Documentos requeridos</div>
-    <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
-    <div class="hook" style="margin-top:16px">✅ <b>Con estos documentos ya podés anotarte.</b> Completando el formulario de inscripción con tus datos, tu lugar en ${c.nombre} queda reservado y Dirección te contacta por WhatsApp para confirmar todo.</div>
+    ${tile('val','💰','Valores', `
+      <div class="precio-grid">
+        <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
+        <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
+      </div>
+      <div class="hook" style="margin-top:12px">💡 ${c.hook}</div>`, true)}
+    ${tile('req','📋','Requisitos — documentos', `
+      <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
+      <div class="hook" style="margin-top:12px">✅ <b>Con estos documentos ya podés anotarte.</b> Completando el formulario de inscripción con tus datos, tu lugar en ${c.nombre} queda reservado y Dirección te contacta por WhatsApp para confirmar todo.</div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="irAInscripcion('${c.nombre.replace(/'/g,"\\'")}')">📝 Inscribirme</button>
     </div>
   `;
 }
-const STEPS = [renderStep1, renderStep2, renderStep3, renderStep4];
+const STEPS = [renderStep1, renderStep2, renderStep3];
 
 let currentIndex = 0;
 let currentStep = 1;
@@ -328,7 +325,7 @@ function goToCarrera(i, step){
   history.pushState({page:'carrera', i, step:currentStep}, '', '#' + CARRERAS[i].cod.toLowerCase() + '/' + currentStep);
 }
 function stepSub(delta){
-  currentStep = Math.min(4, Math.max(1, currentStep + delta));
+  currentStep = Math.min(3, Math.max(1, currentStep + delta));
   renderCarreraPage();
   window.scrollTo({top:0});
   history.pushState({page:'carrera', i:currentIndex, step:currentStep}, '', '#' + CARRERAS[currentIndex].cod.toLowerCase() + '/' + currentStep);
