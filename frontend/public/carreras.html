@@ -118,7 +118,13 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 .hook{background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:12px;padding:15px 16px;font-size:13.5px;line-height:1.6;color:#4a3510}
 .hook b{color:var(--gold)}
 
-.nav-fixed{display:flex;gap:8px;margin-top:26px}
+.nav-hint{
+  display:flex;align-items:center;gap:8px;margin-top:22px;padding:10px 13px;
+  background:var(--gold-bg);border:1px dashed var(--gold-line);border-radius:10px;
+  font-size:12px;color:#6b5223;line-height:1.5;
+}
+.nav-hint .ico{font-size:15px;flex-shrink:0}
+.nav-fixed{display:flex;gap:8px;margin-top:10px}
 .btn-main{
   flex:1;background:var(--brand);color:#fff;font-weight:800;font-size:14px;padding:14px 18px;
   border-radius:100px;text-decoration:none;text-align:center;box-shadow:0 10px 26px rgba(15,110,86,.28);
@@ -241,6 +247,7 @@ function renderStep1(c){
     ${dots(1)}
     <div class="sec-label">Descripción de la carrera</div>
     <div class="perfil-box">${c.perfil}</div>
+    <div class="nav-hint"><span class="ico">👉</span><span>Presioná el botón de abajo para ver la página siguiente — si no, te vas a perder el objetivo, la salida laboral, el horario y los valores.</span></div>
     <div class="nav-fixed">
       <button class="btn-main" onclick="stepSub(1)">Objetivo y salida laboral →</button>
     </div>
@@ -256,6 +263,7 @@ function renderStep2(c){
     <div class="objetivo">${c.objetivo}</div>
     <div class="sec-label">Salida laboral</div>
     <ul class="salida">${c.salida.map(s => `<li>${s}</li>`).join('')}</ul>
+    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Horarios y valores" para continuar — ahí están el horario, los requisitos y el precio.</span></div>
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="stepSub(1)">Horarios y valores →</button>
