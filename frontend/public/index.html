@@ -7478,8 +7478,6 @@ async function imprimirActaFinal(asigId){
     const hoy=new Date();
     const fechaLarga=hoy.toLocaleDateString('es-PY',{day:'2-digit',month:'long',year:'numeric'});
     const actaN=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}${String(hoy.getDate()).padStart(2,'0')}-${(asigId||'').slice(-4).toUpperCase()}`;
-    const promedios=alumnos.filter(a=>a.puntaje_total!=null&&!a.pago_final_pendiente).map(a=>a.nota_final).filter(n=>n!=null);
-    const promedioClase=promedios.length?(promedios.reduce((s,n)=>s+n,0)/promedios.length).toFixed(1).replace('.',','):'—';
     const ventana=window.open('','_blank','width=940,height=760');
     ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Acta Final — ${asig.materia_nombre}</title>
@@ -7506,11 +7504,9 @@ async function imprimirActaFinal(asigId){
       table.acta tbody td{padding:6px 6px;border:1px solid var(--line);text-align:center}
       table.acta tbody td.al-col{text-align:left;font-weight:600}
       table.acta tbody tr:nth-child(even){background:#f7f9f7}
-      table.acta td.proceso{font-weight:700;color:var(--brand-dk)}
       table.acta td.nota-final{font-weight:800;color:var(--brand-dk)}
       table.acta td.aprobado{color:#166534;font-weight:700}
       table.acta td.reprobado{color:#b91c1c;font-weight:700}
-      .promedio-row td{background:var(--brand-dk)!important;color:#fff;font-weight:800;border-color:var(--brand-dk)}
       .leyenda{font-size:10px;color:var(--ink-soft);margin:8px 0 30px;font-style:italic}
       .firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
       .firma{text-align:center}
@@ -7549,35 +7545,34 @@ async function imprimirActaFinal(asigId){
       <table class="acta">
         <thead><tr>
           <th style="width:26px">N°</th><th class="al-col">Alumno</th><th style="width:70px">C.I.</th>
-          <th style="width:60px">Proceso<br>/40</th>
-          <th style="width:60px">Examen Final<br>/50</th>
-          <th style="width:64px">Puntaje Total<br>/100</th>
-          <th style="width:46px">Nota Final</th>
-          <th style="width:76px">Estado</th>
+          <th style="width:44px">TPs<br>/20</th>
+          <th style="width:50px">Parcial<br>/20</th>
+          <th style="width:56px">Examen Final<br>/50</th>
+          <th style="width:58px">Puntaje Total<br>/100</th>
+          <th style="width:44px">Nota Final</th>
+          <th style="width:70px">Estado</th>
         </tr></thead>
         <tbody>
         ${alumnos.map((a,i)=>{
           const parcialEf=a.parcial_recuperatorio??a.parcial;
           const finalEf=a.complementario??a.final_recuperatorio??a.final_ord;
-          const proceso=(a.tp_total??0)+(parcialEf??0);
-          const procesoTxt=(a.tp_total==null&&parcialEf==null)?'—':proceso;
           const aprobado=a.estado==='Aprobado';
           const reprobado=a.estado==='Reprobado';
           return `<tr>
             <td>${i+1}</td>
             <td class="al-col">${a.apellido||''}, ${a.nombre||''}</td>
             <td>${a.ci||''}</td>
-            <td class="proceso">${procesoTxt}</td>
+            <td>${a.tp_total??'—'}</td>
+            <td>${parcialEf??'—'}</td>
             <td>${a.pago_final_pendiente?'Pend. pago':(finalEf??'—')}</td>
             <td>${a.pago_final_pendiente?'—':(a.puntaje_total??'—')}</td>
             <td class="nota-final">${a.pago_final_pendiente?'—':(a.nota_final??'—')}</td>
             <td class="${aprobado?'aprobado':reprobado?'reprobado':''}">${a.pago_final_pendiente?'Pend. pago':(a.estado||'Pendiente')}</td>
           </tr>`;
         }).join('')}
-        <tr class="promedio-row"><td colspan="6" style="text-align:right;padding-right:12px">Promedio de la clase</td><td>${promedioClase}</td><td>—</td></tr>
         </tbody>
       </table>
-      <div class="leyenda">Proceso = suma de Trabajos Prácticos + Parcial (efectivo). Escala de nota: 1 = Insuficiente · 2 = Suficiente · 3 = Bueno · 4 = Distinguido · 5 = Sobresaliente. Aprobado a partir de nota 2.<br>
+      <div class="leyenda">Escala de nota: 1 = Insuficiente · 2 = Suficiente · 3 = Bueno · 4 = Distinguido · 5 = Sobresaliente. Aprobado a partir de nota 2.<br>
       Los alumnos marcados "Pend. pago" tienen el examen final evaluado, pero el puntaje queda oculto hasta regularizar el arancel correspondiente.</div>
 
       <div class="firmas">
