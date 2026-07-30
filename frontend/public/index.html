@@ -7475,75 +7475,132 @@ async function imprimirActaFinal(asigId){
       api('GET','/api/institucion').catch(()=>({}))
     ]);
     const {asig,alumnos}=notas;
-    const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     const hoy=new Date();
-    const notaLetra=n=>n==null?'—':n>=5?'Sobresaliente':n>=4?'Distinguido':n>=3?'Bueno':n>=2?'Suficiente':'Insuficiente';
-    const ventana=window.open('','_blank','width=900,height=740');
+    const fechaLarga=hoy.toLocaleDateString('es-PY',{day:'2-digit',month:'long',year:'numeric'});
+    const actaN=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}${String(hoy.getDate()).padStart(2,'0')}-${(asigId||'').slice(-4).toUpperCase()}`;
+    const promedios=alumnos.filter(a=>a.puntaje_total!=null&&!a.pago_final_pendiente).map(a=>a.nota_final).filter(n=>n!=null);
+    const promedioClase=promedios.length?(promedios.reduce((s,n)=>s+n,0)/promedios.length).toFixed(1).replace('.',','):'—';
+    const ventana=window.open('','_blank','width=940,height=760');
     ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>Acta Final — ${asig.materia_nombre}</title>
     <style>
-      *{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11.5px;margin:0;padding:18px;color:#000}
-      .header{text-align:center;margin-bottom:14px}
-      .header img{height:65px;object-fit:contain;display:block;margin:0 auto 6px}
-      .header h2{font-size:14px;margin:2px 0}.header p{font-size:10px;margin:1px 0;font-style:italic}
-      .titulo{text-align:center;font-weight:bold;font-size:13px;margin:12px 0;text-transform:uppercase;text-decoration:underline}
-      .info-line{margin:5px 0;font-size:12px}
-      .intro{margin:10px 0;font-size:11px;text-align:justify}
-      table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10.5px}
-      th{background:#e0e0e0;border:1px solid #333;padding:5px 6px;text-align:center;font-weight:bold}
-      td{border:1px solid #555;padding:4px 6px}td.num{text-align:center}
-      tr.aprob td.est{color:#166534;font-weight:700}
-      tr.reprob td.est{color:#b91c1c;font-weight:700}
-      .obs{font-size:10px;margin:10px 0;text-align:justify}
-      .firmas{display:flex;justify-content:space-between;margin-top:38px;text-align:center}
-      .firma-box{min-width:190px}.firma-line{border-top:1px solid #000;margin:4px auto;width:170px}
-      @page{size:A4;margin:15mm 12mm}@media print{@page{margin-top:0!important;margin-bottom:0!important}}@media print{body{margin:0;padding:0}button{display:none}*{-webkit-print-color-adjust:exact}}
+      :root{--brand:#0f6e56;--brand-dk:#0a3d2f;--gold:#a8762f;--line:#c9cec7;--ink:#1c2420;--ink-soft:#586158}
+      *{box-sizing:border-box}
+      body{margin:0;background:#f4f5f2;color:var(--ink);font-family:-apple-system,Segoe UI,Arial,sans-serif;padding:22px 14px 40px}
+      .sheet{max-width:900px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:4px;padding:44px 50px;box-shadow:0 4px 24px rgba(15,35,27,.08)}
+      .letterhead{display:flex;align-items:center;gap:16px;border-bottom:3px double var(--brand-dk);padding-bottom:16px;margin-bottom:22px}
+      .letterhead img{width:56px;height:56px;object-fit:contain}
+      .letterhead .name{font-family:Georgia,serif;font-size:19px;font-weight:700;color:var(--brand-dk);line-height:1.2}
+      .letterhead .sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+      .letterhead .doc-id{margin-left:auto;text-align:right;font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--ink-soft)}
+      .titulo{text-align:center;margin:8px 0 26px}
+      .titulo h1{font-family:Georgia,serif;font-size:24px;letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px;color:var(--brand-dk)}
+      .titulo .sub{font-size:12px;color:var(--ink-soft);font-style:italic}
+      .datos{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:24px;font-size:13px}
+      .datos .row{display:flex;justify-content:space-between;border-bottom:1px dotted var(--line);padding:4px 0}
+      .datos .l{color:var(--ink-soft)}
+      .datos .v{font-weight:700}
+      table.acta{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
+      table.acta thead th{font-family:ui-monospace,Consolas,monospace;font-size:9px;letter-spacing:.03em;text-transform:uppercase;color:#fff;background:var(--brand-dk);padding:8px 6px;text-align:center;border:1px solid var(--brand-dk)}
+      table.acta thead th.al-col{text-align:left}
+      table.acta tbody td{padding:6px 6px;border:1px solid var(--line);text-align:center}
+      table.acta tbody td.al-col{text-align:left;font-weight:600}
+      table.acta tbody tr:nth-child(even){background:#f7f9f7}
+      table.acta td.proceso{font-weight:700;color:var(--brand-dk)}
+      table.acta td.nota-final{font-weight:800;color:var(--brand-dk)}
+      table.acta td.aprobado{color:#166534;font-weight:700}
+      table.acta td.reprobado{color:#b91c1c;font-weight:700}
+      .promedio-row td{background:var(--brand-dk)!important;color:#fff;font-weight:800;border-color:var(--brand-dk)}
+      .leyenda{font-size:10px;color:var(--ink-soft);margin:8px 0 30px;font-style:italic}
+      .firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px}
+      .firma{text-align:center}
+      .firma .linea{border-top:1px solid var(--ink);margin-bottom:6px;padding-top:6px}
+      .firma .rol{font-size:12px;font-weight:700}
+      .firma .nombre{font-size:11.5px;color:var(--ink-soft);margin-top:1px}
+      .pie{display:flex;justify-content:space-between;align-items:flex-end;margin-top:36px;padding-top:14px;border-top:1px solid var(--line)}
+      .pie .fecha{font-size:12px;color:var(--ink-soft)}
+      .pie .sello{width:78px;height:78px;border:2px dashed #b7c2bb;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-family:ui-monospace,Consolas,monospace;font-size:8.5px;color:#9aa6a0;text-transform:uppercase;letter-spacing:.05em;line-height:1.3}
+      .print-btn{display:block;margin:22px auto 0;padding:10px 26px;background:var(--brand);color:#fff;border:none;border-radius:100px;cursor:pointer;font-size:13px;font-weight:700}
+      @page{size:A4;margin:12mm}
+      @media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border:none;padding:0}.print-btn{display:none}*{-webkit-print-color-adjust:exact}}
     </style></head><body>
-    <div class="header">
-      ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
-      <h2>${inst.nombre||'Instituto Técnico Superior'}</h2>
-      <h2>SANTÍSIMA TRINIDAD</h2>
-      <p>RESOLUCIÓN DGUISITS N°452/2024</p>
+    <div class="sheet">
+      <div class="letterhead">
+        ${inst.logo_base64?`<img src="${inst.logo_base64}"/>`:''}
+        <div>
+          <div class="name">${inst.nombre||'Instituto Técnico Superior Santísima Trinidad'}</div>
+          <div class="sub">Dirección Académica · Resolución DGUISITS N°452/2024</div>
+        </div>
+        <div class="doc-id">Acta N° ${actaN}<br/>Emitida: ${fechaLarga}</div>
+      </div>
+
+      <div class="titulo">
+        <h1>Acta Final de Calificaciones</h1>
+        <div class="sub">${asig.materia_nombre||''} — ${asig.periodo_nombre||''}</div>
+      </div>
+
+      <div class="datos">
+        <div class="row"><span class="l">Materia</span><span class="v">${asig.materia_nombre||''}</span></div>
+        <div class="row"><span class="l">Carrera / Sección</span><span class="v">${asig.carrera_nombre||''} — ${asig.curso_anio||''}° año${asig.curso_division&&asig.curso_division!=='U'?' '+asig.curso_division:''}</span></div>
+        <div class="row"><span class="l">Docente</span><span class="v">${asig.docente_titulo?asig.docente_titulo+' ':''}${asig.docente_nombre||''} ${asig.docente_apellido||''}</span></div>
+        <div class="row"><span class="l">Período</span><span class="v">${asig.periodo_nombre||''}</span></div>
+      </div>
+
+      <table class="acta">
+        <thead><tr>
+          <th style="width:26px">N°</th><th class="al-col">Alumno</th><th style="width:70px">C.I.</th>
+          <th style="width:60px">Proceso<br>/40</th>
+          <th style="width:60px">Examen Final<br>/50</th>
+          <th style="width:64px">Puntaje Total<br>/100</th>
+          <th style="width:46px">Nota Final</th>
+          <th style="width:76px">Estado</th>
+        </tr></thead>
+        <tbody>
+        ${alumnos.map((a,i)=>{
+          const parcialEf=a.parcial_recuperatorio??a.parcial;
+          const finalEf=a.complementario??a.final_recuperatorio??a.final_ord;
+          const proceso=(a.tp_total??0)+(parcialEf??0);
+          const procesoTxt=(a.tp_total==null&&parcialEf==null)?'—':proceso;
+          const aprobado=a.estado==='Aprobado';
+          const reprobado=a.estado==='Reprobado';
+          return `<tr>
+            <td>${i+1}</td>
+            <td class="al-col">${a.apellido||''}, ${a.nombre||''}</td>
+            <td>${a.ci||''}</td>
+            <td class="proceso">${procesoTxt}</td>
+            <td>${a.pago_final_pendiente?'Pend. pago':(finalEf??'—')}</td>
+            <td>${a.pago_final_pendiente?'—':(a.puntaje_total??'—')}</td>
+            <td class="nota-final">${a.pago_final_pendiente?'—':(a.nota_final??'—')}</td>
+            <td class="${aprobado?'aprobado':reprobado?'reprobado':''}">${a.pago_final_pendiente?'Pend. pago':(a.estado||'Pendiente')}</td>
+          </tr>`;
+        }).join('')}
+        <tr class="promedio-row"><td colspan="6" style="text-align:right;padding-right:12px">Promedio de la clase</td><td>${promedioClase}</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="leyenda">Proceso = suma de Trabajos Prácticos + Parcial (efectivo). Escala de nota: 1 = Insuficiente · 2 = Suficiente · 3 = Bueno · 4 = Distinguido · 5 = Sobresaliente. Aprobado a partir de nota 2.<br>
+      Los alumnos marcados "Pend. pago" tienen el examen final evaluado, pero el puntaje queda oculto hasta regularizar el arancel correspondiente.</div>
+
+      <div class="firmas">
+        <div class="firma">
+          <div class="linea"></div>
+          <div class="rol">Docente</div>
+          <div class="nombre">${asig.docente_titulo?asig.docente_titulo+' ':''}${asig.docente_nombre||''} ${asig.docente_apellido||''}</div>
+        </div>
+        <div class="firma">
+          <div class="linea"></div>
+          <div class="rol">Director General</div>
+          <div class="nombre">Abg. Gustavo Armando Echeverría</div>
+        </div>
+      </div>
+
+      <div class="pie">
+        <div class="fecha">Pedro Juan Caballero, ${fechaLarga}</div>
+        <div class="sello">Sello<br/>institucional</div>
+      </div>
+
+      <button class="print-btn" onclick="window.print()">🖨 Imprimir acta final</button>
     </div>
-    <div class="titulo">Acta Final de Calificaciones</div>
-    <div class="info-line">Encargado de Cátedra: <strong>${asig.docente_nombre||''} ${asig.docente_apellido||''}</strong> &nbsp;&nbsp; Carrera: <strong>${asig.carrera_nombre||''}</strong></div>
-    <div class="info-line">Materia: <strong>${asig.materia_nombre||''}</strong> &nbsp;&nbsp; Año: <strong>${asig.curso_anio||''}°</strong> &nbsp;&nbsp; Período: <strong>${asig.periodo_nombre||''}</strong></div>
-    <div class="intro">En la ciudad de Pedro Juan Caballero, del mes de <strong>${meses[hoy.getMonth()]}</strong> del año <strong>${hoy.getFullYear()}</strong>, se deja constancia del cierre de calificaciones de la materia, obteniéndose los siguientes resultados finales:</div>
-    <table>
-      <thead><tr>
-        <th style="width:28px">N°</th><th>Nombres y Apellidos</th><th style="width:70px">N° Cédula</th>
-        <th style="width:44px">TPs<br>/20</th><th style="width:50px">Parcial<br>/20</th>
-        <th style="width:56px">Examen<br>Final /50</th><th style="width:58px">Puntaje<br>Total /100</th>
-        <th style="width:44px">Nota<br>Final</th><th style="width:70px">Estado</th>
-      </tr></thead>
-      <tbody>
-      ${alumnos.map((a,i)=>{
-        const parcialEf=a.parcial_recuperatorio??a.parcial;
-        const finalEf=a.complementario??a.final_recuperatorio??a.final_ord;
-        const aprobado=a.estado==='Aprobado';
-        return `<tr class="${aprobado?'aprob':a.estado==='Reprobado'?'reprob':''}">
-          <td class="num">${i+1}</td>
-          <td>${a.apellido||''}, ${a.nombre||''}</td>
-          <td class="num">${a.ci||''}</td>
-          <td class="num">${a.tp_total??'—'}</td>
-          <td class="num">${parcialEf??'—'}</td>
-          <td class="num">${a.pago_final_pendiente?'Pend. pago':(finalEf??'—')}</td>
-          <td class="num">${a.pago_final_pendiente?'—':(a.puntaje_total??'—')}</td>
-          <td class="num">${a.pago_final_pendiente?'—':(a.nota_final??'—')}</td>
-          <td class="num est">${a.pago_final_pendiente?'Pend. pago':(a.estado||'Pendiente')}</td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table>
-    <div class="obs">Escala: 1 = Insuficiente · 2 = Suficiente · 3 = Bueno · 4 = Distinguido · 5 = Sobresaliente. Aprobado a partir de nota 2.<br>
-    Los alumnos marcados "Pend. pago" tienen el examen final evaluado pero el puntaje queda oculto hasta regularizar el arancel correspondiente.</div>
-    <div class="firmas">
-      <div class="firma-box"><div class="firma-line"></div><div style="font-weight:700">${asig.docente_nombre||''} ${asig.docente_apellido||''}</div><div style="font-size:9px">Docente</div></div>
-      <div class="firma-box"><div class="firma-line"></div><div style="font-weight:700">Abg. Gustavo Armando Echeverría</div><div style="font-size:9px">Director General</div></div>
-    </div>
-    <div style="text-align:center;margin-top:18px">
-      <button onclick="window.print()" style="padding:8px 22px;background:#1e3a8a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir acta final</button>
-    </div></body></html>`);
+    </body></html>`);
     ventana.document.close();
   }catch(e){toast('Error al generar acta final: '+e.message,'err');}
 }
