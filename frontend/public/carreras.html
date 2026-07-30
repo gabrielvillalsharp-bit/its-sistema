@@ -113,19 +113,14 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 .hook{background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:12px;padding:15px 16px;font-size:13.5px;line-height:1.6;color:#4a3510}
 .hook b{color:var(--gold)}
 
-/* tarjetas desplegables — reemplazan al bloque de texto fijo */
+/* tarjetas — muestran toda la información directamente, sin desplegar */
 .tile{
-  background:var(--panel);border:1px solid var(--line);border-radius:16px;cursor:pointer;
-  overflow:hidden;transition:box-shadow .2s,border-color .2s;margin-bottom:12px;
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  overflow:hidden;margin-bottom:12px;
 }
-.tile:hover{border-color:var(--brand-lt);box-shadow:0 8px 20px rgba(15,110,86,.1)}
-.tile-head{display:flex;align-items:center;gap:11px;padding:16px 16px}
+.tile-head{display:flex;align-items:center;gap:11px;padding:16px 16px 10px}
 .tile-ico{font-size:21px;flex-shrink:0}
 .tile-title{font-family:var(--serif);font-size:16px;color:var(--ink);font-weight:700;flex:1}
-.tile-chev{font-size:13px;color:var(--ink-dim);transition:transform .3s}
-.tile.open .tile-chev{transform:rotate(90deg);color:var(--brand)}
-.tile-body{max-height:0;overflow:hidden;transition:max-height .38s cubic-bezier(.3,.8,.3,1)}
-.tile.open .tile-body{max-height:700px}
 .tile-body-inner{padding:0 16px 18px;font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
 
 .nav-fixed{display:flex;gap:8px;margin-top:16px}
@@ -243,21 +238,17 @@ function topbar(c, step){
     <div class="progress">${c.cod} · ${step}/3</div>
   </div>`;
 }
-function tile(id, ico, title, bodyHtml, openByDefault){
+function tile(id, ico, title, bodyHtml){
   return `
-    <div class="tile${openByDefault ? ' open' : ''}" id="tile-${id}" onclick="toggleTile('${id}')">
+    <div class="tile" id="tile-${id}">
       <div class="tile-head">
         <span class="tile-ico">${ico}</span>
         <span class="tile-title">${title}</span>
-        <span class="tile-chev">▸</span>
       </div>
-      <div class="tile-body"><div class="tile-body-inner">${bodyHtml}</div></div>
+      <div class="tile-body-inner">${bodyHtml}</div>
     </div>`;
 }
-function toggleTile(id){
-  const t = document.getElementById('tile-' + id);
-  if (t) t.classList.toggle('open');
-}
+const UBICACION_URL = 'https://maps.google.com/?q=' + encodeURIComponent('Instituto Técnico Superior Santísima Trinidad, Pedro Juan Caballero, Amambay, Paraguay');
 
 function renderStep1(c){ // Descripción + Objetivo
   return `
@@ -265,7 +256,7 @@ function renderStep1(c){ // Descripción + Objetivo
     <div class="kicker">Técnico Superior · 2 años · Nocturno</div>
     <h2 class="carrera-name">${c.nombre}</h2>
     ${dots(1)}
-    ${tile('desc','📖','Descripción de la carrera', `<p style="margin:0">${c.perfil}</p>`, true)}
+    ${tile('desc','📖','Descripción de la carrera', `<p style="margin:0">${c.perfil}</p>`)}
     ${tile('obj','🎯','Objetivo de la carrera', `<p style="margin:0">${c.objetivo}</p>`)}
     <div class="nav-fixed">
       <button class="btn-main" onclick="stepSub(1)">Salida laboral y horarios →</button>
@@ -278,11 +269,13 @@ function renderStep2(c){ // Salida laboral + Horarios
     <div class="kicker">${c.nombre}</div>
     <div class="subpage-title">Salida laboral y horarios</div>
     ${dots(2)}
-    ${tile('sal','💼','Salida laboral', c.salida.map(s=>`<div class="salida-li">${s}</div>`).join(''), true)}
+    ${tile('sal','💼','Salida laboral', c.salida.map(s=>`<div class="salida-li">${s}</div>`).join(''))}
     ${tile('hor','🕐','Horarios y duración', `
       <div class="stat-row"><span>Duración</span><b>2 años</b></div>
       <div class="stat-row"><span>Turno</span><b>19:00 / 20:40 hs</b></div>
-      <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>`)}
+      <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>
+      <div class="stat-row"><span>Inicio de clases</span><b>10 de agosto</b></div>
+      <div class="stat-row"><span>Ubicación</span><b><a href="${UBICACION_URL}" target="_blank" style="color:var(--brand)">Pedro Juan Caballero, Amambay 📍</a></b></div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="stepSub(1)">Valores y requisitos →</button>
@@ -300,7 +293,7 @@ function renderStep3(c){ // Valores + Requisitos
         <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
         <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
       </div>
-      <div class="hook" style="margin-top:12px">💡 ${c.hook}</div>`, true)}
+      <div class="hook" style="margin-top:12px">💡 ${c.hook}</div>`)}
     ${tile('req','📋','Requisitos — documentos', `
       <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
       <div class="hook" style="margin-top:12px">✅ <b>Con estos documentos ya podés anotarte.</b> Completando el formulario de inscripción con tus datos, tu lugar en ${c.nombre} queda reservado y Dirección te contacta por WhatsApp para confirmar todo.</div>`)}

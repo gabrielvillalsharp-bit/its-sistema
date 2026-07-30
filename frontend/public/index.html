@@ -7480,7 +7480,7 @@ async function imprimirActaFinal(asigId){
     const actaN=`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}${String(hoy.getDate()).padStart(2,'0')}-${(asigId||'').slice(-4).toUpperCase()}`;
     const ventana=window.open('','_blank','width=940,height=760');
     ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Acta Final — ${asig.materia_nombre}</title>
+    <title> </title>
     <style>
       :root{--brand:#0f6e56;--brand-dk:#0a3d2f;--gold:#a8762f;--line:#c9cec7;--ink:#1c2420;--ink-soft:#586158}
       *{box-sizing:border-box}
