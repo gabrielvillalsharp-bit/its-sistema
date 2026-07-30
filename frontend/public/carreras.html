@@ -230,12 +230,12 @@ CARRERAS.forEach((c, i) => {
 });
 
 function dots(step){
-  return `<div class="steps-dots">${[1,2,3].map(n=>`<span class="${n===step?'on':''}"></span>`).join('')}</div>`;
+  return `<div class="steps-dots">${[1,2,3,4].map(n=>`<span class="${n===step?'on':''}"></span>`).join('')}</div>`;
 }
 function topbar(c, step){
   return `<div class="topbar">
     <button class="back-btn" onclick="goHome()">← Todas las carreras</button>
-    <div class="progress">${c.cod} · ${step}/3</div>
+    <div class="progress">${c.cod} · ${step}/4</div>
   </div>`;
 }
 
@@ -263,7 +263,7 @@ function renderStep2(c){
     <div class="objetivo">${c.objetivo}</div>
     <div class="sec-label">Salida laboral</div>
     <ul class="salida">${c.salida.map(s => `<li>${s}</li>`).join('')}</ul>
-    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Horarios y valores" para continuar — ahí están el horario, los requisitos y el precio.</span></div>
+    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Horarios y valores" para continuar.</span></div>
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="stepSub(1)">Horarios y valores →</button>
@@ -274,7 +274,7 @@ function renderStep3(c){
   return `
     ${topbar(c,3)}
     <div class="kicker">${c.nombre}</div>
-    <div class="subpage-title">Horarios, requisitos y valores</div>
+    <div class="subpage-title">Horarios y valores</div>
     ${dots(3)}
     <div class="sec-label">Horarios y duración</div>
     <div class="stats">
@@ -282,8 +282,6 @@ function renderStep3(c){
       <div class="stat"><div class="l">Turno</div><div class="v">19:00 / 20:40 hs</div></div>
       <div class="stat full"><div class="l">Días de cursada</div><div class="v">${c.dias}</div></div>
     </div>
-    <div class="sec-label">Requisitos — documentos</div>
-    <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
     <div class="sec-label">Valores</div>
     <div class="precio-grid">
       <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
@@ -291,13 +289,29 @@ function renderStep3(c){
     </div>
     <div class="sec-label">¿Por qué elegirla?</div>
     <div class="hook">💡 ${c.hook}</div>
+    <div class="nav-hint"><span class="ico">👉</span><span>Presioná "Requisitos" para ver qué documentos necesitás y cómo anotarte.</span></div>
+    <div class="nav-fixed">
+      <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
+      <button class="btn-main" onclick="stepSub(1)">Requisitos →</button>
+    </div>
+  `;
+}
+function renderStep4(c){
+  return `
+    ${topbar(c,4)}
+    <div class="kicker">${c.nombre}</div>
+    <div class="subpage-title">Requisitos para inscribirte</div>
+    ${dots(4)}
+    <div class="sec-label">Documentos requeridos</div>
+    <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
+    <div class="hook" style="margin-top:16px">✅ <b>Con estos documentos ya podés anotarte.</b> Completando el formulario de inscripción con tus datos, tu lugar en ${c.nombre} queda reservado y Dirección te contacta por WhatsApp para confirmar todo.</div>
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="irAInscripcion('${c.nombre.replace(/'/g,"\\'")}')">📝 Inscribirme</button>
     </div>
   `;
 }
-const STEPS = [renderStep1, renderStep2, renderStep3];
+const STEPS = [renderStep1, renderStep2, renderStep3, renderStep4];
 
 let currentIndex = 0;
 let currentStep = 1;
@@ -312,7 +326,7 @@ function goToCarrera(i, step){
   history.pushState({page:'carrera', i, step:currentStep}, '', '#' + CARRERAS[i].cod.toLowerCase() + '/' + currentStep);
 }
 function stepSub(delta){
-  currentStep = Math.min(3, Math.max(1, currentStep + delta));
+  currentStep = Math.min(4, Math.max(1, currentStep + delta));
   renderCarreraPage();
   window.scrollTo({top:0});
   history.pushState({page:'carrera', i:currentIndex, step:currentStep}, '', '#' + CARRERAS[currentIndex].cod.toLowerCase() + '/' + currentStep);
