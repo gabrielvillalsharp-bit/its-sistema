@@ -1234,6 +1234,14 @@ function init() {
       if (cargados > 0) console.log(`[Carga Derecho] ✓ ${cargados} puntajes de Introducción al Derecho (Criminalística 1°) cargados`);
     }
   } catch(e) { console.warn('[DB] Carga puntajes Introducción al Derecho:', e.message); }
+
+  // Dirección real del instituto (2026-07-30), confirmada por el director vía Google Maps:
+  // UAL Universidad Autónoma de Luque, Jóvenes por la Democracia casi esquina — Pedro Juan
+  // Caballero. Reemplaza el valor genérico "Pedro Juan Caballero, Amambay, Paraguay".
+  try {
+    db.prepare("UPDATE institucion SET direccion=? WHERE id=1 AND direccion='Pedro Juan Caballero, Amambay, Paraguay'")
+      .run('Jóvenes por la Democracia casi Esq., Pedro Juan Caballero, Amambay, Paraguay');
+  } catch(e) { console.warn('[DB] Actualizar dirección institución:', e.message); }
   autoBackup(db, DB_PATH);     // copia de seguridad automática si hay alumnos
   console.log('✓ Base de datos lista en:', DB_PATH);
 }

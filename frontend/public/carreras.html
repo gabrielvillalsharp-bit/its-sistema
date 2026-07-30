@@ -168,46 +168,55 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 <script>
 const CARRERAS = [
   { cod:'AGR', nombre:'Agropecuaria', dias:'Martes, Miércoles y Jueves', cuota:'300.000',
+    materias:['Lengua Extranjera – Inglés','Apicultura','Deontología y Ética Profesional'],
     perfil:'Un profesional capaz de gestionar cultivos, producción animal, suelos y agroindustria con criterio de rentabilidad y sostenibilidad: el perfil técnico que necesita el campo paraguayo para modernizarse.',
     objetivo:'Formar técnicos capaces de gestionar cultivos, producción animal, suelos y agroindustria con criterio de rentabilidad y sostenibilidad.',
     salida:['Establecimientos agropecuarios y agroindustrias de la zona','Cooperativas y empresas de insumos agrícolas','Emprendimiento propio: huerta, cría, apicultura','Asesoría técnica a productores del interior'],
     hook:'Paraguay exporta lo que el campo produce: es de los títulos técnicos con salida real en el interior, y habilita a armar un emprendimiento propio sin depender de un empleador.' },
   { cod:'CON', nombre:'Contabilidad', dias:'Lunes, Miércoles y Viernes', cuota:'300.000',
+    materias:['Lengua Extranjera – Inglés','Comunicación Escrita y Oral y Lengua Guaraní','Contabilidad Básica'],
     perfil:'Un técnico en registro y análisis contable, liquidación de impuestos, gestión de sueldos y estados financieros para empresas, comercios y emprendimientos de cualquier rubro.',
     objetivo:'Formar técnicos capaces de llevar la contabilidad completa de una empresa o emprendimiento, con criterio impositivo y financiero actualizado.',
     salida:['Estudios contables y de auditoría','Departamentos de administración de empresas','Cooperativas y comercios de la zona','Emprendimiento propio: asesoría contable a PyMEs'],
     hook:'No existe una empresa sin contabilidad: es el título con salida laboral más inmediata, y desde 2° año ya se puede empezar a hacer changas contables por cuenta propia.' },
   { cod:'COS', nombre:'Cosmiatría', dias:'Martes, Miércoles y Jueves', cuota:'300.000',
+    materias:['Anatomía y Fisiología Humana','Biología de la Piel I / II','Técnicas Faciales'],
     perfil:'Un especialista en tratamientos faciales y corporales, cuidado de la piel y estética integral, con base científica en dermatología aplicada.',
     objetivo:'Formar técnicos capaces de evaluar y aplicar tratamientos estéticos faciales y corporales con criterio dermatológico y seguridad clínica.',
     salida:['Centros de estética y spas','Clínicas dermatológicas','Gabinete propio','Salones de belleza de la zona'],
     hook:'La industria de la belleza no para de crecer en Paraguay: al egresar se puede montar un gabinete propio y facturar desde el primer cliente.' },
   { cod:'CRM', nombre:'Criminalística', dias:'Martes, Miércoles y Jueves', cuota:'300.000',
+    materias:['Aspectos Legales del Peritaje','Comunicación Escrita y Oral y Lengua Guaraní','Deontología y Ética Profesional'],
     perfil:'Un técnico en investigación de escena del crimen, recolección y cadena de custodia de evidencias, y apoyo pericial a la justicia y las fuerzas de seguridad.',
     objetivo:'Formar técnicos capaces de intervenir en la escena del crimen preservando evidencia con validez pericial, en apoyo a la justicia y la seguridad pública.',
     salida:['Policía Nacional','Ministerio Público y Poder Judicial','Estudios jurídicos y peritajes privados','Empresas de seguridad'],
     hook:'Perfil poco común y muy buscado: la Policía Nacional, el Ministerio Público y los estudios jurídicos necesitan técnicos formados en esto, y en el interior casi no hay oferta.' },
   { cod:'ELC', nombre:'Electricidad', dias:'Martes, Miércoles y Jueves', cuota:'300.000',
+    materias:['Electrotecnia I','Electrónica Analógica','Maquinarias Eléctricas'],
     perfil:'Un técnico en instalaciones eléctricas domiciliarias e industriales, mantenimiento de motores y tableros, con nociones de energías renovables.',
     objetivo:'Formar técnicos capaces de instalar y mantener sistemas eléctricos domiciliarios e industriales de forma segura y normada.',
     salida:['Instalaciones domiciliarias e industriales','Empresas constructoras','Mantenimiento industrial','Trabajo independiente / contratista'],
     hook:'Es uno de los oficios técnicos mejor pagos por trabajo independiente: un electricista matriculado nunca se queda sin changas, ni en épocas de crisis.' },
   { cod:'ENF', nombre:'Enfermería', dias:'Lunes, Miércoles y Viernes', cuota:'300.000',
+    materias:['Anatomía y Fisiología Humana','Farmacología','Primeros Auxilios'],
     perfil:'Un técnico en cuidados básicos y asistencia al paciente: control de signos vitales, administración de medicamentos y apoyo en procedimientos clínicos.',
     objetivo:'Formar técnicos capaces de asistir al paciente y al equipo de salud con criterio clínico, ético y humano.',
     salida:['Hospitales y sanatorios','Clínicas privadas','Centros de salud del interior','Atención domiciliaria'],
     hook:'Hay faltante real de personal técnico en enfermería en Paraguay: sanatorios, clínicas y hospitales de la zona están buscando activamente este perfil.' },
   { cod:'FAR', nombre:'Farmacia', dias:'Lunes, Miércoles y Viernes', cuota:'300.000',
+    materias:['Anatomía y Fisiología Humana','Calidad en Salud','Farmacología'],
     perfil:'Un técnico en dispensación de medicamentos, atención al público en farmacias, control de stock y buenas prácticas de almacenamiento.',
     objetivo:'Formar técnicos capaces de dispensar medicamentos y asesorar al público con responsabilidad sanitaria.',
     salida:['Farmacias privadas y de cadena','Droguerías y distribuidoras','Farmacia propia','Depósitos de medicamentos'],
     hook:'Hay cientos de farmacias solo en la zona y todas necesitan un técnico habilitado: salida laboral rápida, con la puerta abierta a tener una farmacia propia.' },
   { cod:'IQ', nombre:'Instrumentación Quirúrgica', dias:'Lunes, Miércoles y Viernes', cuota:'300.000',
+    materias:['Anatomía y Fisiología Humana','Calidad en Salud','Farmacología'],
     perfil:'Un técnico especializado en el instrumental y los procedimientos dentro del quirófano, asistiendo directamente al cirujano durante la intervención.',
     objetivo:'Formar técnicos capaces de preparar, gestionar y asistir con el instrumental quirúrgico durante una intervención, bajo estrictos protocolos de asepsia.',
     salida:['Quirófanos de hospitales y sanatorios','Clínicas privadas con cirugía','Centros quirúrgicos ambulatorios','Empresas de insumos médicos'],
     hook:'Especialización de alta exigencia y buena remuneración: se trabaja codo a codo con cirujanos, en un rol clave que muy pocos institutos del país ofrecen.' },
   { cod:'RAD', nombre:'Radiología', dias:'Lunes, Miércoles y Viernes', cuota:'300.000',
+    materias:['Anatomía y Fisiología Humana','Farmacología','Primeros Auxilios'],
     perfil:'Un técnico en operación de equipos de diagnóstico por imágenes (rayos X, tomografía, ecografía), con manejo de protocolos de bioseguridad radiológica.',
     objetivo:'Formar técnicos capaces de operar equipos de diagnóstico por imágenes con criterio de bioseguridad radiológica y calidad de imagen.',
     salida:['Centros de diagnóstico por imágenes','Hospitales y sanatorios','Clínicas privadas','Consultorios radiológicos'],
@@ -248,7 +257,7 @@ function tile(id, ico, title, bodyHtml){
       <div class="tile-body-inner">${bodyHtml}</div>
     </div>`;
 }
-const UBICACION_URL = 'https://maps.google.com/?q=' + encodeURIComponent('Instituto Técnico Superior Santísima Trinidad, Pedro Juan Caballero, Amambay, Paraguay');
+const UBICACION_URL = 'https://maps.app.goo.gl/vhozKXoCTdvDagX19';
 
 function renderStep1(c){ // Descripción + Objetivo
   return `
@@ -258,6 +267,7 @@ function renderStep1(c){ // Descripción + Objetivo
     ${dots(1)}
     ${tile('desc','📖','Descripción de la carrera', `<p style="margin:0">${c.perfil}</p>`)}
     ${tile('obj','🎯','Objetivo de la carrera', `<p style="margin:0">${c.objetivo}</p>`)}
+    ${tile('mat','📚','Algunas materias del primer semestre', c.materias.map(m=>`<div class="salida-li">${m}</div>`).join(''))}
     <div class="nav-fixed">
       <button class="btn-main" onclick="stepSub(1)">Salida laboral y horarios →</button>
     </div>
@@ -272,13 +282,12 @@ function renderStep2(c){ // Salida laboral + Horarios
     ${tile('sal','💼','Salida laboral', c.salida.map(s=>`<div class="salida-li">${s}</div>`).join(''))}
     ${tile('hor','🕐','Horarios y duración', `
       <div class="stat-row"><span>Duración</span><b>2 años</b></div>
-      <div class="stat-row"><span>Turno</span><b>19:00 / 20:40 hs</b></div>
+      <div class="stat-row"><span>Turno</span><b>19:00 a 22:00 hs</b></div>
       <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>
-      <div class="stat-row"><span>Inicio de clases</span><b>10 de agosto</b></div>
-      <div class="stat-row"><span>Ubicación</span><b><a href="${UBICACION_URL}" target="_blank" style="color:var(--brand)">Pedro Juan Caballero, Amambay 📍</a></b></div>`)}
+      <div class="stat-row"><span>Inicio de clases</span><b>10 de agosto</b></div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
-      <button class="btn-main" onclick="stepSub(1)">Valores y requisitos →</button>
+      <button class="btn-main" onclick="stepSub(1)">Requisitos y valores →</button>
     </div>
   `;
 }
@@ -286,19 +295,19 @@ function renderStep3(c){ // Valores + Requisitos
   return `
     ${topbar(c,3)}
     <div class="kicker">${c.nombre}</div>
-    <div class="subpage-title">Valores y requisitos</div>
+    <div class="subpage-title">Requisitos y valores</div>
     ${dots(3)}
+    ${tile('req','📋','Requisitos — documentos', `
+      <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>`)}
     ${tile('val','💰','Valores', `
       <div class="precio-grid">
         <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
         <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
       </div>
       <div class="hook" style="margin-top:12px">💡 ${c.hook}</div>`)}
-    ${tile('req','📋','Requisitos — documentos', `
-      <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>
-      <div class="hook" style="margin-top:12px">✅ <b>Con estos documentos ya podés anotarte.</b> Completando el formulario de inscripción con tus datos, tu lugar en ${c.nombre} queda reservado y Dirección te contacta por WhatsApp para confirmar todo.</div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
+      <a class="btn-ghost" href="${UBICACION_URL}" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:center">📍 Ubicación</a>
       <button class="btn-main" onclick="irAInscripcion('${c.nombre.replace(/'/g,"\\'")}')">📝 Inscribirme</button>
     </div>
   `;
