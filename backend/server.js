@@ -1789,9 +1789,12 @@ try {
   console.log('[Sedes] ✔ Estructura Cerro Corá lista (carreras + materias vacías)');
 } catch(e) { console.warn('[Sedes] Error copiando carreras CC:', e.message); }
 
-// Backup a Google Drive (requiere GOOGLE_SERVICE_ACCOUNT_JSON y GOOGLE_DRIVE_FOLDER_ID en Railway)
+// Backup a GitHub — SOLO por el cron de las 23:00 (ver más abajo), cada 48hs.
+// Antes también se disparaba 15s después de cada arranque del servidor, lo cual
+// subía la base entera (~200MB, ~266MB en base64) en CADA deploy — con varios
+// deploys por día durante desarrollo activo, eso solo multiplicaba el tráfico de
+// red facturado por Railway sin aportar ningún resguardo real adicional.
 const { cloudBackupDrive } = require('./cloud-backup');
-setTimeout(() => cloudBackupDrive(DB_PATH), 15000);
 
 
 // ── HORA DEL SISTEMA (con offset manual) ─────────────────────────────────────
@@ -6654,6 +6657,16 @@ const BACKUP_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
   : path.join(__dirname, '../backups');
 if (!fs.existsSync(BACKUP_DIR)) { try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); } catch {} }
 
+// Backup cada 48hs (no diario): se guarda la fecha del último backup exitoso en
+// `configuracion` y el cron (que sigue corriendo todos los días a las 23:00) se
+// fija con eso si ya pasaron 48hs o no, en vez de depender de que el cron mismo
+// corra cada dos días — más robusto ante reinicios del servidor.
+function yaPasaron48hsDesdeUltimoBackup() {
+  const row = db.prepare("SELECT valor FROM configuracion WHERE clave='ultimo_backup_automatico'").get();
+  if (!row?.valor) return true;
+  const ultimo = new Date(row.valor).getTime();
+  return (Date.now() - ultimo) >= 48 * 60 * 60 * 1000;
+}
 async function hacerBackupAutomatico() {
   try {
     const fecha = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -6671,6 +6684,7 @@ async function hacerBackupAutomatico() {
     console.log(`✅ Backup local: ${destino}`);
     // Subir también a GitHub (capa externa de seguridad)
     await cloudBackupDrive(DB_PATH);
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('ultimo_backup_automatico',?,'Fecha del último backup automático (cada 48hs)')").run(new Date().toISOString());
     return destino;
   } catch(e) {
     console.error('Error en backup automático:', e.message);
@@ -6678,9 +6692,15 @@ async function hacerBackupAutomatico() {
   }
 }
 
-// Backup automático diario a las 23:00 hora Paraguay (America/Asuncion)
+// El cron corre todos los días a las 23:00, pero el backup real (con la subida a
+// GitHub) solo se ejecuta si ya pasaron 48hs desde el último — reduce a la mitad
+// el tráfico de red que generaba el backup diario.
 cron.schedule('0 23 * * *', () => {
-  console.log('[BACKUP] Ejecutando backup diario 23:00 PY...');
+  if (!yaPasaron48hsDesdeUltimoBackup()) {
+    console.log('[BACKUP] Todavía no pasaron 48hs desde el último — se salta hoy.');
+    return;
+  }
+  console.log('[BACKUP] Ejecutando backup (cada 48hs) 23:00 PY...');
   hacerBackupAutomatico();
 }, { timezone: 'America/Asuncion' });
 
