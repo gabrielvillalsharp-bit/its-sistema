@@ -35,14 +35,21 @@ button{font-family:var(--sans)}
 @media (prefers-reduced-motion:reduce){.screen.active{animation:none}}
 
 .hero{
-  margin:0 -18px;padding:38px 22px 30px;background:linear-gradient(150deg,var(--brand-dk),var(--brand) 75%);
-  color:#fff;border-radius:0 0 26px 26px;
+  margin:0 -18px;padding:28px 22px 22px;background:linear-gradient(150deg,var(--brand-dk),var(--brand) 75%);
+  color:#fff;border-radius:0 0 26px 26px;text-align:center;display:flex;flex-direction:column;align-items:center;
 }
-.hero-logo{width:64px;height:64px;object-fit:contain;border-radius:14px;background:#fff;padding:8px;margin-bottom:14px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
-.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#bfe9d8;font-weight:600;margin-bottom:12px}
-.hero h1{font-family:var(--serif);font-size:clamp(28px,8vw,38px);line-height:1.1;margin:0 0 12px;text-wrap:balance}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.hero-logo-wrap{
+  width:104px;height:104px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px;
+  background:radial-gradient(circle,rgba(255,255,255,.95) 0%,rgba(255,255,255,.35) 55%,rgba(255,255,255,0) 78%);
+  animation:float 4s ease-in-out infinite;
+}
+.hero-logo{width:58px;height:58px;object-fit:contain}
+.hero .eyebrow{font-family:var(--serif);font-size:15.5px;letter-spacing:.02em;color:#fff;font-weight:700;margin-bottom:14px;line-height:1.3;max-width:26ch}
+.hero h1{font-family:var(--serif);font-size:clamp(17px,4.6vw,21px);font-weight:400;line-height:1.35;margin:0;text-wrap:balance;
+  color:#ffe9b8;text-shadow:0 0 12px rgba(255,217,138,.75),0 0 26px rgba(255,217,138,.4);max-width:38ch}
 .hero h1 em{font-style:italic;color:#ffd98a}
-.hero p{font-size:14px;line-height:1.6;color:#d7ede4;max-width:46ch;margin:0}
+.hero p{font-size:13px;line-height:1.6;color:#d7ede4;max-width:40ch;margin:12px 0 0}
 
 .grid-label{
   text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -110,7 +117,13 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 .precio .v{font-size:19px;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
 .precio.matricula .v{color:var(--brand);font-size:17px}
 
-.hook{background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:12px;padding:15px 16px;font-size:13.5px;line-height:1.6;color:#4a3510}
+.testi{background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:12px;padding:16px;margin-top:12px;min-height:88px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.testi-txt{font-size:13.5px;line-height:1.6;color:#4a3510;font-style:italic;animation:testiFade .5s ease both}
+.testi-name{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--gold);font-weight:700;margin-top:8px;animation:testiFade .5s ease both}
+@keyframes testiFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.testi-dots{display:flex;gap:5px;justify-content:center;margin-top:10px}
+.testi-dots span{width:5px;height:5px;border-radius:50%;background:var(--gold-line)}
+.testi-dots span.on{background:var(--gold)}
 .hook b{color:var(--gold)}
 
 /* tarjetas — muestran toda la información directamente, sin desplegar */
@@ -149,9 +162,9 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
 
   <section class="screen active" id="screen-home">
     <div class="hero">
-      <img src="/logo.png" alt="Logo ITS Santísima Trinidad" class="hero-logo"/>
-      <div class="eyebrow">Instituto Técnico Superior · Santísima Trinidad</div>
-      <h1>El futuro está lleno<br><em>de oportunidades</em> para quienes hoy deciden formarse.</h1>
+      <div class="hero-logo-wrap"><img src="/logo.png" alt="Logo ITS Santísima Trinidad" class="hero-logo"/></div>
+      <div class="eyebrow">Instituto Técnico Superior<br>Santísima Trinidad</div>
+      <h1>El futuro está lleno <em>de oportunidades</em> para quienes hoy deciden formarse.</h1>
       <p>9 carreras técnicas, turno nocturno, para quien ya trabaja de día. Tocá una carrera para conocerla.</p>
     </div>
     <div class="grid-label">— elegí tu carrera —</div>
@@ -222,7 +235,19 @@ const CARRERAS = [
     salida:['Centros de diagnóstico por imágenes','Hospitales y sanatorios','Clínicas privadas','Consultorios radiológicos'],
     hook:'Carrera de salud con excelente remuneración relativa y alta demanda en clínicas y centros de diagnóstico — se trabaja con la tecnología más moderna del sector.' },
 ];
-const REQ_COMUNES = ['Certificado de nacimiento', 'Fotocopia de cédula de identidad', 'Fotocopia de certificado de estudios'];
+const REQ_COMUNES = ['Certificado de nacimiento', 'Fotocopia de cédula de identidad', 'Fotocopia de certificado de estudios', 'Copia de título de bachiller'];
+const TESTIMONIOS = [
+  { nombre:'María González', estrellas:5, texto:'La infraestructura es excelente y las aulas están muy bien equipadas. Es un lugar ideal para aprender.' },
+  { nombre:'Carlos Benítez', estrellas:5, texto:'Los profesores explican muy bien y siempre están dispuestos a ayudar. Se nota su experiencia.' },
+  { nombre:'Ana Fernández', estrellas:5, texto:'Me gustó mucho la cercanía de los directores. Siempre responden nuestras consultas y nos apoyan.' },
+  { nombre:'Luis Ramírez', estrellas:5, texto:'Desde el primer día me hicieron sentir parte de la institución. El trato humano es realmente destacable.' },
+  { nombre:'Sofía Martínez', estrellas:5, texto:'Las clases son prácticas y dinámicas. Siento que estoy adquiriendo conocimientos que realmente voy a utilizar.' },
+  { nombre:'Diego Rojas', estrellas:5, texto:'Estoy muy conforme con mi elección. La calidad académica y el ambiente hacen que estudiar aquí valga la pena.' },
+  { nombre:'Valentina Cabrera', estrellas:5, texto:'La atención que recibimos es excelente. Siempre hay alguien dispuesto a orientarnos y ayudarnos.' },
+  { nombre:'Javier Acosta', estrellas:5, texto:'Me sorprendió la calidad de las instalaciones y el compromiso de los docentes con nuestro aprendizaje.' },
+  { nombre:'Camila Ortega', estrellas:5, texto:'El ambiente es muy agradable y se nota el interés que tienen por el crecimiento de cada estudiante.' },
+  { nombre:'Fernando Silva', estrellas:5, texto:'Recomiendo esta tecnicatura por la calidad de la enseñanza, el acompañamiento constante y el excelente trato humano.' },
+];
 const INSCRIPCION_URL = '/inscripcion';
 
 const winRail = document.getElementById('windows');
@@ -304,7 +329,11 @@ function renderStep3(c){ // Valores + Requisitos
         <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
         <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
       </div>
-      <div class="hook" style="margin-top:12px">💡 ${c.hook}</div>`)}
+      <div class="testi" id="testiBox">
+        <div class="testi-txt" id="testiTxt"></div>
+        <div class="testi-name" id="testiName"></div>
+        <div class="testi-dots" id="testiDots"></div>
+      </div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <a class="btn-ghost" href="${UBICACION_URL}" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:center">📍 Ubicación</a>
@@ -316,9 +345,35 @@ const STEPS = [renderStep1, renderStep2, renderStep3];
 
 let currentIndex = 0;
 let currentStep = 1;
+let testiTimer = null;
+
+function stopTestimonios(){
+  if(testiTimer){ clearInterval(testiTimer); testiTimer = null; }
+}
+function startTestimonios(){
+  stopTestimonios();
+  const txtEl = document.getElementById('testiTxt');
+  const nameEl = document.getElementById('testiName');
+  const dotsEl = document.getElementById('testiDots');
+  if(!txtEl) return;
+  const orden = TESTIMONIOS.map((_,i) => i).sort(() => Math.random() - .5);
+  let idx = 0;
+  const paint = () => {
+    const t = TESTIMONIOS[orden[idx]];
+    txtEl.textContent = '"' + t.texto + '"';
+    txtEl.style.animation = 'none'; void txtEl.offsetWidth; txtEl.style.animation = '';
+    nameEl.textContent = '— ' + t.nombre + ' ' + '★'.repeat(t.estrellas || 5);
+    nameEl.style.animation = 'none'; void nameEl.offsetWidth; nameEl.style.animation = '';
+    dotsEl.innerHTML = orden.map((_,i) => `<span class="${i===idx?'on':''}"></span>`).join('');
+  };
+  paint();
+  testiTimer = setInterval(() => { idx = (idx + 1) % orden.length; paint(); }, 2000);
+}
 
 function renderCarreraPage(){
+  stopTestimonios();
   screenCarrera.innerHTML = STEPS[currentStep - 1](CARRERAS[currentIndex]);
+  if(currentStep === 3) startTestimonios();
 }
 function goToCarrera(i, step){
   currentIndex = i; currentStep = step || 1;
@@ -333,6 +388,7 @@ function stepSub(delta){
   history.pushState({page:'carrera', i:currentIndex, step:currentStep}, '', '#' + CARRERAS[currentIndex].cod.toLowerCase() + '/' + currentStep);
 }
 function goHome(){
+  stopTestimonios();
   showScreen(screenHome);
   history.pushState({page:'home'}, '', '#');
 }
