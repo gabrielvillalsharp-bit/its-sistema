@@ -151,7 +151,7 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
     <div class="hero">
       <img src="/logo.png" alt="Logo ITS Santísima Trinidad" class="hero-logo"/>
       <div class="eyebrow">Instituto Técnico Superior · Santísima Trinidad</div>
-      <h1>Tu carrera empieza<br><em>cuando cae el sol.</em></h1>
+      <h1>El futuro está lleno<br><em>de oportunidades</em> para quienes hoy deciden formarse.</h1>
       <p>9 carreras técnicas, turno nocturno, para quien ya trabaja de día. Tocá una carrera para conocerla.</p>
     </div>
     <div class="grid-label">— elegí tu carrera —</div>
@@ -179,7 +179,7 @@ const CARRERAS = [
     objetivo:'Formar técnicos capaces de llevar la contabilidad completa de una empresa o emprendimiento, con criterio impositivo y financiero actualizado.',
     salida:['Estudios contables y de auditoría','Departamentos de administración de empresas','Cooperativas y comercios de la zona','Emprendimiento propio: asesoría contable a PyMEs'],
     hook:'No existe una empresa sin contabilidad: es el título con salida laboral más inmediata, y desde 2° año ya se puede empezar a hacer changas contables por cuenta propia.' },
-  { cod:'COS', nombre:'Cosmiatría', dias:'Martes, Miércoles y Jueves', cuota:'300.000',
+  { cod:'COS', nombre:'Cosmiatría', dias:'Martes, Miércoles y Jueves', cuota:'300.000', duracion:'3 años',
     materias:['Anatomía y Fisiología Humana','Biología de la Piel I / II','Técnicas Faciales'],
     perfil:'Un especialista en tratamientos faciales y corporales, cuidado de la piel y estética integral, con base científica en dermatología aplicada.',
     objetivo:'Formar técnicos capaces de evaluar y aplicar tratamientos estéticos faciales y corporales con criterio dermatológico y seguridad clínica.',
@@ -257,12 +257,12 @@ function tile(id, ico, title, bodyHtml){
       <div class="tile-body-inner">${bodyHtml}</div>
     </div>`;
 }
-const UBICACION_URL = 'https://maps.app.goo.gl/vhozKXoCTdvDagX19';
+const UBICACION_URL = 'https://maps.app.goo.gl/c8SHWh4FvuiBLBN89?g_st=aw';
 
 function renderStep1(c){ // Descripción + Objetivo
   return `
     ${topbar(c,1)}
-    <div class="kicker">Técnico Superior · 2 años · Nocturno</div>
+    <div class="kicker">Técnico Superior · ${c.duracion||'2 años'} · Nocturno</div>
     <h2 class="carrera-name">${c.nombre}</h2>
     ${dots(1)}
     ${tile('desc','📖','Descripción de la carrera', `<p style="margin:0">${c.perfil}</p>`)}
@@ -281,7 +281,7 @@ function renderStep2(c){ // Salida laboral + Horarios
     ${dots(2)}
     ${tile('sal','💼','Salida laboral', c.salida.map(s=>`<div class="salida-li">${s}</div>`).join(''))}
     ${tile('hor','🕐','Horarios y duración', `
-      <div class="stat-row"><span>Duración</span><b>2 años</b></div>
+      <div class="stat-row"><span>Duración</span><b>${c.duracion||'2 años'}</b></div>
       <div class="stat-row"><span>Turno</span><b>19:00 a 22:00 hs</b></div>
       <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>
       <div class="stat-row"><span>Inicio de clases</span><b>10 de agosto</b></div>`)}
