@@ -3069,36 +3069,11 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
     if (tpSum > 20) {
       return res.status(400).json({ error: `La suma de TPs (${tpSum}pts) supera el máximo permitido de 20 puntos. Corrija los valores.` });
     }
-    // Bloquear nota final si el alumno tiene cuotas pendientes sin compromiso activo (solo docente)
-    // EXCEPTO si esa materia+examen específico ya fue habilitado por pago de arancel (habilitaciones_examen)
-    // o el alumno tiene la excepción global del director (habilitado_pago_pendiente).
-    if (req.user.rol !== 'director') {
-      const campoTipoMap = { final_ord:'final_ord', final_recuperatorio:'final_recuperatorio', complementario:'complementario', extraordinario:'extraordinario' };
-      const camposFinalesConValor = Object.keys(campoTipoMap).filter(c => req.body[c] !== undefined && req.body[c] !== '' && req.body[c] !== null);
-      if (camposFinalesConValor.length) {
-        const alPago = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
-        if (alPago) {
-          const cuotasEst = calcCuotasEstado(alPago);
-          const tieneDeuda = cuotasEst.some(cu => cu.diferencia > 0);
-          if (tieneDeuda && !alPago.habilitado_pago_pendiente) {
-            const compActivo = db.prepare("SELECT id FROM compromisos_pago WHERE alumno_id=? AND estado='pendiente' LIMIT 1").get(req.params.alumno_id);
-            if (!compActivo) {
-              // Un campo está exceptuado del bloqueo si tiene su propia habilitación por pago de arancel para esta asignación
-              const campoSinHabilitar = camposFinalesConValor.find(c => {
-                const hab = db.prepare('SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=? AND habilitado=1 LIMIT 1').get(req.params.alumno_id, req.params.asig_id, campoTipoMap[c]);
-                return !hab;
-              });
-              if (campoSinHabilitar) return res.status(403).json({ error: 'El alumno tiene cuotas pendientes. El director debe crear un compromiso de pago activo, o habilitar esta materia con el pago del arancel del examen.' });
-            }
-          }
-        }
-      }
-    }
-    // Validar habilitación para recuperatorio (director puede siempre)
-    if (req.user.rol !== 'director' && vals[6] !== null) {
-      const hab = db.prepare(`SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND habilitado=1 AND (habilitado_recuperatorio=1 OR tipo_examen='parcial_recuperatorio') LIMIT 1`).get(req.params.alumno_id, req.params.asig_id);
-      if (!hab) return res.status(403).json({ error: 'El alumno no está habilitado para el recuperatorio en esta materia' });
-    }
+    // NOTA: el docente ya no queda bloqueado por falta de pago del alumno (cuotas o
+    // arancel de examen) -- la grilla de carga de notas está siempre desbloqueada.
+    // La habilitación por pago sigue existiendo igual que antes (habilitaciones_examen,
+    // compromisos_pago, etc.) pero ahora solo controla si el ALUMNO puede VER su nota
+    // (ver GET /api/notas/alumno/:alumno_id), no si el docente puede cargarla.
     const { calcularPuntaje } = require('./db');
     // vals[0..10] = tp1..extraordinario, vals[12] = director_pts
     const nota = calcularPuntaje(...vals.slice(0,11), vals[12]);
@@ -3272,6 +3247,15 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
       if (campoConValor) {
         row = { ...row, final_ord: null, final_recuperatorio: null, complementario: null, extraordinario: null,
           puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', mora_mensualidad_pendiente: true };
+      }
+    }
+    // Recuperatorio de parcial: el docente ya puede cargarlo sin habilitación, pero el
+    // alumno solo lo ve si pagó el arancel del recuperatorio (misma condición que antes
+    // bloqueaba al docente, ahora se aplica del lado de la visualización).
+    if (row.parcial_recuperatorio !== null && row.parcial_recuperatorio !== undefined) {
+      const habRec = db.prepare(`SELECT 1 FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND habilitado=1 AND (habilitado_recuperatorio=1 OR tipo_examen='parcial_recuperatorio') LIMIT 1`).get(req.params.alumno_id, row.asignacion_id);
+      if (!habRec) {
+        row = { ...row, parcial_recuperatorio: null, parcial_efectivo: null, puntaje_total: null, nota_final: null, estado: 'Pendiente de pago', pago_recuperatorio_pendiente: true };
       }
     }
     return row;
@@ -3836,6 +3820,7 @@ app.get('/api/examenes', auth(), (req, res) => {
   if (req.user.rol === 'docente') {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
+    where += " AND e.tipo NOT IN ('Recuperatorio','final_recuperatorio','Final Recuperatorio')";
   }
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
@@ -4454,6 +4439,7 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
   if (req.user.rol === 'docente' && !docente_id) {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
+    where += " AND e.tipo NOT IN ('Recuperatorio','final_recuperatorio','Final Recuperatorio')";
   }
   res.json(db.prepare(`
     SELECT e.*,

@@ -12431,11 +12431,14 @@ W.loadNotas=async(asigId,_tipo)=>{
     const esArancelHab=(tipo)=>tiposHab.includes(tipo);
     const disabledBase=ausente;
     const disabledParcialOrd=ausente||(me.rol==='docente'&&W._parcialBloqueado);
-    const disabledFinalOrd=ausente||!esArancelHab('final_ord');
-    const disabledFinalRec=ausente||!esArancelHab('final_recuperatorio');
-    const disabledComplem=ausente||!esArancelHab('complementario');
-    const disabledExtraord=ausente||!esArancelHab('extraordinario');
-    const disabledParcialRec=ausente||!a.hab_recuperatorio;
+    // Ya no se bloquea la carga de notas por falta de pago del arancel de examen --
+    // el docente siempre puede cargar la nota; la habilitación solo controla si el
+    // alumno puede VER esa nota (ver GET /api/notas/alumno/:alumno_id en el backend).
+    const disabledFinalOrd=ausente;
+    const disabledFinalRec=ausente;
+    const disabledComplem=ausente;
+    const disabledExtraord=ausente;
+    const disabledParcialRec=ausente;
     const cuotasFalt=hab?.cuotas_faltantes||[];
     const isEven=idx%2===0;
     const rowBase=ausente?'#fff1f2':bloqueado?'#fffbf0':isEven?'#ffffff':'#f8fafc';
