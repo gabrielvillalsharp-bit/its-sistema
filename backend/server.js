@@ -1741,6 +1741,16 @@ try {
   unificarAlumnos2('a_1778460281546_zyf', 'a_1778446683848_4as', 'Martinez Ribas, Rene Matias (conservado en Farmacia 1°)');
 } catch(e) { console.warn('[Migración] Unificar duplicados (decisión director):', e.message); }
 
+// ── MIGRACIÓN: Nuevas materias Electricidad Industrial — Instalación y Seguridad ──
+try {
+  const insMateria = db.prepare(`INSERT OR IGNORE INTO materias
+    (id, carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, docente_id)
+    VALUES (?, 'elec', ?, ?, 4, 2, 25, 25, 50, 'doc_mareco')`);
+  insMateria.run('m_elc_206', 'Instalación Eléctrica', 'ELC-206');
+  insMateria.run('m_elc_207', 'Seguridad Eléctrica',   'ELC-207');
+  console.log('[Migración] Materias Instalación y Seguridad Eléctrica creadas ✓');
+} catch(e) { console.warn('[Migración] Materias Electricidad nuevas:', e.message); }
+
 // ── MIGRACIÓN: sistema de sedes ───────────────────────────────────────────────
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS sedes (
