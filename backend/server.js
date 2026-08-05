@@ -1063,6 +1063,59 @@ try {
   }
 } catch(e) { console.warn('[Migración] restaurar parcial perdido:', e.message); }
 
+// Restaurar notas perdidas detectadas en audit log 2026-07-30
+try {
+  const yaAplicada3 = db.prepare("SELECT valor FROM configuracion WHERE clave='migracion_restaurar_notas_audit_2026_07_30'").get();
+  if (!yaAplicada3) {
+    const restauraciones = [
+      // Introducción a la Criminalística
+      { alumno_id:'a_1780531203780',       asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp1', valor:1  },
+      { alumno_id:'a_1778458751472_vp3',   asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp2', valor:1  },
+      { alumno_id:'a_1778458751737_qrf',   asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp1', valor:10 },
+      { alumno_id:'a_1778458751737_qrf',   asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp2', valor:10 },
+      { alumno_id:'a_1778458752523_ast',   asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp1', valor:10 },
+      { alumno_id:'a_1778458752523_ast',   asig_id:'asig_doc_dominguez_CRM_104_crim_1u', campo:'tp2', valor:10 },
+      // Accidentología Vial
+      { alumno_id:'a_1780357719071',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp2', valor:5  },
+      { alumno_id:'a_1780357719071',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp3', valor:5  },
+      { alumno_id:'a_1780357719071',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp4', valor:5  },
+      { alumno_id:'a_1778443319662_d9r',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp1', valor:5  },
+      { alumno_id:'a_1778443319662_d9r',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp2', valor:5  },
+      { alumno_id:'a_1778443319662_d9r',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp3', valor:5  },
+      { alumno_id:'a_1778443319798_vzc',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp1', valor:5  },
+      { alumno_id:'a_1778443319798_vzc',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp2', valor:5  },
+      { alumno_id:'a_1778443319798_vzc',   asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp3', valor:5  },
+      { alumno_id:'a_1780357683909',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp1', valor:5  },
+      { alumno_id:'a_1780357683909',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp2', valor:5  },
+      { alumno_id:'a_1780357683909',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp3', valor:5  },
+      { alumno_id:'a_1780357683909',       asig_id:'asig_doc_dominguez_CRM_201_crim_2u', campo:'tp4', valor:5  },
+      // Biología de la Piel
+      { alumno_id:'a_imp_121_wfdu',        asig_id:'asig_cos102_cosA_1b',                campo:'final_ord', valor:31 },
+      { alumno_id:'a_1778617162473_ger',   asig_id:'asig_cos102_cosA_1b',                campo:'parcial',   valor:18 },
+      // Lengua Extranjera – Inglés
+      { alumno_id:'a_1778446682734_lce',   asig_id:'asig_doc_jimenez_FAR_203_farm_2u',   campo:'tp4', valor:4  },
+      { alumno_id:'a_1778446683571_30r',   asig_id:'asig_doc_jimenez_FAR_203_farm_2u',   campo:'tp4', valor:4  },
+      // Dermatología Básica
+      { alumno_id:'a_1778617161902_jwx',   asig_id:'asig_cos107_1b',                     campo:'parcial',   valor:18 },
+      // Anatomía y Fisiología Humana
+      { alumno_id:'a_1778460587396_kh0',   asig_id:'asig_doc_rojas_IQ_101_instr_1u',     campo:'final_ord', valor:50 },
+    ];
+    const stmt = db.prepare("UPDATE notas SET {campo}=? WHERE alumno_id=? AND asignacion_id=? AND {campo} IS NULL");
+    let aplicados3 = 0, salteados3 = 0;
+    const tx3 = db.transaction(() => {
+      for (const r of restauraciones) {
+        const sql = `UPDATE notas SET ${r.campo}=? WHERE alumno_id=? AND asignacion_id=? AND ${r.campo} IS NULL`;
+        const res = db.prepare(sql).run(r.valor, r.alumno_id, r.asig_id);
+        if (res.changes > 0) aplicados3++; else salteados3++;
+      }
+    });
+    tx3();
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)")
+      .run('migracion_restaurar_notas_audit_2026_07_30', '1', `Restauro ${aplicados3} notas perdidas del audit log 2026-07-30 (${salteados3} ya tenian valor o no encontradas)`);
+    console.log(`[Migración] Restauradas ${aplicados3} notas perdidas detectadas en audit log 2026-07-30 (${salteados3} sin cambio) ✓`);
+  }
+} catch(e) { console.warn('[Migración] restaurar notas audit 2026-07-30:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: Cambio de fecha examen Técnicas Faciales ─────────────
 // Cosmiatría 1er año Sección B (Raqueline Carballo) — 12/05/2026 → 19/05/2026
 try {
