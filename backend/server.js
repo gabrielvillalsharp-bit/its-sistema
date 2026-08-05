@@ -1063,6 +1063,16 @@ try {
   }
 } catch(e) { console.warn('[Migración] restaurar parcial perdido:', e.message); }
 
+// Restaurar final_ord=50 de Garcia Piris, Orlando Ramon (Anatomía y Fisiología Humana)
+// detectado en audit log 2026-07-21 18:41:21, confirmado NULL en snapshot 2026-08-05
+try {
+  if (!db.prepare("SELECT valor FROM configuracion WHERE clave='restaura_final_ord_garcia_piris_2026_07_21'").get()) {
+    const r = db.prepare("UPDATE notas SET final_ord=50 WHERE alumno_id='a_1778459611039_cqc' AND asignacion_id='asig_doc_rojas_FAR_101_farm_1u' AND final_ord IS NULL").run();
+    db.prepare("INSERT INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)").run('restaura_final_ord_garcia_piris_2026_07_21','1',`Restauro final_ord=50 de Garcia Piris Orlando Ramon (${r.changes} fila)`);
+    if (r.changes) console.log('[Migración] Restaurado final_ord=50 Garcia Piris, Orlando Ramon ✓');
+  }
+} catch(e) { console.warn('[Migración] restaurar Garcia Piris:', e.message); }
+
 // Restaurar notas perdidas detectadas en audit log 2026-07-30
 try {
   const yaAplicada3 = db.prepare("SELECT valor FROM configuracion WHERE clave='migracion_restaurar_notas_audit_2026_07_30'").get();

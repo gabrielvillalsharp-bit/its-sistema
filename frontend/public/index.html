@@ -12625,16 +12625,14 @@ W.updN=async(aId,asigId,campo,val)=>{
     }
   }
   W._nc[aId][campo]=val===''?null:Math.round(Number(val));
-  const n=W._nc[aId];
   try{
-    const r=await api('PUT',`/api/notas/${aId}/${asigId}`,{
-      tp1:n.tp1??'',tp2:n.tp2??'',tp3:n.tp3??'',tp4:n.tp4??'',tp5:n.tp5??'',
-      ...(me.rol!=='docente'?{parcial:n.parcial??''}:{}),
-      parcial_recuperatorio:n.parcial_recuperatorio??'',
-      final_ord:n.final_ord??'',final_recuperatorio:n.final_recuperatorio??'',
-      complementario:n.complementario??'',extraordinario:n.extraordinario??'',
-      director_pts:n.director_pts??''
-    });
+    // Solo mandamos el campo que cambió — el backend preserva los demás desde DB
+    // vía mergeCamposNota. Mandar todos los campos con el cache (posiblemente
+    // desactualizado) es la causa de pérdidas de nota: si el cache tiene null
+    // para final_ord (porque no había nota cuando se abrió la grilla) y otro
+    // usuario carga final_ord después, el próximo updN lo borra con final_ord:''.
+    const payload={[campo]:val===''?null:Math.round(Number(val))};
+    const r=await api('PUT',`/api/notas/${aId}/${asigId}`,payload);
     const tptot=document.getElementById('tptot-'+aId);
     const tot=document.getElementById('tot-'+aId);
     const nf=document.getElementById('nf-'+aId);
