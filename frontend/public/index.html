@@ -7183,29 +7183,16 @@ async function previewExcelFormulario(id, titulo){
     </div>
     <div class="mf">
       <button class="bs" onclick="cm()">Cancelar</button>
-      <button class="bn" onclick="descargarExcelFormulario('${id}','${(titulo||'').replace(/'/g,"\\'")}');cm()">⬇ Confirmar y descargar</button>
+      <button class="bn" onclick="descargarExcelFormulario('${id}');cm()">⬇ Confirmar y descargar</button>
     </div>`, true);
 }
-function descargarExcelFormulario(id, titulo){
-  api('GET','/api/formularios/'+id+'/respuestas').then(data=>{
-    const pregs=data.preguntas||[];
-    const resps=data.respuestas||[];
-    const esc=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
-    const header=['Fecha',...pregs.map(p=>p.texto_pregunta)].map(esc).join(',');
-    const rows=resps.map(r=>[
-      (r.fecha||'').slice(0,16),
-      ...pregs.map(p=>r.valores[p.id]||'')
-    ].map(esc).join(','));
-    const csv='﻿'+header+'\r\n'+rows.join('\r\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=(titulo||'formulario').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g,'_')+'_respuestas.csv';
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast('✓ Archivo descargado — abrilo con Excel','ok',3000);
-  }).catch(e=>toast('Error al descargar: '+e.message,'err'));
+function descargarExcelFormulario(id){
+  const token=localStorage.getItem('its_tk3');
+  const a=document.createElement('a');
+  a.href='/api/formularios/'+id+'/exportar-excel?token='+encodeURIComponent(token);
+  a.download='';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('✓ Descargando Excel...','ok',2500);
 }
 
 async function pgRepProgramas(el){

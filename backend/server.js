@@ -10406,6 +10406,39 @@ app.get('/api/formularios/:id/respuestas', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/formularios/:id/exportar-excel', auth(ADM), (req, res) => {
+  try {
+    const f = db.prepare('SELECT titulo FROM formularios WHERE id=?').get(req.params.id);
+    if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
+    const preguntas = db.prepare('SELECT id, texto_pregunta, orden FROM formulario_preguntas WHERE formulario_id=? ORDER BY orden').all(req.params.id);
+    const respuestas = db.prepare('SELECT id, fecha FROM formulario_respuestas WHERE formulario_id=? ORDER BY fecha DESC').all(req.params.id);
+    const valores = db.prepare(`
+      SELECT v.respuesta_id, v.pregunta_id, v.valor FROM formulario_respuesta_valores v
+      JOIN formulario_respuestas r ON v.respuesta_id=r.id WHERE r.formulario_id=?
+    `).all(req.params.id);
+    const porRespuesta = {};
+    valores.forEach(v => { (porRespuesta[v.respuesta_id]=porRespuesta[v.respuesta_id]||{})[v.pregunta_id]=v.valor; });
+    const header = ['Fecha', ...preguntas.map(p => p.texto_pregunta)];
+    const rows = respuestas.map(r => [
+      (r.fecha||'').slice(0,16),
+      ...preguntas.map(p => porRespuesta[r.id]?.[p.id] || '')
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    // Ancho de columnas automático
+    ws['!cols'] = header.map((h, i) => {
+      const maxLen = Math.max(h.length, ...rows.map(r => String(r[i]||'').length));
+      return { wch: Math.min(Math.max(maxLen + 2, 12), 50) };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Respuestas');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const nombre = (f.titulo||'formulario').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g,'_');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(nombre)}_respuestas.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── FORMULARIOS: acceso público (sin login) ───────────────────────────────────
 app.get('/pub/formularios/:id', (req, res) => {
   const f = db.prepare('SELECT id, titulo, descripcion, activo FROM formularios WHERE id=?').get(req.params.id);
