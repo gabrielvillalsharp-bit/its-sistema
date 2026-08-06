@@ -6993,6 +6993,7 @@ async function cargarFormularios(){
       <div class="form-card-foot">
         <button class="form-act primary" onclick="mEditarPreguntas('${f.id}')">✏️ Preguntas</button>
         <button class="form-act blue" onclick="verRespuestasFormulario('${f.id}')">📊 Respuestas</button>
+        <button class="form-act" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0" onclick="previewExcelFormulario('${f.id}','${(f.titulo||'').replace(/'/g,"\\'")}')" title="Descargar datos en Excel">⬇ Excel</button>
         <button class="form-act" onclick="copiarLinkFormulario('${f.id}')">📋 Link</button>
         <button class="form-act" onclick="window.open('/formulario/${f.id}','_blank')" title="Abrir formulario">🔗</button>
         <button class="form-act" onclick="toggleActivoFormulario('${f.id}',${f.activo?0:1})" title="${f.activo?'Pausar':'Reactivar'}">${f.activo?'⏸':'▶'}</button>
@@ -7095,6 +7096,84 @@ async function verRespuestasFormulario(id){
     <tbody>${data.respuestas.map(r=>`<tr><td style="font-size:11px;white-space:nowrap;color:#64748b">${(r.fecha||'').slice(0,16)}</td>${data.preguntas.map(p=>`<td style="font-size:12px">${r.valores[p.id]||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></div>`;
   modal(`<h4>📊 Respuestas (${data.respuestas.length})</h4>${tabla}<div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`, true);
+}
+
+async function previewExcelFormulario(id, titulo){
+  let data;
+  try{ data=await api('GET','/api/formularios/'+id+'/respuestas'); }
+  catch(e){ toast('Error al cargar respuestas: '+e.message,'err'); return; }
+
+  if(!data.preguntas.length){
+    modal(`<h4>⬇ Descargar Excel — ${titulo}</h4>
+      <div class="es" style="margin:16px 0">Este formulario todavía no tiene preguntas.</div>
+      <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+    return;
+  }
+  if(!data.respuestas.length){
+    modal(`<h4>⬇ Descargar Excel — ${titulo}</h4>
+      <div class="es" style="margin:16px 0">No hay respuestas todavía para este formulario.</div>
+      <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
+    return;
+  }
+
+  const pregs=data.preguntas;
+  const resps=data.respuestas;
+  const PREVIEW=Math.min(5,resps.length);
+
+  const thCols=pregs.map(p=>`<th style="background:#f0fdf4;color:#166534;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${p.texto_pregunta}">${p.texto_pregunta.length>28?p.texto_pregunta.slice(0,26)+'…':p.texto_pregunta}</th>`).join('');
+  const trRows=resps.slice(0,PREVIEW).map((r,i)=>`<tr style="${i%2?'background:#f8fafc':''}">
+    <td style="font-size:11px;color:var(--t3);white-space:nowrap">${(r.fecha||'').slice(0,16)}</td>
+    ${pregs.map(p=>`<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.valores[p.id]||'').replace(/"/g,'&quot;')}">${r.valores[p.id]||'—'}</td>`).join('')}
+  </tr>`).join('');
+  const masRows=resps.length>PREVIEW?`<tr><td colspan="${pregs.length+1}" style="text-align:center;font-size:12px;color:var(--t2);padding:10px;background:#fafaf8;font-style:italic">… y ${resps.length-PREVIEW} respuesta${resps.length-PREVIEW!==1?'s':''} más en el archivo</td></tr>`:'';
+
+  modal(`<h4>⬇ Descargar datos en Excel</h4>
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--txt);margin-bottom:2px">${titulo}</div>
+      <div style="font-size:12px;color:var(--t2)">
+        <span style="background:#f0fdf4;color:#166534;font-weight:700;padding:2px 8px;border-radius:6px;margin-right:8px">${resps.length} respuesta${resps.length!==1?'s':''}</span>
+        <span style="background:#f1f5f9;color:var(--t2);font-weight:700;padding:2px 8px;border-radius:6px">${pregs.length} columna${pregs.length!==1?'s':''}</span>
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:8px">
+      Vista previa — primeras ${PREVIEW} filas
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--bdr);border-radius:10px;margin-bottom:16px">
+      <table class="tbl" style="min-width:100%">
+        <thead><tr>
+          <th style="background:#f0fdf4;color:#166534;white-space:nowrap">Fecha</th>${thCols}
+        </tr></thead>
+        <tbody>${trRows}${masRows}</tbody>
+      </table>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;font-size:12px;color:#166534;margin-bottom:16px">
+      ✓ El archivo incluirá <strong>todas las ${resps.length} respuestas</strong> en formato CSV compatible con Excel (UTF-8).
+    </div>
+    <div class="mf">
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="descargarExcelFormulario('${id}','${(titulo||'').replace(/'/g,"\\'")}');cm()">⬇ Confirmar y descargar</button>
+    </div>`, true);
+}
+function descargarExcelFormulario(id, titulo){
+  api('GET','/api/formularios/'+id+'/respuestas').then(data=>{
+    const pregs=data.preguntas||[];
+    const resps=data.respuestas||[];
+    const esc=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+    const header=['Fecha',...pregs.map(p=>p.texto_pregunta)].map(esc).join(',');
+    const rows=resps.map(r=>[
+      (r.fecha||'').slice(0,16),
+      ...pregs.map(p=>r.valores[p.id]||'')
+    ].map(esc).join(','));
+    const csv='﻿'+header+'\r\n'+rows.join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=(titulo||'formulario').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g,'_')+'_respuestas.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast('✓ Archivo descargado — abrilo con Excel','ok',3000);
+  }).catch(e=>toast('Error al descargar: '+e.message,'err'));
 }
 
 async function pgRepProgramas(el){
