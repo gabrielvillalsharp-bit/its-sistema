@@ -10254,6 +10254,16 @@ app.post('/api/documento-carpetas', auth(ADM), (req, res) => {
     res.json({ id, ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+app.put('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
+  const { nombre } = req.body;
+  if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'Nombre requerido' });
+  try {
+    const r = db.prepare('UPDATE documento_carpetas SET nombre=? WHERE id=?').run(nombre.trim(), req.params.id);
+    if (!r.changes) return res.status(404).json({ error: 'Carpeta no encontrada' });
+    audit(req.user.id, 'RENOMBRAR_CARPETA_DOCUMENTOS', 'documento_carpetas', req.params.id, { nombre });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
   try {
     const enUso = db.prepare('SELECT COUNT(*) n FROM documentos WHERE carpeta_id=?').get(req.params.id).n;
