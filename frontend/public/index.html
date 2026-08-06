@@ -6706,10 +6706,13 @@ async function pgDocumentos(el){
     .doc-card-name{font-size:12.5px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
     .doc-card-meta{font-size:11px;color:var(--t3)}
     .doc-card-desc{font-size:11px;color:var(--t2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .doc-card-foot{padding:8px 12px;border-top:1px solid var(--bdr);background:#fafaf8;display:flex;gap:5px}
-    .doc-cact{flex:1;padding:5px 4px;text-align:center;font-size:11px;font-weight:600;color:var(--t2);border:none;background:none;cursor:pointer;border-radius:7px;transition:background .12s,color .12s;font-family:inherit}
-    .doc-cact:hover{background:var(--bdr);color:var(--txt)}
-    .doc-cact.del:hover{background:#fee2e2;color:#dc2626}
+    .doc-card-foot{padding:9px 11px;border-top:1px solid var(--bdr);background:#fafaf8;display:flex;align-items:center;gap:5px}
+    .doc-icobtn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--bdr);background:#fff;cursor:pointer;font-size:14px;flex-shrink:0;transition:background .12s,border-color .12s,transform .1s;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+    .doc-icobtn:hover{background:#f0fdf4;border-color:#86efac;transform:scale(1.08)}
+    .doc-icobtn.del:hover{background:#fee2e2;border-color:#fca5a5}
+    .doc-icobtn.down:hover{background:#eff6ff;border-color:#bfdbfe}
+    .doc-mover{flex:1;font-size:11px;padding:0 6px;height:30px;border:1px solid var(--bdr);border-radius:8px;background:#fff;color:var(--t2);min-width:0;cursor:pointer;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,.06);transition:border-color .12s}
+    .doc-mover:hover{border-color:#86efac}
     .dct-pdf{background:#fff1f2}.dct-doc{background:#eff6ff}.dct-xls{background:#f0fdf4}.dct-ppt{background:#fff7ed}.dct-img{background:#fdf4ff}.dct-zip{background:#fafaf9}.dct-def{background:#f8fafc}
     .dcb-pdf{background:#fee2e2;color:#b91c1c}.dcb-doc{background:#dbeafe;color:#1d4ed8}.dcb-xls{background:#dcfce7;color:#166534}.dcb-ppt{background:#ffedd5;color:#c2410c}.dcb-img{background:#f3e8ff;color:#7e22ce}.dcb-zip{background:#e7e5e4;color:#57534e}.dcb-def{background:#f1f5f9;color:#475569}
     @media(max-width:640px){.doc-wrap{flex-direction:column;height:auto}.doc-side{width:100%;border-right:none;border-bottom:1px solid var(--bdr)}.doc-dropzone{flex-direction:column;text-align:center}.doc-dz-actions{width:100%}.doc-dz-btn-w{width:100%}}
@@ -6877,14 +6880,14 @@ function docRenderGrid(docs){
         ${d.descripcion?`<div class="doc-card-desc" title="${d.descripcion}">${d.descripcion}</div>`:''}
       </div>
       <div class="doc-card-foot">
-        <button class="doc-cact" onclick="verDocumento('${d.id}','${t.cls}')">👁 Ver</button>
-        <button class="doc-cact" onclick="descargarDocumento('${d.id}')">⬇</button>
-        <select style="flex:1;font-size:11px;padding:4px 6px;border:1px solid var(--bdr);border-radius:7px;background:#fafaf8;color:var(--t2);min-width:0" onchange="moverDocumento('${d.id}',this.value);this.value=''">
-          <option value="">Mover...</option>
+        <button class="doc-icobtn" title="Ver archivo" onclick="verDocumento('${d.id}','${t.cls}')">👁</button>
+        <button class="doc-icobtn down" title="Descargar" onclick="descargarDocumento('${d.id}')">⬇</button>
+        <select class="doc-mover" title="Mover a carpeta" onchange="moverDocumento('${d.id}',this.value);this.value=''">
+          <option value="">📂 Mover...</option>
           <option value="__root__">Sin carpeta</option>
           ${carpetasOpts}
         </select>
-        <button class="doc-cact del" onclick="eliminarDocumento('${d.id}','${nom}')">🗑</button>
+        <button class="doc-icobtn del" title="Eliminar" onclick="eliminarDocumento('${d.id}','${nom}')">🗑</button>
       </div>
     </div>`;
   }).join('')}</div>`;
