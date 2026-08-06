@@ -10286,6 +10286,15 @@ app.get('/api/documentos/:id/descargar', auth(), (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(d.nombre_archivo)}"`);
   res.send(d.datos);
 });
+app.get('/api/documentos/:id/ver', auth(), (req, res) => {
+  const d = db.prepare('SELECT id,nombre_archivo,datos,mime_tipo FROM documentos WHERE id=?').get(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Documento no encontrado' });
+  const mime = d.mime_tipo || 'application/octet-stream';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(d.nombre_archivo)}"`);
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.send(d.datos);
+});
 app.put('/api/documentos/:id/mover', auth(ADM), (req, res) => {
   try {
     db.prepare('UPDATE documentos SET carpeta_id=? WHERE id=?').run(req.body.carpeta_id||null, req.params.id);

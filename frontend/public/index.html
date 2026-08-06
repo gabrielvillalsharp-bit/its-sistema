@@ -6877,7 +6877,8 @@ function docRenderGrid(docs){
         ${d.descripcion?`<div class="doc-card-desc" title="${d.descripcion}">${d.descripcion}</div>`:''}
       </div>
       <div class="doc-card-foot">
-        <button class="doc-cact" onclick="descargarDocumento('${d.id}')">⬇ Descargar</button>
+        <button class="doc-cact" onclick="verDocumento('${d.id}','${t.cls}')">👁 Ver</button>
+        <button class="doc-cact" onclick="descargarDocumento('${d.id}')">⬇</button>
         <select style="flex:1;font-size:11px;padding:4px 6px;border:1px solid var(--bdr);border-radius:7px;background:#fafaf8;color:var(--t2);min-width:0" onchange="moverDocumento('${d.id}',this.value);this.value=''">
           <option value="">Mover...</option>
           <option value="__root__">Sin carpeta</option>
@@ -6938,14 +6939,38 @@ function descargarDocumento(id){
   const token=localStorage.getItem('its_tk3');
   window.open('/api/documentos/'+id+'/descargar?token='+encodeURIComponent(token),'_blank');
 }
+function verDocumento(id, tipo){
+  const token=localStorage.getItem('its_tk3');
+  const url='/api/documentos/'+id+'/ver?token='+encodeURIComponent(token);
+  // PDF e imágenes: el browser los abre nativamente inline
+  if(['pdf','img'].includes(tipo)){
+    window.open(url,'_blank');
+    return;
+  }
+  // Word, Excel, PPT: Microsoft Office Online Viewer (URL pública de Railway)
+  // En local no tiene URL pública — mostramos aviso y ofrecemos descargar
+  const base=location.origin;
+  const isLocal=base.includes('localhost')||base.includes('127.0.0.1');
+  if(isLocal){
+    modal(`<h4>Vista previa no disponible en local</h4>
+      <p style="font-size:13px;color:var(--t2);margin:12px 0">Los archivos Word, Excel y PPT se previsualizan vía Microsoft Office Online, que requiere una URL pública.<br><br>En producción (Railway) funciona automáticamente.</p>
+      <div class="mf">
+        <button class="bs" onclick="cm()">Cancelar</button>
+        <button class="bn" onclick="cm();descargarDocumento('${id}')">⬇ Descargar</button>
+      </div>`);
+    return;
+  }
+  const pubUrl=base+url;
+  const viewerUrl='https://view.officeapps.live.com/op/view.aspx?src='+encodeURIComponent(pubUrl);
+  window.open(viewerUrl,'_blank');
+}
 
 // ── FORMULARIOS (tipo Google Forms) ───────────────────────────────────────────
 async function pgFormularios(el){
-  el.innerHTML=`<div class="ph"><h3>📝 Formularios</h3>
-    <button class="bn" onclick="mCrearFormulario()">➕ Nuevo formulario</button>
-  </div>
-  <style>
-    .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  if(!document.getElementById('form-styles')){
+    const s=document.createElement('style');
+    s.id='form-styles';
+    s.textContent=`.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
     .form-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:box-shadow .18s,border-color .18s,transform .18s}
     .form-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:#c5c3bd;transform:translateY(-1px)}
     .form-card-head{padding:14px 16px 12px;border-bottom:1px solid var(--bdr)}
@@ -6965,8 +6990,12 @@ async function pgFormularios(el){
     .form-act.del:hover{background:#fee2e2;color:#dc2626;border-color:#fca5a5}
     .form-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.01em}
     .form-badge.on{background:#dcfce7;color:#166534}
-    .form-badge.off{background:#f1f5f9;color:var(--t3)}
-  </style>
+    .form-badge.off{background:#f1f5f9;color:var(--t3)}`;
+    document.head.appendChild(s);
+  }
+  el.innerHTML=`<div class="ph"><h3>📝 Formularios</h3>
+    <button class="bn" onclick="mCrearFormulario()">➕ Nuevo formulario</button>
+  </div>
   <div id="formLista"><div class="es">Cargando...</div></div>`;
   await cargarFormularios();
 }
