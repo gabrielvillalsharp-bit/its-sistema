@@ -10264,6 +10264,107 @@ app.put('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+// Descargar carpeta completa como ZIP (Node built-in zlib, sin dependencias externas)
+app.get('/api/documento-carpetas/:id/descargar', auth(), (req, res) => {
+  try {
+    const carpeta = db.prepare('SELECT * FROM documento_carpetas WHERE id=?').get(req.params.id);
+    if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
+    const docs = db.prepare('SELECT nombre_archivo, datos, mime_tipo FROM documentos WHERE carpeta_id=?').all(req.params.id);
+    if (!docs.length) return res.status(404).json({ error: 'La carpeta está vacía' });
+
+    const zlib = require('zlib');
+
+    // Construir ZIP en memoria (formato PKZIP, deflate por archivo)
+    const parts = [];
+    const centralDir = [];
+    let offset = 0;
+
+    // Evitar nombres duplicados
+    const usados = {};
+    for (const doc of docs) {
+      let nombre = doc.nombre_archivo || 'archivo';
+      if (usados[nombre]) { const ext = nombre.lastIndexOf('.'); usados[nombre]++; nombre = ext>=0 ? nombre.slice(0,ext)+'_'+usados[nombre]+nombre.slice(ext) : nombre+'_'+usados[nombre]; } else usados[nombre] = 1;
+
+      const data   = Buffer.isBuffer(doc.datos) ? doc.datos : Buffer.from(doc.datos);
+      const compr  = zlib.deflateRawSync(data, { level: 6 });
+      const useCompr = compr.length < data.length;
+      const fileData = useCompr ? compr : data;
+      const method   = useCompr ? 8 : 0;  // 8=deflate, 0=stored
+
+      // CRC-32
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < data.length; i++) {
+        crc ^= data[i];
+        for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+      }
+      crc = (crc ^ 0xFFFFFFFF) >>> 0;
+
+      const nameBytes = Buffer.from(nombre, 'utf8');
+      const now = new Date();
+      const dosDate = ((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+      const dosTime = (now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1);
+
+      // Local file header
+      const localHeader = Buffer.alloc(30 + nameBytes.length);
+      localHeader.writeUInt32LE(0x04034b50, 0);   // signature
+      localHeader.writeUInt16LE(20, 4);             // version needed
+      localHeader.writeUInt16LE(0x800, 6);          // flags (UTF-8)
+      localHeader.writeUInt16LE(method, 8);
+      localHeader.writeUInt16LE(dosTime, 10);
+      localHeader.writeUInt16LE(dosDate, 12);
+      localHeader.writeUInt32LE(crc, 14);
+      localHeader.writeUInt32LE(fileData.length, 18);
+      localHeader.writeUInt32LE(data.length, 22);
+      localHeader.writeUInt16LE(nameBytes.length, 26);
+      localHeader.writeUInt16LE(0, 28);
+      nameBytes.copy(localHeader, 30);
+
+      parts.push(localHeader, fileData);
+
+      // Central directory entry
+      const cdEntry = Buffer.alloc(46 + nameBytes.length);
+      cdEntry.writeUInt32LE(0x02014b50, 0);  // signature
+      cdEntry.writeUInt16LE(20, 4);           // version made by
+      cdEntry.writeUInt16LE(20, 6);           // version needed
+      cdEntry.writeUInt16LE(0x800, 8);        // flags
+      cdEntry.writeUInt16LE(method, 10);
+      cdEntry.writeUInt16LE(dosTime, 12);
+      cdEntry.writeUInt16LE(dosDate, 14);
+      cdEntry.writeUInt32LE(crc, 16);
+      cdEntry.writeUInt32LE(fileData.length, 20);
+      cdEntry.writeUInt32LE(data.length, 24);
+      cdEntry.writeUInt16LE(nameBytes.length, 28);
+      cdEntry.writeUInt16LE(0, 30);  // extra
+      cdEntry.writeUInt16LE(0, 32);  // comment
+      cdEntry.writeUInt16LE(0, 34);  // disk start
+      cdEntry.writeUInt16LE(0, 36);  // int attrib
+      cdEntry.writeUInt32LE(0, 38);  // ext attrib
+      cdEntry.writeUInt32LE(offset, 42);  // local header offset
+      nameBytes.copy(cdEntry, 46);
+      centralDir.push(cdEntry);
+
+      offset += localHeader.length + fileData.length;
+    }
+
+    const cdBuffer = Buffer.concat(centralDir);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(0, 4);
+    eocd.writeUInt16LE(0, 6);
+    eocd.writeUInt16LE(centralDir.length, 8);
+    eocd.writeUInt16LE(centralDir.length, 10);
+    eocd.writeUInt32LE(cdBuffer.length, 12);
+    eocd.writeUInt32LE(offset, 16);
+    eocd.writeUInt16LE(0, 20);
+
+    const zip = Buffer.concat([...parts, cdBuffer, eocd]);
+    const nombreZip = (carpeta.nombre || 'carpeta').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g, '_');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(nombreZip)}.zip"`);
+    audit(req.user.id, 'DESCARGAR_CARPETA_ZIP', 'documento_carpetas', req.params.id, { nombre: carpeta.nombre, archivos: docs.length });
+    res.send(zip);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
   try {
     const enUso = db.prepare('SELECT COUNT(*) n FROM documentos WHERE carpeta_id=?').get(req.params.id).n;

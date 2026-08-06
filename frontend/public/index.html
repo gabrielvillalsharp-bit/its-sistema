@@ -6678,6 +6678,9 @@ async function pgDocumentos(el){
     .doc-fi-ren{opacity:0;padding:3px 5px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:13px;border-radius:5px;transition:opacity .12s,background .12s;flex-shrink:0}
     .doc-fi:hover .doc-fi-ren{opacity:1}
     .doc-fi-ren:hover{background:#f0f9ff;color:#0284c7}
+    .doc-fi-zip{opacity:0;padding:3px 5px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:13px;border-radius:5px;transition:opacity .12s,background .12s;flex-shrink:0}
+    .doc-fi:hover .doc-fi-zip{opacity:1}
+    .doc-fi-zip:hover{background:#f0fdf4;color:#166534}
     .doc-new-folder{padding:8px 8px 12px;border-top:1px solid var(--bdr)}
     .doc-new-folder button{width:100%;padding:8px;background:none;border:1.5px dashed var(--bdr);border-radius:10px;color:var(--t3);font-size:12.5px;cursor:pointer;transition:border-color .12s,color .12s}
     .doc-new-folder button:hover{border-color:#166534;color:#166534}
@@ -6799,6 +6802,7 @@ async function cargarCarpetasDocumentos(){
       <div class="doc-fi-ico">📁</div>
       <span class="doc-fi-name">${c.nombre}</span>
       <span class="doc-fi-count">${c.total_archivos||0}</span>
+      <button class="doc-fi-zip" title="Descargar carpeta completa" onclick="event.stopPropagation();descargarCarpetaZip('${c.id}','${nom}')">⬇️</button>
       <button class="doc-fi-ren" title="Renombrar carpeta" onclick="event.stopPropagation();renombrarCarpetaDocumentos('${c.id}','${nom}')">✏️</button>
       <button class="doc-fi-del" title="Eliminar carpeta" onclick="event.stopPropagation();eliminarCarpetaDocumentos('${c.id}','${nom}')">🗑</button>
     </div>`;
@@ -6827,6 +6831,14 @@ async function crearCarpetaDocumentos(){
     cm(); toast('✓ Carpeta creada','ok');
     await cargarCarpetasDocumentos();
   }catch(e){ toast('Error: '+e.message,'err'); }
+}
+function descargarCarpetaZip(id,nombre){
+  const token=localStorage.getItem('its_tk3');
+  const a=document.createElement('a');
+  a.href='/api/documento-carpetas/'+id+'/descargar?token='+encodeURIComponent(token);
+  a.download='';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('⬇ Preparando ZIP…','ok',3000);
 }
 async function renombrarCarpetaDocumentos(id,nombreActual){
   const nuevo=prompt('Nuevo nombre para la carpeta:',nombreActual);
