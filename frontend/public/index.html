@@ -6944,6 +6944,29 @@ async function pgFormularios(el){
   el.innerHTML=`<div class="ph"><h3>📝 Formularios</h3>
     <button class="bn" onclick="mCrearFormulario()">➕ Nuevo formulario</button>
   </div>
+  <style>
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+    .form-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:box-shadow .18s,border-color .18s,transform .18s}
+    .form-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:#c5c3bd;transform:translateY(-1px)}
+    .form-card-head{padding:14px 16px 12px;border-bottom:1px solid var(--bdr)}
+    .form-card-title{font-size:14px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.3}
+    .form-card-desc{font-size:12px;color:var(--t2);margin-top:5px;line-height:1.5}
+    .form-card-meta{padding:10px 16px;display:flex;align-items:center;gap:10px;background:#fafaf8;border-bottom:1px solid var(--bdr)}
+    .form-stat{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2)}
+    .form-stat strong{color:var(--txt);font-weight:700}
+    .form-card-foot{padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .form-act{padding:6px 11px;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid var(--bdr);background:#fff;color:var(--t2);transition:all .12s;font-family:inherit;white-space:nowrap}
+    .form-act:hover{background:#f5f4f0;color:var(--txt);border-color:#c5c3bd}
+    .form-act.primary{background:linear-gradient(110deg,#1f8246,#166534);color:#fff;border-color:transparent;box-shadow:0 2px 6px rgba(22,101,52,.2)}
+    .form-act.primary:hover{opacity:.9}
+    .form-act.blue{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+    .form-act.blue:hover{background:#dbeafe}
+    .form-act.del{margin-left:auto}
+    .form-act.del:hover{background:#fee2e2;color:#dc2626;border-color:#fca5a5}
+    .form-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.01em}
+    .form-badge.on{background:#dcfce7;color:#166534}
+    .form-badge.off{background:#f1f5f9;color:var(--t3)}
+  </style>
   <div id="formLista"><div class="es">Cargando...</div></div>`;
   await cargarFormularios();
 }
@@ -6952,24 +6975,31 @@ async function cargarFormularios(){
   if(!cont)return;
   let forms=[];
   try{ forms=await api('GET','/api/formularios'); }catch(e){ cont.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`; return; }
-  if(!forms.length){ cont.innerHTML='<div class="es">Todavía no creaste ningún formulario.</div>'; return; }
-  cont.innerHTML=forms.map(f=>`<div class="card" style="margin-bottom:10px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
-      <div>
-        <div style="font-weight:700;font-size:14px;color:#1e293b">${f.titulo} ${f.activo?'<span style="font-size:10px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px">Activo</span>':'<span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px">Inactivo</span>'}</div>
-        ${f.descripcion?`<div style="font-size:12px;color:#64748b;margin-top:3px">${f.descripcion}</div>`:''}
-        <div style="font-size:11px;color:#94a3b8;margin-top:4px">📊 ${f.total_respuestas} respuesta${f.total_respuestas!==1?'s':''} · Creado ${(f.fecha_creacion||'').slice(0,10)}</div>
+  if(!forms.length){ cont.innerHTML='<div class="es">Todavía no creaste ningún formulario.<br><button class="bn" style="margin-top:12px" onclick="mCrearFormulario()">➕ Crear el primero</button></div>'; return; }
+  cont.innerHTML=`<div class="form-grid">${forms.map(f=>{
+    const titulo=(f.titulo||'').replace(/'/g,"\\'");
+    return `<div class="form-card">
+      <div class="form-card-head">
+        <div class="form-card-title">
+          <span style="flex:1">${f.titulo}</span>
+          <span class="form-badge ${f.activo?'on':'off'}">${f.activo?'Activo':'Inactivo'}</span>
+        </div>
+        ${f.descripcion?`<div class="form-card-desc">${f.descripcion}</div>`:''}
       </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="bs" style="font-size:11px" onclick="copiarLinkFormulario('${f.id}')">📋 Copiar link</button>
-        <button class="bs" style="font-size:11px" onclick="window.open('/formulario/${f.id}','_blank')">🔗 Abrir</button>
-        <button class="bs" style="font-size:11px" onclick="mEditarPreguntas('${f.id}')">✏️ Preguntas</button>
-        <button class="bs" style="font-size:11px;background:#eff6ff;color:#1d4ed8" onclick="verRespuestasFormulario('${f.id}')">📊 Respuestas</button>
-        <button class="bs" style="font-size:11px" onclick="toggleActivoFormulario('${f.id}',${f.activo?0:1})">${f.activo?'⏸ Pausar':'▶ Reactivar'}</button>
-        <button class="bs d" style="font-size:11px" onclick="eliminarFormulario('${f.id}','${(f.titulo||'').replace(/'/g,"\\'")}')">🗑</button>
+      <div class="form-card-meta">
+        <div class="form-stat">📊 <strong>${f.total_respuestas}</strong> respuesta${f.total_respuestas!==1?'s':''}</div>
+        <div class="form-stat" style="margin-left:auto">🗓 ${(f.fecha_creacion||'').slice(0,10)}</div>
       </div>
-    </div>
-  </div>`).join('');
+      <div class="form-card-foot">
+        <button class="form-act primary" onclick="mEditarPreguntas('${f.id}')">✏️ Preguntas</button>
+        <button class="form-act blue" onclick="verRespuestasFormulario('${f.id}')">📊 Respuestas</button>
+        <button class="form-act" onclick="copiarLinkFormulario('${f.id}')">📋 Link</button>
+        <button class="form-act" onclick="window.open('/formulario/${f.id}','_blank')" title="Abrir formulario">🔗</button>
+        <button class="form-act" onclick="toggleActivoFormulario('${f.id}',${f.activo?0:1})" title="${f.activo?'Pausar':'Reactivar'}">${f.activo?'⏸':'▶'}</button>
+        <button class="form-act del" onclick="eliminarFormulario('${f.id}','${titulo}')" title="Eliminar">🗑</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 function copiarLinkFormulario(id){
   const link=location.origin+'/formulario/'+id;
