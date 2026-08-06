@@ -10429,6 +10429,26 @@ app.get('/api/formularios/:id/exportar-excel', auth(ADM), (req, res) => {
       const maxLen = Math.max(h.length, ...rows.map(r => String(r[i]||'').length));
       return { wch: Math.min(Math.max(maxLen + 2, 12), 50) };
     });
+    // Colores: encabezado verde ITS, filas alternadas blanco/verde claro
+    const HDR = { fgColor: { rgb: '166534' } };
+    const ROW_ALT = { fgColor: { rgb: 'f0fdf4' } };
+    const HDR_FONT = { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 };
+    const DATA_FONT = { sz: 10 };
+    const BORDER = { top:{style:'thin',color:{rgb:'d1d5db'}}, bottom:{style:'thin',color:{rgb:'d1d5db'}}, left:{style:'thin',color:{rgb:'d1d5db'}}, right:{style:'thin',color:{rgb:'d1d5db'}} };
+    header.forEach((_, ci) => {
+      const cell = XLSX.utils.encode_cell({ r: 0, c: ci });
+      if (!ws[cell]) return;
+      ws[cell].s = { fill: HDR, font: HDR_FONT, alignment: { wrapText: true, vertical: 'center' }, border: BORDER };
+    });
+    rows.forEach((_, ri) => {
+      const isAlt = ri % 2 === 1;
+      header.forEach((__, ci) => {
+        const cell = XLSX.utils.encode_cell({ r: ri + 1, c: ci });
+        if (!ws[cell]) ws[cell] = { t: 's', v: '' };
+        ws[cell].s = { fill: isAlt ? ROW_ALT : { fgColor: { rgb: 'FFFFFF' } }, font: DATA_FONT, alignment: { vertical: 'center' }, border: BORDER };
+      });
+    });
+    ws['!rows'] = [{ hpt: 28 }, ...rows.map(() => ({ hpt: 20 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Respuestas');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
