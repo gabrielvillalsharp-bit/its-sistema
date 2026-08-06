@@ -3221,7 +3221,17 @@ function calcularMesesDeuda(alumno_id) {
   const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
   if (!periodo) return { meses_deuda: 0, cuotas_faltantes: [] };
   const cuotaLimite = cuotaLimiteVencida();
-  const cuotasVencidas = Array.from({ length: cuotaLimite }, (_, i) => 'Cuota ' + (i + 1));
+  // Solo exigir cuotas desde el mes de ingreso del alumno: un alumno que ingresó
+  // en mayo no puede deber la cuota de marzo. Sin esto, cualquier alumno inscripto
+  // después de marzo queda bloqueado aunque esté al día desde su primer mes.
+  const al = db.prepare('SELECT fecha_ingreso FROM alumnos WHERE id=?').get(alumno_id);
+  let cuotaInicio = 1;
+  if (al?.fecha_ingreso) {
+    const mesIngreso = new Date(al.fecha_ingreso + 'T00:00:00').getMonth() + 1;
+    cuotaInicio = MES_A_CUOTA_NUM[mesIngreso] || 1;
+  }
+  const cuotasVencidas = Array.from({ length: cuotaLimite }, (_, i) => 'Cuota ' + (i + 1))
+    .filter(c => parseInt(c.split(' ')[1]) >= cuotaInicio);
   const conceptosPagados = db.prepare(
     `SELECT concepto FROM pagos WHERE alumno_id=? AND periodo_id=? AND estado='Pagado'`
   ).all(alumno_id, periodo.id).map(p => p.concepto);
