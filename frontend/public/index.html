@@ -6805,9 +6805,9 @@ async function cargarCarpetasDocumentos(){
         <span class="doc-fi-count">${c.total_archivos||0}</span>
       </div>
       <div class="doc-fi-actions">
-        <button class="doc-fi-zip" title="Descargar carpeta completa" onclick="event.stopPropagation();descargarCarpetaZip('${c.id}','${nom}')">⬇️ Descargar</button>
-        <button class="doc-fi-ren" title="Renombrar carpeta" onclick="event.stopPropagation();renombrarCarpetaDocumentos('${c.id}','${nom}')">✏️ Renombrar</button>
-        <button class="doc-fi-del" title="Eliminar carpeta" onclick="event.stopPropagation();eliminarCarpetaDocumentos('${c.id}','${nom}')">🗑 Eliminar</button>
+        <button class="doc-fi-zip" title="Descargar carpeta completa" onclick="event.stopPropagation();descargarCarpetaZip('${c.id}','${nom}')">⬇️</button>
+        <button class="doc-fi-ren" title="Renombrar carpeta" onclick="event.stopPropagation();renombrarCarpetaDocumentos('${c.id}','${nom}')">✏️</button>
+        <button class="doc-fi-del" title="Eliminar carpeta" onclick="event.stopPropagation();eliminarCarpetaDocumentos('${c.id}','${nom}')">🗑</button>
       </div>
     </div>`;
   }).join('');
