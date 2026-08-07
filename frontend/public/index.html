@@ -6664,22 +6664,22 @@ async function pgDocumentos(el){
     .doc-upload-btn{width:100%;padding:9px 12px;background:linear-gradient(110deg,#1f8246 0%,#166534 100%);color:#fff;font-weight:700;font-size:13px;border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 2px 8px rgba(22,101,52,.22);transition:opacity .15s}
     .doc-upload-btn:hover{opacity:.9}
     .doc-folder-scroll{flex:1;overflow-y:auto;padding:8px 8px 4px}
-    .doc-fi{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;font-size:13px;cursor:pointer;color:var(--t2);transition:background .12s,color .12s;margin-bottom:2px;position:relative}
+    .doc-fi{display:flex;flex-direction:column;gap:0;padding:8px 10px;border-radius:10px;font-size:13px;cursor:pointer;color:var(--t2);transition:background .12s,color .12s;margin-bottom:2px;position:relative}
     .doc-fi:hover{background:#f5f4f0;color:var(--txt)}
     .doc-fi.active{background:#f0fdf4;color:#166534;font-weight:700}
+    .doc-fi-top{display:flex;align-items:center;gap:8px;width:100%}
     .doc-fi-ico{width:28px;height:28px;border-radius:7px;background:#f5f4f0;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
     .doc-fi.active .doc-fi-ico{background:#dcfce7}
-    .doc-fi-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .doc-fi-count{font-size:10px;font-weight:700;background:#f5f4f0;color:var(--t3);padding:2px 6px;border-radius:20px}
+    .doc-fi-name{flex:1;white-space:normal;word-break:break-word;line-height:1.3}
+    .doc-fi-count{font-size:10px;font-weight:700;background:#f5f4f0;color:var(--t3);padding:2px 6px;border-radius:20px;flex-shrink:0;align-self:flex-start}
     .doc-fi.active .doc-fi-count{background:#dcfce7;color:#166534}
-    .doc-fi-del{opacity:0;padding:3px 5px;background:none;border:none;cursor:pointer;color:#dc2626;font-size:13px;border-radius:5px;transition:opacity .12s,background .12s;flex-shrink:0}
-    .doc-fi:hover .doc-fi-del{opacity:1}
+    .doc-fi-actions{display:flex;gap:2px;padding-top:4px;margin-left:36px;opacity:0;height:0;overflow:hidden;transition:opacity .12s,height .12s}
+    .doc-fi:hover .doc-fi-actions{opacity:1;height:26px}
+    .doc-fi-del{padding:3px 7px;background:none;border:none;cursor:pointer;color:#dc2626;font-size:12px;border-radius:5px;transition:background .12s;flex-shrink:0}
     .doc-fi-del:hover{background:#fee2e2}
-    .doc-fi-ren{opacity:0;padding:3px 5px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:13px;border-radius:5px;transition:opacity .12s,background .12s;flex-shrink:0}
-    .doc-fi:hover .doc-fi-ren{opacity:1}
+    .doc-fi-ren{padding:3px 7px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:12px;border-radius:5px;transition:background .12s;flex-shrink:0}
     .doc-fi-ren:hover{background:#f0f9ff;color:#0284c7}
-    .doc-fi-zip{opacity:0;padding:3px 5px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:13px;border-radius:5px;transition:opacity .12s,background .12s;flex-shrink:0}
-    .doc-fi:hover .doc-fi-zip{opacity:1}
+    .doc-fi-zip{padding:3px 7px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:12px;border-radius:5px;transition:background .12s;flex-shrink:0}
     .doc-fi-zip:hover{background:#f0fdf4;color:#166534}
     .doc-new-folder{padding:8px 8px 12px;border-top:1px solid var(--bdr)}
     .doc-new-folder button{width:100%;padding:8px;background:none;border:1.5px dashed var(--bdr);border-radius:10px;color:var(--t3);font-size:12.5px;cursor:pointer;transition:border-color .12s,color .12s}
@@ -6799,12 +6799,16 @@ async function cargarCarpetasDocumentos(){
   const itemsCarpetas=carpetas.map(c=>{
     const nom=(c.nombre||'').replace(/'/g,"\\'");
     return `<div class="doc-fi ${activa===c.id?'active':''}" onclick="seleccionarCarpetaDocumentos('${c.id}')">
-      <div class="doc-fi-ico">📁</div>
-      <span class="doc-fi-name">${c.nombre}</span>
-      <span class="doc-fi-count">${c.total_archivos||0}</span>
-      <button class="doc-fi-zip" title="Descargar carpeta completa" onclick="event.stopPropagation();descargarCarpetaZip('${c.id}','${nom}')">⬇️</button>
-      <button class="doc-fi-ren" title="Renombrar carpeta" onclick="event.stopPropagation();renombrarCarpetaDocumentos('${c.id}','${nom}')">✏️</button>
-      <button class="doc-fi-del" title="Eliminar carpeta" onclick="event.stopPropagation();eliminarCarpetaDocumentos('${c.id}','${nom}')">🗑</button>
+      <div class="doc-fi-top">
+        <div class="doc-fi-ico">📁</div>
+        <span class="doc-fi-name">${c.nombre}</span>
+        <span class="doc-fi-count">${c.total_archivos||0}</span>
+      </div>
+      <div class="doc-fi-actions">
+        <button class="doc-fi-zip" title="Descargar carpeta completa" onclick="event.stopPropagation();descargarCarpetaZip('${c.id}','${nom}')">⬇️ Descargar</button>
+        <button class="doc-fi-ren" title="Renombrar carpeta" onclick="event.stopPropagation();renombrarCarpetaDocumentos('${c.id}','${nom}')">✏️ Renombrar</button>
+        <button class="doc-fi-del" title="Eliminar carpeta" onclick="event.stopPropagation();eliminarCarpetaDocumentos('${c.id}','${nom}')">🗑 Eliminar</button>
+      </div>
     </div>`;
   }).join('');
   cont.innerHTML=itemTodos+itemsCarpetas;
