@@ -10367,10 +10367,10 @@ app.get('/api/documento-carpetas/:id/descargar', auth(), (req, res) => {
 });
 app.delete('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
   try {
-    const enUso = db.prepare('SELECT COUNT(*) n FROM documentos WHERE carpeta_id=?').get(req.params.id).n;
-    if (enUso > 0) return res.status(409).json({ error: `La carpeta tiene ${enUso} archivo(s). Movelos o eliminalos antes de borrar la carpeta.` });
+    const docs = db.prepare('SELECT COUNT(*) n FROM documentos WHERE carpeta_id=?').get(req.params.id).n;
+    db.prepare('DELETE FROM documentos WHERE carpeta_id=?').run(req.params.id);
     db.prepare('DELETE FROM documento_carpetas WHERE id=?').run(req.params.id);
-    audit(req.user.id, 'ELIMINAR_CARPETA_DOCUMENTOS', 'documento_carpetas', req.params.id, {});
+    audit(req.user.id, 'ELIMINAR_CARPETA_DOCUMENTOS', 'documento_carpetas', req.params.id, { archivos_eliminados: docs });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
