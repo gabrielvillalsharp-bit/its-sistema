@@ -6673,8 +6673,8 @@ async function pgDocumentos(el){
     .doc-fi-name{flex:1;white-space:normal;word-break:break-word;line-height:1.3}
     .doc-fi-count{font-size:10px;font-weight:700;background:#f5f4f0;color:var(--t3);padding:2px 6px;border-radius:20px;flex-shrink:0;align-self:flex-start}
     .doc-fi.active .doc-fi-count{background:#dcfce7;color:#166534}
-    .doc-fi-actions{display:flex;gap:2px;padding-top:4px;margin-left:36px;opacity:0;max-height:0;overflow:hidden;transition:opacity .15s,max-height .15s}
-    .doc-fi:hover .doc-fi-actions{opacity:1;max-height:40px}
+    .doc-fi-actions{display:flex;gap:2px;padding-top:5px;margin-left:36px;visibility:hidden;opacity:0;transition:opacity .15s}
+    .doc-fi:hover .doc-fi-actions{visibility:visible;opacity:1}
     .doc-fi-del{padding:3px 7px;background:none;border:none;cursor:pointer;color:#dc2626;font-size:12px;border-radius:5px;transition:background .12s;flex-shrink:0}
     .doc-fi-del:hover{background:#fee2e2}
     .doc-fi-ren{padding:3px 7px;background:none;border:none;cursor:pointer;color:#6b7280;font-size:12px;border-radius:5px;transition:background .12s;flex-shrink:0}
