@@ -7018,7 +7018,7 @@ async function subirDocumentoFiles(files){
   if(fill) fill.style.width='100%';
   if(label) label.textContent=`✓ ${ok} subido${ok!==1?'s':''}${err?` · ${err} error${err!==1?'s':''}`:''}`;;
   setTimeout(()=>{ if(progEl) progEl.classList.remove('show'); if(fill) fill.style.width='0%'; },1800);
-  toast(`✓ ${ok} archivo${ok!==1?'s':''} subido${ok!===1?'s':''}${err?' ('+err+' error'+( err!==1?'s':'')+')':''}`, err?'warn':'ok');
+  toast(`✓ ${ok} archivo${ok!==1?'s':''} subido${ok!==1?'s':''}${err?' ('+err+' error'+( err!==1?'s':'')+')':''}`, err?'warn':'ok');
   await cargarCarpetasDocumentos(); await cargarDocumentos();
 }
 async function eliminarDocumento(id,nombre){
