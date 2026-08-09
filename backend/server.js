@@ -11558,6 +11558,30 @@ app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','fronte
 app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
 app.get('/incorporacion-academica', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','incorporacion-academica.html')));
 app.get('/formulario/:id', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','formulario-publico.html')));
+// ── RSVP FIORELLA ─────────────────────────────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS rsvp_fiorella (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    cantidad INTEGER DEFAULT 1,
+    telefono TEXT,
+    mensaje TEXT,
+    fecha TEXT DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch {}
+app.post('/api/rsvp/fiorella', (req, res) => {
+  const { nombre, cantidad, telefono, mensaje } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
+  db.prepare('INSERT INTO rsvp_fiorella (nombre, cantidad, telefono, mensaje) VALUES (?,?,?,?)')
+    .run(nombre.trim(), parseInt(cantidad)||1, telefono||null, mensaje||null);
+  res.json({ ok: true });
+});
+app.get('/api/rsvp/fiorella', auth(['director']), (req, res) => {
+  const lista = db.prepare('SELECT * FROM rsvp_fiorella ORDER BY id DESC').all();
+  res.json({ lista, total: lista.reduce((s,r)=>s+r.cantidad,0) });
+});
+app.get('/invitacion-fiorella', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','invitacion-fiorella.html')));
+
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {
