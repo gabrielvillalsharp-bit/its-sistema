@@ -6703,6 +6703,38 @@ async function pgDocumentos(el){
     .doc-prog-fill{height:100%;background:linear-gradient(90deg,#1f8246,#166534);width:0%;transition:width .25s}
     .doc-prog-label{font-size:11px;color:var(--t2);margin-top:4px}
     .doc-content{flex:1;overflow-y:auto;padding:14px 18px 24px}
+    .doc-tabs{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--bdr);background:#fafaf8}
+    .doc-tab{padding:7px 16px;font-size:12.5px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s,border-color .12s;border-radius:6px 6px 0 0}
+    .doc-tab.active{color:#166534;border-bottom-color:#166534;background:#f0fdf4}
+    .doc-tab:hover:not(.active){color:var(--txt);background:#f5f4f0}
+    .di-form{background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:20px;margin-bottom:20px}
+    .di-form-title{font-size:13px;font-weight:700;color:var(--txt);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .di-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .di-grid .span2{grid-column:1/-1}
+    .di-f{display:flex;flex-direction:column;gap:4px}
+    .di-f label{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.04em}
+    .di-f input,.di-f select,.di-f textarea{padding:8px 10px;border:1px solid var(--bdr);border-radius:8px;font-size:13px;color:var(--txt);background:#fff;outline:none;transition:border-color .12s}
+    .di-f input:focus,.di-f select:focus{border-color:#166534}
+    .di-file-zone{border:1.5px dashed var(--bdr);border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:border-color .12s,background .12s;font-size:12.5px;color:var(--t2)}
+    .di-file-zone:hover{border-color:#166534;background:#f0fdf4;color:#166534}
+    .di-file-zone.has-file{border-color:#166534;background:#f0fdf4;color:#166534;font-weight:600}
+    .di-list{display:flex;flex-direction:column;gap:8px}
+    .di-item{background:#fff;border:1px solid var(--bdr);border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:12px;transition:box-shadow .15s}
+    .di-item:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .di-item-ico{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .di-item-body{flex:1;min-width:0}
+    .di-item-top{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+    .di-item-tipo{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+    .di-item-num{font-size:13px;font-weight:700;color:var(--txt)}
+    .di-item-asunto{font-size:12px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .di-item-meta{font-size:11px;color:var(--t3);margin-top:3px}
+    .di-item-acts{display:flex;gap:5px;flex-shrink:0}
+    .di-tipo-res{background:#dbeafe;color:#1e40af}  .di-ico-res{background:#eff6ff}
+    .di-tipo-act{background:#dcfce7;color:#14532d}  .di-ico-act{background:#f0fdf4}
+    .di-tipo-not{background:#fef9c3;color:#713f12}  .di-ico-not{background:#fefce8}
+    .di-tipo-con{background:#f3e8ff;color:#4a1772}  .di-ico-con{background:#faf5ff}
+    .di-tipo-hab{background:#ffedd5;color:#7c2d12}  .di-ico-hab{background:#fff7ed}
+    .di-tipo-cir{background:#fce7f3;color:#831843}  .di-ico-cir{background:#fdf2f8}
     .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px}
     .doc-card{background:#fff;border:1px solid var(--bdr);border-radius:14px;overflow:hidden;cursor:default;transition:box-shadow .18s,border-color .18s,transform .18s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
     .doc-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);border-color:#c5c3bd;transform:translateY(-1px)}
@@ -6768,8 +6800,59 @@ async function pgDocumentos(el){
         <div class="doc-prog-bar"><div class="doc-prog-fill" id="docProgFill"></div></div>
         <div class="doc-prog-label" id="docProgLabel">Subiendo...</div>
       </div>
+      <div class="doc-tabs">
+        <button class="doc-tab active" id="docTabArchivos" onclick="docCambiarTab('archivos')">📁 Archivos</button>
+        <button class="doc-tab" id="docTabInst" onclick="docCambiarTab('institucionales')">🏛️ Doc. Institucionales</button>
+      </div>
       <div class="doc-content">
-        <div id="docLista"><div class="es">Cargando...</div></div>
+        <div id="docPanelArchivos">
+          <div id="docLista"><div class="es">Cargando...</div></div>
+        </div>
+        <div id="docPanelInst" style="display:none">
+          <div class="di-form">
+            <div class="di-form-title">➕ Registrar documento institucional</div>
+            <div class="di-grid">
+              <div class="di-f span2">
+                <label>Tipo de documento</label>
+                <select id="diTipo">
+                  <option value="resolucion">📋 Resolución</option>
+                  <option value="acta">📝 Acta</option>
+                  <option value="nota">📨 Nota / Oficio</option>
+                  <option value="convenio">🤝 Convenio</option>
+                  <option value="habilitacion">📜 Habilitación / Certificación</option>
+                  <option value="circular">🔄 Circular</option>
+                </select>
+              </div>
+              <div class="di-f">
+                <label>Número</label>
+                <input id="diNumero" placeholder="Ej: Res. 045/2026"/>
+              </div>
+              <div class="di-f">
+                <label>Fecha de emisión</label>
+                <input type="date" id="diFecha"/>
+              </div>
+              <div class="di-f span2">
+                <label>Institución que lo emite</label>
+                <input id="diInstitucion" placeholder="Ej: Ministerio de Educación y Ciencias"/>
+              </div>
+              <div class="di-f span2">
+                <label>Asunto</label>
+                <input id="diAsunto" placeholder="Descripción breve del documento"/>
+              </div>
+              <div class="di-f span2">
+                <label>Adjuntar archivo (PDF o DOC)</label>
+                <div class="di-file-zone" id="diFileZone" onclick="document.getElementById('diFileInput').click()">
+                  📎 Clic para seleccionar PDF o DOC
+                </div>
+                <input type="file" id="diFileInput" accept=".pdf,.doc,.docx" style="display:none" onchange="diArchivoSeleccionado(this)"/>
+              </div>
+            </div>
+            <div style="margin-top:14px;display:flex;justify-content:flex-end">
+              <button class="bn" style="padding:9px 22px;font-size:13px" onclick="diGuardar()">💾 Guardar</button>
+            </div>
+          </div>
+          <div id="diLista"><div class="es">Cargando...</div></div>
+        </div>
       </div>
     </div>
   </div>`;
@@ -6784,6 +6867,101 @@ function docDropHandler(ev){
   if(!files.length) return;
   subirDocumentoFiles(files);
 }
+// ── DOC. INSTITUCIONALES ─────────────────────────────────────────────────────
+const DI_TIPOS={
+  resolucion:{ico:'📋',label:'Resolución',cls:'res'},
+  acta:{ico:'📝',label:'Acta',cls:'act'},
+  nota:{ico:'📨',label:'Nota / Oficio',cls:'not'},
+  convenio:{ico:'🤝',label:'Convenio',cls:'con'},
+  habilitacion:{ico:'📜',label:'Habilitación',cls:'hab'},
+  circular:{ico:'🔄',label:'Circular',cls:'cir'},
+};
+function docCambiarTab(tab){
+  const esInst=tab==='institucionales';
+  document.getElementById('docPanelArchivos').style.display=esInst?'none':'';
+  document.getElementById('docPanelInst').style.display=esInst?'':'none';
+  document.getElementById('docTabArchivos').classList.toggle('active',!esInst);
+  document.getElementById('docTabInst').classList.toggle('active',esInst);
+  if(esInst) cargarDocInstitucionales();
+}
+function diArchivoSeleccionado(input){
+  const f=input.files[0];
+  const zone=document.getElementById('diFileZone');
+  if(f){ zone.textContent='📎 '+f.name; zone.classList.add('has-file'); }
+  else { zone.textContent='📎 Clic para seleccionar PDF o DOC'; zone.classList.remove('has-file'); }
+}
+async function diGuardar(){
+  const tipo=document.getElementById('diTipo').value;
+  const numero=document.getElementById('diNumero').value.trim();
+  const fecha=document.getElementById('diFecha').value;
+  const institucion=document.getElementById('diInstitucion').value.trim();
+  const asunto=document.getElementById('diAsunto').value.trim();
+  const fileInput=document.getElementById('diFileInput');
+  if(!numero||!fecha||!institucion||!asunto) return toast('Completá todos los campos','err');
+  const fd=new FormData();
+  fd.append('tipo',tipo);
+  fd.append('numero',numero);
+  fd.append('fecha_emision',fecha);
+  fd.append('institucion',institucion);
+  fd.append('asunto',asunto);
+  if(fileInput.files[0]) fd.append('archivo',fileInput.files[0]);
+  try{
+    const token=localStorage.getItem('its_tk3');
+    const res=await fetch('/api/doc-institucionales',{method:'POST',headers:{'Authorization':'Bearer '+token},body:fd});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Error');
+    toast('✓ Documento guardado','ok');
+    document.getElementById('diNumero').value='';
+    document.getElementById('diFecha').value='';
+    document.getElementById('diInstitucion').value='';
+    document.getElementById('diAsunto').value='';
+    fileInput.value='';
+    const zone=document.getElementById('diFileZone');
+    zone.textContent='📎 Clic para seleccionar PDF o DOC';
+    zone.classList.remove('has-file');
+    await cargarDocInstitucionales();
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function cargarDocInstitucionales(){
+  const cont=document.getElementById('diLista');
+  if(!cont) return;
+  cont.innerHTML='<div class="es">Cargando...</div>';
+  try{
+    const docs=await api('GET','/api/doc-institucionales');
+    if(!docs.length){ cont.innerHTML='<div class="es">Sin documentos institucionales registrados.</div>'; return; }
+    const token=localStorage.getItem('its_tk3');
+    cont.innerHTML=`<div class="di-list">${docs.map(d=>{
+      const t=DI_TIPOS[d.tipo]||{ico:'📄',label:d.tipo,cls:'res'};
+      return `<div class="di-item">
+        <div class="di-item-ico di-ico-${t.cls}">${t.ico}</div>
+        <div class="di-item-body">
+          <div class="di-item-top">
+            <span class="di-item-tipo di-tipo-${t.cls}">${t.label}</span>
+            <span class="di-item-num">${d.numero}</span>
+          </div>
+          <div class="di-item-asunto" title="${d.asunto}">${d.asunto}</div>
+          <div class="di-item-meta">📍 ${d.institucion} · 📅 ${(d.fecha_emision||'').slice(0,10)}</div>
+        </div>
+        <div class="di-item-acts">
+          ${d.nombre_archivo?`<button class="doc-icobtn down" title="Descargar ${d.nombre_archivo}" onclick="diDescargar('${d.id}')">⬇</button>`:''}
+          <button class="doc-icobtn del" title="Eliminar" onclick="diEliminar('${d.id}','${(d.numero||'').replace(/'/g,"\\'")}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  }catch(e){ cont.innerHTML=`<div class="alert-err">❌ ${e.message}</div>`; }
+}
+function diDescargar(id){
+  const token=localStorage.getItem('its_tk3');
+  const a=document.createElement('a');
+  a.href='/api/doc-institucionales/'+id+'/archivo?token='+encodeURIComponent(token);
+  a.download=''; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+async function diEliminar(id,numero){
+  if(!confirm('¿Eliminar "'+numero+'"? Esta acción no se puede deshacer.')) return;
+  try{ await api('DELETE','/api/doc-institucionales/'+id); toast('✓ Eliminado','ok'); await cargarDocInstitucionales(); }
+  catch(e){ toast('Error: '+e.message,'err'); }
+}
+
 async function cargarCarpetasDocumentos(){
   const cont=document.getElementById('docSidebar');
   if(!cont)return;

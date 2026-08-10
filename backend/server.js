@@ -113,6 +113,24 @@ try {
   try { db.prepare('ALTER TABLE documentos ADD COLUMN carpeta_id TEXT REFERENCES documento_carpetas(id)').run(); } catch {}
 } catch(e) { console.warn('[Migración] documentos:', e.message); }
 
+// ── MIGRACIÓN: documentos institucionales ─────────────────────────────────────
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS doc_institucionales (
+    id TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    numero TEXT NOT NULL,
+    fecha_emision TEXT NOT NULL,
+    asunto TEXT NOT NULL,
+    institucion TEXT NOT NULL,
+    nombre_archivo TEXT,
+    datos BLOB,
+    mime_tipo TEXT,
+    tamano INTEGER,
+    subido_por TEXT REFERENCES usuarios(id),
+    creado_en TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`).run();
+} catch(e) { console.warn('[Migración] doc_institucionales:', e.message); }
+
 // ── MIGRACIÓN: tablas de formularios (tipo Google Forms) ─────────────────────
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS formularios (
@@ -10374,6 +10392,44 @@ app.delete('/api/documento-carpetas/:id', auth(ADM), (req, res) => {
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+// ── DOCUMENTOS INSTITUCIONALES ────────────────────────────────────────────────
+app.get('/api/doc-institucionales', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`SELECT id,tipo,numero,fecha_emision,asunto,institucion,nombre_archivo,mime_tipo,tamano,subido_por,creado_en FROM doc_institucionales ORDER BY fecha_emision DESC`).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/doc-institucionales', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    const { tipo, numero, fecha_emision, asunto, institucion } = req.body;
+    if (!tipo||!numero||!fecha_emision||!asunto||!institucion) return res.status(400).json({ error: 'Faltan campos obligatorios' });
+    const id = uid();
+    const archivo = req.file;
+    db.prepare(`INSERT INTO doc_institucionales (id,tipo,numero,fecha_emision,asunto,institucion,nombre_archivo,datos,mime_tipo,tamano,subido_por) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, tipo, numero, fecha_emision, asunto, institucion,
+        archivo?.originalname||null, archivo?.buffer||null, archivo?.mimetype||null, archivo?.size||null, req.user.id);
+    audit(req.user.id, 'CREAR_DOC_INSTITUCIONAL', 'doc_institucionales', id, { tipo, numero, asunto });
+    res.json({ id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/doc-institucionales/:id/archivo', auth(ADM), (req, res) => {
+  try {
+    const d = db.prepare('SELECT nombre_archivo, datos, mime_tipo FROM doc_institucionales WHERE id=?').get(req.params.id);
+    if (!d||!d.datos) return res.status(404).json({ error: 'Sin archivo' });
+    res.setHeader('Content-Type', d.mime_tipo||'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(d.nombre_archivo||'documento')}"`);
+    res.send(d.datos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/doc-institucionales/:id', auth(ADM), (req, res) => {
+  try {
+    const r = db.prepare('DELETE FROM doc_institucionales WHERE id=?').run(req.params.id);
+    if (!r.changes) return res.status(404).json({ error: 'No encontrado' });
+    audit(req.user.id, 'ELIMINAR_DOC_INSTITUCIONAL', 'doc_institucionales', req.params.id, {});
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/documentos', auth(), (req, res) => {
   try {
     const { carpeta_id } = req.query;
