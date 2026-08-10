@@ -127,24 +127,63 @@ body {
 
 /* ── Mariposas ── */
 .butterfly { position: absolute; pointer-events: none; z-index: 3; }
-.butterfly-tr { top: -22px; right: -8px; }
-.butterfly-bl { bottom: 130px; left: -16px; }
-.butterfly-br { bottom: 55px; right: 14px; }
+.butterfly-tr { top: -28px; right: -14px; }
+.butterfly-bl { bottom: 120px; left: -22px; }
+.butterfly-br { bottom: 45px; right: 8px; }
+.butterfly-tl { top: 60px; left: -18px; }
+.butterfly-ml { top: 45%; left: -20px; }
 
 .butterfly svg { animation: butterflyFloat 3.5s ease-in-out infinite; }
 .butterfly-bl svg { animation-delay: 1.2s; }
 .butterfly-br svg { animation-delay: 2.1s; }
+.butterfly-tl svg { animation-delay: .6s; }
+.butterfly-ml svg { animation-delay: 1.8s; }
 @keyframes butterflyFloat {
-  0%,100% { transform: translateY(0) rotate(-3deg); }
-  50%      { transform: translateY(-10px) rotate(3deg); }
+  0%,100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-14px) rotate(4deg); }
 }
 
-/* Alas que "baten" */
-.wing-left  { animation: wingBeat 0.5s ease-in-out infinite alternate; transform-origin: right center; }
-.wing-right { animation: wingBeat 0.5s ease-in-out infinite alternate-reverse; transform-origin: left center; }
+/* Alas que "baten" rápido */
+.wing-left  { animation: wingBeat .4s ease-in-out infinite alternate; transform-origin: right center; }
+.wing-right { animation: wingBeat .4s ease-in-out infinite alternate-reverse; transform-origin: left center; }
 @keyframes wingBeat {
-  0%   { transform: scaleY(1); }
-  100% { transform: scaleY(.55); }
+  0%   { transform: scaleY(1) perspective(120px) rotateY(0deg); }
+  100% { transform: scaleY(.4) perspective(120px) rotateY(25deg); }
+}
+
+/* Mariposas flotantes en fondo (fuera de la tarjeta) */
+.bg-butterfly {
+  position: fixed; pointer-events: none; z-index: 2;
+}
+.bg-butterfly svg { animation: butterflyFloat 4s ease-in-out infinite; }
+.bg-b1 { top: 8%;  left: 4%;  animation: bgFly1 18s linear infinite; }
+.bg-b2 { top: 20%; right: 3%; animation: bgFly2 22s linear infinite 3s; }
+.bg-b3 { top: 55%; left: 2%;  animation: bgFly3 20s linear infinite 7s; }
+.bg-b4 { top: 75%; right: 5%; animation: bgFly4 25s linear infinite 1s; }
+@keyframes bgFly1 {
+  0%   { transform: translate(0,0) rotate(-5deg); }
+  25%  { transform: translate(40px,-60px) rotate(8deg); }
+  50%  { transform: translate(20px,-30px) rotate(-3deg); }
+  75%  { transform: translate(60px,-80px) rotate(6deg); }
+  100% { transform: translate(0,0) rotate(-5deg); }
+}
+@keyframes bgFly2 {
+  0%   { transform: translate(0,0) rotate(5deg); }
+  30%  { transform: translate(-50px,-50px) rotate(-8deg); }
+  60%  { transform: translate(-20px,-90px) rotate(4deg); }
+  100% { transform: translate(0,0) rotate(5deg); }
+}
+@keyframes bgFly3 {
+  0%   { transform: translate(0,0) rotate(-3deg); }
+  40%  { transform: translate(30px,-70px) rotate(7deg); }
+  70%  { transform: translate(10px,-40px) rotate(-5deg); }
+  100% { transform: translate(0,0) rotate(-3deg); }
+}
+@keyframes bgFly4 {
+  0%   { transform: translate(0,0) rotate(6deg); }
+  35%  { transform: translate(-40px,-55px) rotate(-9deg); }
+  65%  { transform: translate(-60px,-30px) rotate(4deg); }
+  100% { transform: translate(0,0) rotate(6deg); }
 }
 
 /* ── Corazones dorados ── */
@@ -183,7 +222,7 @@ body {
 }
 .numero-wrap { position: relative; display: inline-block; }
 .numero-uno {
-  font-size: clamp(80px, 22vw, 110px);
+  font-size: clamp(120px, 32vw, 160px);
   line-height: 1; font-weight: 900;
   background: linear-gradient(135deg, #d4a017 0%, #f5d060 30%, #c8890a 55%, #f0c040 75%, #b8780a 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
@@ -394,6 +433,44 @@ body {
 </div>
 <canvas id="particleCanvas"></canvas>
 
+<!-- Mariposas de fondo flotantes -->
+<div class="bg-butterfly bg-b1">
+  <svg width="100" height="88" viewBox="0 0 100 88" fill="none">
+    <g class="wing-left"><ellipse cx="30" cy="28" rx="28" ry="22" fill="#f0b0d8" opacity=".75" transform="rotate(-18 30 28)"/><ellipse cx="30" cy="28" rx="19" ry="14" fill="#e070b8" opacity=".6" transform="rotate(-18 30 28)"/><ellipse cx="26" cy="54" rx="19" ry="14" fill="#f0b0d8" opacity=".65" transform="rotate(14 26 54)"/></g>
+    <g class="wing-right"><ellipse cx="68" cy="28" rx="24" ry="19" fill="#d898e8" opacity=".75" transform="rotate(18 68 28)"/><ellipse cx="68" cy="28" rx="15" ry="11" fill="#b068d0" opacity=".6" transform="rotate(18 68 28)"/><ellipse cx="72" cy="54" rx="17" ry="13" fill="#d898e8" opacity=".65" transform="rotate(-14 72 54)"/></g>
+    <ellipse cx="49" cy="40" rx="3" ry="24" fill="#6030a0"/>
+    <path d="M49 16 Q41 2 33 0" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M49 16 Q57 2 65 0" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <circle cx="33" cy="0" r="3" fill="#6030a0"/><circle cx="65" cy="0" r="3" fill="#6030a0"/>
+  </svg>
+</div>
+<div class="bg-butterfly bg-b2">
+  <svg width="90" height="78" viewBox="0 0 90 78" fill="none">
+    <g class="wing-left"><ellipse cx="27" cy="25" rx="25" ry="19" fill="#fcc0e0" opacity=".7" transform="rotate(-18 27 25)"/><ellipse cx="27" cy="25" rx="16" ry="12" fill="#f080c0" opacity=".6" transform="rotate(-18 27 25)"/><ellipse cx="23" cy="48" rx="17" ry="13" fill="#fcc0e0" opacity=".6" transform="rotate(14 23 48)"/></g>
+    <g class="wing-right"><ellipse cx="61" cy="25" rx="21" ry="17" fill="#e0b0f8" opacity=".7" transform="rotate(18 61 25)"/><ellipse cx="61" cy="25" rx="14" ry="10" fill="#c080e8" opacity=".6" transform="rotate(18 61 25)"/><ellipse cx="65" cy="48" rx="15" ry="12" fill="#e0b0f8" opacity=".6" transform="rotate(-14 65 48)"/></g>
+    <ellipse cx="44" cy="36" rx="2.5" ry="21" fill="#7040b0"/>
+    <path d="M44 15 Q37 2 30 0" stroke="#7040b0" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M44 15 Q51 2 58 0" stroke="#7040b0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <circle cx="30" cy="0" r="2.5" fill="#7040b0"/><circle cx="58" cy="0" r="2.5" fill="#7040b0"/>
+  </svg>
+</div>
+<div class="bg-butterfly bg-b3" style="transform:scaleX(-1)">
+  <svg width="95" height="82" viewBox="0 0 95 82" fill="none">
+    <g class="wing-left"><ellipse cx="28" cy="26" rx="26" ry="20" fill="#f8c0d8" opacity=".7" transform="rotate(-18 28 26)"/><ellipse cx="28" cy="26" rx="17" ry="13" fill="#f070a8" opacity=".6" transform="rotate(-18 28 26)"/><ellipse cx="24" cy="51" rx="18" ry="14" fill="#f8c0d8" opacity=".65" transform="rotate(14 24 51)"/></g>
+    <g class="wing-right"><ellipse cx="65" cy="26" rx="22" ry="18" fill="#c8b0f0" opacity=".7" transform="rotate(18 65 26)"/><ellipse cx="65" cy="26" rx="14" ry="11" fill="#9870d8" opacity=".6" transform="rotate(18 65 26)"/><ellipse cx="69" cy="51" rx="16" ry="13" fill="#c8b0f0" opacity=".65" transform="rotate(-14 69 51)"/></g>
+    <ellipse cx="46" cy="38" rx="3" ry="22" fill="#5828a0"/>
+    <path d="M46 16 Q38 2 31 0" stroke="#5828a0" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M46 16 Q54 2 61 0" stroke="#5828a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <circle cx="31" cy="0" r="3" fill="#5828a0"/><circle cx="61" cy="0" r="3" fill="#5828a0"/>
+  </svg>
+</div>
+<div class="bg-butterfly bg-b4">
+  <svg width="85" height="74" viewBox="0 0 85 74" fill="none">
+    <g class="wing-left"><ellipse cx="25" cy="23" rx="23" ry="18" fill="#f0d0f0" opacity=".7" transform="rotate(-18 25 23)"/><ellipse cx="25" cy="23" rx="15" ry="11" fill="#d080e0" opacity=".6" transform="rotate(-18 25 23)"/><ellipse cx="21" cy="45" rx="16" ry="12" fill="#f0d0f0" opacity=".6" transform="rotate(14 21 45)"/></g>
+    <g class="wing-right"><ellipse cx="58" cy="23" rx="20" ry="16" fill="#f0b8d8" opacity=".7" transform="rotate(18 58 23)"/><ellipse cx="58" cy="23" rx="13" ry="10" fill="#e070a0" opacity=".6" transform="rotate(18 58 23)"/><ellipse cx="62" cy="45" rx="14" ry="11" fill="#f0b8d8" opacity=".6" transform="rotate(-14 62 45)"/></g>
+    <ellipse cx="41" cy="34" rx="2.5" ry="20" fill="#801850"/>
+    <path d="M41 14 Q34 2 28 0" stroke="#801850" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M41 14 Q48 2 54 0" stroke="#801850" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <circle cx="28" cy="0" r="2.5" fill="#801850"/><circle cx="54" cy="0" r="2.5" fill="#801850"/>
+  </svg>
+</div>
+
 <div class="card">
 
   <!-- Brillo de tarjeta ya en CSS -->
@@ -509,6 +586,28 @@ body {
     </svg>
   </div>
 
+  <!-- Mariposa TL -->
+  <div class="butterfly butterfly-tl" style="transform:scale(.85) scaleX(-1)">
+    <svg width="88" height="76" viewBox="0 0 88 76" fill="none">
+      <g class="wing-left"><ellipse cx="28" cy="26" rx="26" ry="20" fill="#fcc0e8" opacity=".85" transform="rotate(-18 28 26)"/><ellipse cx="28" cy="26" rx="18" ry="14" fill="#f080c0" opacity=".7" transform="rotate(-18 28 26)"/><ellipse cx="24" cy="50" rx="17" ry="13" fill="#fcc0e8" opacity=".75" transform="rotate(14 24 50)"/><circle cx="20" cy="20" r="4" fill="#fff" opacity=".3"/></g>
+      <g class="wing-right"><ellipse cx="60" cy="26" rx="21" ry="17" fill="#e8b0f8" opacity=".85" transform="rotate(18 60 26)"/><ellipse cx="60" cy="26" rx="14" ry="11" fill="#b870e0" opacity=".7" transform="rotate(18 60 26)"/><ellipse cx="64" cy="50" rx="15" ry="12" fill="#e8b0f8" opacity=".75" transform="rotate(-14 64 50)"/><circle cx="66" cy="20" r="3" fill="#fff" opacity=".3"/></g>
+      <ellipse cx="44" cy="36" rx="2.8" ry="20" fill="#6030a0"/>
+      <path d="M44 16 Q37 4 30 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M44 16 Q51 4 58 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="2" r="2.5" fill="#6030a0"/><circle cx="58" cy="2" r="2.5" fill="#6030a0"/>
+    </svg>
+  </div>
+  <!-- Mariposa ML -->
+  <div class="butterfly butterfly-ml" style="transform:scale(.7)">
+    <svg width="88" height="76" viewBox="0 0 88 76" fill="none">
+      <g class="wing-left"><ellipse cx="28" cy="26" rx="26" ry="20" fill="#f8d0f0" opacity=".85" transform="rotate(-18 28 26)"/><ellipse cx="28" cy="26" rx="18" ry="14" fill="#d870c8" opacity=".7" transform="rotate(-18 28 26)"/><ellipse cx="24" cy="50" rx="17" ry="13" fill="#f8d0f0" opacity=".75" transform="rotate(14 24 50)"/></g>
+      <g class="wing-right"><ellipse cx="60" cy="26" rx="21" ry="17" fill="#fbb0d8" opacity=".85" transform="rotate(18 60 26)"/><ellipse cx="60" cy="26" rx="14" ry="11" fill="#e86098" opacity=".7" transform="rotate(18 60 26)"/><ellipse cx="64" cy="50" rx="15" ry="12" fill="#fbb0d8" opacity=".75" transform="rotate(-14 64 50)"/></g>
+      <ellipse cx="44" cy="36" rx="2.8" ry="20" fill="#802060"/>
+      <path d="M44 16 Q37 4 30 2" stroke="#802060" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M44 16 Q51 4 58 2" stroke="#802060" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="2" r="2.5" fill="#802060"/><circle cx="58" cy="2" r="2.5" fill="#802060"/>
+    </svg>
+  </div>
   <!-- Mariposa BR -->
   <div class="butterfly butterfly-br" style="transform:scale(.58)">
     <svg width="80" height="68" viewBox="0 0 80 68" fill="none">
