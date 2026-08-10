@@ -18240,7 +18240,10 @@ async function verRsvpFiorella(){
   document.body.appendChild(modal);
   modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
   try {
-    const r = await api('GET','/api/rsvp/fiorella');
+    const tkn = tok || localStorage.getItem('its_tk3') || '';
+    const resp = await fetch('/api/rsvp/fiorella', {headers:{'Authorization':'Bearer '+tkn}});
+    if(!resp.ok){ const e=await resp.json().catch(()=>({})); throw new Error(e.error||'Error '+resp.status); }
+    const r = await resp.json();
     const lista = r.lista || [];
     const total = r.total || 0;
     if(!lista.length){
