@@ -2,477 +2,563 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Fiorella Elizabeth — Mi Primer Añito 🦋</title>
 <style>
-  @import url('data:text/css,');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background: #fde8e0;
+  font-family: 'Georgia', serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 12px 60px;
+  position: relative;
+  overflow-x: hidden;
+}
 
-  body {
-    min-height: 100vh;
-    background: linear-gradient(145deg, #fde8e0 0%, #fceef5 50%, #f5e8f8 100%);
-    font-family: 'Georgia', serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 30px 16px 60px;
-    position: relative;
-    overflow-x: hidden;
-  }
+/* ── Fondo animado ── */
+.bg-gradient {
+  position: fixed; inset: 0; z-index: 0;
+  background: linear-gradient(135deg, #fde8e0, #fceef5, #f5e8f8, #fde8e0);
+  background-size: 400% 400%;
+  animation: bgShift 8s ease infinite;
+}
+@keyframes bgShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 
-  /* Corazones flotantes de fondo */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image:
-      radial-gradient(circle, #e8689a33 1px, transparent 1px),
-      radial-gradient(circle, #9b6bb533 1px, transparent 1px);
-    background-size: 40px 40px, 67px 67px;
-    pointer-events: none;
-  }
+/* Rayos de luz de fondo */
+.light-rays {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+}
+.ray {
+  position: absolute; top: -20%; left: 50%;
+  width: 3px; height: 120vh;
+  background: linear-gradient(to bottom, transparent, rgba(255,200,220,.18), transparent);
+  transform-origin: top center;
+  animation: raySwing 6s ease-in-out infinite;
+}
+.ray:nth-child(1) { transform: rotate(-35deg); animation-delay: 0s; }
+.ray:nth-child(2) { transform: rotate(-20deg); width:5px; background: linear-gradient(to bottom, transparent, rgba(200,180,255,.12), transparent); animation-delay: 1s; }
+.ray:nth-child(3) { transform: rotate(0deg);   width:2px; animation-delay: 2s; }
+.ray:nth-child(4) { transform: rotate(20deg);  width:4px; background: linear-gradient(to bottom, transparent, rgba(255,210,230,.15), transparent); animation-delay: .5s; }
+.ray:nth-child(5) { transform: rotate(38deg);  animation-delay: 1.5s; }
+@keyframes raySwing {
+  0%,100% { opacity: .4; }
+  50%      { opacity: 1; }
+}
 
-  .card {
-    background: linear-gradient(160deg, #fff9f6 0%, #fef5f9 100%);
-    border-radius: 40px 15px 40px 15px / 15px 40px 15px 40px;
-    max-width: 480px;
-    width: 100%;
-    position: relative;
-    padding: 50px 32px 40px;
-    box-shadow:
-      0 4px 6px rgba(232,104,154,.1),
-      0 20px 60px rgba(155,107,181,.15),
-      0 0 0 2px #f8d7e8,
-      0 0 0 6px #fff9f6,
-      0 0 0 8px #f0d4ec;
-  }
+/* Canvas de partículas */
+#particleCanvas {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+}
 
-  /* Borde punteado decorativo */
-  .card::before {
-    content: '';
-    position: absolute;
-    inset: 12px;
-    border: 2px dashed #e8a0c0;
-    border-radius: 30px 8px 30px 8px / 8px 30px 8px 30px;
-    pointer-events: none;
-  }
+/* ── Card ── */
+.card {
+  background: linear-gradient(160deg, #fff9f6 0%, #fef5f9 100%);
+  border-radius: 36px 14px 36px 14px / 14px 36px 14px 36px;
+  max-width: 440px;
+  width: 100%;
+  position: relative;
+  padding: 44px 26px 36px;
+  z-index: 2;
+  box-shadow:
+    0 0 0 2px #f8d7e8,
+    0 0 0 6px #fff9f6,
+    0 0 0 8px #f0d4ec,
+    0 8px 40px rgba(155,107,181,.2),
+    0 0 60px rgba(232,104,154,.1);
+  animation: cardPulse 4s ease-in-out infinite;
+}
+@keyframes cardPulse {
+  0%,100% { box-shadow: 0 0 0 2px #f8d7e8, 0 0 0 6px #fff9f6, 0 0 0 8px #f0d4ec, 0 8px 40px rgba(155,107,181,.2), 0 0 60px rgba(232,104,154,.1); }
+  50%      { box-shadow: 0 0 0 2px #f0b0d0, 0 0 0 6px #fff9f6, 0 0 0 8px #e8c0e4, 0 8px 50px rgba(155,107,181,.32), 0 0 80px rgba(232,104,154,.22); }
+}
 
-  /* ── Mariposas SVG ── */
-  .butterfly {
-    position: absolute;
-    pointer-events: none;
-    animation: flutter 3s ease-in-out infinite;
-  }
-  .butterfly-tr { top: -18px; right: -10px; transform: scale(1); animation-delay: 0s; }
-  .butterfly-bl { bottom: 140px; left: -14px; transform: scale(.8) scaleX(-1); animation-delay: 1.5s; }
-  .butterfly-br { bottom: 60px; right: 20px; transform: scale(.6); animation-delay: .8s; }
+/* Borde punteado animado */
+.card::before {
+  content: '';
+  position: absolute; inset: 11px;
+  border: 2px dashed #e8a0c0;
+  border-radius: 28px 7px 28px 7px / 7px 28px 7px 28px;
+  pointer-events: none;
+  animation: dashSpin 20s linear infinite;
+}
+@keyframes dashSpin {
+  0%   { border-color: #e8a0c0; }
+  33%  { border-color: #c8a0e0; }
+  66%  { border-color: #f0c0d8; }
+  100% { border-color: #e8a0c0; }
+}
 
-  @keyframes flutter {
-    0%,100% { transform: translateY(0) rotate(-4deg) scale(var(--s,1)); }
-    50%      { transform: translateY(-8px) rotate(4deg) scale(var(--s,1)); }
-  }
-  .butterfly-bl { --s: .8; }
-  .butterfly-br { --s: .6; }
+/* Brillo que recorre la tarjeta */
+.card::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmerCard 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes shimmerCard {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
 
-  /* ── Flores ── */
-  .flowers-tl { position: absolute; top: -20px; left: -20px; }
-  .flowers-br { position: absolute; bottom: -20px; right: -20px; transform: rotate(180deg); }
+/* ── Flores con sway ── */
+.flowers-tl, .flowers-br { position: absolute; pointer-events: none; }
+.flowers-tl { top: -18px; left: -18px; animation: sway 5s ease-in-out infinite; transform-origin: bottom right; }
+.flowers-br { bottom: -18px; right: -18px; transform: rotate(180deg); animation: sway 5s ease-in-out infinite .8s; transform-origin: top left; }
+@keyframes sway {
+  0%,100% { transform: rotate(0deg); }
+  50%      { transform: rotate(4deg); }
+}
+.flowers-br { animation: swayBr 5s ease-in-out infinite .8s; }
+@keyframes swayBr {
+  0%,100% { transform: rotate(180deg); }
+  50%      { transform: rotate(176deg); }
+}
 
-  /* ── Corazones dorados ── */
-  .hearts {
-    position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit;
-  }
-  .hearts span {
-    position: absolute;
-    font-size: 11px;
-    opacity: .55;
-    animation: heartpop 4s ease-in-out infinite;
-  }
-  @keyframes heartpop {
-    0%,100% { transform: scale(1) rotate(-10deg); opacity: .45; }
-    50%      { transform: scale(1.3) rotate(10deg); opacity: .7; }
-  }
+/* ── Mariposas ── */
+.butterfly { position: absolute; pointer-events: none; z-index: 3; }
+.butterfly-tr { top: -22px; right: -8px; }
+.butterfly-bl { bottom: 130px; left: -16px; }
+.butterfly-br { bottom: 55px; right: 14px; }
 
-  /* ── Encabezado ── */
-  .subtitle-top {
-    text-align: center;
-    font-size: 13px;
-    color: #7a6070;
-    font-style: italic;
-    letter-spacing: .05em;
-    margin-bottom: 2px;
-  }
-  .subtitle-pink {
-    text-align: center;
-    font-size: 16px;
-    color: #e8689a;
-    font-style: italic;
-    letter-spacing: .04em;
-    margin-bottom: 18px;
-  }
-  .subtitle-pink::before, .subtitle-pink::after {
-    content: ' · ';
-    color: #f0b0c8;
-  }
+.butterfly svg { animation: butterflyFloat 3.5s ease-in-out infinite; }
+.butterfly-bl svg { animation-delay: 1.2s; }
+.butterfly-br svg { animation-delay: 2.1s; }
+@keyframes butterflyFloat {
+  0%,100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-10px) rotate(3deg); }
+}
 
-  /* ── Número 1 ── */
-  .number-block {
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-    gap: 0;
-    margin-bottom: 12px;
-    position: relative;
-  }
-  .numero-uno {
-    font-size: 110px;
-    line-height: 1;
-    font-weight: 900;
-    background: linear-gradient(135deg, #d4a017 0%, #f5d060 30%, #c8890a 55%, #f0c040 75%, #b8780a 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-family: 'Georgia', serif;
-    filter: drop-shadow(0 2px 6px rgba(180,130,10,.35));
-    position: relative;
-  }
-  /* Textura glitter con pseudo-elemento */
-  .numero-uno::after {
-    content: '1';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 2px,
-      rgba(255,255,255,.25) 2px,
-      rgba(255,255,255,.25) 4px
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+/* Alas que "baten" */
+.wing-left  { animation: wingBeat 0.5s ease-in-out infinite alternate; transform-origin: right center; }
+.wing-right { animation: wingBeat 0.5s ease-in-out infinite alternate-reverse; transform-origin: left center; }
+@keyframes wingBeat {
+  0%   { transform: scaleY(1); }
+  100% { transform: scaleY(.55); }
+}
 
-  /* ── Nombre ── */
-  .nombre-fiorella {
-    text-align: center;
-    font-size: 64px;
-    font-family: 'Brush Script MT', 'Segoe Script', cursive;
-    color: #d45080;
-    line-height: 1.1;
-    margin-bottom: 4px;
-    filter: drop-shadow(0 1px 3px rgba(212,80,128,.25));
-  }
-  .nombre-elizabeth {
-    text-align: center;
-    font-size: 22px;
-    letter-spacing: .55em;
-    color: #8a5ca0;
-    font-family: 'Georgia', serif;
-    font-weight: 400;
-    margin-bottom: 20px;
-    text-transform: uppercase;
-  }
+/* ── Corazones dorados ── */
+.hearts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.hearts span {
+  position: absolute; font-size: 12px; opacity: .6;
+  animation: heartBeat 3s ease-in-out infinite;
+}
+@keyframes heartBeat {
+  0%,100% { transform: scale(1) rotate(-8deg); opacity: .5; }
+  50%      { transform: scale(1.4) rotate(8deg); opacity: .85; }
+}
 
-  /* ── Separador ── */
-  .sep {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 22px;
-  }
-  .sep-line { flex: 1; height: 1px; background: linear-gradient(to right, transparent, #e8a0c0, transparent); }
-  .sep-heart { color: #e8689a; font-size: 14px; }
+/* ── Encabezado ── */
+.subtitle-top {
+  text-align: center; font-size: 13px; color: #7a6070;
+  font-style: italic; letter-spacing: .05em; margin-bottom: 2px;
+  animation: fadeInDown .8s ease both;
+}
+.subtitle-pink {
+  text-align: center; font-size: 16px; color: #e8689a;
+  font-style: italic; letter-spacing: .04em; margin-bottom: 16px;
+  animation: fadeInDown .9s ease both .1s;
+}
+.subtitle-pink::before, .subtitle-pink::after { content: ' · '; color: #f0b0c8; }
+@keyframes fadeInDown {
+  from { opacity:0; transform: translateY(-12px); }
+  to   { opacity:1; transform: translateY(0); }
+}
 
-  /* ── Info ── */
-  .info-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    margin-bottom: 14px;
-  }
-  .info-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .info-icon {
-    width: 38px; height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #fce8f0, #f0d8f8);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(232,104,154,.2);
-  }
-  .info-label { font-size: 11px; color: #a07090; font-style: italic; }
-  .info-value { font-size: 15px; font-weight: 700; color: #3d2040; line-height: 1.2; }
+/* ── Número 1 con brillo ── */
+.number-block {
+  display: flex; justify-content: center; align-items: flex-end;
+  margin-bottom: 8px;
+  animation: fadeInDown 1s ease both .2s;
+}
+.numero-wrap { position: relative; display: inline-block; }
+.numero-uno {
+  font-size: clamp(80px, 22vw, 110px);
+  line-height: 1; font-weight: 900;
+  background: linear-gradient(135deg, #d4a017 0%, #f5d060 30%, #c8890a 55%, #f0c040 75%, #b8780a 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-family: 'Georgia', serif;
+  filter: drop-shadow(0 2px 8px rgba(180,130,10,.45));
+  animation: goldPulse 2.5s ease-in-out infinite;
+}
+@keyframes goldPulse {
+  0%,100% { filter: drop-shadow(0 2px 8px rgba(180,130,10,.45)); }
+  50%      { filter: drop-shadow(0 2px 18px rgba(220,170,30,.75)); }
+}
+/* Brillo deslizante sobre el número */
+.numero-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 25%, rgba(255,255,255,.7) 50%, transparent 75%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  animation: numberShimmer 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes numberShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
 
-  .info-divider { width: 1px; height: 40px; background: #f0c8dc; }
+/* ── Nombre ── */
+.nombre-fiorella {
+  text-align: center;
+  font-size: clamp(52px, 15vw, 68px);
+  font-family: 'Brush Script MT', 'Segoe Script', cursive;
+  color: #d45080;
+  line-height: 1.1; margin-bottom: 4px;
+  animation: fadeInUp 1s ease both .4s;
+  position: relative;
+}
+.nombre-fiorella::after {
+  content: attr(data-text);
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.6) 50%, transparent 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nameShimmer 3s ease-in-out infinite 1.5s;
+}
+@keyframes nameShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes fadeInUp {
+  from { opacity:0; transform: translateY(14px); }
+  to   { opacity:1; transform: translateY(0); }
+}
 
-  .direccion-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 28px;
-  }
+.nombre-elizabeth {
+  text-align: center;
+  font-size: clamp(16px, 4.5vw, 21px);
+  letter-spacing: .5em; color: #8a5ca0;
+  font-family: 'Georgia', serif; font-weight: 400;
+  margin-bottom: 18px; text-transform: uppercase;
+  animation: fadeInUp 1s ease both .5s;
+}
 
-  /* ── RSVP Form ── */
-  .rsvp-section {
-    background: linear-gradient(135deg, #fff0f6, #f8f0ff);
-    border: 1.5px solid #f0c8e0;
-    border-radius: 20px;
-    padding: 22px 22px 20px;
-    margin-top: 8px;
-  }
-  .rsvp-title {
-    text-align: center;
-    font-size: 18px;
-    color: #c44880;
-    font-family: 'Brush Script MT', 'Segoe Script', cursive;
-    margin-bottom: 4px;
-  }
-  .rsvp-sub {
-    text-align: center;
-    font-size: 11px;
-    color: #a07090;
-    margin-bottom: 16px;
-    font-style: italic;
-  }
+/* ── Separador ── */
+.sep {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-bottom: 20px;
+  animation: fadeInUp 1s ease both .6s;
+}
+.sep-line { flex: 1; height: 1px; background: linear-gradient(to right, transparent, #e8a0c0, transparent); }
+.sep-heart { color: #e8689a; font-size: 14px; animation: heartBeat 1.5s ease-in-out infinite; }
 
-  .form-group { margin-bottom: 12px; }
-  .form-group label {
-    display: block;
-    font-size: 11px;
-    color: #8a5080;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    margin-bottom: 5px;
-  }
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1.5px solid #f0c0d8;
-    border-radius: 12px;
-    font-size: 14px;
-    font-family: 'Georgia', serif;
-    color: #3d2040;
-    background: #fff;
-    outline: none;
-    transition: border-color .2s, box-shadow .2s;
-  }
-  .form-group input:focus,
-  .form-group select:focus,
-  .form-group textarea:focus {
-    border-color: #e8689a;
-    box-shadow: 0 0 0 3px rgba(232,104,154,.15);
-  }
-  .form-group textarea { resize: none; height: 70px; }
+/* ── Info ── */
+.info-row {
+  display: flex; justify-content: center; gap: 16px;
+  align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px;
+  animation: fadeInUp 1s ease both .7s;
+}
+.info-item { display: flex; align-items: center; gap: 10px; }
+.info-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #fce8f0, #f0d8f8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(232,104,154,.2);
+  animation: iconPop 2s ease-in-out infinite;
+}
+@keyframes iconPop {
+  0%,100% { transform: scale(1); box-shadow: 0 2px 8px rgba(232,104,154,.2); }
+  50%      { transform: scale(1.08); box-shadow: 0 4px 14px rgba(232,104,154,.4); }
+}
+.info-icon:nth-child(1) { animation-delay: .3s; }
+.info-label { font-size: 11px; color: #a07090; font-style: italic; }
+.info-value { font-size: 15px; font-weight: 700; color: #3d2040; line-height: 1.2; }
+.info-divider { width: 1px; height: 38px; background: #f0c8dc; }
 
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.direccion-row {
+  display: flex; justify-content: center; align-items: center;
+  gap: 10px; margin-bottom: 24px;
+  animation: fadeInUp 1s ease both .8s;
+}
 
-  .btn-confirm {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #e8689a, #c44880);
-    color: #fff;
-    border: none;
-    border-radius: 14px;
-    font-size: 16px;
-    font-family: 'Brush Script MT', 'Segoe Script', cursive;
-    letter-spacing: .05em;
-    cursor: pointer;
-    margin-top: 6px;
-    box-shadow: 0 4px 16px rgba(196,72,128,.3);
-    transition: transform .15s, box-shadow .15s;
-  }
-  .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(196,72,128,.4); }
-  .btn-confirm:active { transform: translateY(0); }
+/* ── RSVP ── */
+.rsvp-section {
+  background: linear-gradient(135deg, #fff0f6, #f8f0ff);
+  border: 1.5px solid #f0c8e0;
+  border-radius: 20px;
+  padding: 20px 18px 18px;
+  margin-top: 6px;
+  animation: fadeInUp 1s ease both .9s;
+}
+.rsvp-title {
+  text-align: center; font-size: 20px; color: #c44880;
+  font-family: 'Brush Script MT', 'Segoe Script', cursive;
+  margin-bottom: 3px;
+}
+.rsvp-sub {
+  text-align: center; font-size: 11px; color: #a07090;
+  margin-bottom: 14px; font-style: italic;
+}
+.form-group { margin-bottom: 11px; }
+.form-group label {
+  display: block; font-size: 11px; color: #8a5080;
+  font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; margin-bottom: 4px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%; padding: 10px 13px;
+  border: 1.5px solid #f0c0d8; border-radius: 12px;
+  font-size: 14px; font-family: 'Georgia', serif;
+  color: #3d2040; background: #fff; outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: #e8689a;
+  box-shadow: 0 0 0 3px rgba(232,104,154,.15);
+}
+.form-group textarea { resize: none; height: 65px; }
 
-  .success-msg {
-    display: none;
-    text-align: center;
-    padding: 20px;
-    background: linear-gradient(135deg, #f0fff4, #e8f5ff);
-    border: 1.5px solid #86efac;
-    border-radius: 16px;
-    margin-top: 10px;
-  }
-  .success-msg .s-icon { font-size: 36px; margin-bottom: 8px; }
-  .success-msg p { color: #166534; font-size: 15px; font-weight: 600; }
-  .success-msg small { color: #4ade80; font-size: 12px; }
+.btn-confirm {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, #e8689a, #c44880);
+  color: #fff; border: none; border-radius: 14px;
+  font-size: 17px;
+  font-family: 'Brush Script MT', 'Segoe Script', cursive;
+  cursor: pointer; margin-top: 5px;
+  box-shadow: 0 4px 18px rgba(196,72,128,.35);
+  transition: transform .15s, box-shadow .15s;
+  animation: btnGlow 2.5s ease-in-out infinite;
+}
+@keyframes btnGlow {
+  0%,100% { box-shadow: 0 4px 18px rgba(196,72,128,.35); }
+  50%      { box-shadow: 0 4px 28px rgba(196,72,128,.6), 0 0 20px rgba(232,104,154,.3); }
+}
+.btn-confirm:hover  { transform: translateY(-2px); }
+.btn-confirm:active { transform: translateY(0); }
 
-  .error-msg {
-    display: none;
-    text-align: center;
-    color: #b91c1c;
-    font-size: 13px;
-    margin-top: 8px;
-    padding: 10px;
-    background: #fff1f2;
-    border-radius: 10px;
-    border: 1px solid #fca5a5;
-  }
+.success-msg {
+  display: none; text-align: center; padding: 20px;
+  background: linear-gradient(135deg, #f0fff4, #e8f5ff);
+  border: 1.5px solid #86efac; border-radius: 16px; margin-top: 10px;
+}
+.success-msg .s-icon { font-size: 36px; margin-bottom: 8px; animation: bounce 1s ease infinite; }
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.success-msg p { color: #166534; font-size: 15px; font-weight: 600; }
 
-  /* ── Footer ── */
-  .card-footer {
-    text-align: center;
-    margin-top: 24px;
-    font-size: 11px;
-    color: #c8a0b8;
-    font-style: italic;
-  }
+.error-msg {
+  display: none; text-align: center; color: #b91c1c;
+  font-size: 13px; margin-top: 8px; padding: 10px;
+  background: #fff1f2; border-radius: 10px; border: 1px solid #fca5a5;
+}
+
+.card-footer {
+  text-align: center; margin-top: 22px;
+  font-size: 11px; color: #c8a0b8; font-style: italic;
+  animation: fadeInUp 1s ease both 1s;
+}
+
+/* ── Responsive mobile ── */
+@media (max-width: 400px) {
+  body { padding: 16px 8px 50px; }
+  .card { padding: 38px 18px 30px; border-radius: 28px 10px 28px 10px / 10px 28px 10px 28px; }
+  .card::before { inset: 8px; }
+  .info-row { gap: 10px; }
+  .info-item { gap: 8px; }
+  .info-icon { width: 32px; height: 32px; font-size: 15px; }
+  .info-value { font-size: 14px; }
+  .rsvp-section { padding: 16px 14px 14px; }
+  .nombre-elizabeth { letter-spacing: .3em; }
+  .butterfly-tr { right: -4px; }
+  .butterfly-bl { left: -10px; }
+}
 </style>
 </head>
 <body>
 
+<div class="bg-gradient"></div>
+<div class="light-rays">
+  <div class="ray"></div><div class="ray"></div>
+  <div class="ray"></div><div class="ray"></div><div class="ray"></div>
+</div>
+<canvas id="particleCanvas"></canvas>
+
 <div class="card">
 
-  <!-- Corazones dorados decorativos -->
+  <!-- Brillo de tarjeta ya en CSS -->
+
+  <!-- Corazones dorados -->
   <div class="hearts">
-    <span style="top:12%;left:6%;animation-delay:.3s">💛</span>
-    <span style="top:8%;right:22%;animation-delay:1.1s">💛</span>
-    <span style="top:30%;right:4%;animation-delay:.6s;font-size:9px">💛</span>
-    <span style="bottom:35%;left:3%;animation-delay:1.8s;font-size:9px">💛</span>
-    <span style="bottom:20%;right:5%;animation-delay:2.2s">💛</span>
+    <span style="top:10%;left:5%;animation-delay:.3s">💛</span>
+    <span style="top:7%;right:20%;animation-delay:1.1s">💛</span>
+    <span style="top:28%;right:3%;animation-delay:.6s;font-size:10px">💛</span>
+    <span style="bottom:33%;left:2%;animation-delay:1.8s;font-size:10px">💛</span>
+    <span style="bottom:18%;right:4%;animation-delay:2.2s">💛</span>
+    <span style="top:55%;left:4%;animation-delay:3s;font-size:9px">💛</span>
   </div>
 
-  <!-- Flores esquina superior izquierda -->
+  <!-- Flores esquina TL -->
   <div class="flowers-tl">
-    <svg width="130" height="130" viewBox="0 0 130 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="125" height="125" viewBox="0 0 125 125" fill="none">
+      <ellipse cx="18" cy="72" rx="7" ry="14" fill="#90b880" opacity=".6" transform="rotate(-30 18 72)"/>
+      <ellipse cx="62" cy="50" rx="5" ry="11" fill="#90b880" opacity=".5" transform="rotate(20 62 50)"/>
+      <ellipse cx="92" cy="38" rx="4" ry="9" fill="#90b880" opacity=".5" transform="rotate(-45 92 38)"/>
       <!-- Rosa grande -->
-      <circle cx="35" cy="40" r="22" fill="#f9c8d8" opacity=".8"/>
-      <circle cx="35" cy="40" r="16" fill="#f0a0bc" opacity=".9"/>
-      <circle cx="35" cy="40" r="10" fill="#e8689a" opacity=".85"/>
-      <circle cx="35" cy="40" r="5" fill="#c44880"/>
-      <!-- Pétalos -->
-      <ellipse cx="35" cy="18" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(-5 35 18)"/>
-      <ellipse cx="55" cy="32" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(60 55 32)"/>
-      <ellipse cx="50" cy="56" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(125 50 56)"/>
-      <ellipse cx="20" cy="58" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(-125 20 58)"/>
-      <ellipse cx="14" cy="32" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(-60 14 32)"/>
-      <!-- Flores pequeñas moradas -->
-      <circle cx="80" cy="20" r="8" fill="#c8a0d8" opacity=".7"/>
-      <circle cx="80" cy="20" r="4" fill="#9b6bb5" opacity=".9"/>
-      <ellipse cx="80" cy="10" rx="3" ry="5" fill="#d8b8e8" opacity=".7"/>
-      <ellipse cx="88" cy="15" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(50 88 15)"/>
-      <ellipse cx="88" cy="26" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(110 88 26)"/>
-      <ellipse cx="72" cy="26" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(-110 72 26)"/>
-      <ellipse cx="72" cy="15" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(-50 72 15)"/>
-      <!-- Flor morada pequeña 2 -->
-      <circle cx="60" cy="70" r="6" fill="#c8a0d8" opacity=".6"/>
-      <circle cx="60" cy="70" r="3" fill="#9b6bb5" opacity=".8"/>
-      <ellipse cx="60" cy="62" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6"/>
-      <ellipse cx="67" cy="66" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6" transform="rotate(50 67 66)"/>
-      <ellipse cx="66" cy="75" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6" transform="rotate(110 66 75)"/>
-      <!-- Hojas -->
-      <ellipse cx="18" cy="65" rx="6" ry="12" fill="#90b880" opacity=".6" transform="rotate(-30 18 65)"/>
-      <ellipse cx="65" cy="48" rx="5" ry="10" fill="#90b880" opacity=".5" transform="rotate(20 65 48)"/>
-      <ellipse cx="95" cy="35" rx="4" ry="8" fill="#90b880" opacity=".5" transform="rotate(-45 95 35)"/>
+      <circle cx="33" cy="42" r="21" fill="#f9c8d8" opacity=".8"/>
+      <circle cx="33" cy="42" r="15" fill="#f0a0bc" opacity=".9"/>
+      <circle cx="33" cy="42" r="9"  fill="#e8689a" opacity=".85"/>
+      <circle cx="33" cy="42" r="4"  fill="#c44880"/>
+      <ellipse cx="33" cy="21" rx="7" ry="11" fill="#fbd0e0" opacity=".7"/>
+      <ellipse cx="52" cy="32" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(60 52 32)"/>
+      <ellipse cx="48" cy="56" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(125 48 56)"/>
+      <ellipse cx="18" cy="56" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(-125 18 56)"/>
+      <ellipse cx="13" cy="32" rx="7" ry="11" fill="#fbd0e0" opacity=".7" transform="rotate(-60 13 32)"/>
+      <!-- Flores moradas -->
+      <circle cx="78" cy="22" r="8" fill="#c8a0d8" opacity=".75"/>
+      <circle cx="78" cy="22" r="4" fill="#9b6bb5" opacity=".9"/>
+      <ellipse cx="78" cy="12" rx="3" ry="5" fill="#d8b8e8" opacity=".7"/>
+      <ellipse cx="86" cy="17" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(50 86 17)"/>
+      <ellipse cx="86" cy="28" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(110 86 28)"/>
+      <ellipse cx="70" cy="28" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(-110 70 28)"/>
+      <ellipse cx="70" cy="17" rx="3" ry="5" fill="#d8b8e8" opacity=".7" transform="rotate(-50 70 17)"/>
+      <circle cx="58" cy="72" r="6" fill="#c8a0d8" opacity=".6"/>
+      <circle cx="58" cy="72" r="3" fill="#9b6bb5" opacity=".8"/>
+      <ellipse cx="58" cy="64" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6"/>
+      <ellipse cx="65" cy="68" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6" transform="rotate(50 65 68)"/>
+      <ellipse cx="64" cy="77" rx="2.5" ry="4" fill="#d8b8e8" opacity=".6" transform="rotate(110 64 77)"/>
     </svg>
   </div>
 
-  <!-- Flores esquina inferior derecha -->
+  <!-- Flores esquina BR -->
   <div class="flowers-br">
-    <svg width="140" height="140" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="40" cy="45" r="24" fill="#f9c8d8" opacity=".8"/>
-      <circle cx="40" cy="45" r="17" fill="#f0a0bc" opacity=".9"/>
-      <circle cx="40" cy="45" r="10" fill="#e8689a" opacity=".85"/>
-      <circle cx="40" cy="45" r="5" fill="#c44880"/>
-      <ellipse cx="40" cy="21" rx="7" ry="12" fill="#fbd0e0" opacity=".7"/>
-      <ellipse cx="62" cy="35" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(60 62 35)"/>
-      <ellipse cx="57" cy="62" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(125 57 62)"/>
-      <ellipse cx="23" cy="62" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(-125 23 62)"/>
-      <ellipse cx="17" cy="35" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(-60 17 35)"/>
-      <!-- Flores pequeñas rosas -->
-      <circle cx="90" cy="30" r="9" fill="#f9a8c8" opacity=".7"/>
-      <circle cx="90" cy="30" r="5" fill="#e8689a" opacity=".9"/>
-      <ellipse cx="90" cy="19" rx="3" ry="5" fill="#fcc0d8" opacity=".7"/>
-      <ellipse cx="99" cy="24" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(55 99 24)"/>
-      <ellipse cx="99" cy="36" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(115 99 36)"/>
-      <ellipse cx="81" cy="36" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(-115 81 36)"/>
-      <ellipse cx="81" cy="24" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(-55 81 24)"/>
-      <!-- Hojas -->
-      <ellipse cx="75" cy="65" rx="5" ry="11" fill="#90b880" opacity=".55" transform="rotate(-20 75 65)"/>
-      <ellipse cx="110" cy="55" rx="4" ry="9" fill="#90b880" opacity=".5" transform="rotate(30 110 55)"/>
-      <ellipse cx="20" cy="80" rx="5" ry="10" fill="#90b880" opacity=".5" transform="rotate(-40 20 80)"/>
+    <svg width="135" height="135" viewBox="0 0 135 135" fill="none">
+      <ellipse cx="75" cy="68" rx="5" ry="12" fill="#90b880" opacity=".55" transform="rotate(-20 75 68)"/>
+      <ellipse cx="108" cy="58" rx="4" ry="9" fill="#90b880" opacity=".5" transform="rotate(30 108 58)"/>
+      <ellipse cx="20" cy="82" rx="5" ry="11" fill="#90b880" opacity=".5" transform="rotate(-40 20 82)"/>
+      <circle cx="38" cy="46" r="23" fill="#f9c8d8" opacity=".8"/>
+      <circle cx="38" cy="46" r="16" fill="#f0a0bc" opacity=".9"/>
+      <circle cx="38" cy="46" r="10" fill="#e8689a" opacity=".85"/>
+      <circle cx="38" cy="46" r="5"  fill="#c44880"/>
+      <ellipse cx="38" cy="22" rx="7" ry="12" fill="#fbd0e0" opacity=".7"/>
+      <ellipse cx="60" cy="36" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(60 60 36)"/>
+      <ellipse cx="55" cy="63" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(125 55 63)"/>
+      <ellipse cx="21" cy="63" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(-125 21 63)"/>
+      <ellipse cx="15" cy="36" rx="7" ry="12" fill="#fbd0e0" opacity=".7" transform="rotate(-60 15 36)"/>
+      <circle cx="88" cy="30" r="9" fill="#f9a8c8" opacity=".7"/>
+      <circle cx="88" cy="30" r="5" fill="#e8689a" opacity=".9"/>
+      <ellipse cx="88" cy="19" rx="3" ry="5" fill="#fcc0d8" opacity=".7"/>
+      <ellipse cx="97" cy="24" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(55 97 24)"/>
+      <ellipse cx="97" cy="36" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(115 97 36)"/>
+      <ellipse cx="79" cy="36" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(-115 79 36)"/>
+      <ellipse cx="79" cy="24" rx="3" ry="5" fill="#fcc0d8" opacity=".7" transform="rotate(-55 79 24)"/>
     </svg>
   </div>
 
-  <!-- Mariposa superior derecha -->
+  <!-- Mariposa TR -->
   <div class="butterfly butterfly-tr">
-    <svg width="90" height="80" viewBox="0 0 90 80" fill="none">
-      <ellipse cx="30" cy="28" rx="28" ry="22" fill="#f0b0d8" opacity=".85" transform="rotate(-20 30 28)"/>
-      <ellipse cx="30" cy="28" rx="20" ry="15" fill="#e880c0" opacity=".7" transform="rotate(-20 30 28)"/>
-      <ellipse cx="60" cy="28" rx="22" ry="18" fill="#d898e8" opacity=".85" transform="rotate(20 60 28)"/>
-      <ellipse cx="60" cy="28" rx="15" ry="12" fill="#b870d0" opacity=".7" transform="rotate(20 60 28)"/>
-      <!-- Alas inferiores -->
-      <ellipse cx="26" cy="52" rx="18" ry="14" fill="#f0b0d8" opacity=".75" transform="rotate(15 26 52)"/>
-      <ellipse cx="64" cy="52" rx="16" ry="13" fill="#d898e8" opacity=".75" transform="rotate(-15 64 52)"/>
-      <!-- Cuerpo -->
-      <ellipse cx="45" cy="38" rx="3" ry="22" fill="#7040a0"/>
-      <!-- Antenas -->
-      <path d="M45 16 Q38 4 32 2" stroke="#7040a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M45 16 Q52 4 58 2" stroke="#7040a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <circle cx="32" cy="2" r="2.5" fill="#7040a0"/>
-      <circle cx="58" cy="2" r="2.5" fill="#7040a0"/>
-      <!-- Detalles ala -->
-      <circle cx="24" cy="22" r="4" fill="#fff" opacity=".35"/>
-      <circle cx="64" cy="22" r="3" fill="#fff" opacity=".35"/>
+    <svg width="88" height="76" viewBox="0 0 88 76" fill="none">
+      <g class="wing-left">
+        <ellipse cx="28" cy="26" rx="26" ry="20" fill="#f0b0d8" opacity=".85" transform="rotate(-18 28 26)"/>
+        <ellipse cx="28" cy="26" rx="18" ry="14" fill="#e880c0" opacity=".7" transform="rotate(-18 28 26)"/>
+        <ellipse cx="24" cy="50" rx="17" ry="13" fill="#f0b0d8" opacity=".75" transform="rotate(14 24 50)"/>
+        <circle cx="20" cy="20" r="4" fill="#fff" opacity=".3"/>
+      </g>
+      <g class="wing-right">
+        <ellipse cx="60" cy="26" rx="21" ry="17" fill="#d898e8" opacity=".85" transform="rotate(18 60 26)"/>
+        <ellipse cx="60" cy="26" rx="14" ry="11" fill="#b870d0" opacity=".7" transform="rotate(18 60 26)"/>
+        <ellipse cx="64" cy="50" rx="15" ry="12" fill="#d898e8" opacity=".75" transform="rotate(-14 64 50)"/>
+        <circle cx="66" cy="20" r="3" fill="#fff" opacity=".3"/>
+      </g>
+      <ellipse cx="44" cy="36" rx="2.8" ry="20" fill="#6030a0"/>
+      <path d="M44 16 Q37 4 30 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M44 16 Q51 4 58 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="30" cy="2" r="2.5" fill="#6030a0"/>
+      <circle cx="58" cy="2" r="2.5" fill="#6030a0"/>
     </svg>
   </div>
 
-  <!-- Mariposa izquierda baja -->
-  <div class="butterfly butterfly-bl">
-    <svg width="80" height="70" viewBox="0 0 80 70" fill="none">
-      <ellipse cx="25" cy="24" rx="24" ry="19" fill="#f8b0d0" opacity=".85" transform="rotate(-20 25 24)"/>
-      <ellipse cx="25" cy="24" rx="16" ry="13" fill="#f070b0" opacity=".7" transform="rotate(-20 25 24)"/>
-      <ellipse cx="54" cy="24" rx="20" ry="16" fill="#d890e8" opacity=".85" transform="rotate(20 54 24)"/>
-      <ellipse cx="54" cy="24" rx="13" ry="10" fill="#a060c8" opacity=".7" transform="rotate(20 54 24)"/>
-      <ellipse cx="22" cy="46" rx="16" ry="12" fill="#f8b0d0" opacity=".75" transform="rotate(15 22 46)"/>
-      <ellipse cx="57" cy="46" rx="14" ry="11" fill="#d890e8" opacity=".75" transform="rotate(-15 57 46)"/>
-      <ellipse cx="40" cy="33" rx="2.5" ry="18" fill="#6030a0"/>
-      <path d="M40 15 Q34 4 28 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M40 15 Q46 4 52 2" stroke="#6030a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <circle cx="28" cy="2" r="2" fill="#6030a0"/>
-      <circle cx="52" cy="2" r="2" fill="#6030a0"/>
+  <!-- Mariposa BL -->
+  <div class="butterfly butterfly-bl" style="transform:scale(.78) scaleX(-1)">
+    <svg width="80" height="68" viewBox="0 0 80 68" fill="none">
+      <g class="wing-left">
+        <ellipse cx="24" cy="23" rx="22" ry="17" fill="#f8b0d0" opacity=".85" transform="rotate(-18 24 23)"/>
+        <ellipse cx="24" cy="23" rx="15" ry="11" fill="#f070b0" opacity=".7" transform="rotate(-18 24 23)"/>
+        <ellipse cx="20" cy="44" rx="14" ry="11" fill="#f8b0d0" opacity=".75" transform="rotate(14 20 44)"/>
+      </g>
+      <g class="wing-right">
+        <ellipse cx="54" cy="23" rx="18" ry="14" fill="#d890e8" opacity=".85" transform="rotate(18 54 23)"/>
+        <ellipse cx="54" cy="23" rx="12" ry="9"  fill="#a060c8" opacity=".7" transform="rotate(18 54 23)"/>
+        <ellipse cx="57" cy="44" rx="13" ry="10" fill="#d890e8" opacity=".75" transform="rotate(-14 57 44)"/>
+      </g>
+      <ellipse cx="40" cy="31" rx="2.5" ry="17" fill="#5020a0"/>
+      <path d="M40 14 Q34 3 27 1"  stroke="#5020a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M40 14 Q46 3 53 1"  stroke="#5020a0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="27" cy="1" r="2" fill="#5020a0"/>
+      <circle cx="53" cy="1" r="2" fill="#5020a0"/>
+    </svg>
+  </div>
+
+  <!-- Mariposa BR -->
+  <div class="butterfly butterfly-br" style="transform:scale(.58)">
+    <svg width="80" height="68" viewBox="0 0 80 68" fill="none">
+      <g class="wing-left">
+        <ellipse cx="24" cy="23" rx="22" ry="17" fill="#fcc0e0" opacity=".85" transform="rotate(-18 24 23)"/>
+        <ellipse cx="24" cy="23" rx="15" ry="11" fill="#f090c8" opacity=".7" transform="rotate(-18 24 23)"/>
+        <ellipse cx="20" cy="44" rx="14" ry="11" fill="#fcc0e0" opacity=".75" transform="rotate(14 20 44)"/>
+      </g>
+      <g class="wing-right">
+        <ellipse cx="54" cy="23" rx="18" ry="14" fill="#e0b0f0" opacity=".85" transform="rotate(18 54 23)"/>
+        <ellipse cx="54" cy="23" rx="12" ry="9"  fill="#c080e0" opacity=".7" transform="rotate(18 54 23)"/>
+        <ellipse cx="57" cy="44" rx="13" ry="10" fill="#e0b0f0" opacity=".75" transform="rotate(-14 57 44)"/>
+      </g>
+      <ellipse cx="40" cy="31" rx="2.5" ry="17" fill="#7040b0"/>
+      <path d="M40 14 Q34 3 27 1"  stroke="#7040b0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M40 14 Q46 3 53 1"  stroke="#7040b0" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="27" cy="1" r="2" fill="#7040b0"/>
+      <circle cx="53" cy="1" r="2" fill="#7040b0"/>
     </svg>
   </div>
 
   <!-- Contenido -->
   <div style="position:relative;z-index:1">
 
-    <div style="height:55px"></div>
+    <div style="height:18px"></div>
 
     <p class="subtitle-top">Te invito a celebrar</p>
     <p class="subtitle-pink">mi primer añito</p>
 
-    <!-- Número 1 con mariposa decorativa -->
+    <!-- Número 1 -->
     <div class="number-block">
-      <div style="position:relative;display:inline-block">
+      <div class="numero-wrap">
         <span class="numero-uno">1</span>
-        <!-- Florcita al pie del número -->
-        <svg style="position:absolute;bottom:-10px;left:50%;transform:translateX(-50%)" width="60" height="30" viewBox="0 0 60 30">
-          <circle cx="30" cy="18" r="7" fill="#f9a8c8" opacity=".8"/>
-          <circle cx="30" cy="18" r="4" fill="#e8689a"/>
-          <ellipse cx="30" cy="9" rx="2.5" ry="4" fill="#fcc8dc" opacity=".8"/>
-          <ellipse cx="37" cy="13" rx="2.5" ry="4" fill="#fcc8dc" opacity=".8" transform="rotate(55 37 13)"/>
-          <ellipse cx="23" cy="13" rx="2.5" ry="4" fill="#fcc8dc" opacity=".8" transform="rotate(-55 23 13)"/>
-          <ellipse cx="16" cy="20" rx="4" ry="8" fill="#90b880" opacity=".6" transform="rotate(-25 16 20)"/>
-          <ellipse cx="44" cy="20" rx="4" ry="8" fill="#90b880" opacity=".6" transform="rotate(25 44 20)"/>
+        <div class="numero-shimmer"></div>
+        <!-- Florcita bajo el 1 -->
+        <svg style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%)" width="56" height="28" viewBox="0 0 56 28">
+          <ellipse cx="14" cy="18" rx="4" ry="8" fill="#90b880" opacity=".6" transform="rotate(-25 14 18)"/>
+          <ellipse cx="42" cy="18" rx="4" ry="8" fill="#90b880" opacity=".6" transform="rotate(25 42 18)"/>
+          <circle cx="28" cy="16" r="7" fill="#f9a8c8" opacity=".85"/>
+          <circle cx="28" cy="16" r="4" fill="#e8689a"/>
+          <ellipse cx="28" cy="7"  rx="2.5" ry="4" fill="#fcc8dc" opacity=".8"/>
+          <ellipse cx="36" cy="11" rx="2.5" ry="4" fill="#fcc8dc" opacity=".8" transform="rotate(55 36 11)"/>
+          <ellipse cx="20" cy="11" rx="2.5" ry="4" fill="#fcc8dc" opacity=".8" transform="rotate(-55 20 11)"/>
         </svg>
       </div>
     </div>
 
-    <div style="height:30px"></div>
+    <div style="height:28px"></div>
 
-    <p class="nombre-fiorella">Fiorella</p>
+    <p class="nombre-fiorella" data-text="Fiorella">Fiorella</p>
     <p class="nombre-elizabeth">E l i z a b e t h</p>
 
     <div class="sep">
@@ -481,7 +567,6 @@
       <div class="sep-line"></div>
     </div>
 
-    <!-- Info: fecha y hora -->
     <div class="info-row">
       <div class="info-item">
         <div class="info-icon">📅</div>
@@ -500,7 +585,6 @@
       </div>
     </div>
 
-    <!-- Dirección -->
     <div class="direccion-row">
       <div class="info-icon">📍</div>
       <div>
@@ -519,30 +603,21 @@
           <label>Tu nombre completo *</label>
           <input type="text" id="rNombre" placeholder="Nombre y apellido" autocomplete="name">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Cantidad de personas</label>
-            <select id="rCantidad">
-              <option value="1">Solo yo (1)</option>
-              <option value="2">2 personas</option>
-              <option value="3">3 personas</option>
-              <option value="4">4 personas</option>
-              <option value="5">5 personas</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Teléfono (opcional)</label>
-            <input type="tel" id="rTelefono" placeholder="0981 000 000">
-          </div>
+        <div class="form-group">
+          <label>Cantidad de personas</label>
+          <select id="rCantidad">
+            <option value="1">Solo yo (1)</option>
+            <option value="2">2 personas</option>
+            <option value="3">3 personas</option>
+            <option value="4">4 personas</option>
+            <option value="5">5 personas</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Mensaje para Fiorella (opcional)</label>
           <textarea id="rMensaje" placeholder="¡Un mensaje especial para la cumpleañera! 🎀"></textarea>
         </div>
-
-        <button class="btn-confirm" onclick="confirmarPresencia()">
-          ✨ Confirmar asistencia ✨
-        </button>
+        <button class="btn-confirm" onclick="confirmarPresencia()">✨ Confirmar asistencia ✨</button>
         <div class="error-msg" id="errMsg"></div>
       </div>
 
@@ -550,22 +625,129 @@
         <div class="s-icon">🎉🦋🎀</div>
         <p>¡Gracias por confirmar!</p>
         <p style="margin-top:6px;font-size:13px;color:#166534">Te esperamos el 15 de agosto a las 19:00 hs en Pizza Hut</p>
-        <small>¡Vamos a celebrar juntos el primer añito de Fiorella!</small>
+        <p style="font-size:12px;color:#4ade80;margin-top:4px">¡Vamos a celebrar el primer añito de Fiorella!</p>
       </div>
     </div>
 
     <p class="card-footer">Con todo el amor 💕 · Fiorella Elizabeth</p>
-
   </div>
 </div>
 
 <script>
+/* ── Canvas de partículas ── */
+const canvas = document.getElementById('particleCanvas');
+const ctx    = canvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const COLORS = ['#f9a8c8','#e8689a','#d898e8','#9b6bb5','#f0c040','#fce8f0','#c8a0d8'];
+const EMOJIS = ['🌸','💕','✨','🦋','💛','🌷'];
+
+class Particle {
+  constructor() { this.reset(true); }
+  reset(init = false) {
+    this.x    = Math.random() * canvas.width;
+    this.y    = init ? Math.random() * canvas.height : -20;
+    this.size = Math.random() * 6 + 2;
+    this.speedY = Math.random() * 1.2 + 0.4;
+    this.speedX = (Math.random() - 0.5) * 0.8;
+    this.opacity= Math.random() * 0.6 + 0.3;
+    this.color  = COLORS[Math.floor(Math.random() * COLORS.length)];
+    this.rot    = Math.random() * Math.PI * 2;
+    this.rotSpd = (Math.random() - 0.5) * 0.04;
+    this.type   = Math.random() < 0.3 ? 'heart' : Math.random() < 0.5 ? 'star' : 'petal';
+    this.swing  = Math.random() * Math.PI * 2;
+    this.swingA = Math.random() * 1.2 + 0.6;
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+    ctx.fillStyle   = this.color;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    if (this.type === 'heart') {
+      ctx.beginPath();
+      const s = this.size;
+      ctx.moveTo(0, s * .3);
+      ctx.bezierCurveTo(-s, -s * .5, -s * 2, s * .3, 0, s * 1.3);
+      ctx.bezierCurveTo(s * 2, s * .3, s, -s * .5, 0, s * .3);
+      ctx.fill();
+    } else if (this.type === 'star') {
+      const r1 = this.size, r2 = this.size * .4, pts = 5;
+      ctx.beginPath();
+      for (let i = 0; i < pts * 2; i++) {
+        const r = i % 2 === 0 ? r1 : r2;
+        const a = (i * Math.PI) / pts - Math.PI / 2;
+        i === 0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+      }
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, this.size, this.size * .5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  update() {
+    this.swing += 0.03;
+    this.x     += Math.sin(this.swing) * this.swingA * 0.4 + this.speedX;
+    this.y     += this.speedY;
+    this.rot   += this.rotSpd;
+    if (this.y > canvas.height + 20) this.reset();
+  }
+}
+
+class Sparkle {
+  constructor() { this.reset(); }
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.r = Math.random() * 2 + .5;
+    this.life = 0;
+    this.maxLife = Math.random() * 80 + 40;
+    this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+  }
+  draw() {
+    const t = this.life / this.maxLife;
+    const a = t < .5 ? t * 2 : (1 - t) * 2;
+    ctx.save();
+    ctx.globalAlpha = a * .8;
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur  = 6;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  update() {
+    this.life++;
+    if (this.life >= this.maxLife) this.reset();
+  }
+}
+
+const particles = Array.from({ length: 55 }, () => new Particle());
+const sparkles  = Array.from({ length: 30 }, () => new Sparkle());
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  sparkles.forEach(s  => { s.update();  s.draw(); });
+  requestAnimationFrame(animate);
+}
+animate();
+
+/* ── RSVP ── */
 async function confirmarPresencia() {
-  const nombre = document.getElementById('rNombre').value.trim();
+  const nombre   = document.getElementById('rNombre').value.trim();
   const cantidad = document.getElementById('rCantidad').value;
-  const telefono = document.getElementById('rTelefono').value.trim();
-  const mensaje = document.getElementById('rMensaje').value.trim();
-  const errEl = document.getElementById('errMsg');
+  const mensaje  = document.getElementById('rMensaje').value.trim();
+  const errEl    = document.getElementById('errMsg');
 
   errEl.style.display = 'none';
   if (!nombre) {
@@ -574,28 +756,34 @@ async function confirmarPresencia() {
     document.getElementById('rNombre').focus();
     return;
   }
-
   const btn = document.querySelector('.btn-confirm');
-  btn.disabled = true;
+  btn.disabled    = true;
   btn.textContent = '⏳ Enviando...';
 
   try {
     const res = await fetch('/api/rsvp/fiorella', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, cantidad: parseInt(cantidad), telefono: telefono||null, mensaje: mensaje||null })
+      body: JSON.stringify({ nombre, cantidad: parseInt(cantidad), mensaje: mensaje || null })
     });
-    if (!res.ok) throw new Error((await res.json()).error || 'Error al enviar');
-    document.getElementById('rsvpForm').style.display = 'none';
+    if (!res.ok) throw new Error();
+    document.getElementById('rsvpForm').style.display  = 'none';
     document.getElementById('successMsg').style.display = 'block';
-  } catch(e) {
-    errEl.textContent = 'Hubo un error al enviar. Intentá de nuevo.';
+    // Lluvia de confetti al confirmar
+    for (let i = 0; i < 30; i++) {
+      const p = new Particle();
+      p.y = canvas.height * .6 + Math.random() * 100;
+      p.speedY = -(Math.random() * 4 + 2);
+      p.speedX = (Math.random() - .5) * 3;
+      particles.push(p);
+    }
+  } catch {
+    errEl.textContent   = 'Hubo un error al enviar. Intentá de nuevo.';
     errEl.style.display = 'block';
-    btn.disabled = false;
+    btn.disabled    = false;
     btn.textContent = '✨ Confirmar asistencia ✨';
   }
 }
 </script>
-
 </body>
 </html>
