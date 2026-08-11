@@ -16353,8 +16353,8 @@ function saltarConflicto(){cm();W._conflictoIdx++;procesarConflictoPago();}
 // ── ARANCELES / COSTOS ────────────────────────────────────────────────────────
 async function pgAranceles(el){
   const [aranceles,carrs]=await Promise.all([api('GET','/api/aranceles'),api('GET','/api/carreras')]);
-  const tipoLabel={matricula:'Matrícula',cuota:'Cuota',parcial:'Parcial (gen.)',final:'Final (gen.)',parcial_recuperatorio:'Parcial Recup.',final_ordinario:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',certificado:'Certificado',otro:'Otro'};
-  const tipoColor={matricula:'bg',cuota:'bb',parcial:'ba',final:'br',parcial_recuperatorio:'ba',final_ordinario:'br',final_recuperatorio:'br',complementario:'bv',extraordinario:'bv',certificado:'bgr',otro:'bgr'};
+  const tipoLabel={matricula:'Matrícula',cuota:'Cuota',parcial:'Parcial (gen.)',final:'Final (gen.)',parcial_recuperatorio:'Parcial Recup.',final_ordinario:'Final Ord.',final_recuperatorio:'Final Recup.',complementario:'Complementario',extraordinario:'Extraordinario',certificado:'Certificado',constancia:'Constancia',otro:'Otro'};
+  const tipoColor={matricula:'bg',cuota:'bb',parcial:'ba',final:'br',parcial_recuperatorio:'ba',final_ordinario:'br',final_recuperatorio:'br',complementario:'bv',extraordinario:'bv',certificado:'bgr',constancia:'bgr',otro:'bgr'};
   el.innerHTML=`<div class="ph"><h3>Aranceles / Costos institucionales</h3>
     <button class="bn" onclick="mArancel()">+ Nuevo arancel</button>
   </div>
@@ -16396,6 +16396,7 @@ function mArancel(a){
           <option value="parcial" ${e&&a.tipo==='parcial'?'selected':''}>Examen Parcial (genérico)</option>
           <option value="final" ${e&&a.tipo==='final'?'selected':''}>Examen Final (genérico)</option>
           <option value="certificado" ${e&&a.tipo==='certificado'?'selected':''}>Certificado</option>
+          <option value="constancia" ${e&&a.tipo==='constancia'?'selected':''}>Constancia de estudios</option>
           <option value="otro" ${e&&a.tipo==='otro'?'selected':''}>Otro</option>
         </optgroup>
       </select></div>

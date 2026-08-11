@@ -11647,6 +11647,7 @@ try {
     { id: 'ar_final_rec',    tipo: 'final_recuperatorio',   concepto: 'Examen Final Recuperatorio',   monto: 80000  },
     { id: 'ar_complem',      tipo: 'complementario',        concepto: 'Examen Final Complementario',  monto: 120000 },
     { id: 'ar_extraord',     tipo: 'extraordinario',        concepto: 'Examen Final Extraordinario',  monto: 200000 },
+    { id: 'ar_constancia',   tipo: 'constancia',            concepto: 'Constancia de estudios',       monto: 30000  },
   ];
   for (const ar of arancelesSeed) {
     const existing = db.prepare('SELECT id FROM aranceles WHERE tipo=? AND carrera_id IS NULL').get(ar.tipo);
