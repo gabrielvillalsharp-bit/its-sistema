@@ -14608,12 +14608,26 @@ async function selAlumnoPago(alId){
 
     // Grid de cuotas — 10 cuotas + matrícula (match EXACTO para evitar bug Cuota 1 vs Cuota 10)
     const mesFull=['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+    // Calcular cuota de inicio según fecha_ingreso (misma lógica que calcularMesesDeuda en backend)
+    const MES_A_CUOTA={3:1,4:2,5:3,6:4,7:5,8:6,9:7,10:8,11:9,12:10,1:11,2:12};
+    let cuotaInicio=1;
+    if(al.fecha_ingreso){
+      const mesIng=new Date(al.fecha_ingreso+'T00:00:00').getMonth()+1;
+      cuotaInicio=MES_A_CUOTA[mesIng]||1;
+    }
     const cuotasGrid=['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
       // 1er año no paga matrícula
       if(n==='Matrícula'&&es1erAnio){
         return `<div style="border:1.5px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:12px 4px;text-align:center;flex:1;min-width:58px;cursor:default" title="1er año: no paga matrícula">
           <div style="font-size:10px;color:#d1d5db;margin-bottom:4px">—</div>
           <div style="font-size:10px;font-weight:600;color:#d1d5db;line-height:1.3">Mat.<br>N/A</div>
+        </div>`;
+      }
+      // Cuotas anteriores al mes de ingreso → N/A
+      if(typeof n==='number' && n < cuotaInicio){
+        return `<div style="border:1.5px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:12px 4px;text-align:center;flex:1;min-width:58px;cursor:default" title="No aplica (ingresó en ${mesFull[cuotaInicio]||'mes '+cuotaInicio})">
+          <div style="font-size:10px;color:#d1d5db;margin-bottom:4px">—</div>
+          <div style="font-size:10px;font-weight:600;color:#d1d5db;line-height:1.3">Cuota<br>${mesFull[n]||n}</div>
         </div>`;
       }
       const key=n==='Matrícula'?'Matrícula':'Cuota '+n;
@@ -14804,7 +14818,8 @@ async function selAlumnoPago(alId){
       </div>`;}).join('')||'<p style="color:#94a3b8;font-size:13px;padding:16px 0;text-align:center">Sin pagos registrados</p>';
 
     const totalPagos=(pagos||[]).length;
-    const totalPendientes=12-grupos.cuotas.pagos.length+(grupos.matricula.pagos.length===0?1:0);
+    const cuotasAplicables=10-(cuotaInicio-1); // cuotas que realmente aplican al alumno
+    const totalPendientes=cuotasAplicables-grupos.cuotas.pagos.length+(grupos.matricula.pagos.length===0&&!es1erAnio?1:0);
 
     panel.innerHTML=`
       <!-- HEADER DEL ALUMNO -->
