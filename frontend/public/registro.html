@@ -112,6 +112,38 @@ label{font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;display:blo
 /* Grid 2-col form */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:380px){.grid2{grid-template-columns:1fr}}
+
+/* ── Bienvenida premium ── */
+@keyframes bv-up{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes bv-pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes bv-bounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}60%{transform:translateY(-3px)}}
+@keyframes bv-wobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-11deg)}40%{transform:rotate(11deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
+
+.bv-hero{background:linear-gradient(160deg,#1f8246 0%,#166534 60%,#14532d 100%);padding:32px 20px 48px;text-align:center;position:relative;margin:-16px -14px 0;animation:bv-up .4s ease both}
+.bv-curve{position:absolute;bottom:-1px;left:0;right:0;height:36px;background:#f0f4f8;border-radius:30px 30px 0 0}
+.bv-inst{font-size:17px;font-weight:800;color:#fff;letter-spacing:-.2px;animation:bv-up .45s .1s ease both}
+.bv-inst-sub{font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;margin-top:4px;animation:bv-up .45s .18s ease both}
+.bv-logo{width:66px;height:66px;border-radius:50%;background:#fff;border:4px solid #f0f4f8;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:32px;margin:16px auto -33px;position:relative;z-index:2;animation:bv-pop .7s .1s cubic-bezier(.34,1.56,.64,1) both}
+
+.bv-body{padding:44px 0 8px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.bv-heading{font-size:18px;font-weight:900;color:#111;text-align:center;animation:bv-up .45s .35s ease both}
+.bv-sub{font-size:13px;color:#6b7280;text-align:center;margin-bottom:4px;animation:bv-up .45s .42s ease both}
+
+.bv-btn{width:100%;background:#fff;border:2px solid #166534;border-radius:16px;padding:16px 18px;display:flex;align-items:center;gap:14px;text-align:left;cursor:pointer;transition:background .15s,transform .12s;box-shadow:none}
+.bv-btn:hover{background:#f0fdf4;transform:translateY(-2px)}
+.bv-btn:active{transform:scale(.98)}
+.bv-btn-a{animation:bv-up .5s .5s ease both}
+.bv-btn-b{animation:bv-up .5s .62s ease both}
+
+.bv-ico{font-size:28px;flex-shrink:0;display:inline-block}
+.bv-ico-a{animation:bv-bounce 1.8s .9s ease-in-out infinite}
+.bv-ico-b{animation:bv-wobble 2.2s 1.1s ease-in-out infinite}
+
+.bv-btn-h{font-size:14px;font-weight:800;color:#111;margin:0 0 3px}
+.bv-btn-p{font-size:12px;color:#6b7280;margin:0}
+.bv-arr{font-size:20px;color:#166534;margin-left:auto;flex-shrink:0;font-weight:700}
+
+.bv-footer{font-size:11px;color:#9ca3af;text-align:center;margin-top:4px;animation:bv-up .45s .75s ease both}
 </style>
 </head>
 <body>
@@ -156,30 +188,33 @@ async function init() {
 function renderBienvenida() {
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="header">
-      <div class="header-logo">🎓</div>
-      <h1>ITS Santísima Trinidad</h1>
-      <div class="header-carrera">Sistema Académico Digital</div>
-      <div class="header-sub">¡Bienvenido/a!</div>
+    <div class="bv-hero">
+      <div class="bv-inst">ITS Santísima Trinidad</div>
+      <div class="bv-inst-sub">Sistema Académico Digital</div>
+      <div class="bv-logo">🎓</div>
+      <div class="bv-curve"></div>
     </div>
-    <div class="card" style="margin-top:4px">
-      <p style="font-size:14px;color:#374151;text-align:center;margin-bottom:20px;line-height:1.6">
-        Para continuar, contanos si es tu primera vez en el sistema del ITS o si ya fuiste alumno/a antes.
-      </p>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <button class="btn btn-primary" onclick="renderFormNuevoAlumno()" style="padding:18px;font-size:16px">
-          🎒 Soy nuevo/a en el ITS
-          <div style="font-size:12px;font-weight:400;opacity:.85;margin-top:4px">Me registro por primera vez</div>
-        </button>
-        <button class="btn btn-secondary" onclick="initYaSoyAlumno()" style="padding:18px;font-size:16px;border:2px solid #166534;color:#166534;background:#f0fdf4">
-          👤 Ya soy alumno/a del ITS
-          <div style="font-size:12px;font-weight:400;opacity:.75;margin-top:4px">Quiero vincularme al sistema</div>
-        </button>
-      </div>
-    </div>
-    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:16px">
-      Si tenés dudas, acercate a la Secretaría del ITS
-    </p>`;
+    <div class="bv-body">
+      <div class="bv-heading">¡Bienvenido/a al ITS!</div>
+      <div class="bv-sub">Elegí cómo querés continuar</div>
+      <button class="bv-btn bv-btn-a" onclick="renderFormNuevoAlumno()">
+        <span class="bv-ico bv-ico-a">🎒</span>
+        <div class="bv-btn-txt">
+          <div class="bv-btn-h">Soy nuevo/a en el ITS</div>
+          <div class="bv-btn-p">Registro por primera vez</div>
+        </div>
+        <span class="bv-arr">›</span>
+      </button>
+      <button class="bv-btn bv-btn-b" onclick="initYaSoyAlumno()">
+        <span class="bv-ico bv-ico-b">👤</span>
+        <div class="bv-btn-txt">
+          <div class="bv-btn-h">Ya soy alumno/a</div>
+          <div class="bv-btn-p">Vincularme al sistema</div>
+        </div>
+        <span class="bv-arr">›</span>
+      </button>
+      <p class="bv-footer">Si tenés dudas, acercate a la Secretaría del ITS</p>
+    </div>`;
 }
 
 async function initYaSoyAlumno() {
