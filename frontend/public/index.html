@@ -19598,6 +19598,7 @@ async function pgInst(el){
         📂 ${d.logo_base64?'Cambiar logo':'Subir logo'}
         <input type="file" accept="image/*" style="display:none" onchange="subirLogo(this)"/>
       </label>
+      ${d.logo_base64?`<button class="bs" style="display:block;width:100%;margin-top:6px" onclick="descargarLogo()">⬇️ Descargar logo</button>`:''}
       <p style="font-size:10px;color:var(--t3);margin-top:6px">PNG o JPG · Aparece en las actas de examen</p>
     </div>
   </div>
@@ -19618,6 +19619,14 @@ async function subirLogo(input){
     toast('✓ Logo actualizado. Se usará en las actas.','ok');
     go('institucion');
   }catch(e){toast('Error al subir logo: '+e.message,'err');}
+}
+function descargarLogo(){
+  const src=W._instLogo;if(!src)return;
+  const a=document.createElement('a');
+  a.href=src;
+  const ext=src.startsWith('data:image/png')?'png':src.startsWith('data:image/svg')?'svg':'jpg';
+  a.download='logo_'+(W._instNombre||'institucion').replace(/\s+/g,'_')+'.'+ext;
+  a.click();
 }
 function descargarBackup(){
   const a=document.createElement('a');
