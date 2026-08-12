@@ -4095,75 +4095,113 @@ function mQrGeneral(){
 }
 
 function imprimirQrGeneral(url, qrSrc){
-  const inst = W._instNombre || document.title || 'Instituto';
-  const win = window.open('','_blank','width=800,height=900');
+  const inst = W._instNombre || 'Instituto Técnico Superior';
+  const qrBig = qrSrc.replace(/size=\d+x\d+/,'size=300x300').replace(/color=[^&]*/,'color=166534');
+  const win = window.open('','_blank','width=820,height=1060');
   win.document.write(`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <title>QR Registro Alumnos</title>
+  <title>QR — ${inst}</title>
   <style>
-    @page { margin: 20mm; }
+    @page { size: A4; margin: 0; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; }
-    .page { max-width: 600px; margin: 0 auto; padding: 32px 24px; text-align: center; }
-    .logo-area { margin-bottom: 20px; }
-    .inst-nombre { font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
-    .subtitulo { font-size: 14px; color: #64748b; margin-bottom: 28px; }
-    .qr-box { display: inline-block; border: 3px solid #7c3aed; border-radius: 16px; padding: 16px; margin-bottom: 28px; background: #faf5ff; }
-    .qr-box img { display: block; width: 240px; height: 240px; }
-    .titulo-qr { font-size: 20px; font-weight: 800; color: #7c3aed; margin-bottom: 6px; }
-    .desc-qr { font-size: 13px; color: #64748b; margin-bottom: 28px; max-width: 440px; margin-left: auto; margin-right: auto; }
-    .pasos { text-align: left; max-width: 440px; margin: 0 auto 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; }
-    .pasos h3 { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px; text-align: center; text-transform: uppercase; letter-spacing: .05em; }
-    .paso { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
-    .paso-num { background: #7c3aed; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
-    .paso-txt { font-size: 13px; color: #374151; line-height: 1.5; }
-    .paso-txt strong { color: #1e293b; }
-    .url-box { background: #f1f5f9; border: 1px dashed #94a3b8; border-radius: 8px; padding: 10px 16px; font-size: 11px; color: #64748b; word-break: break-all; margin-bottom: 24px; }
-    .footer { font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; background: #fff; color: #111; }
+
+    .poster { width: 210mm; min-height: 297mm; margin: 0 auto; display: flex; flex-direction: column; align-items: center; padding: 0; }
+
+    /* Header strip */
+    .header { width: 100%; background: #166534; color: #fff; padding: 28px 40px 24px; text-align: center; }
+    .header-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; opacity: .75; margin-bottom: 6px; }
+    .header-nombre { font-size: 26px; font-weight: 800; line-height: 1.15; }
+    .header-sub { font-size: 13px; opacity: .8; margin-top: 5px; }
+
+    /* Main body */
+    .body { flex: 1; width: 100%; padding: 36px 48px 32px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+
+    /* Headline */
+    .headline { text-align: center; }
+    .headline h1 { font-size: 28px; font-weight: 900; color: #14532d; line-height: 1.15; }
+    .headline p { font-size: 14px; color: #4b5563; margin-top: 6px; max-width: 380px; line-height: 1.5; }
+
+    /* QR zone */
+    .qr-zone { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .qr-frame { background: #f0fdf4; border: 3px solid #166534; border-radius: 20px; padding: 20px; display: inline-block; }
+    .qr-frame img { display: block; width: 280px; height: 280px; }
+    .qr-caption { margin-top: 12px; font-size: 12px; color: #6b7280; font-style: italic; }
+
+    /* Steps */
+    .steps { width: 100%; max-width: 440px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 14px; padding: 22px 26px; }
+    .steps-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #166534; margin-bottom: 16px; text-align: center; }
+    .step { display: flex; align-items: flex-start; gap: 13px; }
+    .step + .step { margin-top: 13px; }
+    .step-num { background: #166534; color: #fff; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .step-txt { font-size: 13px; color: #374151; line-height: 1.5; }
+    .step-txt b { color: #111; }
+
+    /* URL */
+    .url-row { width: 100%; max-width: 440px; border: 1px dashed #9ca3af; border-radius: 9px; padding: 9px 16px; display: flex; align-items: center; gap: 8px; }
+    .url-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; white-space: nowrap; }
+    .url-val { font-size: 11px; color: #374151; word-break: break-all; }
+
+    /* Footer strip */
+    .footer { width: 100%; background: #f3f4f6; border-top: 1px solid #e5e7eb; padding: 14px 40px; display: flex; align-items: center; justify-content: space-between; }
+    .footer-left { font-size: 11px; color: #9ca3af; }
+    .footer-right { font-size: 11px; color: #9ca3af; text-align: right; }
+
+    /* Print button (screen only) */
+    .print-btn { position: fixed; bottom: 24px; right: 24px; background: #166534; color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+    .print-btn:hover { background: #14532d; }
   </style>
 </head>
 <body>
-<div class="page">
-  <div class="logo-area">
-    <div class="inst-nombre">${inst}</div>
-    <div class="subtitulo">Sistema de Gestión Académica</div>
+<div class="poster">
+  <div class="header">
+    <div class="header-eyebrow">Sistema de Gestión Académica</div>
+    <div class="header-nombre">${inst}</div>
+    <div class="header-sub">Registro e inscripción de alumnos</div>
   </div>
 
-  <div class="titulo-qr">📱 Registro de Alumnos</div>
-  <div class="desc-qr">Escaneá el código QR con tu celular para registrarte o actualizar tus datos en el sistema.</div>
+  <div class="body">
+    <div class="headline">
+      <h1>Registrate aquí</h1>
+      <p>Escaneá el código con la cámara de tu celular. Solo toma 2 minutos.</p>
+    </div>
 
-  <div class="qr-box">
-    <img src="${qrSrc}" alt="QR Registro"/>
+    <div class="qr-zone">
+      <div class="qr-frame">
+        <img src="${qrBig}" alt="Código QR de registro" onerror="this.src='${qrSrc}'"/>
+      </div>
+      <div class="qr-caption">Apuntá la cámara al código — no hace falta ninguna app</div>
+    </div>
+
+    <div class="steps">
+      <div class="steps-title">¿Cómo funciona?</div>
+      <div class="step"><div class="step-num">1</div><div class="step-txt">Abrí la <b>cámara de tu celular</b> y apuntala al código QR.</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-txt">Tocá el link que aparece en pantalla.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-txt">Seleccioná si <b>sos nuevo/a o ya sos alumno/a</b> del ITS.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-txt">Completá tus datos — recibirás tu usuario por <b>WhatsApp</b>.</div></div>
+    </div>
+
+    <div class="url-row">
+      <span class="url-label">URL</span>
+      <span class="url-val">${url}</span>
+    </div>
   </div>
 
-  <div class="pasos">
-    <h3>¿Cómo registrarse?</h3>
-    <div class="paso">
-      <div class="paso-num">1</div>
-      <div class="paso-txt">Abrí la <strong>cámara de tu celular</strong> y apuntala al código QR de arriba.</div>
-    </div>
-    <div class="paso">
-      <div class="paso-num">2</div>
-      <div class="paso-txt">Tocá el <strong>link que aparece</strong> en la pantalla para abrir el formulario.</div>
-    </div>
-    <div class="paso">
-      <div class="paso-num">3</div>
-      <div class="paso-txt"><strong>Elegí tu carrera</strong> del listado y buscá tu nombre o CI.</div>
-    </div>
-    <div class="paso">
-      <div class="paso-num">4</div>
-      <div class="paso-txt">Completá o confirmá tus datos y <strong>enviá la solicitud</strong>. El director la aprobará a la brevedad.</div>
-    </div>
+  <div class="footer">
+    <span class="footer-left">Este código es permanente</span>
+    <span class="footer-right">${inst} · Año ${new Date().getFullYear()}</span>
   </div>
-
-  <div class="url-box">También podés ingresar manualmente: <strong>${url}</strong></div>
-
-  <div class="footer">Este QR es permanente — podés escanearlo en cualquier momento.</div>
 </div>
-<script>window.onload=()=>{ window.print(); }<\/script>
+
+<button class="print-btn no-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+<script>
+  const img = document.querySelector('.qr-frame img');
+  img.onload = () => { /* loaded fine */ };
+  img.onerror = () => { img.src = '${qrSrc}'; };
+<\/script>
 </body>
 </html>`);
   win.document.close();
