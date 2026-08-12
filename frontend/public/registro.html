@@ -143,32 +143,213 @@ async function apiFetch(method, url, body) {
   return data;
 }
 
+let _carreras = [];
+
 async function init() {
   const app = document.getElementById('app');
+  // Cargar carreras siempre (las necesitamos para nuevo alumno)
+  try { _carreras = await apiFetch('GET', '/pub/carreras'); } catch {}
+  // Mostrar pantalla de bienvenida con las 2 opciones
+  renderBienvenida();
+}
+
+function renderBienvenida() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎓</div>
+      <h1>ITS Santísima Trinidad</h1>
+      <div class="header-carrera">Sistema Académico Digital</div>
+      <div class="header-sub">¡Bienvenido/a!</div>
+    </div>
+    <div class="card" style="margin-top:4px">
+      <p style="font-size:14px;color:#374151;text-align:center;margin-bottom:20px;line-height:1.6">
+        Para continuar, contanos si es tu primera vez en el sistema del ITS o si ya fuiste alumno/a antes.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="btn btn-primary" onclick="renderFormNuevoAlumno()" style="padding:18px;font-size:16px">
+          🎒 Soy nuevo/a en el ITS
+          <div style="font-size:12px;font-weight:400;opacity:.85;margin-top:4px">Me registro por primera vez</div>
+        </button>
+        <button class="btn btn-secondary" onclick="initYaSoyAlumno()" style="padding:18px;font-size:16px;border:2px solid #166534;color:#166534;background:#f0fdf4">
+          👤 Ya soy alumno/a del ITS
+          <div style="font-size:12px;font-weight:400;opacity:.75;margin-top:4px">Quiero vincularme al sistema</div>
+        </button>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:11px;color:#9ca3af;margin-top:16px">
+      Si tenés dudas, acercate a la Secretaría del ITS
+    </p>`;
+}
+
+async function initYaSoyAlumno() {
+  const app = document.getElementById('app');
   if (!carreraId) {
-    // QR General — mostrar selector de carrera
-    try {
-      const carreras = await apiFetch('GET', '/pub/carreras');
-      app.innerHTML = `
-        <div class="header">
-          <div class="header-logo">🎓</div>
-          <h1>Registro de Alumno</h1>
-          <div class="header-carrera">Seleccioná tu carrera para continuar</div>
+    // Sin QR de carrera específica — mostrar selector
+    app.innerHTML = `
+      <div class="header">
+        <div class="header-logo">👤</div>
+        <h1>Ya soy alumno/a</h1>
+        <div class="header-carrera">Seleccioná tu carrera para continuar</div>
+      </div>
+      <div class="card" style="margin-top:8px">
+        <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
+        <div class="field">
+          <label>¿En qué carrera estás inscripto/a?</label>
+          <select id="sel-carrera" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-size:15px;background:#fff;color:#1a202c">
+            <option value="">-- Elegí una carrera --</option>
+            ${_carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+          </select>
         </div>
-        <div class="card" style="margin-top:16px">
-          <div style="margin-bottom:16px">
-            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:8px">¿En qué carrera estás inscripto?</label>
-            <select id="sel-carrera" style="width:100%;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff;color:#111827">
-              <option value="">-- Elegí una carrera --</option>
-              ${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-            </select>
-          </div>
-          <button onclick="seleccionarCarrera()" style="width:100%;padding:12px;background:#1D4ED8;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">
-            Continuar →
-          </button>
-        </div>`;
+        <button class="btn btn-primary" onclick="seleccionarCarreraAlumno()">Continuar →</button>
+      </div>`;
+    return;
+  }
+  try {
+    [carrera, cursos] = await Promise.all([
+      apiFetch('GET', '/pub/carrera/' + carreraId),
+      apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
+    ]);
+    renderStep0();
+  } catch(e) {
+    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
+  }
+}
+
+async function seleccionarCarreraAlumno() {
+  const sel = document.getElementById('sel-carrera');
+  const id = sel?.value;
+  if (!id) { alert('Elegí una carrera para continuar.'); return; }
+  window.location.href = '/registro?c=' + id + '&modo=alumno';
+}
+
+// ── FORMULARIO NUEVO ALUMNO ────────────────────────────────────────────────────
+function renderFormNuevoAlumno() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎒</div>
+      <h1>Registro de nuevo alumno</h1>
+      <div class="header-carrera">Completá tus datos para acceder al sistema</div>
+    </div>
+    <div class="card" style="margin-top:8px">
+      <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
+      <div class="hint"><span class="hint-icon">💡</span><span>Tus credenciales de acceso te llegarán por <strong>WhatsApp</strong> al número que ingreses.</span></div>
+      <div class="field">
+        <label>Nombre/s <span style="color:#dc2626">*</span></label>
+        <input id="nv-nombre" type="text" placeholder="Ej: María Alejandra" autocapitalize="words"/>
+      </div>
+      <div class="field">
+        <label>Apellido/s <span style="color:#dc2626">*</span></label>
+        <input id="nv-apellido" type="text" placeholder="Ej: González Romero" autocapitalize="words"/>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Cédula de identidad <span style="color:#dc2626">*</span></label>
+          <input id="nv-ci" type="tel" inputmode="numeric" placeholder="Ej: 4512345"/>
+        </div>
+        <div class="field">
+          <label>WhatsApp <span style="color:#dc2626">*</span></label>
+          <input id="nv-tel" type="tel" inputmode="numeric" placeholder="Ej: 0981123456"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Carrera <span style="color:#dc2626">*</span></label>
+        <select id="nv-carrera" onchange="cargarAniosNuevo()">
+          <option value="">-- Seleccioná tu carrera --</option>
+          ${_carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Año que cursás <span style="color:#dc2626">*</span></label>
+        <select id="nv-anio">
+          <option value="">-- Primero seleccioná la carrera --</option>
+        </select>
+      </div>
+      <div id="nv-error" class="alert alert-err" style="display:none"></div>
+      <button class="btn btn-primary" id="nv-btn" onclick="enviarRegistroNuevo()" style="margin-top:6px">
+        ✅ Registrarme y recibir acceso
+      </button>
+    </div>`;
+  if (carreraId) {
+    const sel = document.getElementById('nv-carrera');
+    if (sel) { sel.value = carreraId; cargarAniosNuevo(); }
+  }
+}
+
+async function cargarAniosNuevo() {
+  const carreraId2 = document.getElementById('nv-carrera')?.value;
+  const selAnio = document.getElementById('nv-anio');
+  if (!carreraId2 || !selAnio) return;
+  selAnio.innerHTML = '<option value="">Cargando...</option>';
+  try {
+    const cursosCar = await apiFetch('GET', '/pub/carrera/' + carreraId2 + '/cursos');
+    const anios = [...new Set(cursosCar.map(c => c.anio))].sort();
+    selAnio.innerHTML = '<option value="">-- Seleccioná el año --</option>' +
+      anios.map(a => `<option value="${a}">${a}° año</option>`).join('');
+  } catch { selAnio.innerHTML = '<option value="">Error al cargar años</option>'; }
+}
+
+async function enviarRegistroNuevo() {
+  const nombre   = document.getElementById('nv-nombre')?.value.trim();
+  const apellido = document.getElementById('nv-apellido')?.value.trim();
+  const ci       = document.getElementById('nv-ci')?.value.replace(/\D/g,'');
+  const tel      = document.getElementById('nv-tel')?.value.replace(/\D/g,'');
+  const carreraId2 = document.getElementById('nv-carrera')?.value;
+  const anio     = document.getElementById('nv-anio')?.value;
+  const errEl    = document.getElementById('nv-error');
+  const btn      = document.getElementById('nv-btn');
+  const mostrarError = msg => { errEl.textContent = '⚠️ ' + msg; errEl.style.display = ''; errEl.scrollIntoView({behavior:'smooth',block:'nearest'}); };
+  if (!nombre)     return mostrarError('Ingresá tu nombre.');
+  if (!apellido)   return mostrarError('Ingresá tu apellido.');
+  if (ci.length < 5) return mostrarError('Ingresá tu número de cédula.');
+  if (tel.length < 7) return mostrarError('Ingresá un número de WhatsApp válido.');
+  if (!carreraId2) return mostrarError('Seleccioná tu carrera.');
+  if (!anio)       return mostrarError('Seleccioná el año que cursás.');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = '⏳ Registrando...';
+  try {
+    const data = await apiFetch('POST', '/pub/registro-directo', { nombre, apellido, ci, telefono: tel, carrera_id: carreraId2, anio });
+    renderExitoNuevo(data.nombre, data.email);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '✅ Registrarme y recibir acceso';
+    mostrarError(e.message);
+  }
+}
+
+function renderExitoNuevo(nombre, email) {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎓</div>
+      <h1>ITS Santísima Trinidad</h1>
+    </div>
+    <div class="card">
+      <div class="success-screen">
+        <div class="success-icon">🎉</div>
+        <div class="success-title">¡Registro exitoso, ${nombre}!</div>
+        <div class="success-sub">
+          Tu cuenta fue creada correctamente.<br/><br/>
+          📲 <strong>Revisá tu WhatsApp</strong> — te enviamos tu usuario y contraseña para ingresar al sistema.<br/><br/>
+          Tu usuario es: <strong style="color:#166534">${email}</strong><br/>
+          Tu contraseña inicial es tu <strong>número de cédula</strong>.
+        </div>
+      </div>
+    </div>`;
+}
+
+async function init_legacy() {
+  const modo = params.get('modo');
+  if (carreraId && modo === 'alumno') {
+    try {
+      [carrera, cursos] = await Promise.all([
+        apiFetch('GET', '/pub/carrera/' + carreraId),
+        apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
+      ]);
+      renderStep0();
     } catch(e) {
-      app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
+      document.getElementById('app').innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
     }
     return;
   }
@@ -216,6 +397,7 @@ function renderStep0() {
   if (cursos.length === 1) { cursoSeleccionado = cursos[0]; renderStep1(); return; }
   app.innerHTML = renderHeader() + renderSteps(0, 3) + `
   <div class="card">
+    <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
     <h2>📚 ¿A qué año y sección pertenecés?</h2>
     <div class="hint"><span class="hint-icon">👇</span><span>Tocá el cuadro que corresponde a tu año y sección</span></div>
     <div class="curso-grid">

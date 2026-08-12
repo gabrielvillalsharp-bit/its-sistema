@@ -10694,6 +10694,56 @@ try {
 const pubLimiter = rateLimit({ windowMs: 60*1000, max: 80 });
 app.use('/pub', pubLimiter);
 
+// ── REGISTRO DIRECTO QR — nuevo alumno (crea cuenta activa + WA) ──────────────
+app.post('/pub/registro-directo', async (req, res) => {
+  const { nombre, apellido, ci, telefono, carrera_id, anio } = req.body;
+  if (!nombre?.trim() || !apellido?.trim()) return res.status(400).json({ error: 'Nombre y apellido son obligatorios' });
+  if (!ci || String(ci).replace(/\D/g,'').length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
+  if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
+  if (!carrera_id) return res.status(400).json({ error: 'Seleccioná tu carrera' });
+  if (!anio) return res.status(400).json({ error: 'Seleccioná tu año' });
+  const ciNorm = String(ci).replace(/\D/g,'');
+  try {
+    // Verificar CI duplicado
+    const existCI = db.prepare('SELECT a.nombre, a.apellido FROM alumnos a WHERE a.ci=?').get(ciNorm);
+    if (existCI) return res.status(409).json({ error: `Ya existe un alumno registrado con esa cédula: ${existCI.apellido}, ${existCI.nombre}. Si ya sos alumno/a usá la otra opción.`, duplicate: true });
+    // Verificar nombre duplicado
+    const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    const existNom = db.prepare('SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1').get(normStr(nombre.trim()), normStr(apellido.trim()));
+    if (existNom) return res.status(409).json({ error: 'Ya existe un alumno con ese nombre. Si ya sos alumno/a usá la otra opción.', duplicate: true });
+    const carrera = db.prepare('SELECT id, nombre FROM carreras WHERE id=?').get(carrera_id);
+    if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
+    // Buscar curso para el año indicado
+    const curso = db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 ORDER BY division LIMIT 1').get(carrera_id, parseInt(anio));
+    // Generar email/usuario
+    const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+    let email = norm(nombre.trim()).slice(0,1) + norm(apellido.trim()) + '@its.edu.py';
+    const conflict = db.prepare('SELECT id FROM usuarios WHERE email=?').get(email);
+    if (conflict) email = norm(nombre.trim()).slice(0,1) + norm(apellido.trim()) + '.' + ciNorm.slice(-3) + '@its.edu.py';
+    const uid2 = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+    const aid  = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+    const fechaHoy = new Date().toISOString().slice(0,10);
+    // Crear usuario
+    db.prepare('INSERT INTO usuarios (id,nombre,apellido,email,password,ci,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+      .run(uid2, nombre.trim(), apellido.trim(), email, ciNorm, ciNorm, 'alumno');
+    // Crear alumno activo
+    db.prepare('INSERT INTO alumnos (id,nombre,apellido,ci,telefono,carrera_id,curso_id,estado,usuario_id,fecha_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(aid, nombre.trim(), apellido.trim(), ciNorm, telefono, carrera_id, curso?.id||null, 'Activo', uid2, fechaHoy);
+    // Crear notas vacías para materias del curso
+    if (curso?.id) {
+      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND activo=1').all(curso.id);
+      for (const asig of asigs) {
+        try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), aid, asig.id, 'Pendiente'); } catch {}
+      }
+    }
+    audit('sistema_publico', 'REGISTRO_DIRECTO_QR', 'alumnos', aid, { nombre: nombre.trim(), apellido: apellido.trim(), ci: ciNorm, carrera_id });
+    // Enviar WhatsApp
+    enviarBienvenidaQR(telefono, (nombre.trim()+' '+apellido.trim()), email, ciNorm);
+    res.json({ ok: true, email, nombre: nombre.trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/pub/carreras', (req, res) => {
   // Solo carreras con al menos una sección (curso) cargada — evita mostrar la
   // estructura "espejo" de una sede todavía sin operar (ej. Cerro Corá, sede 'cc',
