@@ -262,8 +262,14 @@ function renderFormNuevoAlumno() {
       </div>
       <div class="field">
         <label>Año que cursás <span style="color:#dc2626">*</span></label>
-        <select id="nv-anio">
+        <select id="nv-anio" onchange="cargarSeccionesNuevo()">
           <option value="">-- Primero seleccioná la carrera --</option>
+        </select>
+      </div>
+      <div class="field" id="nv-seccion-wrap" style="display:none">
+        <label>Sección <span style="color:#dc2626">*</span></label>
+        <select id="nv-seccion">
+          <option value="">-- Seleccioná la sección --</option>
         </select>
       </div>
       <div id="nv-error" class="alert alert-err" style="display:none"></div>
@@ -277,17 +283,38 @@ function renderFormNuevoAlumno() {
   }
 }
 
+let _cursosNuevo = [];
+
 async function cargarAniosNuevo() {
   const carreraId2 = document.getElementById('nv-carrera')?.value;
   const selAnio = document.getElementById('nv-anio');
+  const secWrap = document.getElementById('nv-seccion-wrap');
   if (!carreraId2 || !selAnio) return;
   selAnio.innerHTML = '<option value="">Cargando...</option>';
+  if (secWrap) secWrap.style.display = 'none';
+  _cursosNuevo = [];
   try {
-    const cursosCar = await apiFetch('GET', '/pub/carrera/' + carreraId2 + '/cursos');
-    const anios = [...new Set(cursosCar.map(c => c.anio))].sort();
+    _cursosNuevo = await apiFetch('GET', '/pub/carrera/' + carreraId2 + '/cursos');
+    const anios = [...new Set(_cursosNuevo.map(c => c.anio))].sort();
     selAnio.innerHTML = '<option value="">-- Seleccioná el año --</option>' +
       anios.map(a => `<option value="${a}">${a}° año</option>`).join('');
   } catch { selAnio.innerHTML = '<option value="">Error al cargar años</option>'; }
+}
+
+function cargarSeccionesNuevo() {
+  const anio = document.getElementById('nv-anio')?.value;
+  const secWrap = document.getElementById('nv-seccion-wrap');
+  const selSec = document.getElementById('nv-seccion');
+  if (!anio || !secWrap || !selSec) return;
+  const secciones = _cursosNuevo.filter(c => String(c.anio) === String(anio) && c.division && c.division !== 'U');
+  if (secciones.length > 1) {
+    selSec.innerHTML = '<option value="">-- Seleccioná la sección --</option>' +
+      secciones.map(s => `<option value="${s.division}">Sección ${s.division}</option>`).join('');
+    secWrap.style.display = '';
+  } else {
+    secWrap.style.display = 'none';
+    selSec.innerHTML = '';
+  }
 }
 
 async function enviarRegistroNuevo() {
@@ -297,6 +324,8 @@ async function enviarRegistroNuevo() {
   const tel      = document.getElementById('nv-tel')?.value.replace(/\D/g,'');
   const carreraId2 = document.getElementById('nv-carrera')?.value;
   const anio     = document.getElementById('nv-anio')?.value;
+  const secWrap  = document.getElementById('nv-seccion-wrap');
+  const division = secWrap?.style.display !== 'none' ? (document.getElementById('nv-seccion')?.value || '') : '';
   const errEl    = document.getElementById('nv-error');
   const btn      = document.getElementById('nv-btn');
   const mostrarError = msg => { errEl.textContent = '⚠️ ' + msg; errEl.style.display = ''; errEl.scrollIntoView({behavior:'smooth',block:'nearest'}); };
@@ -306,11 +335,12 @@ async function enviarRegistroNuevo() {
   if (tel.length < 7) return mostrarError('Ingresá un número de WhatsApp válido.');
   if (!carreraId2) return mostrarError('Seleccioná tu carrera.');
   if (!anio)       return mostrarError('Seleccioná el año que cursás.');
+  if (secWrap?.style.display !== 'none' && !division) return mostrarError('Seleccioná tu sección (A o B).');
   errEl.style.display = 'none';
   btn.disabled = true;
   btn.textContent = '⏳ Registrando...';
   try {
-    const data = await apiFetch('POST', '/pub/registro-directo', { nombre, apellido, ci, telefono: tel, carrera_id: carreraId2, anio });
+    const data = await apiFetch('POST', '/pub/registro-directo', { nombre, apellido, ci, telefono: tel, carrera_id: carreraId2, anio, division: division || undefined });
     renderExitoNuevo(data.nombre, data.email);
   } catch(e) {
     btn.disabled = false;

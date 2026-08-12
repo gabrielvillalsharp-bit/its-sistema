@@ -10696,7 +10696,7 @@ app.use('/pub', pubLimiter);
 
 // ── REGISTRO DIRECTO QR — nuevo alumno (crea cuenta activa + WA) ──────────────
 app.post('/pub/registro-directo', async (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id, anio } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id, anio, division } = req.body;
   if (!nombre?.trim() || !apellido?.trim()) return res.status(400).json({ error: 'Nombre y apellido son obligatorios' });
   if (!ci || String(ci).replace(/\D/g,'').length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
   if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
@@ -10713,8 +10713,10 @@ app.post('/pub/registro-directo', async (req, res) => {
     if (existNom) return res.status(409).json({ error: 'Ya existe un alumno con ese nombre. Si ya sos alumno/a usá la otra opción.', duplicate: true });
     const carrera = db.prepare('SELECT id, nombre FROM carreras WHERE id=?').get(carrera_id);
     if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
-    // Buscar curso para el año indicado
-    const curso = db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 ORDER BY division LIMIT 1').get(carrera_id, parseInt(anio));
+    // Buscar curso para el año indicado (con sección específica si viene)
+    const curso = division
+      ? db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=? AND activo=1 LIMIT 1').get(carrera_id, parseInt(anio), division)
+      : db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 ORDER BY division LIMIT 1').get(carrera_id, parseInt(anio));
     // Generar email/usuario
     const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
     let email = norm(nombre.trim()).slice(0,1) + norm(apellido.trim()) + '@its.edu.py';
