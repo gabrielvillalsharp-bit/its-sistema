@@ -3246,9 +3246,9 @@ function calcularMesesDeuda(alumno_id) {
   let cuotaInicio = 1;
   if (al?.fecha_ingreso) {
     const mesIngreso = new Date(al.fecha_ingreso + 'T00:00:00').getMonth() + 1;
-    // Semestre 1 (mar–jul): siempre paga desde cuota 1, sin importar mes exacto de ingreso.
-    // Semestre 2 (ago en adelante): paga desde la cuota del mes de ingreso.
-    cuotaInicio = mesIngreso >= 8 ? (MES_A_CUOTA_NUM[mesIngreso] || 1) : 1;
+    // Semestre 1 (mar–jul): desde cuota 1. Semestre 2 (ago–dic): desde cuota 6.
+    // No importa el mes exacto dentro del semestre — siempre desde el inicio del semestre.
+    cuotaInicio = mesIngreso >= 8 ? 6 : 1;
   }
   const cuotasVencidas = Array.from({ length: cuotaLimite }, (_, i) => 'Cuota ' + (i + 1))
     .filter(c => parseInt(c.split(' ')[1]) >= cuotaInicio);

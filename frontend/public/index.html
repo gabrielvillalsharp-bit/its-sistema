@@ -14651,8 +14651,8 @@ async function selAlumnoPago(alId){
     let cuotaInicio=1;
     if(al.fecha_ingreso){
       const mesIng=new Date(al.fecha_ingreso+'T00:00:00').getMonth()+1;
-      // Semestre 1 (mar–jul): siempre desde cuota 1. Semestre 2 (ago+): desde su mes.
-      cuotaInicio=mesIng>=8?(MES_A_CUOTA[mesIng]||1):1;
+      // Semestre 1 (mar–jul): desde cuota 1. Semestre 2 (ago–dic): desde cuota 6.
+      cuotaInicio=mesIng>=8?6:1;
     }
     const cuotasGrid=['Matrícula',...Array.from({length:10},(_,i)=>i+1)].map(n=>{
       // 1er año no paga matrícula
