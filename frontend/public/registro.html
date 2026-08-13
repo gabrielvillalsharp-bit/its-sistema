@@ -178,11 +178,13 @@ async function apiFetch(method, url, body) {
 let _carreras = [];
 
 async function init() {
-  const app = document.getElementById('app');
-  // Cargar carreras siempre (las necesitamos para nuevo alumno)
   try { _carreras = await apiFetch('GET', '/pub/carreras'); } catch {}
-  // Mostrar pantalla de bienvenida con las 2 opciones
-  renderBienvenida();
+  // Si viene con ?c=ID&modo=alumno (redirect desde selector de carrera) ir directo al flujo de alumno existente
+  if (carreraId && params.get('modo') === 'alumno') {
+    await init_legacy();
+  } else {
+    renderBienvenida();
+  }
 }
 
 function renderBienvenida() {
