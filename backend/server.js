@@ -10736,7 +10736,7 @@ app.post('/pub/registro-directo', async (req, res) => {
     // Crear notas vacías para materias del curso
     if (curso?.id) {
       const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND activo=1').all(curso.id);
+      const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=?').all(curso.id);
       for (const asig of asigs) {
         try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,4), aid, asig.id, 'Pendiente'); } catch {}
       }
