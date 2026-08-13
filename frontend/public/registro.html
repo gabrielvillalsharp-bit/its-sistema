@@ -123,7 +123,8 @@ label{font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;display:blo
 .bv-curve{position:absolute;bottom:-1px;left:0;right:0;height:36px;background:#f0f4f8;border-radius:30px 30px 0 0}
 .bv-inst{font-size:17px;font-weight:800;color:#fff;letter-spacing:-.2px;animation:bv-up .45s .1s ease both}
 .bv-inst-sub{font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.1em;text-transform:uppercase;margin-top:4px;animation:bv-up .45s .18s ease both}
-.bv-logo{width:66px;height:66px;border-radius:50%;background:#fff;border:4px solid #f0f4f8;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:32px;margin:16px auto -33px;position:relative;z-index:2;animation:bv-pop .7s .1s cubic-bezier(.34,1.56,.64,1) both}
+.bv-logo{width:72px;height:72px;border-radius:50%;background:#fff;border:4px solid #f0f4f8;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;font-size:32px;margin:16px auto -36px;position:relative;z-index:2;animation:bv-pop .7s .1s cubic-bezier(.34,1.56,.64,1) both;overflow:hidden}
+.bv-logo-img{width:100%;height:100%;object-fit:contain;border-radius:50%}
 
 .bv-body{padding:44px 0 8px;display:flex;flex-direction:column;align-items:center;gap:10px}
 .bv-heading{font-size:18px;font-weight:900;color:#111;text-align:center;animation:bv-up .45s .35s ease both}
@@ -176,9 +177,13 @@ async function apiFetch(method, url, body) {
 }
 
 let _carreras = [];
+let _instData = null;
 
 async function init() {
-  try { _carreras = await apiFetch('GET', '/pub/carreras'); } catch {}
+  try { [_carreras, _instData] = await Promise.all([
+    apiFetch('GET', '/pub/carreras'),
+    apiFetch('GET', '/pub/institucion')
+  ]); } catch { try { _carreras = await apiFetch('GET', '/pub/carreras'); } catch {} }
   // Si viene con ?c=ID&modo=alumno (redirect desde selector de carrera) ir directo al flujo de alumno existente
   if (carreraId && params.get('modo') === 'alumno') {
     await init_legacy();
@@ -189,11 +194,15 @@ async function init() {
 
 function renderBienvenida() {
   const app = document.getElementById('app');
+  const instNombre = _instData?.nombre || 'ITS Santísima Trinidad';
+  const logoHtml = _instData?.logo_base64
+    ? `<img src="${_instData.logo_base64}" class="bv-logo-img" alt="Logo">`
+    : `<span style="font-size:32px">🎓</span>`;
   app.innerHTML = `
     <div class="bv-hero">
-      <div class="bv-inst">ITS Santísima Trinidad</div>
+      <div class="bv-inst">${instNombre}</div>
       <div class="bv-inst-sub">Sistema Académico Digital</div>
-      <div class="bv-logo">🎓</div>
+      <div class="bv-logo">${logoHtml}</div>
       <div class="bv-curve"></div>
     </div>
     <div class="bv-body">

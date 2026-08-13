@@ -10748,6 +10748,11 @@ app.post('/pub/registro-directo', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/pub/institucion', (req, res) => {
+  const inst = db.prepare('SELECT nombre, logo_base64 FROM instituciones LIMIT 1').get();
+  res.json(inst || { nombre: 'ITS', logo_base64: null });
+});
+
 app.get('/pub/carreras', (req, res) => {
   // Solo carreras con al menos una sección (curso) cargada — evita mostrar la
   // estructura "espejo" de una sede todavía sin operar (ej. Cerro Corá, sede 'cc',
