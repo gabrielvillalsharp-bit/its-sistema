@@ -10728,7 +10728,7 @@ app.post('/pub/registro-directo', async (req, res) => {
     const aid  = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
     const fechaHoy = new Date().toISOString().slice(0,10);
     // Crear usuario
-    db.prepare('INSERT INTO usuarios (id,nombre,apellido,email,password,ci,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+    db.prepare('INSERT INTO usuarios (id,nombre,apellido,email,password_hash,ci,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
       .run(uid2, nombre.trim(), apellido.trim(), email, ciNorm, ciNorm, 'alumno');
     // Crear alumno activo
     db.prepare('INSERT INTO alumnos (id,nombre,apellido,ci,telefono,carrera_id,curso_id,estado,usuario_id,fecha_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?)')
