@@ -83,31 +83,12 @@ function autoRestoreIfEmpty(dbPath) {
 }
 
 function autoBackup(db, dbPath) {
-  try {
-    // Solo hacer backup si hay alumnos reales
-    const n = db.prepare('SELECT COUNT(*) as n FROM alumnos').get()?.n || 0;
-    if (n < 1) return;
-    const backupDir = getBackupDir(dbPath);
-    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-    const b1 = path.join(backupDir, 'its_backup_1.db');
-    const b2 = path.join(backupDir, 'its_backup_2.db');
-    const b3 = path.join(backupDir, 'its_backup_3.db');
-    // Rotar: 3←2←1←nueva copia
-    try { if (fs.existsSync(b2)) fs.copyFileSync(b2, b3); } catch {}
-    try { if (fs.existsSync(b1)) fs.copyFileSync(b1, b2); } catch {}
-    // VACUUM INTO hace copia limpia y consistente (SQLite 3.27+)
-    try {
-      db.prepare('VACUUM INTO ?').run(b1);
-    } catch {
-      // Fallback: checkpoint WAL y copiar archivo
-      try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch {}
-      fs.copyFileSync(dbPath, b1);
-    }
-    const t = new Date().toLocaleString('es-PY');
-    console.log(`[BACKUP] ✅ Backup automático — ${n} alumnos protegidos (${t})`);
-  } catch(e) {
-    console.error('[BACKUP] ⚠️  Error al crear backup:', e.message);
-  }
+  // Este backup por arranque fue desactivado: cada deploy generaba 3 copias de
+  // 433 MB (its_backup_1/2/3.db) acumulando 1.3 GB en el volumen. El backup real
+  // lo maneja hacerBackupAutomatico() en server.js cada 48hs con rotación de 1 copia.
+  // Se conserva la función para que autoRestore siga encontrando sus candidatos
+  // si existían de antes, pero ya no se genera ninguna copia nueva al arrancar.
+  console.log('[BACKUP] Backup por arranque desactivado — usa el cron de 48hs en server.js');
 }
 
 const DB_PATH = resolveDbPath();

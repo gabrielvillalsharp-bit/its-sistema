@@ -6763,11 +6763,11 @@ async function hacerBackupAutomatico() {
     // VACUUM antes de copiar: compacta la BD y recupera espacio de BLOBs borrados
     try { db.prepare('VACUUM').run(); } catch {}
     fs.copyFileSync(DB_PATH, destino);
-    // Mantener solo los últimos 3 backups en el Volume (ahorra espacio en Railway)
+    // Mantener solo el último backup en el Volume — cada copia pesa ~430 MB
     const archivos = fs.readdirSync(BACKUP_DIR)
       .filter(f => f.startsWith('ITS_auto_'))
       .sort().reverse();
-    archivos.slice(3).forEach(f => {
+    archivos.slice(1).forEach(f => {
       try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
     });
     console.log(`✅ Backup local: ${destino}`);
@@ -6791,6 +6791,17 @@ cron.schedule('0 23 * * *', () => {
   }
   console.log('[BACKUP] Ejecutando backup (cada 48hs) 23:00 PY...');
   hacerBackupAutomatico();
+}, { timezone: 'America/Asuncion' });
+
+// ── CRON: Checkpoint WAL cada 6 horas ────────────────────────────────────────
+// El WAL de SQLite puede crecer a cientos de MB si no se consolida. Con WAL mode
+// el checkpoint automático ocurre a los 1000 frames pero en Railway con writes
+// frecuentes puede acumularse mucho antes de que SQLite lo dispare solo.
+cron.schedule('0 */6 * * *', () => {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    console.log('[WAL] Checkpoint ejecutado');
+  } catch(e) { console.error('[WAL] Error checkpoint:', e.message); }
 }, { timezone: 'America/Asuncion' });
 
 // ── CRON: Purga papelera expirada (diario 03:00) ─────────────────────────────
