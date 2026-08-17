@@ -4903,6 +4903,194 @@ async function exportarListaPDF(){
   ventana.document.close();
   setTimeout(()=>ventana.print(),600);
 }
+async function modalReporteAcademico(){
+  modal(`
+    <h4 style="margin:0 0 16px;font-size:15px;font-weight:700">📊 Reporte Académico</h4>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600">Número de Cédula de Identidad</label>
+      <div style="display:flex;gap:8px">
+        <input id="ra-ci" type="text" placeholder="Ej: 4512345" style="flex:1;padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')buscarAlumnoReporte()" />
+        <button onclick="buscarAlumnoReporte()" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Buscar</button>
+      </div>
+      <div id="ra-err" style="font-size:12px;color:#dc2626;margin-top:6px;display:none"></div>
+    </div>
+    <div id="ra-resultado"></div>
+  `);
+  setTimeout(()=>document.getElementById('ra-ci')?.focus(),100);
+}
+
+async function buscarAlumnoReporte(){
+  const ciRaw=(document.getElementById('ra-ci')?.value||'').trim();
+  if(!ciRaw){
+    const e=document.getElementById('ra-err');e.textContent='Ingresá un número de CI.';e.style.display='block';return;
+  }
+  const errEl=document.getElementById('ra-err');errEl.style.display='none';
+  const res=document.getElementById('ra-resultado');
+  res.innerHTML='<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Buscando...</div>';
+  try {
+    const als=W._als||[];
+    const al=als.find(a=>(a.display_ci||a.ci||'').replace(/\D/g,'')===ciRaw.replace(/\D/g,''));
+    if(!al){
+      res.innerHTML='';
+      errEl.textContent='No se encontró ningún alumno con ese CI.';errEl.style.display='block';return;
+    }
+    const {alumno,notas,institucion}=await api('GET',`/api/alumnos/${al.id}/boletin`);
+    const nombre=`${alumno.disp_apellido||alumno.apellido||''}, ${alumno.disp_nombre||alumno.nombre||''}`.trim();
+    const carrera=alumno.carrera_nombre||'-';
+    const anio=alumno.curso_anio?`${alumno.curso_anio}° año`:'';
+    const division=alumno.curso_division&&alumno.curso_division!=='U'?` — Sección ${alumno.curso_division}`:'';
+    const periodo=alumno.periodo_nombre||'Período actual';
+
+    const estadoColor={Aprobado:'#166534',Reprobado:'#991b1b',Pendiente:'#92400e',Regular:'#1e40af','En curso':'#374151'};
+    const filasNotas=notas.length?notas.map(n=>{
+      const color=estadoColor[n.estado]||'#374151';
+      const bgColor=n.estado==='Aprobado'?'#f0fdf4':n.estado==='Reprobado'?'#fef2f2':n.estado==='Pendiente'?'#fffbeb':'#f8fafc';
+      return `<tr style="background:${bgColor}">
+        <td style="padding:8px 10px;font-size:12px;font-weight:600;border-bottom:1px solid #f1f5f9">${n.materia_nombre||'-'}</td>
+        <td style="padding:8px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f1f5f9">${n.tp_total!=null?n.tp_total:'-'}</td>
+        <td style="padding:8px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f1f5f9">${n.parcial_efectivo!=null?n.parcial_efectivo:'-'}</td>
+        <td style="padding:8px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f1f5f9">${n.final_efectivo!=null?n.final_efectivo:'-'}</td>
+        <td style="padding:8px 10px;font-size:12px;text-align:center;font-weight:700;border-bottom:1px solid #f1f5f9">${n.nota_final!=null?n.nota_final:'-'}</td>
+        <td style="padding:8px 10px;text-align:center;border-bottom:1px solid #f1f5f9"><span style="font-size:11px;font-weight:600;color:${color};padding:2px 8px;border-radius:10px;background:${bgColor};border:1px solid ${color}30">${n.estado||'-'}</span></td>
+      </tr>`;
+    }).join(''):`<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af;font-size:13px">Sin notas registradas en el período actual</td></tr>`;
+
+    res.innerHTML=`
+      <div style="border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-top:4px">
+        <div style="background:#1d4ed8;padding:14px 16px;color:#fff">
+          <div style="font-size:14px;font-weight:700">${nombre}</div>
+          <div style="font-size:11px;opacity:.8;margin-top:3px">CI: ${alumno.disp_ci||alumno.ci||'-'} &nbsp;·&nbsp; ${carrera} ${anio}${division}</div>
+          <div style="font-size:11px;opacity:.7;margin-top:1px">${periodo}</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:#f8fafc">
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:left;border-bottom:1.5px solid #e5e7eb;font-weight:600">Materia</th>
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:center;border-bottom:1.5px solid #e5e7eb;font-weight:600">TPs</th>
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:center;border-bottom:1.5px solid #e5e7eb;font-weight:600">Parcial</th>
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:center;border-bottom:1.5px solid #e5e7eb;font-weight:600">Final</th>
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:center;border-bottom:1.5px solid #e5e7eb;font-weight:600">Nota</th>
+              <th style="padding:8px 10px;font-size:11px;color:#6b7280;text-align:center;border-bottom:1.5px solid #e5e7eb;font-weight:600">Estado</th>
+            </tr></thead>
+            <tbody>${filasNotas}</tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button onclick="imprimirReporteAcademico('${al.id}')" style="padding:9px 20px;background:#166534;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">🖨 Descargar PDF</button>
+      </div>`;
+  } catch(e){
+    res.innerHTML='';
+    errEl.textContent='Error al cargar las notas: '+e.message;errEl.style.display='block';
+  }
+}
+
+async function imprimirReporteAcademico(alumnoId){
+  const {alumno,notas,institucion}=await api('GET',`/api/alumnos/${alumnoId}/boletin`);
+  const nombre=`${alumno.disp_apellido||alumno.apellido||''}, ${alumno.disp_nombre||alumno.nombre||''}`;
+  const carrera=alumno.carrera_nombre||'-';
+  const anio=alumno.curso_anio?`${alumno.curso_anio}° año`:'';
+  const division=alumno.curso_division&&alumno.curso_division!=='U'?` — Sección ${alumno.curso_division}`:'';
+  const periodo=alumno.periodo_nombre||'Período actual';
+  const hoy=new Date().toLocaleDateString('es-PY',{day:'2-digit',month:'long',year:'numeric'});
+  const logoHtml=institucion.logo_base64?`<img src="${institucion.logo_base64}" style="height:64px;margin-bottom:6px" />`:'';
+  const instNombre=institucion.nombre||'ITS Santísima Trinidad';
+
+  const estadoColor={Aprobado:'#166534',Reprobado:'#991b1b',Pendiente:'#92400e',Regular:'#1e40af','En curso':'#374151'};
+  const filasNotas=notas.length?notas.map((n,i)=>{
+    const color=estadoColor[n.estado]||'#374151';
+    const bg=i%2===0?'#ffffff':'#f8fafc';
+    return `<tr style="background:${bg}">
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:600">${n.materia_nombre||'-'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center">${n.tp_total!=null?n.tp_total:'-'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center">${n.parcial_efectivo!=null?n.parcial_efectivo:'-'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center">${n.final_efectivo!=null?n.final_efectivo:'-'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;text-align:center;font-weight:700">${n.nota_final!=null?n.nota_final:'-'}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #e5e7eb;text-align:center"><span style="font-size:11px;font-weight:700;color:${color}">${n.estado||'-'}</span></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af;font-size:12px">Sin notas registradas</td></tr>`;
+
+  const aprobadas=notas.filter(n=>n.estado==='Aprobado').length;
+  const reprobadas=notas.filter(n=>n.estado==='Reprobado').length;
+  const pendientes=notas.filter(n=>n.estado==='Pendiente'||n.estado==='En curso').length;
+
+  const ventana=window.open('','_blank','width=960,height=720');
+  ventana.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <title>Reporte Académico — ${nombre}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:28px 32px}
+    .header{text-align:center;border-bottom:2.5px solid #166534;padding-bottom:16px;margin-bottom:20px}
+    .inst-nombre{font-size:16px;font-weight:700;color:#166534;margin-bottom:2px}
+    .inst-sub{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em}
+    .titulo{font-size:14px;font-weight:700;color:#1d4ed8;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.05em;text-align:center}
+    .alumno-card{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;margin-bottom:18px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .al-field{font-size:11px;color:#374151}<br>
+    .al-label{font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase}
+    table{width:100%;border-collapse:collapse;margin-bottom:18px}
+    thead th{background:#1d4ed8;color:#fff;padding:8px 10px;font-size:11px;text-align:left;font-weight:700}
+    thead th:not(:first-child){text-align:center}
+    .summary{display:flex;gap:16px;margin-bottom:16px}
+    .sum-box{flex:1;border-radius:8px;padding:10px 14px;text-align:center}
+    .sum-num{font-size:22px;font-weight:700}
+    .sum-lbl{font-size:10px;margin-top:2px}
+    .firma-line{border-top:1px solid #374151;width:180px;margin:0 auto 4px}
+    @media print{body{padding:10px 16px}button{display:none!important}}
+  </style>
+  </head><body>
+  <div class="header">
+    ${logoHtml}
+    <div class="inst-nombre">${instNombre}</div>
+    <div class="inst-sub">Reporte Académico Individual</div>
+  </div>
+  <div class="titulo">Boletín de Calificaciones — ${periodo}</div>
+  <div class="alumno-card">
+    <div><div class="al-label">Alumno</div><div class="al-field" style="font-size:13px;font-weight:700">${nombre}</div></div>
+    <div><div class="al-label">Cédula de Identidad</div><div class="al-field">${alumno.disp_ci||alumno.ci||'-'}</div></div>
+    <div><div class="al-label">Carrera</div><div class="al-field">${carrera}</div></div>
+    <div><div class="al-label">Año / Sección</div><div class="al-field">${anio}${division}</div></div>
+    <div><div class="al-label">Estado</div><div class="al-field">${alumno.estado||'-'}</div></div>
+    <div><div class="al-label">Fecha de emisión</div><div class="al-field">${hoy}</div></div>
+  </div>
+  <div class="summary">
+    <div class="sum-box" style="background:#f0fdf4;border:1px solid #86efac">
+      <div class="sum-num" style="color:#166534">${aprobadas}</div>
+      <div class="sum-lbl" style="color:#166534">Aprobadas</div>
+    </div>
+    <div class="sum-box" style="background:#fef2f2;border:1px solid #fca5a5">
+      <div class="sum-num" style="color:#991b1b">${reprobadas}</div>
+      <div class="sum-lbl" style="color:#991b1b">Reprobadas</div>
+    </div>
+    <div class="sum-box" style="background:#fffbeb;border:1px solid #fcd34d">
+      <div class="sum-num" style="color:#92400e">${pendientes}</div>
+      <div class="sum-lbl" style="color:#92400e">Pendientes</div>
+    </div>
+    <div class="sum-box" style="background:#f8fafc;border:1px solid #e2e8f0">
+      <div class="sum-num" style="color:#374151">${notas.length}</div>
+      <div class="sum-lbl" style="color:#374151">Total materias</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Materia</th><th>TPs</th><th>Parcial</th><th>Final</th><th>Nota final</th><th>Estado</th>
+    </tr></thead>
+    <tbody>${filasNotas}</tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:30px">
+    <div style="font-size:10px;color:#9ca3af">Documento generado el ${hoy} por el Sistema Académico ITS</div>
+    <div style="text-align:center">
+      <div class="firma-line"></div>
+      <div style="font-size:10px;color:#374151">Firma y sello — Secretaría Académica</div>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:20px">
+    <button onclick="window.print()" style="padding:8px 24px;background:#166534;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  </body></html>`);
+  ventana.document.close();
+  setTimeout(()=>ventana.print(),600);
+}
+
 // Función aRow DEBE ser global — usada en als.map(aRow)
 function aRow(a){return `<tr>
   <td><span class="bx bp2">${a.matricula||'-'}</span></td>
@@ -19705,6 +19893,7 @@ async function pgUsuarios(el,initialTab){
         <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
         <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
         <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
+        <button class="bs" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8" onclick="modalReporteAcademico()">📊 Reporte Académico</button>
       </div>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div>
