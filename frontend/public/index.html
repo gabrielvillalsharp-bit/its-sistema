@@ -4977,10 +4977,9 @@ async function buscarAlumnoReporte(alumnoId){
 }
 
 async function _cargarBoletinAlumno(al){
-  const res=document.getElementById('ra-resultado');
-  res.innerHTML='<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Cargando...</div>';
   const errEl=document.getElementById('ra-err');errEl.style.display='none';
   const res=document.getElementById('ra-resultado');
+  res.innerHTML='<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Cargando...</div>';
   try {
     const {alumno,notas,institucion}=await api('GET',`/api/alumnos/${al.id}/boletin`);
     const nombre=`${alumno.disp_apellido||alumno.apellido||''}, ${alumno.disp_nombre||alumno.nombre||''}`.trim();
