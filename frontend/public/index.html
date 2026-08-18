@@ -4921,6 +4921,10 @@ async function modalReporteAcademico(){
 
 async function buscarAlumnoReporte(alumnoId){
   const errEl=document.getElementById('ra-err');errEl.style.display='none';
+  // Cargar lista de alumnos si aún no está disponible (ej: usuario llegó directo a #solicitudes)
+  if(!W._als){
+    try{ W._als=await api('GET','/api/alumnos'); }catch{ W._als=[]; }
+  }
   // Si se llama con un ID específico, carga directo
   if(alumnoId){
     const als=W._als||[];
