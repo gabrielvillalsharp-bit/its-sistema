@@ -4907,33 +4907,81 @@ async function modalReporteAcademico(){
   modal(`
     <h4 style="margin:0 0 16px;font-size:15px;font-weight:700">📊 Reporte Académico</h4>
     <div style="margin-bottom:14px">
-      <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600">Número de Cédula de Identidad</label>
+      <label style="font-size:12px;color:#555;display:block;margin-bottom:5px;font-weight:600">Buscar por CI o nombre</label>
       <div style="display:flex;gap:8px">
-        <input id="ra-ci" type="text" placeholder="Ej: 4512345" style="flex:1;padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;outline:none" onkeydown="if(event.key==='Enter')buscarAlumnoReporte()" />
-        <button onclick="buscarAlumnoReporte()" style="padding:9px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">Buscar</button>
+        <input id="ra-ci" type="text" placeholder="Ej: 4512345 o García Juan" style="flex:1;padding:9px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;outline:none" oninput="buscarAlumnoReporte()" onkeydown="if(event.key==='Enter')buscarAlumnoReporte()" />
       </div>
       <div id="ra-err" style="font-size:12px;color:#dc2626;margin-top:6px;display:none"></div>
+      <div id="ra-coincidencias" style="margin-top:8px"></div>
     </div>
     <div id="ra-resultado"></div>
   `);
   setTimeout(()=>document.getElementById('ra-ci')?.focus(),100);
 }
 
-async function buscarAlumnoReporte(){
-  const ciRaw=(document.getElementById('ra-ci')?.value||'').trim();
-  if(!ciRaw){
-    const e=document.getElementById('ra-err');e.textContent='Ingresá un número de CI.';e.style.display='block';return;
+async function buscarAlumnoReporte(alumnoId){
+  const errEl=document.getElementById('ra-err');errEl.style.display='none';
+  // Si se llama con un ID específico, carga directo
+  if(alumnoId){
+    const als=W._als||[];
+    const al=als.find(a=>a.id==alumnoId);
+    if(!al)return;
+    document.getElementById('ra-coincidencias').innerHTML='';
+    await _cargarBoletinAlumno(al);
+    return;
   }
+  const q=(document.getElementById('ra-ci')?.value||'').trim();
+  if(!q){
+    document.getElementById('ra-coincidencias').innerHTML='';
+    document.getElementById('ra-resultado').innerHTML='';
+    return;
+  }
+  const als=W._als||[];
+  const norm=s=>(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const qn=norm(q);
+  const esNum=/^\d+$/.test(q.replace(/\D/g,''))&&q.replace(/\D/g,'').length>=3;
+  let coincidencias;
+  if(esNum){
+    const ciQ=q.replace(/\D/g,'');
+    coincidencias=als.filter(a=>(a.display_ci||a.ci||'').replace(/\D/g,'').includes(ciQ));
+  } else {
+    coincidencias=als.filter(a=>{
+      const full=norm(`${a.apellido||''} ${a.nombre||''} ${a.display_apellido||''} ${a.display_nombre||''}`);
+      return qn.split(' ').filter(Boolean).every(p=>full.includes(p));
+    });
+  }
+  const coinEl=document.getElementById('ra-coincidencias');
+  const res=document.getElementById('ra-resultado');
+  if(coincidencias.length===0){
+    coinEl.innerHTML='';res.innerHTML='';
+    errEl.textContent='No se encontró ningún alumno.';errEl.style.display='block';return;
+  }
+  if(coincidencias.length===1){
+    coinEl.innerHTML='';
+    await _cargarBoletinAlumno(coincidencias[0]);
+    return;
+  }
+  res.innerHTML='';
+  coinEl.innerHTML=`<div style="font-size:11px;color:#6b7280;margin-bottom:6px">${coincidencias.length} coincidencia${coincidencias.length!==1?'s':''} — seleccioná un alumno:</div>`+
+    coincidencias.slice(0,20).map(a=>{
+      const nombre=`${a.display_apellido||a.apellido||''}, ${a.display_nombre||a.nombre||''}`.trim();
+      const ci=a.display_ci||a.ci||'-';
+      const carrera=a.carrera_nombre||a.carrera||'';
+      return `<div onclick="buscarAlumnoReporte(${a.id})" style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;background:#fafafa;transition:background .15s"
+        onmouseenter="this.style.background='#eff6ff';this.style.borderColor='#93c5fd'"
+        onmouseleave="this.style.background='#fafafa';this.style.borderColor='#e5e7eb'">
+        <div><span style="font-weight:700">${nombre}</span><span style="color:#6b7280;font-size:11px;margin-left:8px">CI: ${ci}</span></div>
+        <div style="font-size:11px;color:#6b7280">${carrera}</div>
+      </div>`;
+    }).join('');
+}
+
+async function _cargarBoletinAlumno(al){
+  const res=document.getElementById('ra-resultado');
+  res.innerHTML='<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Cargando...</div>';
   const errEl=document.getElementById('ra-err');errEl.style.display='none';
   const res=document.getElementById('ra-resultado');
-  res.innerHTML='<div style="text-align:center;padding:20px;color:#6b7280;font-size:13px">Buscando...</div>';
   try {
-    const als=W._als||[];
-    const al=als.find(a=>(a.display_ci||a.ci||'').replace(/\D/g,'')===ciRaw.replace(/\D/g,''));
-    if(!al){
-      res.innerHTML='';
-      errEl.textContent='No se encontró ningún alumno con ese CI.';errEl.style.display='block';return;
-    }
     const {alumno,notas,institucion}=await api('GET',`/api/alumnos/${al.id}/boletin`);
     const nombre=`${alumno.disp_apellido||alumno.apellido||''}, ${alumno.disp_nombre||alumno.nombre||''}`.trim();
     const carrera=alumno.carrera_nombre||'-';
