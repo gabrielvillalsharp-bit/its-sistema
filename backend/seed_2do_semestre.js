@@ -204,7 +204,8 @@ const asigs = [
   ['doc_sharp',    'IQ-S2-104',  'instr_1u'], // Karen — pendiente agregar al sistema
   ['doc_rojas',    'IQ-S2-105',  'instr_1u'], // Favio Rojas
   // IQ 4° SEM
-  ['doc_natalia',  'IQ-S4-101',  'instr_2u'], // Natalia Giménez (pendiente) → doc_natalia provisorio
+  // "Natalia Giménez" es distinta de Natalia Martínez (doc_natalia) → doc_sharp placeholder
+  ['doc_sharp',    'IQ-S4-101',  'instr_2u'], // Natalia Giménez — pendiente agregar al sistema
   ['doc_romero',   'IQ-S4-102',  'instr_2u'], // Micheli Romero (Enfermería Quirúrgica)
   ['doc_jimenez',  'IQ-S4-103',  'instr_2u'], // Pamela Jiménez (Inglés)
   ['doc_gimenez',  'IQ-S4-104',  'instr_2u'], // Mirta Giménez
@@ -227,31 +228,34 @@ const asigs = [
   ['doc_sharp',    'FAR-S4-106', 'farm_2u'], // sin docente → placeholder
   ['doc_gimenez',  'FAR-S4-107', 'farm_2u'], // Mirta Giménez (Contabilidad)
 
-  // COSMIATRÍA 2° SEM — Grupo A y B (mismas materias)
-  ['doc_carrillo', 'COS-S2-101', 'cosA_1a'], // Myrian Carrillo
-  ['doc_ayala_n',  'COS-S2-102', 'cosA_1a'], // Noelia Ayala
-  ['doc_ayala_n',  'COS-S2-103', 'cosA_1a'], // Noelia Ayala
-  ['doc_perez',    'COS-S2-104', 'cosA_1a'], // María Elena (Amelia → pendiente)
-  ['doc_carballo', 'COS-S2-105', 'cosA_1a'], // Raqueline Carballo
+  // COSMIATRÍA 2° SEM — Grupo A y B (mismas materias, mismo docente)
+  // COS-S2-104 Lengua Castellana: "Amelia" no está en el sistema → doc_sharp placeholder
+  ['doc_carrillo', 'COS-S2-101', 'cosA_1a'], // Myrian Carrillo — Ética y Deontología
+  ['doc_ayala_n',  'COS-S2-102', 'cosA_1a'], // Noelia Ayala — Química Cosmética
+  ['doc_ayala_n',  'COS-S2-103', 'cosA_1a'], // Noelia Ayala — Biología de la Piel II
+  ['doc_sharp',    'COS-S2-104', 'cosA_1a'], // Amelia — pendiente agregar al sistema
+  ['doc_carballo', 'COS-S2-105', 'cosA_1a'], // Raqueline Carballo — Técnica Cosmética II
   ['doc_carrillo', 'COS-S2-101', 'cosA_1b'],
   ['doc_ayala_n',  'COS-S2-102', 'cosA_1b'],
   ['doc_ayala_n',  'COS-S2-103', 'cosA_1b'],
-  ['doc_perez',    'COS-S2-104', 'cosA_1b'],
+  ['doc_sharp',    'COS-S2-104', 'cosA_1b'], // Amelia — placeholder
   ['doc_carballo', 'COS-S2-105', 'cosA_1b'],
   // COSMIATRÍA 4° SEM
-  ['doc_perez',    'COS-S4-101', 'cosA_2u'], // María Elena
-  ['doc_perez',    'COS-S4-102', 'cosA_2u'], // María Elena (Guaraní)
+  // "Lengua Castellana y Lengua Guaraní" → divididas en 2 registros separados
+  ['doc_perez',    'COS-S4-101', 'cosA_2u'], // María Elena — Lengua Castellana
+  ['doc_perez',    'COS-S4-102', 'cosA_2u'], // María Elena — Lengua Guaraní
   ['doc_carballo', 'COS-S4-103', 'cosA_2u'], // Raqueline
   ['doc_carballo', 'COS-S4-104', 'cosA_2u'], // Raqueline
   ['doc_rojas',    'COS-S4-105', 'cosA_2u'], // Dr. Favio Rojas
   ['doc_aranda',   'COS-S4-106', 'cosA_2u'], // Angela Aranda
 
   // AGROPECUARIA 1° AÑO
-  ['doc_valenz',   'AGR-S2-101', 'agro_1u'], // Nelly (pendiente) → doc_valenz provisorio
+  // "Nelly" no está en el sistema → doc_sharp placeholder
+  ['doc_sharp',    'AGR-S2-101', 'agro_1u'], // Nelly — pendiente agregar al sistema
   ['doc_gimenez',  'AGR-S2-102', 'agro_1u'], // Mirta Giménez
   ['doc_gimenez',  'AGR-S2-103', 'agro_1u'], // Mirta Giménez
   ['doc_gimenez',  'AGR-S2-104', 'agro_1u'], // Mirta Giménez
-  ['doc_valenz',   'AGR-S2-105', 'agro_1u'], // Nelly
+  ['doc_sharp',    'AGR-S2-105', 'agro_1u'], // Nelly — pendiente
   ['doc_sharp',    'AGR-S2-106', 'agro_1u'], // sin docente asignado
   ['doc_gimenez',  'AGR-S2-107', 'agro_1u'], // Mirta Giménez
   // AGROPECUARIA 2° AÑO
@@ -294,17 +298,66 @@ db.transaction(() => {
 })();
 console.log(`✅ Asignaciones: ${aInserted} nuevas / ${aSkipped} ya existían o con advertencia`);
 
-// ── 5. RESUMEN ────────────────────────────────────────────────────────────────
+// ── 5. CREAR NOTAS PARA TODOS LOS ALUMNOS ACTIVOS ────────────────────────────
+// Crea los registros de notas en estado "Pendiente" para cada alumno activo
+// vinculado a un curso que tenga asignaciones en el 2do semestre.
+// Esto permite que los docentes vean la planilla lista desde el primer día.
+const alumnos = db.prepare(
+  "SELECT id, curso_id FROM alumnos WHERE estado='Activo' AND curso_id IS NOT NULL"
+).all();
+const insNota = db.prepare(
+  'INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)'
+);
+let notasCreadas = 0;
+db.transaction(() => {
+  alumnos.forEach(al => {
+    const asigs2s = db.prepare(
+      'SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?'
+    ).all(al.curso_id, periodoId);
+    asigs2s.forEach(asig => {
+      const nid = 'n2s_' + al.id.replace(/[^a-z0-9]/g,'') + '_' + asig.id.replace(/[^a-z0-9]/g,'');
+      const r = insNota.run(nid, al.id, asig.id, 'Pendiente');
+      if (r.changes) notasCreadas++;
+    });
+  });
+})();
+console.log(`✅ Notas: ${notasCreadas} registros creados para ${alumnos.length} alumnos activos`);
+
+// ── 6. RESUMEN ────────────────────────────────────────────────────────────────
 console.log('\n📋 RESUMEN FINAL:');
-console.log(`   Período ID  : ${periodoId}`);
-console.log(`   Materias    : ${materias.length} definidas`);
-console.log(`   Asignaciones: ${asigs.length} definidas`);
+console.log(`   Período ID    : ${periodoId}`);
+console.log(`   Materias      : ${materias.length} definidas`);
+console.log(`   Asignaciones  : ${asigs.length} definidas`);
+console.log(`   Notas creadas : ${notasCreadas}`);
 console.log('\n⚠️  DOCENTES PENDIENTES DE AGREGAR AL SISTEMA:');
-console.log('   • Karen         → IQ 2° Sem: Fundamento de Instrumentación Quirúrgica');
-console.log('   • Amelia        → Cosmiatría 2° Sem: Lengua Castellana');
+console.log('   • Karen           → IQ 2° Sem: Fundamento de Instrumentación Quirúrgica');
+console.log('   • Amelia          → Cosmiatría 2° Sem A y B: Lengua Castellana');
 console.log('   • Natalia Giménez → IQ 4° Sem: Hematología y Nutrición Parenteral');
-console.log('   • Nelly         → Agropecuaria 1°: Suelo y Clima, Biología Aplicada');
-console.log('   • Cristian      → Criminalística 1°: Sociología y Conocimiento Científico');
-console.log('\n   Hasta agregar esos docentes, sus materias quedan asignadas a un');
-console.log('   docente placeholder (doc_sharp). Actualizar desde Configuración → Docentes.\n');
-console.log('✅ Seed completado. Para activar el período: Configuración → Períodos → Activar.');
+console.log('   • Nelly           → Agropecuaria 1°: Suelo y Clima, Biología Aplicada');
+console.log('   • Cristian        → Criminalística 1°: Sociología y Conocimiento Científico');
+console.log('\n   Sus materias usan doc_sharp como placeholder.');
+console.log('   Agregalos desde Configuración → Docentes y reasigná las materias.\n');
+console.log('\n📌 VERIFICACIÓN DE DOCENTES — MAPEO COMPLETO:');
+const MAPA = [
+  ['Natalia Martínez',  'doc_natalia',  '✅ Psicología, Inglés (IQ), Salud Mental Enf'],
+  ['Ana Ayala',         'doc_ayala_a',  '✅ Enfermería, Primeros Auxilios'],
+  ['María Elena Perez', 'doc_perez',    '✅ Lengua Castellana, Guaraní (varios)'],
+  ['Paulo Higuchi',     'doc_higuchi',  '✅ Anatomía, Patología Médica, Fisiología (Rad)'],
+  ['Gabriela Agüero',   'doc_aguero',   '✅ Farmacotecnia, Epidemiología, Botánica'],
+  ['Marcial Palacios',  'doc_palacios', '✅ Técnicas Radiológicas, Práctica Lab, Tec Rad IQ'],
+  ['Favio Rojas',       'doc_rojas',    '✅ Patología Quirúrgica/General, Semiología Piel'],
+  ['Angela Aranda',     'doc_aranda',   '✅ Biología, Bioquímica (Rad), Química Org, Genética'],
+  ['Mirta Giménez',     'doc_gimenez',  '✅ Matemática, Agropecuaria, Guaraní Crim, Contabilidad'],
+  ['Myrian Carrillo',   'doc_carrillo', '✅ Ética y Deontología Cosmiatría'],
+  ['Noelia Ayala',      'doc_ayala_n',  '✅ Química Cosmética, Biología Piel II'],
+  ['Raqueline Carballo','doc_carballo', '✅ Técnica Cosmética II, Aparatología, Emprendimiento'],
+  ['Nelson Domínguez',  'doc_dominguez','✅ Documentología, Medicina Legal, Crim, Metodología'],
+  ['Pamela Jiménez',    'doc_jimenez',  '✅ Inglés (IQ/Farmacia)'],
+  ['Karen',             'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
+  ['Amelia',            'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
+  ['Natalia Giménez',   'doc_sharp*',   '⚠️  PENDIENTE — distinta de Natalia Martínez'],
+  ['Nelly',             'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
+  ['Cristian',          'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
+];
+MAPA.forEach(([nombre, id, nota]) => console.log(`   ${id.padEnd(15)} ← ${nombre.padEnd(22)} ${nota}`));
+console.log('\n✅ Seed completado. Para activar: Configuración → Períodos → Activar "2do Semestre 2026".');
