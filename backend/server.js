@@ -5548,6 +5548,151 @@ app.get('/api/notas/carrera/:carrera_id/curso/:curso_id', auth(), (req, res) => 
   res.json({ asignaciones: asigs, alumnos, notas: notasMap });
 });
 
+// ── CIERRE Y PROMOCIÓN SEMESTRAL ──────────────────────────────────────────────
+// Regla: nota_final >= 2 → aprobada. nota_final === 1 → reprobada pero NO bloquea
+// la promoción (queda pendiente de extraordinario en diciembre). nota_final === null
+// (materia sin final cargado) → SÍ bloquea la promoción (calificaciones incompletas).
+function clasificarAlumnoPromocion(alumnoId, cursoId, periodoOrigenId) {
+  const notas = db.prepare(`
+    SELECT n.*, m.nombre as materia_nombre, m.codigo as materia_codigo, a.id as asignacion_id
+    FROM notas n
+    JOIN asignaciones a ON n.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    WHERE n.alumno_id=? AND a.curso_id=? AND a.periodo_id=?
+    ORDER BY m.nombre
+  `).all(alumnoId, cursoId, periodoOrigenId);
+  const sinNota = notas.filter(n => n.nota_final === null);
+  const conUno = notas.filter(n => n.nota_final === 1);
+  let estado;
+  if (!notas.length || sinNota.length) estado = 'No Habilitado';
+  else if (conUno.length) estado = 'Promovido con Extraordinario Pendiente';
+  else estado = 'Promovido';
+  return { notas, sinNota, conUno, estado };
+}
+
+app.get('/api/promocion/analisis', auth(ADM), (req, res) => {
+  const { carrera_id, periodo_origen_id } = req.query;
+  if (!carrera_id || !periodo_origen_id) return res.status(400).json({ error: 'carrera_id y periodo_origen_id requeridos' });
+  const alumnos = db.prepare(`
+    SELECT al.id, al.matricula, al.curso_id, COALESCE(al.nombre,u.nombre) as nombre, COALESCE(al.apellido,u.apellido) as apellido,
+      cu.anio as curso_anio, cu.division as curso_division
+    FROM alumnos al
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    JOIN cursos cu ON al.curso_id=cu.id
+    WHERE al.carrera_id=? AND al.estado='Activo'
+    ORDER BY cu.anio, cu.division, COALESCE(al.apellido,u.apellido)
+  `).all(carrera_id);
+  const promosExistentes = db.prepare('SELECT * FROM promocion_semestral WHERE periodo_origen_id=?').all(periodo_origen_id);
+  const promoMap = {}; promosExistentes.forEach(p => promoMap[p.alumno_id] = p);
+
+  const resultado = alumnos.map(al => {
+    const { notas, sinNota, conUno, estado } = clasificarAlumnoPromocion(al.id, al.curso_id, periodo_origen_id);
+    return {
+      alumno_id: al.id, matricula: al.matricula, nombre: al.nombre, apellido: al.apellido,
+      curso_anio: al.curso_anio, curso_division: al.curso_division,
+      materias: notas.map(n => ({ materia_nombre: n.materia_nombre, materia_codigo: n.materia_codigo, nota_final: n.nota_final, estado: n.estado })),
+      materias_sin_nota: sinNota.map(n => n.materia_nombre),
+      materias_pendiente_extraordinario: conUno.map(n => n.materia_nombre),
+      estado_calculado: estado,
+      ya_promovido: promoMap[al.id] || null
+    };
+  });
+  res.json(resultado);
+});
+
+app.post('/api/promocion/confirmar', auth(ADM), (req, res) => {
+  const { alumno_ids, periodo_origen_id, periodo_destino_id } = req.body;
+  if (!Array.isArray(alumno_ids) || !alumno_ids.length || !periodo_origen_id) {
+    return res.status(400).json({ error: 'alumno_ids y periodo_origen_id requeridos' });
+  }
+  const resultados = [];
+  db.transaction(() => {
+    alumno_ids.forEach(alumnoId => {
+      const al = db.prepare('SELECT id, curso_id FROM alumnos WHERE id=?').get(alumnoId);
+      if (!al) return;
+      const { conUno, estado } = clasificarAlumnoPromocion(alumnoId, al.curso_id, periodo_origen_id);
+
+      const existente = db.prepare('SELECT id FROM promocion_semestral WHERE alumno_id=? AND periodo_origen_id=?').get(alumnoId, periodo_origen_id);
+      if (existente) {
+        db.prepare(`UPDATE promocion_semestral SET estado=?,periodo_destino_id=?,fecha_promocion=datetime('now'),promovido_por=? WHERE id=?`)
+          .run(estado, periodo_destino_id || null, req.user.id, existente.id);
+      } else {
+        db.prepare(`INSERT INTO promocion_semestral (id,alumno_id,periodo_origen_id,periodo_destino_id,estado,promovido_por) VALUES (?,?,?,?,?,?)`)
+          .run('promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + periodo_origen_id, alumnoId, periodo_origen_id, periodo_destino_id || null, estado, req.user.id);
+      }
+
+      if (estado !== 'No Habilitado') {
+        conUno.forEach(n => {
+          const exId = 'extr_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + n.asignacion_id.replace(/[^a-z0-9]/gi, '');
+          db.prepare(`INSERT OR IGNORE INTO extraordinarios_pendientes (id,alumno_id,asignacion_id,nota_original,periodo_origen_id) VALUES (?,?,?,?,?)`)
+            .run(exId, alumnoId, n.asignacion_id, n.nota_final, periodo_origen_id);
+        });
+        // Vincular al alumno con las materias del período destino si aún no lo está
+        // (para semestres futuros; el 2do Semestre 2026 ya se vinculó en bloque vía seed)
+        if (periodo_destino_id) {
+          const asigsDestino = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(al.curso_id, periodo_destino_id);
+          asigsDestino.forEach(asig => {
+            const notaId = 'n_promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + asig.id.replace(/[^a-z0-9]/gi, '');
+            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run(notaId, alumnoId, asig.id, 'Pendiente');
+          });
+        }
+      }
+      resultados.push({ alumno_id: alumnoId, estado });
+    });
+  })();
+  audit(req.user.id, 'PROMOCION_SEMESTRAL', 'promocion_semestral', periodo_origen_id, { cantidad: resultados.length, resultados });
+  res.json({ ok: true, resultados });
+});
+
+// ── EXTRAORDINARIOS PENDIENTES (materias con nota 1, a rendir en diciembre) ──
+app.get('/api/extraordinarios/mis-pendientes', auth(), (req, res) => {
+  const alumno = req.user.rol === 'alumno'
+    ? db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(req.user.id)
+    : null;
+  const alumnoId = alumno ? alumno.id : req.query.alumno_id;
+  if (!alumnoId) return res.json([]);
+  const pend = db.prepare(`
+    SELECT e.*, m.nombre as materia_nombre, m.codigo as materia_codigo, ca.nombre as carrera_nombre, p.nombre as periodo_nombre
+    FROM extraordinarios_pendientes e
+    JOIN asignaciones a ON e.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN periodos p ON e.periodo_origen_id=p.id
+    WHERE e.alumno_id=? AND e.estado='Pendiente'
+    ORDER BY m.nombre
+  `).all(alumnoId);
+  res.json(pend);
+});
+app.get('/api/extraordinarios', auth(ADM), (req, res) => {
+  const { carrera_id, estado } = req.query;
+  let where = 'WHERE 1=1'; const params = [];
+  if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
+  if (estado)     { where += ' AND e.estado=?'; params.push(estado); }
+  res.json(db.prepare(`
+    SELECT e.*, m.nombre as materia_nombre, m.codigo as materia_codigo,
+      ca.id as carrera_id, ca.nombre as carrera_nombre,
+      COALESCE(al.nombre,u.nombre) as alumno_nombre, COALESCE(al.apellido,u.apellido) as alumno_apellido, al.matricula
+    FROM extraordinarios_pendientes e
+    JOIN asignaciones a ON e.asignacion_id=a.id
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    JOIN alumnos al ON e.alumno_id=al.id
+    LEFT JOIN usuarios u ON al.usuario_id=u.id
+    ${where} ORDER BY ca.nombre, alumno_apellido`).all(...params));
+});
+app.put('/api/extraordinarios/:id', auth(ADM), (req, res) => {
+  const { nota_extraordinario } = req.body;
+  const n = parseFloat(nota_extraordinario);
+  if (isNaN(n)) return res.status(400).json({ error: 'nota_extraordinario requerida' });
+  const estado = n >= 2 ? 'Aprobado' : 'Reprobado';
+  db.prepare(`UPDATE extraordinarios_pendientes SET nota_extraordinario=?,estado=?,fecha_rendicion=date('now') WHERE id=?`)
+    .run(n, estado, req.params.id);
+  audit(req.user.id, 'RESOLVER_EXTRAORDINARIO', 'extraordinarios_pendientes', req.params.id, { nota_extraordinario: n, estado });
+  res.json({ ok: true, estado });
+});
+
 // ── GENERACIÓN AUTOMÁTICA DE ASISTENCIAS (desde horarios, desde fecha_inicio) ─
 app.post('/api/asistencia/generar', auth(ADM), (req, res) => {
   const { fecha_inicio, fecha_fin } = req.body;

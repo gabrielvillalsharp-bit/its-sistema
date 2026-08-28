@@ -1098,6 +1098,34 @@ function init() {
       fecha_deteccion TEXT DEFAULT (date('now'))
     )`);
   } catch {}
+  // Cierre y Promoción Semestral: registro formal de la decisión de promoción por alumno+periodo de origen
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS promocion_semestral (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      periodo_origen_id INTEGER NOT NULL REFERENCES periodos(id),
+      periodo_destino_id INTEGER REFERENCES periodos(id),
+      estado TEXT NOT NULL CHECK(estado IN ('Promovido','Promovido con Extraordinario Pendiente','No Habilitado')),
+      fecha_promocion TEXT NOT NULL DEFAULT (datetime('now')),
+      promovido_por TEXT,
+      UNIQUE(alumno_id, periodo_origen_id)
+    )`);
+  } catch {}
+  // Materias con nota 1 en el periodo de origen: quedan pendientes de rendir en el extraordinario de diciembre
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS extraordinarios_pendientes (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+      nota_original INTEGER NOT NULL,
+      periodo_origen_id INTEGER NOT NULL REFERENCES periodos(id),
+      estado TEXT NOT NULL DEFAULT 'Pendiente' CHECK(estado IN ('Pendiente','Aprobado','Reprobado')),
+      nota_extraordinario REAL,
+      fecha_rendicion TEXT,
+      fecha_creacion TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(alumno_id, asignacion_id)
+    )`);
+  } catch {}
   // Tabla de alumnos faltantes (registro rápido para identificación)
   try { db.exec(`CREATE TABLE IF NOT EXISTS alumnos_faltantes (
     id TEXT PRIMARY KEY,

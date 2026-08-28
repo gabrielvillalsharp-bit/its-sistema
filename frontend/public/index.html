@@ -1556,6 +1556,7 @@ function go(p, _fromHistory){
   const pages={dashboard:pgDash,'dashboard-analitico':pgDashAnalitico,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,
     periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,constancias:pgConstancias,
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
+    promocion:pgPromocion,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,'drive':pgDrive,
@@ -1733,12 +1734,13 @@ async function pgDash(el){
     const hoy=new Date().toISOString().split('T')[0];
     const lim=new Date();lim.setDate(lim.getDate()+30);
     const limStr=lim.toISOString().split('T')[0];
-    const [notas,asist,pagosData,exams,avs]=await Promise.all([
+    const [notas,asist,pagosData,exams,avs,extrasPend]=await Promise.all([
       api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]),
       api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]),
       api('GET','/api/pagos/alumno/'+me.alumnoId).catch(()=>({pagos:[],totalPagado:0})),
       api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
       api('GET','/api/avisos').catch(()=>[]),
+      api('GET','/api/extraordinarios/mis-pendientes').catch(()=>[]),
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
     const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')
@@ -1754,6 +1756,13 @@ async function pgDash(el){
     ])}
 
     ${avisosAlert.length?`<div style="margin-bottom:16px">${avisosAlert.map(a=>`<div class="aviso-card ${a.tipo}" style="cursor:pointer" onclick="go('avisos')">${a.fijado?'📌 ':''}<span class="aviso-titulo">${a.titulo}</span><div style="font-size:13px;margin-top:4px">${a.contenido}</div></div>`).join('')}</div>`:''}
+    ${(extrasPend&&extrasPend.length)?`<div style="background:#fff3e0;border:2px solid #e65100;border-radius:12px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-weight:800;color:#e65100;font-size:13px;margin-bottom:8px">⚠ Tenés ${extrasPend.length} materia${extrasPend.length>1?'s':''} pendiente${extrasPend.length>1?'s':''} de examen extraordinario</div>
+      ${extrasPend.map(e=>`<div style="background:#fff;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px">
+        <strong>${e.materia_nombre}</strong> — Nota final: <strong style="color:#c62828">${e.nota_original}</strong><br>
+        <span style="color:#666">Estado: Recursada – Pendiente de extraordinario · Próxima instancia: Examen extraordinario – Diciembre</span>
+      </div>`).join('')}
+    </div>`:''}
     <!-- KPI alumno -->
     <div class="dash-kpi">
       <div class="kpi-card green"><span class="kpi-icon">✅</span><div class="kpi-val" style="color:var(--green)">${aprobadas}</div><div class="kpi-lbl">Materias aprobadas</div></div>
@@ -8767,6 +8776,98 @@ function descargarCalendarioAulas(){
   w.document.close();
 }
 
+// ── CIERRE Y PROMOCIÓN SEMESTRAL ──────────────────────────────────────────────
+async function pgPromocion(el){
+  const [carrs,periodos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/periodos')]);
+  W._carrsPromo=carrs;W._periodosPromo=periodos;
+  const periodoActivo=periodos.find(p=>p.activo)||periodos[0];
+  el.innerHTML=`<div class="ph"><h3>🎓 Cierre y Promoción Semestral</h3></div>
+  <p class="tip" style="margin-bottom:14px">Analiza las notas del período de origen y clasifica a cada alumno. Una materia con nota 1 NO bloquea la promoción — queda pendiente de examen extraordinario en diciembre. Una materia SIN nota final sí bloquea la promoción hasta que se regularice.</p>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <select id="promoCarr" style="min-width:200px" onchange="cargarAnalisisPromocion()">
+      <option value="">— Seleccionar carrera —</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="promoPeriodoOrigen" style="min-width:200px" onchange="cargarAnalisisPromocion()">
+      ${periodos.map(p=>`<option value="${p.id}" ${p.id===periodoActivo?.id?'selected':''}>${p.nombre} (origen)</option>`).join('')}
+    </select>
+    <select id="promoPeriodoDestino" style="min-width:200px">
+      <option value="">— Sin período destino (solo clasificar) —</option>
+      ${periodos.map(p=>`<option value="${p.id}">${p.nombre} (destino)</option>`).join('')}
+    </select>
+  </div>
+  <div id="promoResumen"></div>
+  <div id="promoLista"><div class="es">Seleccioná una carrera para empezar</div></div>`;
+}
+async function cargarAnalisisPromocion(){
+  const carreraId=v('promoCarr'),periodoOrigen=v('promoPeriodoOrigen');
+  if(!carreraId){document.getElementById('promoResumen').innerHTML='';document.getElementById('promoLista').innerHTML='<div class="es">Seleccioná una carrera para empezar</div>';return;}
+  document.getElementById('promoLista').innerHTML='<div class="es">Analizando notas...</div>';
+  const data=await api('GET',`/api/promocion/analisis?carrera_id=${carreraId}&periodo_origen_id=${periodoOrigen}`);
+  W._promoData=data;
+  renderPromocion('todos');
+}
+function badgeNota(n){
+  if(n.nota_final===null)return`<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:2px 7px;font-size:10px;margin:2px;display:inline-block" title="${n.materia_nombre}">${n.materia_codigo||n.materia_nombre}: sin nota</span>`;
+  if(n.nota_final===1)return`<span style="background:#ffebee;color:#c62828;border-radius:4px;padding:2px 7px;font-size:10px;margin:2px;display:inline-block;border:1px solid #ef9a9a" title="${n.materia_nombre}">${n.materia_codigo||n.materia_nombre}: 1</span>`;
+  return`<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:2px 7px;font-size:10px;margin:2px;display:inline-block" title="${n.materia_nombre}">${n.materia_codigo||n.materia_nombre}: ${n.nota_final}</span>`;
+}
+function renderPromocion(filtro){
+  W._promoFiltro=filtro;
+  const data=W._promoData||[];
+  const cont={
+    todos:data.length,
+    habilitados:data.filter(a=>a.estado_calculado==='Promovido').length,
+    conExtra:data.filter(a=>a.estado_calculado==='Promovido con Extraordinario Pendiente').length,
+    noHab:data.filter(a=>a.estado_calculado==='No Habilitado').length,
+  };
+  const tab=(key,label,color)=>`<button onclick="renderPromocion('${key}')" style="padding:7px 14px;border-radius:20px;border:2px solid ${filtro===key?color:'#e2e8f0'};background:${filtro===key?color:'#fff'};color:${filtro===key?'#fff':color};font-size:12px;font-weight:700;cursor:pointer">${label} (${cont[key]})</button>`;
+  document.getElementById('promoResumen').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    ${tab('todos','Todos','#166534')}
+    ${tab('habilitados','✓ Habilitados','#2e7d32')}
+    ${tab('conExtra','⚠ Con extraordinario','#e65100')}
+    ${tab('noHab','✗ No habilitados','#c62828')}
+  </div>`;
+  const map={todos:null,habilitados:'Promovido',conExtra:'Promovido con Extraordinario Pendiente',noHab:'No Habilitado'};
+  const estadoFiltro=map[filtro];
+  const lista=estadoFiltro?data.filter(a=>a.estado_calculado===estadoFiltro):data;
+  const estadoColor={'Promovido':'#2e7d32','Promovido con Extraordinario Pendiente':'#e65100','No Habilitado':'#c62828'};
+  const cel=document.getElementById('promoLista');
+  if(!lista.length){cel.innerHTML='<div class="es">No hay alumnos en esta categoría</div>';return;}
+  cel.innerHTML=`<div class="fb" style="margin-bottom:10px;gap:8px">
+    <button class="bs" onclick="seleccionarTodosPromo(true)">Seleccionar visibles</button>
+    <button class="bs" onclick="seleccionarTodosPromo(false)">Deseleccionar</button>
+    <button class="bn" onclick="confirmarPromocionSeleccionados()">✓ Promover seleccionados</button>
+  </div>
+  <div class="card"><div class="tw"><table><thead><tr>
+    <th></th><th>Alumno</th><th>Año/Secc.</th><th>Materias</th><th>Estado</th><th>Ya promovido</th>
+  </tr></thead><tbody>
+    ${lista.map(a=>`<tr>
+      <td><input type="checkbox" class="promoChk" value="${a.alumno_id}"></td>
+      <td><strong>${a.apellido}, ${a.nombre}</strong><br><span style="font-size:10px;color:var(--t3)">${a.matricula||''}</span></td>
+      <td>${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' Secc.'+a.curso_division:''}</td>
+      <td style="max-width:320px">${a.materias.map(badgeNota).join('')||'<span style="color:var(--t3);font-size:11px">Sin materias en este período</span>'}</td>
+      <td><span style="background:${estadoColor[a.estado_calculado]};color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap">${a.estado_calculado}</span></td>
+      <td>${a.ya_promovido?`<span style="font-size:10px;color:var(--t2)">${a.ya_promovido.estado}<br>${a.ya_promovido.fecha_promocion?.slice(0,10)||''}</span>`:'<span style="font-size:10px;color:var(--t3)">—</span>'}</td>
+    </tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+function seleccionarTodosPromo(val){
+  document.querySelectorAll('.promoChk').forEach(c=>c.checked=val);
+}
+async function confirmarPromocionSeleccionados(){
+  const ids=[...document.querySelectorAll('.promoChk:checked')].map(c=>c.value);
+  if(!ids.length)return alert('Seleccioná al menos un alumno');
+  const periodoOrigen=v('promoPeriodoOrigen'),periodoDestino=v('promoPeriodoDestino');
+  const destNom=periodoDestino?(W._periodosPromo||[]).find(p=>String(p.id)===periodoDestino)?.nombre:'(sin vincular a un período destino)';
+  if(!confirm(`¿Confirmar la promoción de ${ids.length} alumno(s)?\n\nDestino: ${destNom}\n\nLos alumnos "No Habilitados" que hayas seleccionado igual quedarán registrados como No Habilitado — esta acción no fuerza su aprobación, solo dispara la clasificación y el vínculo con el período destino para los que sí califican.`))return;
+  try{
+    const r=await api('POST','/api/promocion/confirmar',{alumno_ids:ids,periodo_origen_id:periodoOrigen,periodo_destino_id:periodoDestino||null});
+    toast(`✓ ${r.resultados.length} alumno(s) procesados`,'ok');
+    await cargarAnalisisPromocion();
+  }catch(e){alert('Error: '+e.message);}
+}
+
 // ── CALENDARIO DE EXÁMENES ────────────────────────────────────────────────────
 // ── AGENDA UNIFICADA (Calendario + Horario) ──────────────────────────────────
 async function pgAgenda(el){
@@ -9852,12 +9953,14 @@ function pgDrive(el){
   </div>`;
 }
 function pgHubCarreras(el){
+  const esDirec=me.rol==='director';
   el.innerHTML=`<div class="ph"><h3>🏫 Carreras</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
     ${_mCard('carreras','🏫','Carreras','Gestionar carreras','#2563eb','#eff6ff')}
     ${_mCard('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
     ${_mCard('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
     ${_mCard('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
+    ${esDirec?_mCard('promocion','🎓','Cierre / Promoción','Pase de semestre','#d97706','#fffbeb'):''}
   </div>`;
 }
 function pgHubPersonas(el){
@@ -16956,7 +17059,10 @@ async function pgMisMat(el){
 async function pgMisNotas(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno</div>';return;}
   el.innerHTML='<div class="ph"><h3>Mis calificaciones</h3></div>'+skeletonTable(8,5);
-  const notas=await api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]);
+  const [notas,extrasPend]=await Promise.all([
+    api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]),
+    api('GET','/api/extraordinarios/mis-pendientes').catch(()=>[]),
+  ]);
   W._misNotas=notas;
   const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))].sort();
   const carrera=notas?.[0]?.carrera_nombre||'';
@@ -16964,6 +17070,14 @@ async function pgMisNotas(el){
   el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3>
     ${carrera?`<span class="bx bb" style="font-size:12px">${carrera} ${anio?anio+'° año':''}</span>`:''}
   </div>
+  ${(extrasPend&&extrasPend.length)?`<div style="background:#fff3e0;border:2px solid #e65100;border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-weight:800;color:#e65100;font-size:13px;margin-bottom:8px">⚠ Materias pendientes de examen extraordinario (${extrasPend.length})</div>
+    ${extrasPend.map(e=>`<div style="background:#fff;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px">
+      <strong>${e.materia_nombre}</strong> — ${e.periodo_nombre||''}<br>
+      Nota final: <strong style="color:#c62828">${e.nota_original}</strong> · Estado: Recursada – Pendiente de extraordinario<br>
+      <span style="color:#666">Próxima instancia: Examen extraordinario – Diciembre</span>
+    </div>`).join('')}
+  </div>`:''}
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px">
       <option value="">Todas las materias (${materias.length})</option>
