@@ -856,6 +856,10 @@ function init() {
   try { db.prepare("ALTER TABLE materias ADD COLUMN turno INTEGER").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN curso_id TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE materias ADD COLUMN docente_id TEXT").run(); } catch {}
+  // Vínculo materia → período académico (nullable: no rompe el catálogo existente,
+  // que sigue sin periodo_id hasta que se le asigne uno manualmente si hace falta).
+  // Obligatorio solo para materias creadas de acá en adelante (validado en el backend).
+  try { db.prepare("ALTER TABLE materias ADD COLUMN periodo_id INTEGER REFERENCES periodos(id)").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}

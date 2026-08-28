@@ -2199,29 +2199,29 @@ app.delete('/api/cursos/:id', auth(ADM), (req, res) => {
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
   const sede = req.user.sede || 'pjc';
-  const { carrera_id } = req.query;
-  if (carrera_id) {
-    const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu
-      FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id
-      WHERE m.carrera_id=? AND c.sede_id=? ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
-    return res.json(db.prepare(q).all(carrera_id, sede));
-  }
-  const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu
-    FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id
-    WHERE c.sede_id=? ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
-  res.json(db.prepare(q).all(sede));
+  const { carrera_id, periodo_id } = req.query;
+  let where = 'WHERE c.sede_id=?'; const params = [sede];
+  if (carrera_id) { where += ' AND m.carrera_id=?'; params.push(carrera_id); }
+  if (periodo_id) { where += ' AND m.periodo_id=?'; params.push(periodo_id); }
+  const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu,p.nombre as periodo_nombre
+    FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id LEFT JOIN periodos p ON m.periodo_id=p.id
+    ${where} ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
+  res.json(db.prepare(q).all(...params));
 });
 app.post('/api/materias', auth(ADM), (req, res) => {
-  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id } = req.body;
+  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, periodo_id } = req.body;
+  if (!periodo_id) return res.status(400).json({ error: 'periodo_id requerido — toda materia debe indicar a qué período académico pertenece' });
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
   const id = 'm_' + Date.now();
-  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null);
+  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id,periodo_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodo_id);
   res.json({ id });
 });
 app.put('/api/materias/:id', auth(ADM), (req, res) => {
-  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id } = req.body;
+  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id, periodo_id } = req.body;
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
-  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,req.params.id);
+  const actual = db.prepare('SELECT periodo_id FROM materias WHERE id=?').get(req.params.id);
+  const periodoFinal = periodo_id !== undefined ? (periodo_id || null) : (actual ? actual.periodo_id : null);
+  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=?,periodo_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodoFinal,req.params.id);
   // Propagar cambio de docente a todas las asignaciones de esta materia
   if (docente_id) {
     db.prepare('UPDATE asignaciones SET docente_id=? WHERE materia_id=?').run(docente_id, req.params.id);
@@ -2234,7 +2234,14 @@ app.patch('/api/materias/:id/nombre', auth(ADM), (req, res) => {
   db.prepare('UPDATE materias SET nombre=? WHERE id=?').run(nombre, req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/materias/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/materias/:id', auth(ADM), (req, res) => {
+  db.transaction(() => {
+    const asigs = db.prepare('SELECT id FROM asignaciones WHERE materia_id=?').all(req.params.id);
+    asigs.forEach(a => eliminarAsignacionCascada(a.id));
+    db.prepare('DELETE FROM materias WHERE id=?').run(req.params.id);
+  })();
+  res.json({ ok: true });
+});
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 app.get('/api/docentes', auth(), (req, res) => {
@@ -3024,24 +3031,26 @@ app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
   db.prepare('UPDATE asignaciones SET docente_id=? WHERE id=?').run(docente_id, req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => {
-  const id = req.params.id;
-  const del = db.transaction(() => {
-    db.prepare('DELETE FROM notas WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM asistencia WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM honorarios WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM actas_examen WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM habilitaciones_examen WHERE asignacion_id=?').run(id);
-    const exams = db.prepare('SELECT id FROM examenes WHERE asignacion_id=?').all(id);
-    exams.forEach(e => {
-      db.prepare('DELETE FROM wa_recordatorios_examen WHERE examen_id=?').run(e.id);
-      db.prepare('DELETE FROM notif_wa_enviadas WHERE examen_id=?').run(e.id);
-    });
-    db.prepare('DELETE FROM examenes WHERE asignacion_id=?').run(id);
-    db.prepare('DELETE FROM asignaciones WHERE id=?').run(id);
+// Borra una asignación y todo lo que depende de ella (notas, horarios, exámenes, etc).
+// Se usa tanto desde DELETE /api/asignaciones/:id como desde DELETE /api/materias/:id
+// (una materia con asignaciones no puede borrarse directo, viola la FK).
+function eliminarAsignacionCascada(id) {
+  db.prepare('DELETE FROM notas WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM asistencia WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM honorarios WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM actas_examen WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM habilitaciones_examen WHERE asignacion_id=?').run(id);
+  const exams = db.prepare('SELECT id FROM examenes WHERE asignacion_id=?').all(id);
+  exams.forEach(e => {
+    db.prepare('DELETE FROM wa_recordatorios_examen WHERE examen_id=?').run(e.id);
+    db.prepare('DELETE FROM notif_wa_enviadas WHERE examen_id=?').run(e.id);
   });
-  del();
+  db.prepare('DELETE FROM examenes WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM asignaciones WHERE id=?').run(id);
+}
+app.delete('/api/asignaciones/:id', auth(ADM), (req, res) => {
+  db.transaction(() => eliminarAsignacionCascada(req.params.id))();
   res.json({ ok: true });
 });
 

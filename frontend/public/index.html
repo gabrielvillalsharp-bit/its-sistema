@@ -4290,31 +4290,35 @@ async function svCurso(){await api('POST','/api/cursos',{carrera_id:v('cuc'),ani
 
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 async function pgMaterias(el){
-  const [mats,carrs,cursos,docs]=await Promise.all([
+  const [mats,carrs,cursos,docs,periodos]=await Promise.all([
     api('GET','/api/materias'),api('GET','/api/carreras'),
-    api('GET','/api/cursos'),api('GET','/api/docentes')
+    api('GET','/api/cursos'),api('GET','/api/docentes'),api('GET','/api/periodos')
   ]);
-  W._mats=mats;W._carrs=carrs;W._cursos=cursos;W._docsMat=docs;
+  W._mats=mats;W._carrs=carrs;W._cursos=cursos;W._docsMat=docs;W._periodosMat=periodos;
   const anios=[...new Set(mats.map(m=>m.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva materia</button></div>
-  <p class="tip" style="margin-bottom:10px">Al crear una materia asignás directamente Sección, Docente, Día y Turno. Aparecerá automáticamente en Notas y Asistencia.</p>
+  <p class="tip" style="margin-bottom:10px">Al crear una materia asignás directamente Período, Sección, Docente, Día y Turno. Aparecerá automáticamente en Notas y Asistencia.</p>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
     <select id="filtMCarr" onchange="filtM()" style="min-width:180px"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
     <select id="filtMAnio" onchange="filtM()" style="min-width:110px"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}</select>
     <select id="filtMSec" onchange="filtM()" style="min-width:120px"><option value="">Todas las secciones</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')}</select>
+    <select id="filtMPer" onchange="filtM()" style="min-width:160px"><option value="">Todos los períodos</option>${periodos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select>
   </div>
   <div class="card"><div class="tw"><table><thead><tr>
-    <th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Sección</th><th>Hs/sem</th><th></th>
+    <th>Código</th><th>Nombre</th><th>Carrera</th><th>Año</th><th>Sección</th><th>Período</th><th>Hs/sem</th><th></th>
   </tr></thead>
   <tbody id="mtb">${mats.map(m=>mRow(m)).join('')}</tbody></table></div></div>`;
 }
 async function mMateria(m){
   const e=!!m;
-  const [carrs,cursos,docs]=await Promise.all([
+  const [carrs,cursos,docs,periodos]=await Promise.all([
     Promise.resolve(W._carrs||[]),
     Promise.resolve(W._cursos||[]),
-    Promise.resolve(W._docsMat||[])
+    Promise.resolve(W._docsMat||[]),
+    W._periodosMat?Promise.resolve(W._periodosMat):api('GET','/api/periodos')
   ]);
+  W._periodosMat=periodos;
+  const periodoActivo=periodos.find(p=>p.activo)||periodos[0];
   modal(`<h4>${e?'Editar':'Nueva'} materia</h4>
   <div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#2e7d32">
     ✓ Al guardar, la materia y su asignación aparecen automáticamente en Notas y Asistencia
@@ -4324,6 +4328,10 @@ async function mMateria(m){
     <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
     <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="ENF-101"/></div>
   </div>
+  <div class="f"><label>Período académico <span style="color:var(--red)">*</span></label>
+    <select id="mper" style="width:100%">
+      ${periodos.map(p=>`<option value="${p.id}" ${e?(m.periodo_id===p.id?'selected':''):(periodoActivo&&p.id===periodoActivo.id?'selected':'')}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
+    </select></div>
   <div class="fr">
     <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
       <select id="mca" onchange="filtSeccionesMat()">
@@ -4368,9 +4376,10 @@ function filtSeccionesMat(){
   sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
 }
 async function previsualizarMateria(id){
-  const o={nombre:v('mn'),codigo:v('mc2'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),dia:v('mdia'),turno:parseInt(v('mtur')),horas_semanales:parseInt(v('mh'))||4};
-  if(!o.nombre||!o.carrera_id||!o.curso_id||!o.docente_id||!o.dia||!o.turno)return alert('Completar todos los campos obligatorios (*)');
+  const o={nombre:v('mn'),codigo:v('mc2'),periodo_id:v('mper'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),dia:v('mdia'),turno:parseInt(v('mtur')),horas_semanales:parseInt(v('mh'))||4};
+  if(!o.nombre||!o.periodo_id||!o.carrera_id||!o.curso_id||!o.docente_id||!o.dia||!o.turno)return alert('Completar todos los campos obligatorios (*)');
   const carNom=(W._carrs||[]).find(c=>c.id===o.carrera_id)?.nombre||'';
+  const perNom=(W._periodosMat||[]).find(p=>String(p.id)===String(o.periodo_id))?.nombre||'';
   const docObj=(W._docsMat||[]).find(d=>d.docente_id===o.docente_id);
   const docNom=docObj?`${docObj.apellido||''}, ${docObj.nombre}`:'—';
   const secObj=(W._cursos||[]).find(s=>s.id===o.curso_id);
@@ -4381,6 +4390,7 @@ async function previsualizarMateria(id){
   <div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
       <div><span style="font-size:10px;color:var(--t3)">Materia</span><br><strong>${o.nombre}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Período</span><br><strong>${perNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Carrera</span><br><strong>${carNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Año / Sección</span><br><strong>${o.anio}° — ${secNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Docente</span><br><strong>${docNom}</strong></div>
@@ -4404,23 +4414,22 @@ async function svMat(id,o,conConflicto){
     let matId=id;
     if(id) await api('PUT','/api/materias/'+id,o);
     else{const r=await api('POST','/api/materias',o);matId=r.id;}
-    // Crear/actualizar asignación automáticamente
-    if(o.docente_id&&o.curso_id&&matId){
-      const periodo=await api('GET','/api/periodos').then(ps=>ps.find(p=>p.activo)||ps[0]).catch(()=>null);
-      if(periodo){
-        const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${periodo.id}`).catch(()=>[]);
-        if(!existe||!existe.length){
-          // Crear nueva asignación si no existe
-          await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:periodo.id,dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
-        } else {
-          // Actualizar docente y/o día/turno en asignación existente si cambiaron
-          const asig=existe[0];
-          if(asig.docente_id!==o.docente_id){
-            await api('PUT',`/api/asignaciones/${asig.id}/docente`,{docente_id:o.docente_id}).catch(()=>{});
-          }
-          if(asig.dia!==o.dia||asig.turno!==o.turno){
-            await api('PUT',`/api/asignaciones/${asig.id}`,{dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00',aula:asig.aula||null}).catch(()=>{});
-          }
+    // Crear/actualizar asignación automáticamente — usa el período de la MATERIA,
+    // no el período "activo" del sistema (pueden no coincidir, ej. cargando materias
+    // de un semestre que todavía no se activó).
+    if(o.docente_id&&o.curso_id&&matId&&o.periodo_id){
+      const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${o.periodo_id}`).catch(()=>[]);
+      if(!existe||!existe.length){
+        // Crear nueva asignación si no existe
+        await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:o.periodo_id,dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
+      } else {
+        // Actualizar docente y/o día/turno en asignación existente si cambiaron
+        const asig=existe[0];
+        if(asig.docente_id!==o.docente_id){
+          await api('PUT',`/api/asignaciones/${asig.id}/docente`,{docente_id:o.docente_id}).catch(()=>{});
+        }
+        if(asig.dia!==o.dia||asig.turno!==o.turno){
+          await api('PUT',`/api/asignaciones/${asig.id}`,{dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00',aula:asig.aula||null}).catch(()=>{});
         }
       }
     }
@@ -5171,6 +5180,7 @@ function aRow(a){return `<tr>
 // Función mRow para materias — también debe ser global
 function mRow(m){
   const secLabel=m.curso_id?(m.curso_division==='U'?'Única':'Secc. '+m.curso_division):'<span style="color:#aaa;font-size:11px">—</span>';
+  const perLabel=m.periodo_nombre?`<span class="bx bb" style="font-size:10px">${m.periodo_nombre}</span>`:'<span style="color:#c62828;font-size:11px">⚠ sin período</span>';
   return `<tr>
   <td><span class="bx ba">${m.codigo||'-'}</span></td>
   <td><input type="text" value="${m.nombre}" id="mnombre_${m.id}"
@@ -5178,6 +5188,7 @@ function mRow(m){
     onblur="actualizarNombreMateria('${m.id}')"/></td>
   <td>${m.carrera_nombre}</td><td>${m.anio}°</td>
   <td>${secLabel}</td>
+  <td>${perLabel}</td>
   <td>${m.horas_semanales||'-'}h</td>
   <td><span class="tip">${m.peso_tp||25}% / ${m.peso_parcial||25}% / ${m.peso_final||50}%</span></td>
   <td><div class="abs"><button class="bs i" onclick="mMateria(DJ(this.dataset.j))" data-j="${J(m)}">Editar</button><button class="bs d" onclick="del('${m.id}','materias')">Eliminar</button></div></td>
@@ -5198,12 +5209,13 @@ async function actualizarNombreMateria(id){
 }
 // Función filtM global
 function filtM(){
-  const carr=v('filtMCarr'), anio=v('filtMAnio'), sec=v('filtMSec');
+  const carr=v('filtMCarr'), anio=v('filtMAnio'), sec=v('filtMSec'), per=v('filtMPer');
   const tb=document.getElementById('mtb');if(!tb)return;
   let l=W._mats||[];
   if(carr) l=l.filter(m=>m.carrera_id===carr);
   if(anio) l=l.filter(m=>String(m.anio)===anio);
   if(sec)  l=l.filter(m=>m.curso_id===sec);
+  if(per)  l=l.filter(m=>String(m.periodo_id)===per);
   tb.innerHTML=l.map(mRow).join('')||'<tr><td colspan="8" class="es">Sin materias</td></tr>';
 }
 function mAl(a){
