@@ -4385,7 +4385,7 @@ async function previsualizarMateria(id){
   const secObj=(W._cursos||[]).find(s=>s.id===o.curso_id);
   const secNom=secObj?`${secObj.anio}° Secc. ${secObj.division==='U'?'Única':secObj.division}`:'—';
   let conflicto={tiene_conflicto:false};
-  try{conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${o.docente_id}&dia=${encodeURIComponent(o.dia)}&turno=${o.turno}&exclude_id=${id||''}`);}catch{}
+  try{conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${o.docente_id}&dia=${encodeURIComponent(o.dia)}&turno=${o.turno}&curso_id=${o.curso_id}&exclude_id=${id||''}`);}catch{}
   modal(`<h4>📋 Confirmar materia</h4>
   <div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
@@ -8528,19 +8528,19 @@ async function pgCalClases(el){
   const periodos=await api('GET','/api/periodos').catch(()=>[]);
   const periodoActivo=periodos.find(p=>p.activo)||periodos[0]||null;
   W._periodoHorario=periodoActivo;
-  // Para docente: solicitar solo sus horarios directo desde el servidor
+  // Docente y alumno reciben solo su propio recorte directo desde el servidor
+  // (el alumno no puede pedir el curso de otro — se resuelve server-side).
   let url='/api/horarios';
   const qs=[];
   if(periodoActivo) qs.push('periodo_id='+periodoActivo.id);
   if(me.rol==='docente'){
-    // Intentar con docenteId (id de tabla docentes) y también con usuario id
     if(me.docenteId) qs.push('docente_id='+me.docenteId);
     else qs.push('docente_usuario_id='+me.id);
   }
   if(qs.length) url+='?'+qs.join('&');
   const horarios=await api('GET',url);
   let h=horarios||[];
-  if(me.rol!=='docente'&&periodoActivo){
+  if(me.rol==='director'&&periodoActivo){
     W._asigsPeriodoHorario=await api('GET',`/api/asignaciones?periodo_id=${periodoActivo.id}`).catch(()=>[]);
   }
   // Fallback extra: si el docente tiene docenteId, filtrar también por docente_usuario_id
@@ -8562,22 +8562,24 @@ async function pgCalClases(el){
   const carreras=[...new Set(h.filter(x=>x.carrera_nombre).map(carrelaLabel))].sort();
   const anios=[...new Set(h.filter(x=>x.curso_anio).map(x=>x.curso_anio))].sort((a,b)=>a-b);
   const esDocente=me.rol==='docente';
-  // Detectar entradas sin docente o sin materia (inconsistencias)
+  const esDirector=me.rol==='director';
+  const esAlumno=me.rol==='alumno';
+  // Detectar entradas sin docente o sin materia (inconsistencias) — solo relevante para el Director
   const huerfanos=h.filter(x=>!x.docente_nombre||!x.materia_nombre);
-  const alertaHuerfanos=(!esDocente&&huerfanos.length)?`<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#e65100">
+  const alertaHuerfanos=(esDirector&&huerfanos.length)?`<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#e65100">
     ⚠ <strong>${huerfanos.length} entrada(s) en el horario sin docente asignado o sin materia válida.</strong>
     Estas entradas no deben aparecer en el horario. Revisá la sección <a href="#" onclick="go('materias');return false;" style="color:#166534;text-decoration:underline">Materias</a> y asigná un docente a cada materia.
     <label style="margin-left:12px;cursor:pointer"><input type="checkbox" id="filtHorOcultar" onchange="renderHorario()" checked> Ocultar sin docente</label>
   </div>`:'';
-  el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
+  el.innerHTML=`<div class="ph"><h3>📅 ${esAlumno?'Mi Horario':'Horario Semanal de Clases'}${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
     <div class="ph-right">
     </div>
-    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs${!esDocente?' · Hacé clic en un bloque vacío (+) para asignar una materia, o en uno ocupado para quitarla':''}</p>
+    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs${esDirector?' · Hacé clic en un bloque vacío (+) para asignar una materia, o en uno ocupado para quitarla':''}</p>
   </div>
   ${periodoActivo?'':'<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#e65100">⚠ No hay ningún período activo — activá uno desde Configuración → Períodos.</div>'}
   ${alertaHuerfanos}
-  <div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
-    ${!esDocente?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
+  ${!esAlumno?`<div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
+    ${esDirector?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}
     </select>`:''}
@@ -8585,11 +8587,11 @@ async function pgCalClases(el){
       <option value="">Todos los años</option>
       ${anios.map(a=>`<option value="${a}">${a}° año</option>`).join('')}
     </select>
-    ${!esDocente?`<select id="filtHorDoc" onchange="renderHorario()" style="min-width:180px">
+    ${esDirector?`<select id="filtHorDoc" onchange="renderHorario()" style="min-width:180px">
       <option value="">Todos los docentes</option>
       ${[...new Map(h.filter(x=>x.docente_id&&x.docente_apellido).map(x=>[x.docente_id,x])).values()].sort((a,b)=>(a.docente_apellido||'').localeCompare(b.docente_apellido||'')).map(x=>`<option value="${x.docente_id}">${x.docente_apellido||''}, ${x.docente_nombre||''}</option>`).join('')}
     </select>`:''}
-  </div>
+  </div>`:''}
   <div id="tablaHorario" style="overflow-x:auto"></div>`;
   renderHorario();
 }
@@ -8617,7 +8619,7 @@ function renderHorario(){
   if(ocultarSinDoc)h=h.filter(x=>x.docente_nombre&&x.materia_nombre);
   const turno1=h.filter(x=>x.turno===1);
   const turno2=h.filter(x=>x.turno===2);
-  const clickable=me.rol!=='docente'&&!!W._periodoHorario;
+  const clickable=me.rol==='director'&&!!W._periodoHorario;
   const cell=(lista,dia,turnoNum)=>{
     const items=lista.filter(x=>x.dia===dia);
     if(!items.length){
@@ -8987,45 +8989,49 @@ async function agendaTab(tab){
 async function pgMiPortal(el){
   if(me.rol==='alumno'){
     el.innerHTML=`<div class="ph"><h3>🎓 Mi Portal</h3></div>
-    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
       <button id="mpTab1Btn" onclick="miPortalTab('notas')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1f8246;background:transparent;cursor:pointer;color:#1f8246">✏️ Calificaciones</button>
       <button id="mpTab2Btn" onclick="miPortalTab('asistencia')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">✅ Asistencia</button>
       <button id="mpTab3Btn" onclick="miPortalTab('cuenta')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💳 Estado de cuenta</button>
+      <button id="mpTab4Btn" onclick="miPortalTab('horario')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🕐 Mi Horario</button>
+    </div>
+    <div id="mpTab1"></div>
+    <div id="mpTab2" style="display:none"></div>
+    <div id="mpTab3" style="display:none"></div>
+    <div id="mpTab4" style="display:none"></div>`;
+    miPortalTab('notas');
+  } else if(me.rol==='docente'){
+    el.innerHTML=`<div class="ph"><h3>👨‍🏫 Mi Portal</h3></div>
+    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0;flex-wrap:wrap">
+      <button id="mpTab1Btn" onclick="miPortalTab('materias')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1f8246;background:transparent;cursor:pointer;color:#1f8246">📚 Mis Materias</button>
+      <button id="mpTab2Btn" onclick="miPortalTab('honorarios')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💵 Mis Honorarios</button>
+      <button id="mpTab3Btn" onclick="miPortalTab('horario')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🕐 Mi Horario</button>
     </div>
     <div id="mpTab1"></div>
     <div id="mpTab2" style="display:none"></div>
     <div id="mpTab3" style="display:none"></div>`;
-    miPortalTab('notas');
-  } else if(me.rol==='docente'){
-    el.innerHTML=`<div class="ph"><h3>👨‍🏫 Mi Portal</h3></div>
-    <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
-      <button id="mpTab1Btn" onclick="miPortalTab('materias')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1f8246;background:transparent;cursor:pointer;color:#1f8246">📚 Mis Materias</button>
-      <button id="mpTab2Btn" onclick="miPortalTab('honorarios')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💵 Mis Honorarios</button>
-    </div>
-    <div id="mpTab1"></div>
-    <div id="mpTab2" style="display:none"></div>`;
     miPortalTab('materias');
   }
 }
 async function miPortalTab(tab){
   const activar=(id,color)=>{
-    ['mpTab1Btn','mpTab2Btn','mpTab3Btn'].forEach(b=>{const el=document.getElementById(b);if(el){el.style.borderBottomColor='transparent';el.style.color='#64748b';}});
+    ['mpTab1Btn','mpTab2Btn','mpTab3Btn','mpTab4Btn'].forEach(b=>{const el=document.getElementById(b);if(el){el.style.borderBottomColor='transparent';el.style.color='#64748b';}});
     const btn=document.getElementById(id);
     if(btn){btn.style.borderBottomColor=color||'#1f8246';btn.style.color=color||'#1f8246';}
   };
   if(me.rol==='alumno'){
-    const tabs={notas:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisNotas},asistencia:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMiAsistencia},cuenta:{btn:'mpTab3Btn',div:'mpTab3',fn:pgMiEstadoCuenta}};
+    const tabs={notas:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisNotas},asistencia:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMiAsistencia},cuenta:{btn:'mpTab3Btn',div:'mpTab3',fn:pgMiEstadoCuenta},horario:{btn:'mpTab4Btn',div:'mpTab4',fn:pgCalClases}};
     const t=tabs[tab]; if(!t)return;
     activar(t.btn,'#1f8246');
-    ['mpTab1','mpTab2','mpTab3'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    ['mpTab1','mpTab2','mpTab3','mpTab4'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
     const div=document.getElementById(t.div); if(!div)return;
     div.style.display='';
     if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
   } else if(me.rol==='docente'){
-    const tabs={materias:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisMat},honorarios:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMisHonorarios}};
+    const tabs={materias:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisMat},honorarios:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMisHonorarios},horario:{btn:'mpTab3Btn',div:'mpTab3',fn:pgCalClases}};
     const t=tabs[tab]; if(!t)return;
     activar(t.btn,'#1f8246');
-    ['mpTab1','mpTab2'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    ['mpTab1','mpTab2','mpTab3'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
     const div=document.getElementById(t.div); if(!div)return;
     div.style.display='';
     if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
@@ -18151,7 +18157,7 @@ async function svReemplazo(){
   try{
     const asig=(W._repsData?.asigs||[]).find(a=>a.id===asigId);
     if(asig){
-      const c=await api('GET',`/api/asignaciones/conflicto?docente_id=${repDocId}&dia=${encodeURIComponent(asig.dia||'')}&turno=${asig.turno||1}&exclude_id=`).catch(()=>({tiene_conflicto:false}));
+      const c=await api('GET',`/api/asignaciones/conflicto?docente_id=${repDocId}&dia=${encodeURIComponent(asig.dia||'')}&turno=${asig.turno||1}&curso_id=${asig.curso_id||''}&exclude_id=`).catch(()=>({tiene_conflicto:false}));
       if(c?.tiene_conflicto&&!confirm(`⚠ El reemplazante ya tiene "${c.materia}" ese turno. ¿Confirmar igual? El Director decidirá.`))return;
     }
     await api('POST','/api/reemplazos',{asignacion_id:asigId,docente_reemplazante_id:repDocId,fecha,motivo});

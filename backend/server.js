@@ -2923,14 +2923,20 @@ app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
 });
 
 // ── ASIGNACIONES ──────────────────────────────────────────────────────────────
-// Verificar conflicto de horario para un docente
+// Verificar conflicto de horario para un docente. Un conflicto real es el MISMO
+// docente en OTRO curso (otra cohorte de alumnos) al mismo día/turno — no puede
+// estar en dos lugares a la vez. Dos materias distintas para el MISMO curso en
+// el mismo día/turno (con el mismo docente o con docentes distintos) NO es un
+// conflicto: es una clase combinada, patrón normal en esta institución.
 app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
-  const { docente_id, dia, turno, exclude_id } = req.query;
+  const { docente_id, dia, turno, curso_id, exclude_id } = req.query;
   if (!docente_id || !dia || !turno) return res.json({ tiene_conflicto: false });
-  const q = exclude_id
-    ? `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.docente_id=? AND m.dia=? AND m.turno=? AND a.id!=? LIMIT 1`
-    : `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.docente_id=? AND m.dia=? AND m.turno=? LIMIT 1`;
-  const params = exclude_id ? [docente_id, dia, parseInt(turno), exclude_id] : [docente_id, dia, parseInt(turno)];
+  let q = `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id
+    WHERE a.docente_id=? AND a.dia=? AND a.turno=?`;
+  const params = [docente_id, dia, parseInt(turno)];
+  if (curso_id)   { q += ' AND a.curso_id!=?'; params.push(curso_id); }
+  if (exclude_id) { q += ' AND a.id!=?';       params.push(exclude_id); }
+  q += ' LIMIT 1';
   const conflicto = db.prepare(q).get(...params);
   res.json({ tiene_conflicto: !!conflicto, materia: conflicto?.materia || null });
 });
@@ -2981,12 +2987,15 @@ app.post('/api/asignaciones', auth(ADM), (req, res) => {
 
       // Registrar en horarios si tiene día asignado
       if (dia) {
-        // Detectar conflicto: ¿ya existe otro docente en ese día/turno/curso?
+        // Detectar conflicto REAL: el MISMO docente ya dando clase en OTRO curso
+        // (otra cohorte) al mismo día/turno — no puede estar en dos lugares a la
+        // vez. Dos materias distintas para el MISMO curso en el mismo día/turno
+        // NO es un conflicto (clase combinada, patrón normal acá).
         const conflicto = db.prepare(`
           SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
           JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
           JOIN materias m ON a.materia_id=m.id
-          WHERE a.curso_id=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`).get(curso_id, dia, turno||1, id, periodo_id);
+          WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`).get(docente_id, curso_id, dia, turno||1, id, periodo_id);
         if (conflicto) {
           const avisoId = 'av_conf_'+Date.now();
           const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
@@ -2995,7 +3004,7 @@ app.post('/api/asignaciones', auth(ADM), (req, res) => {
               db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
                 avisoId,
                 `⚠ Conflicto de horario detectado`,
-                `Se creó una asignación en ${dia} turno ${turno||1} que coincide con ${conflicto.nombre} ${conflicto.apellido} (${conflicto.mat}) en el mismo curso/turno. Revisar asignaciones.`,
+                `Se creó una asignación en ${dia} turno ${turno||1} donde ${conflicto.nombre} ${conflicto.apellido} ya tiene "${conflicto.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
                 'urgente', 1, 'u_director'
               );
             } catch {}
@@ -5505,6 +5514,13 @@ app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
 // ── HORARIOS ──────────────────────────────────────────────────────────────────
 app.get('/api/horarios', auth(), (req, res) => {
   const { asignacion_id, dia, docente_id, docente_usuario_id, periodo_id, carrera_id } = req.query;
+  let { curso_id } = req.query;
+  // Un alumno solo puede ver el horario de su propio curso, sin importar qué
+  // curso_id pida por query — se resuelve server-side, no confiamos en el cliente.
+  if (req.user.rol === 'alumno') {
+    const al = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(req.user.alumnoId);
+    curso_id = al ? al.curso_id : '__ninguno__';
+  }
   let where = 'WHERE 1=1'; const params = [];
   if (asignacion_id)      { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
   if (dia)                { where += ' AND h.dia=?';           params.push(dia); }
@@ -5512,6 +5528,7 @@ app.get('/api/horarios', auth(), (req, res) => {
   if (docente_usuario_id) { where += ' AND u.id=?';            params.push(docente_usuario_id); }
   if (periodo_id)         { where += ' AND a.periodo_id=?';    params.push(periodo_id); }
   if (carrera_id)         { where += ' AND ca.id=?';           params.push(carrera_id); }
+  if (curso_id)           { where += ' AND a.curso_id=?';      params.push(curso_id); }
   res.json(db.prepare(`
     SELECT h.*,
       a.docente_id, a.periodo_id, a.curso_id, a.materia_id,
