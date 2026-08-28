@@ -105,6 +105,7 @@ const materias = [
   ['farm',  'FAR-S4-105', 'Lengua Guaraní',                                2],
   ['farm',  'FAR-S4-106', 'Informática Aplicada',                          2],
   ['farm',  'FAR-S4-107', 'Contabilidad Básica',                           2],
+  ['farm',  'FAR-S4-108', 'Lengua Castellana',                             2], // combinada con Guaraní en el horario
 
   // ── COSMIATRÍA ────────────────────────────────────────────────────────────
   ['cosA',  'COS-S2-101', 'Ética y Deontología Profesional',               1],
@@ -113,7 +114,7 @@ const materias = [
   ['cosA',  'COS-S2-104', 'Lengua Castellana',                             1],
   ['cosA',  'COS-S2-105', 'Técnica Cosmética II',                          1],
   // 4° semestre — divididas
-  ['cosA',  'COS-S4-101', 'Lengua Castellana',                             2],
+  // COS-S4-101 Lengua Castellana eliminada — no aparece en el horario Excel
   ['cosA',  'COS-S4-102', 'Lengua Guaraní',                                2],
   ['cosA',  'COS-S4-103', 'Uso de Aparatología Cosmetológica',             2],
   ['cosA',  'COS-S4-104', 'Emprendimiento Laboral',                        2],
@@ -126,16 +127,18 @@ const materias = [
   ['agro',  'AGR-S2-103', 'Matemática Aplicada',                           1],
   ['agro',  'AGR-S2-104', 'Producción Bovina',                             1],
   ['agro',  'AGR-S2-105', 'Biología Aplicada a la Producción Agropecuaria',1],
-  ['agro',  'AGR-S2-106', 'Introducción a la Economía',                    1], // dividida
-  ['agro',  'AGR-S2-107', 'Contabilidad Básica',                           1], // dividida
+  // AGR-S2-106 Introducción a la Economía y AGR-S2-107 Emprendedurismo eliminadas —
+  // pertenecen a 2° año (ya existen como AGR-S4-101/102), no a 1°
+  ['agro',  'AGR-S2-108', 'Lengua Guaraní',                                1], // Amelia Sanguina
   // 2° año
   ['agro',  'AGR-S4-101', 'Economía de la Empresa Agraria',                2],
   ['agro',  'AGR-S4-102', 'Emprendedurismo',                               2],
   ['agro',  'AGR-S4-103', 'Horticultura',                                  2],
   ['agro',  'AGR-S4-104', 'Matemática Aplicada',                           2],
-  ['agro',  'AGR-S4-105', 'Informática Aplicada',                          2],
+  // AGR-S4-105 Informática Aplicada eliminada — no aparece en el horario Excel
   ['agro',  'AGR-S4-106', 'Producción de Aves',                            2],
   ['agro',  'AGR-S4-107', 'Lengua Guaraní',                                2],
+  ['agro',  'AGR-S4-108', 'Producción Bovina',                             2], // combinada con Matemática en el horario
 
   // ── CRIMINALÍSTICA ───────────────────────────────────────────────────────
   ['crim',  'CRM-S2-101', 'Documentología',                                1],
@@ -146,9 +149,10 @@ const materias = [
   // 2° año
   ['crim',  'CRM-S4-101', 'Lengua Guaraní',                                2],
   ['crim',  'CRM-S4-102', 'Informática',                                   2],
-  ['crim',  'CRM-S4-103', 'Introducción a la Criminalística',              2],
+  // CRM-S4-103 Introducción a la Criminalística eliminada — no aparece en el horario Excel
   ['crim',  'CRM-S4-104', 'Matemática',                                    2],
   ['crim',  'CRM-S4-105', 'Metodología de la Investigación Científica',    2],
+  ['crim',  'CRM-S4-106', 'Prácticas',                                     2], // Nelson Domínguez — miércoles
 ];
 
 const insM = db.prepare(
@@ -180,7 +184,7 @@ const asigs = [
   ['doc_ayala_a',  'ENF-S4-101', 'enf_2u'], // Ana Ayala
   ['doc_perez',    'ENF-S4-102', 'enf_2u'], // María Elena
   ['doc_perez',    'ENF-S4-103', 'enf_2u'], // María Elena
-  ['doc_sharp',    'ENF-S4-104', 'enf_2u'], // sin docente → placeholder
+  ['doc_valenz',   'ENF-S4-104', 'enf_2u'], // Natalia Valenzuela
   ['doc_natalia',  'ENF-S4-105', 'enf_2u'], // Natalia Martínez
 
   // RADIOLOGÍA 2° SEM
@@ -194,55 +198,53 @@ const asigs = [
   ['doc_aranda',   'RAD-S4-103', 'rad_2u'], // Angela Aranda
   ['doc_aranda',   'RAD-S4-104', 'rad_2u'], // Angela Aranda
   ['doc_gimenez',  'RAD-S4-105', 'rad_2u'], // Mirta Giménez
-  ['doc_sharp',    'RAD-S4-106', 'rad_2u'], // sin docente → placeholder
-  ['doc_sharp',    'RAD-S4-107', 'rad_2u'], // sin docente → placeholder
+  ['doc_perez',    'RAD-S4-106', 'rad_2u'], // María Elena
+  ['doc_anonimo',  'RAD-S4-107', 'rad_2u'], // Embriología Básica — sin docente confirmado en horario
 
   // IQ 2° SEM
   ['doc_perez',    'IQ-S2-101',  'instr_1u'], // María Elena
   ['doc_ayala_a',  'IQ-S2-102',  'instr_1u'], // Ana Ayala
-  ['doc_jimenez',  'IQ-S2-103',  'instr_1u'], // Pamela Jiménez (Inglés)
-  ['doc_sharp',    'IQ-S2-104',  'instr_1u'], // Karen — pendiente agregar al sistema
+  ['doc_natalia',  'IQ-S2-103',  'instr_1u'], // Natalia Martínez (Inglés)
+  ['doc_gonzalez', 'IQ-S2-104',  'instr_1u'], // Karen González
   ['doc_rojas',    'IQ-S2-105',  'instr_1u'], // Favio Rojas
   // IQ 4° SEM
-  // "Natalia Giménez" es distinta de Natalia Martínez (doc_natalia) → doc_sharp placeholder
-  ['doc_sharp',    'IQ-S4-101',  'instr_2u'], // Natalia Giménez — pendiente agregar al sistema
-  ['doc_romero',   'IQ-S4-102',  'instr_2u'], // Micheli Romero (Enfermería Quirúrgica)
-  ['doc_jimenez',  'IQ-S4-103',  'instr_2u'], // Pamela Jiménez (Inglés)
+  ['doc_valenz',   'IQ-S4-101',  'instr_2u'], // Natalia Valenzuela — Hematología
+  ['doc_valenz',   'IQ-S4-102',  'instr_2u'], // Natalia Valenzuela — Enfermería Quirúrgica (mismo docente que Hematología)
+  ['doc_natalia',  'IQ-S4-103',  'instr_2u'], // Natalia Martínez (Inglés)
   ['doc_gimenez',  'IQ-S4-104',  'instr_2u'], // Mirta Giménez
-  ['doc_perez',    'IQ-S4-105',  'instr_2u'], // María Elena
-  ['doc_perez',    'IQ-S4-106',  'instr_2u'], // María Elena (Guaraní)
+  ['doc_perez',    'IQ-S4-105',  'instr_2u'], // María Elena — Lengua Castellana
+  ['doc_perez',    'IQ-S4-106',  'instr_2u'], // María Elena — Lengua Guaraní
   ['doc_palacios', 'IQ-S4-107',  'instr_2u'], // Marcial Palacios
 
   // FARMACIA 2° SEM
   ['doc_perez',    'FAR-S2-101', 'farm_1u'], // María Elena
   ['doc_ayala_a',  'FAR-S2-102', 'farm_1u'], // Ana Ayala
-  ['doc_jimenez',  'FAR-S2-103', 'farm_1u'], // Pamela Jiménez (Inglés)
+  ['doc_natalia',  'FAR-S2-103', 'farm_1u'], // Natalia Martínez (Inglés)
   ['doc_aguero',   'FAR-S2-104', 'farm_1u'], // Gabriela Agüero
   ['doc_rojas',    'FAR-S2-105', 'farm_1u'], // Favio Rojas
   // FARMACIA 4° SEM
   ['doc_aranda',   'FAR-S4-101', 'farm_2u'], // Angela Aranda
-  ['doc_sharp',    'FAR-S4-102', 'farm_2u'], // sin docente → placeholder
-  ['doc_sharp',    'FAR-S4-103', 'farm_2u'], // sin docente → placeholder
+  ['doc_anonimo',  'FAR-S4-102', 'farm_2u'], // Marketing Farmacéutico — sin docente confirmado
+  ['doc_anonimo',  'FAR-S4-103', 'farm_2u'], // Técnicas de Atención al Cliente — sin docente confirmado
   ['doc_aguero',   'FAR-S4-104', 'farm_2u'], // Gabriela Agüero
-  ['doc_sharp',    'FAR-S4-105', 'farm_2u'], // sin docente → placeholder
-  ['doc_sharp',    'FAR-S4-106', 'farm_2u'], // sin docente → placeholder
-  ['doc_gimenez',  'FAR-S4-107', 'farm_2u'], // Mirta Giménez (Contabilidad)
+  ['doc_amelia',   'FAR-S4-105', 'farm_2u'], // Amelia Sanguina — Lengua Guaraní
+  ['doc_valenz',   'FAR-S4-106', 'farm_2u'], // Natalia Valenzuela — Informática
+  ['doc_valenz',   'FAR-S4-107', 'farm_2u'], // Natalia Valenzuela — Contabilidad (mismo docente que Informática)
+  ['doc_amelia',   'FAR-S4-108', 'farm_2u'], // Amelia Sanguina — Lengua Castellana
 
-  // COSMIATRÍA 2° SEM — Grupo A y B (mismas materias, mismo docente)
-  // COS-S2-104 Lengua Castellana: "Amelia" no está en el sistema → doc_sharp placeholder
+  // COSMIATRÍA 2° SEM — Grupo A y B (docente puede diferir por grupo)
   ['doc_carrillo', 'COS-S2-101', 'cosA_1a'], // Myrian Carrillo — Ética y Deontología
   ['doc_ayala_n',  'COS-S2-102', 'cosA_1a'], // Noelia Ayala — Química Cosmética
-  ['doc_ayala_n',  'COS-S2-103', 'cosA_1a'], // Noelia Ayala — Biología de la Piel II
-  ['doc_sharp',    'COS-S2-104', 'cosA_1a'], // Amelia — pendiente agregar al sistema
-  ['doc_carballo', 'COS-S2-105', 'cosA_1a'], // Raqueline Carballo — Técnica Cosmética II
+  ['doc_ayala_n',  'COS-S2-103', 'cosA_1a'], // Noelia Ayala — Biología de la Piel II (grupo A)
+  ['doc_amelia',   'COS-S2-104', 'cosA_1a'], // Amelia Sanguina — Lengua Castellana (grupo A)
+  ['doc_carballo', 'COS-S2-105', 'cosA_1a'], // Raqueline Carballo — Técnica Cosmética II (grupo A)
   ['doc_carrillo', 'COS-S2-101', 'cosA_1b'],
   ['doc_ayala_n',  'COS-S2-102', 'cosA_1b'],
-  ['doc_ayala_n',  'COS-S2-103', 'cosA_1b'],
-  ['doc_sharp',    'COS-S2-104', 'cosA_1b'], // Amelia — placeholder
-  ['doc_carballo', 'COS-S2-105', 'cosA_1b'],
+  ['doc_ayala_n',  'COS-S2-103', 'cosA_1b'], // Noelia Ayala — Biología de la Piel II (grupo B)
+  ['doc_amelia',   'COS-S2-104', 'cosA_1b'], // Amelia Sanguina — Lengua Castellana (grupo B)
+  ['doc_carballo', 'COS-S2-105', 'cosA_1b'], // Raqueline Carballo — Técnica Cosmética II (grupo B)
   // COSMIATRÍA 4° SEM
-  // "Lengua Castellana y Lengua Guaraní" → divididas en 2 registros separados
-  ['doc_perez',    'COS-S4-101', 'cosA_2u'], // María Elena — Lengua Castellana
+  // COS-S4-101 Lengua Castellana eliminada del horario
   ['doc_perez',    'COS-S4-102', 'cosA_2u'], // María Elena — Lengua Guaraní
   ['doc_carballo', 'COS-S4-103', 'cosA_2u'], // Raqueline
   ['doc_carballo', 'COS-S4-104', 'cosA_2u'], // Raqueline
@@ -251,34 +253,36 @@ const asigs = [
 
   // AGROPECUARIA 1° AÑO
   // "Nelly" no está en el sistema → doc_sharp placeholder
-  ['doc_sharp',    'AGR-S2-101', 'agro_1u'], // Nelly — pendiente agregar al sistema
+  ['doc_carmona',  'AGR-S2-101', 'agro_1u'], // Nelly Carmona — Suelo y Clima
   ['doc_gimenez',  'AGR-S2-102', 'agro_1u'], // Mirta Giménez
   ['doc_gimenez',  'AGR-S2-103', 'agro_1u'], // Mirta Giménez
   ['doc_gimenez',  'AGR-S2-104', 'agro_1u'], // Mirta Giménez
-  ['doc_sharp',    'AGR-S2-105', 'agro_1u'], // Nelly — pendiente
-  ['doc_sharp',    'AGR-S2-106', 'agro_1u'], // sin docente asignado
-  ['doc_gimenez',  'AGR-S2-107', 'agro_1u'], // Mirta Giménez
+  ['doc_carmona',  'AGR-S2-105', 'agro_1u'], // Nelly Carmona — Biología Aplicada
+  // AGR-S2-106/107 eliminadas del horario (pertenecen a 2° año)
+  ['doc_amelia',   'AGR-S2-108', 'agro_1u'], // Amelia Sanguina — Lengua Guaraní
   // AGROPECUARIA 2° AÑO
   ['doc_gimenez',  'AGR-S4-101', 'agro_2u'],
   ['doc_gimenez',  'AGR-S4-102', 'agro_2u'],
   ['doc_gimenez',  'AGR-S4-103', 'agro_2u'],
   ['doc_gimenez',  'AGR-S4-104', 'agro_2u'],
-  ['doc_sharp',    'AGR-S4-105', 'agro_2u'], // sin docente
+  // AGR-S4-105 eliminada del horario
   ['doc_gimenez',  'AGR-S4-106', 'agro_2u'],
-  ['doc_sharp',    'AGR-S4-107', 'agro_2u'], // sin docente
+  ['doc_amelia',   'AGR-S4-107', 'agro_2u'], // Amelia Sanguina — Lengua Guaraní
+  ['doc_gimenez',  'AGR-S4-108', 'agro_2u'], // Mirta Giménez — Producción Bovina (combinada con Matemática)
 
   // CRIMINALÍSTICA 1° AÑO
   ['doc_dominguez','CRM-S2-101', 'crim_1u'], // Nelson
   ['doc_dominguez','CRM-S2-102', 'crim_1u'], // Nelson
-  ['doc_sharp',    'CRM-S2-103', 'crim_1u'], // Cristian — pendiente agregar al sistema
+  ['doc_colman',   'CRM-S2-103', 'crim_1u'], // Cristian Colman — Sociología
   ['doc_aranda',   'CRM-S2-104', 'crim_1u'], // Angela Aranda
   ['doc_dominguez','CRM-S2-105', 'crim_1u'], // Nelson
   // CRIMINALÍSTICA 2° AÑO
   ['doc_gimenez',  'CRM-S4-101', 'crim_2u'], // Mirta
-  ['doc_dominguez','CRM-S4-102', 'crim_2u'], // Nelson
-  ['doc_sharp',    'CRM-S4-103', 'crim_2u'], // sin docente
+  ['doc_valenz',   'CRM-S4-102', 'crim_2u'], // Natalia Valenzuela — Informática
+  // CRM-S4-103 eliminada del horario
   ['doc_gimenez',  'CRM-S4-104', 'crim_2u'], // Mirta
   ['doc_dominguez','CRM-S4-105', 'crim_2u'], // Nelson
+  ['doc_dominguez','CRM-S4-106', 'crim_2u'], // Nelson — Prácticas
 ];
 
 const insA = db.prepare(
@@ -297,6 +301,80 @@ db.transaction(() => {
   });
 })();
 console.log(`✅ Asignaciones: ${aInserted} nuevas / ${aSkipped} ya existían o con advertencia`);
+
+// ── 4b. LIMPIEZA: eliminar asignaciones de corridas anteriores con docente incorrecto ──
+let obsoletos = 0;
+db.transaction(() => {
+  // 1. Renombrar materias cuyo nombre cambió entre corridas (INSERT OR IGNORE no actualiza nombres)
+  const renombrar = [];
+  renombrar.forEach(([cod, oldNombre, newNombre]) => {
+    const r = db.prepare("UPDATE materias SET nombre=? WHERE codigo=? AND nombre=?").run(newNombre, cod, oldNombre);
+    if (r.changes) console.log(`✅ Renombrado ${cod}: "${oldNombre}" → "${newNombre}"`);
+  });
+
+  // 2. Eliminar materia AGR-S4-105 (Informática Agropecuaria 2°) — no está en el Excel
+  const matAgr105 = db.prepare("SELECT id FROM materias WHERE codigo='AGR-S4-105'").get();
+  if (matAgr105) {
+    const asigsMat = db.prepare("SELECT id FROM asignaciones WHERE materia_id=?").all(matAgr105.id);
+    asigsMat.forEach(a => {
+      db.prepare("DELETE FROM notas WHERE asignacion_id=?").run(a.id);
+      db.prepare("DELETE FROM asignaciones WHERE id=?").run(a.id);
+      obsoletos++;
+    });
+    db.prepare("DELETE FROM materias WHERE id=?").run(matAgr105.id);
+    console.log('✅ Eliminada materia AGR-S4-105 (Informática Agropecuaria 2°)');
+  }
+
+  // 3. Para cada asig correcta del array, eliminar competidores con otro docente
+  asigs.forEach(([doc_id, mat_cod, cur_id]) => {
+    const mat = db.prepare('SELECT id FROM materias WHERE codigo=?').get(mat_cod);
+    if (!mat) return;
+    const competidores = db.prepare(`
+      SELECT a.id FROM asignaciones a
+      WHERE a.materia_id=? AND a.curso_id=? AND a.periodo_id=? AND a.docente_id!=?
+    `).all(mat.id, cur_id, periodoId, doc_id);
+    competidores.forEach(a => {
+      db.prepare("DELETE FROM notas WHERE asignacion_id=? AND estado='Pendiente'").run(a.id);
+      db.prepare("DELETE FROM asignaciones WHERE id=?").run(a.id);
+      obsoletos++;
+    });
+  });
+
+  // 4. Eliminar asignaciones del periodo 2 cuya materia+curso ya no figura
+  // en el array asigs actual (materias sacadas del horario en corridas anteriores).
+  const clavesValidas = new Set(asigs.map(([, mat_cod, cur_id]) => mat_cod + '|' + cur_id));
+  const todasAsigsPeriodo = db.prepare(`
+    SELECT a.id, m.codigo, a.curso_id FROM asignaciones a
+    JOIN materias m ON m.id = a.materia_id
+    WHERE a.periodo_id = ?
+  `).all(periodoId);
+  todasAsigsPeriodo.forEach(a => {
+    if (!clavesValidas.has(a.codigo + '|' + a.curso_id)) {
+      db.prepare("DELETE FROM notas WHERE asignacion_id=?").run(a.id);
+      db.prepare("DELETE FROM asignaciones WHERE id=?").run(a.id);
+      obsoletos++;
+      console.log(`✅ Eliminada asignacion huerfana: ${a.codigo} | ${a.curso_id}`);
+    }
+  });
+
+  // 5. Eliminar materias huerfanas del patron 2do semestre (codigo -S2- o -S4-)
+  // de las carreras administradas por este seed, que ya no tienen ninguna
+  // asignacion (leftover de corridas anteriores, ej. FAR-S4-108).
+  const carrerasSeed = ['enf','rad','instr','farm','cosA','agro','crim'];
+  const huerfanas = db.prepare(`
+    SELECT id, codigo, nombre FROM materias
+    WHERE carrera_id IN (${carrerasSeed.map(() => '?').join(',')})
+    AND (codigo LIKE '%-S2-%' OR codigo LIKE '%-S4-%')
+    AND NOT EXISTS (SELECT 1 FROM asignaciones a WHERE a.materia_id = materias.id)
+  `).all(...carrerasSeed);
+  huerfanas.forEach(m => {
+    db.prepare("DELETE FROM materias WHERE id=?").run(m.id);
+    obsoletos++;
+    console.log(`✅ Eliminada materia huerfana: ${m.codigo} | ${m.nombre}`);
+  });
+})();
+if (obsoletos > 0) console.log(`✅ Eliminados ${obsoletos} registros obsoletos de corridas anteriores`);
+
 
 // ── 5. CREAR NOTAS PARA TODOS LOS ALUMNOS ACTIVOS ────────────────────────────
 // Crea los registros de notas en estado "Pendiente" para cada alumno activo
@@ -329,35 +407,39 @@ console.log(`   Período ID    : ${periodoId}`);
 console.log(`   Materias      : ${materias.length} definidas`);
 console.log(`   Asignaciones  : ${asigs.length} definidas`);
 console.log(`   Notas creadas : ${notasCreadas}`);
-console.log('\n⚠️  DOCENTES PENDIENTES DE AGREGAR AL SISTEMA:');
-console.log('   • Karen           → IQ 2° Sem: Fundamento de Instrumentación Quirúrgica');
-console.log('   • Amelia          → Cosmiatría 2° Sem A y B: Lengua Castellana');
-console.log('   • Natalia Giménez → IQ 4° Sem: Hematología y Nutrición Parenteral');
-console.log('   • Nelly           → Agropecuaria 1°: Suelo y Clima, Biología Aplicada');
-console.log('   • Cristian        → Criminalística 1°: Sociología y Conocimiento Científico');
-console.log('\n   Sus materias usan doc_sharp como placeholder.');
-console.log('   Agregalos desde Configuración → Docentes y reasigná las materias.\n');
+const anonim = db.prepare(`
+  SELECT m.nombre, c.nombre as carrera FROM asignaciones a
+  JOIN materias m ON m.id=a.materia_id
+  JOIN carreras c ON c.id=m.carrera_id
+  WHERE a.periodo_id=? AND a.docente_id='doc_anonimo'
+  ORDER BY c.nombre, m.anio, m.nombre
+`).all(periodoId);
+if (anonim.length > 0) {
+  console.log('\n⚠️  DOCENTES SIN NOMBRE ASIGNADO (asignados a doc_anonimo):');
+  anonim.forEach(r => console.log(`   • ${r.nombre} — ${r.carrera}`));
+  console.log('\n   Reasignarlas desde Configuración → Asignaciones cuando se confirmen los docentes.\n');
+}
 console.log('\n📌 VERIFICACIÓN DE DOCENTES — MAPEO COMPLETO:');
 const MAPA = [
-  ['Natalia Martínez',  'doc_natalia',  '✅ Psicología, Inglés (IQ), Salud Mental Enf'],
+  ['Natalia Martínez',  'doc_natalia',  '✅ Psicología, Inglés (IQ 2°/4°, Farmacia 2°), Salud Mental Enf'],
   ['Ana Ayala',         'doc_ayala_a',  '✅ Enfermería, Primeros Auxilios'],
-  ['María Elena Perez', 'doc_perez',    '✅ Lengua Castellana, Guaraní (varios)'],
+  ['María Elena Perez', 'doc_perez',    '✅ Lengua Castellana (varios) · Comunicación Rad 4° · Castellana+Guaraní IQ 4° · Guaraní Cosm 4°'],
   ['Paulo Higuchi',     'doc_higuchi',  '✅ Anatomía, Patología Médica, Fisiología (Rad)'],
   ['Gabriela Agüero',   'doc_aguero',   '✅ Farmacotecnia, Epidemiología, Botánica'],
   ['Marcial Palacios',  'doc_palacios', '✅ Técnicas Radiológicas, Práctica Lab, Tec Rad IQ'],
   ['Favio Rojas',       'doc_rojas',    '✅ Patología Quirúrgica/General, Semiología Piel'],
   ['Angela Aranda',     'doc_aranda',   '✅ Biología, Bioquímica (Rad), Química Org, Genética'],
-  ['Mirta Giménez',     'doc_gimenez',  '✅ Matemática, Agropecuaria, Guaraní Crim, Contabilidad'],
+  ['Mirta Giménez',     'doc_gimenez',  '✅ Matemática, Agropecuaria, Guaraní Crim, Emprendedurismo'],
   ['Myrian Carrillo',   'doc_carrillo', '✅ Ética y Deontología Cosmiatría'],
-  ['Noelia Ayala',      'doc_ayala_n',  '✅ Química Cosmética, Biología Piel II'],
-  ['Raqueline Carballo','doc_carballo', '✅ Técnica Cosmética II, Aparatología, Emprendimiento'],
-  ['Nelson Domínguez',  'doc_dominguez','✅ Documentología, Medicina Legal, Crim, Metodología'],
-  ['Pamela Jiménez',    'doc_jimenez',  '✅ Inglés (IQ/Farmacia)'],
-  ['Karen',             'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
-  ['Amelia',            'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
-  ['Natalia Giménez',   'doc_sharp*',   '⚠️  PENDIENTE — distinta de Natalia Martínez'],
-  ['Nelly',             'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
-  ['Cristian',          'doc_sharp*',   '⚠️  PENDIENTE — agregar docente al sistema'],
+  ['Noelia Ayala',      'doc_ayala_n',  '✅ Química Cosmética, Biología Piel II (grupo A y B)'],
+  ['Raqueline Carballo','doc_carballo', '✅ Técnica Cosmética II (grupo A y B), Aparatología, Emprendimiento'],
+  ['Nelson Domínguez',  'doc_dominguez','✅ Documentología, Medicina Legal, Metodología, Prácticas'],
+  ['Amelia Sanguina',   'doc_amelia',   '✅ Castellana Cosm 2°A/B · Guaraní Agro 1°/2° · Castellana+Guaraní Farm 4°'],
+  ['Cristian Colman',   'doc_colman',   '✅ Sociología — Criminalística 1°'],
+  ['Karen González',    'doc_gonzalez', '✅ Fundamento de Instrumentación Quirúrgica — IQ 2°'],
+  ['Natalia Valenzuela','doc_valenz',   '✅ Hematología + Enfermería Quirúrgica (IQ 4°) · Informática (Enf 4°, Farm 4°, Crim 2°) · Contabilidad (Farm 4°)'],
+  ['Nelly Carmona',     'doc_carmona',  '✅ Suelo y Clima + Biología Aplicada — Agropecuaria 1°'],
+  ['Docente A Confirmar','doc_anonimo', `⚠️  ${anonim.length} materias sin nombre en el horario — ver lista arriba`],
 ];
 MAPA.forEach(([nombre, id, nota]) => console.log(`   ${id.padEnd(15)} ← ${nombre.padEnd(22)} ${nota}`));
 console.log('\n✅ Seed completado. Para activar: Configuración → Períodos → Activar "2do Semestre 2026".');
