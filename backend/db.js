@@ -1130,6 +1130,22 @@ function init() {
       UNIQUE(alumno_id, asignacion_id)
     )`);
   } catch {}
+  // Pasantías: una materia con tipo='pasantia' funciona igual que cualquier otra
+  // (asignación, docente/tutor, nota final por el Registro de Notas de siempre) pero
+  // además necesita datos por alumno que no tiene una materia común — empresa y fechas.
+  try { db.prepare("ALTER TABLE materias ADD COLUMN tipo TEXT NOT NULL DEFAULT 'regular'").run(); } catch {}
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS pasantias (
+      id TEXT PRIMARY KEY,
+      alumno_id TEXT NOT NULL REFERENCES alumnos(id),
+      asignacion_id TEXT NOT NULL REFERENCES asignaciones(id),
+      empresa TEXT,
+      fecha_inicio TEXT,
+      fecha_fin TEXT,
+      fecha_actualizacion TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(alumno_id, asignacion_id)
+    )`);
+  } catch {}
   // Tabla de alumnos faltantes (registro rápido para identificación)
   try { db.exec(`CREATE TABLE IF NOT EXISTS alumnos_faltantes (
     id TEXT PRIMARY KEY,

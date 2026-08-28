@@ -1556,7 +1556,7 @@ function go(p, _fromHistory){
   const pages={dashboard:pgDash,'dashboard-analitico':pgDashAnalitico,carreras:pgCarreras,cursos:pgCursos,materias:pgMaterias,
     periodos:pgPeriodos,docentes:pgDocentes,alumnos:pgAlumnos,asignaciones:pgAsig,constancias:pgConstancias,
     examenes:pgExamenes,calendario:pgCalendario,'calendario-clases':pgCalClases,notas:pgNotas,asistencia:pgAsist,
-    promocion:pgPromocion,
+    promocion:pgPromocion,pasantias:pgPasantias,
     pagos:pgPagos,aranceles:pgAranceles,deudores:pgDeudores,becas:pgBecas,avisos:pgAvisos,
     honorarios:pgHonorarios,'mis-honorarios':pgMisHonorarios,reemplazos:pgReemplazos,feriados:pgFeriados,
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,'drive':pgDrive,
@@ -4328,10 +4328,17 @@ async function mMateria(m){
     <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía" oninput="generarCodigoMateria()"/></div>
     <div class="f"><label>Código <span class="tip" style="font-weight:400">(automático)</span></label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="Se genera solo"/></div>
   </div>
-  <div class="f"><label>Período académico <span style="color:var(--red)">*</span></label>
-    <select id="mper" style="width:100%" onchange="generarCodigoMateria()">
-      ${periodos.map(p=>`<option value="${p.id}" ${e?(m.periodo_id===p.id?'selected':''):(periodoActivo&&p.id===periodoActivo.id?'selected':'')}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
-    </select></div>
+  <div class="fr">
+    <div class="f"><label>Período académico <span style="color:var(--red)">*</span></label>
+      <select id="mper" style="width:100%" onchange="generarCodigoMateria()">
+        ${periodos.map(p=>`<option value="${p.id}" ${e?(m.periodo_id===p.id?'selected':''):(periodoActivo&&p.id===periodoActivo.id?'selected':'')}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
+      </select></div>
+    <div class="f"><label>Tipo</label>
+      <select id="mtipo" style="width:100%">
+        <option value="regular" ${e&&m.tipo!=='pasantia'?'selected':''}>Materia regular</option>
+        <option value="pasantia" ${e&&m.tipo==='pasantia'?'selected':''}>🎓 Pasantía</option>
+      </select></div>
+  </div>
   <div class="fr">
     <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
       <select id="mca" onchange="filtSeccionesMat();generarCodigoMateria()">
@@ -4380,7 +4387,7 @@ function filtSeccionesMat(){
   sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
 }
 async function previsualizarMateria(id){
-  const o={nombre:v('mn'),codigo:v('mc2'),periodo_id:v('mper'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),horas_semanales:4};
+  const o={nombre:v('mn'),codigo:v('mc2'),periodo_id:v('mper'),tipo:v('mtipo')||'regular',carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),horas_semanales:4};
   if(!o.nombre||!o.periodo_id||!o.carrera_id||!o.curso_id||!o.docente_id)return alert('Completar todos los campos obligatorios (*)');
   const carNom=(W._carrs||[]).find(c=>c.id===o.carrera_id)?.nombre||'';
   const perNom=(W._periodosMat||[]).find(p=>String(p.id)===String(o.periodo_id))?.nombre||'';
@@ -4391,15 +4398,15 @@ async function previsualizarMateria(id){
   modal(`<h4>📋 Confirmar materia</h4>
   <div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-      <div><span style="font-size:10px;color:var(--t3)">Materia</span><br><strong>${o.nombre}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Materia</span><br><strong>${o.nombre}${o.tipo==='pasantia'?' 🎓':''}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Código</span><br><strong>${o.codigo||'—'}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Período</span><br><strong>${perNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Carrera</span><br><strong>${carNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Año / Sección</span><br><strong>${o.anio}° — ${secNom}</strong></div>
-      <div><span style="font-size:10px;color:var(--t3)">Docente</span><br><strong>${docNom}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Docente${o.tipo==='pasantia'?'/Tutor':''}</span><br><strong>${docNom}</strong></div>
     </div>
   </div>
-  <div style="background:#e3f2fd;border-radius:6px;padding:8px;font-size:12px;color:#1565c0;margin-bottom:10px">ℹ Todavía no tiene día ni horario asignado — se ubica después desde Horario Semanal.</div>
+  <div style="background:#e3f2fd;border-radius:6px;padding:8px;font-size:12px;color:#1565c0;margin-bottom:10px">ℹ Todavía no tiene día ni horario asignado — se ubica después desde Horario Semanal.${o.tipo==='pasantia'?' La empresa y las fechas se cargan después desde Pasantías.':''}</div>
   <div class="mf">
     <button class="bs" onclick="cm()">← Modificar</button>
     <button class="bn" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},false)">✓ Confirmar y guardar</button>
@@ -5177,7 +5184,7 @@ function mRow(m){
   const secLabel=m.curso_id?(m.curso_division==='U'?'Única':'Secc. '+m.curso_division):'<span style="color:#aaa;font-size:11px">—</span>';
   const perLabel=m.periodo_nombre?`<span class="bx bb" style="font-size:10px">${m.periodo_nombre}</span>`:'<span style="color:#c62828;font-size:11px">⚠ sin período</span>';
   return `<tr>
-  <td><span class="bx ba">${m.codigo||'-'}</span></td>
+  <td><span class="bx ba">${m.codigo||'-'}</span>${m.tipo==='pasantia'?' <span title="Pasantía">🎓</span>':''}</td>
   <td><input type="text" value="${m.nombre}" id="mnombre_${m.id}"
     style="border:1px solid var(--bdr);padding:4px 6px;border-radius:4px;font-size:13px;width:100%;max-width:300px"
     onblur="actualizarNombreMateria('${m.id}')"/></td>
@@ -8880,6 +8887,83 @@ async function guardarExtraordinario(id){
     cargarExtraordinarios();
   }catch(e){alert('Error: '+e.message);}
 }
+
+// ── PASANTÍAS ──────────────────────────────────────────────────────────────────
+async function pgPasantias(el){
+  const esDocente=me.rol==='docente';
+  if(esDocente){
+    const asigs=await api('GET',`/api/asignaciones?docente_id=${me.docenteId}`).catch(()=>[]);
+    const pasAsigs=(asigs||[]).filter(a=>a.materia_tipo==='pasantia');
+    W._pasAsigsDoc=pasAsigs;
+    el.innerHTML=`<div class="ph"><h3>🎓 Pasantías</h3></div>
+    <p class="tip" style="margin-bottom:14px">Tus pasantías a cargo. Elegí una para cargar la empresa y las fechas de cada alumno.</p>
+    ${pasAsigs.length?`<div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <select id="pasAsigSel" onchange="cargarPasantiaAsignacion(this.value)" style="min-width:280px">
+        <option value="">— Seleccionar pasantía —</option>
+        ${pasAsigs.map(a=>`<option value="${a.id}">${a.materia_nombre} — ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division&&a.curso_division!=='U'?' Secc.'+a.curso_division:''}</option>`).join('')}
+      </select>
+    </div>`:'<div class="es">No tenés ninguna pasantía asignada todavía.</div>'}
+    <div id="pasLista"></div>`;
+    return;
+  }
+  // Director: filtra por carrera, ve todas las materias tipo pasantía
+  const carrs=await api('GET','/api/carreras').catch(()=>[]);
+  const pasMats=await api('GET','/api/materias?tipo=pasantia').catch(()=>[]);
+  W._pasMatsDir=pasMats; W._carrsPas=carrs;
+  el.innerHTML=`<div class="ph"><h3>🎓 Pasantías</h3></div>
+  <p class="tip" style="margin-bottom:14px">Las pasantías se crean como cualquier materia (Estructura Académica → Materias, tipo "Pasantía"). Acá cargás la empresa, las fechas y accedés a la nota final de cada alumno.</p>
+  ${pasMats.length?`<div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <select id="pasCarrSel" onchange="filtPasMats()" style="min-width:200px">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="pasAsigSelDir" onchange="cargarPasantiaAsignacion(this.value)" style="min-width:280px"></select>
+  </div>`:'<div class="es">Todavía no hay ninguna materia de tipo Pasantía creada. Creá una desde <a href="#" onclick="go(\'materias\');return false;">Materias</a>.</div>'}
+  <div id="pasLista"></div>`;
+  if(pasMats.length) filtPasMats();
+}
+async function filtPasMats(){
+  const carrId=v('pasCarrSel');
+  const sel=document.getElementById('pasAsigSelDir'); if(!sel)return;
+  const mats=(W._pasMatsDir||[]).filter(m=>!carrId||m.carrera_id===carrId);
+  // Cada materia de pasantía necesita su asignación (docente+curso+periodo) para poder listar alumnos
+  const asigsPorMat=await Promise.all(mats.map(m=>api('GET',`/api/asignaciones?materia_id=${m.id}`).catch(()=>[])));
+  const opciones=[];
+  mats.forEach((m,i)=>(asigsPorMat[i]||[]).forEach(a=>opciones.push({asig:a,materia:m})));
+  sel.innerHTML='<option value="">— Seleccionar pasantía —</option>'+opciones.map(o=>`<option value="${o.asig.id}">${o.materia.nombre} — ${o.asig.carrera_nombre} ${o.asig.curso_anio}°${o.asig.curso_division&&o.asig.curso_division!=='U'?' Secc.'+o.asig.curso_division:''}</option>`).join('');
+  document.getElementById('pasLista').innerHTML='';
+}
+async function cargarPasantiaAsignacion(asignacionId){
+  const cel=document.getElementById('pasLista');
+  if(!asignacionId){cel.innerHTML='';return;}
+  cel.innerHTML='<div class="es">Cargando...</div>';
+  const data=await api('GET',`/api/pasantias/asignacion/${asignacionId}`).catch(()=>null);
+  if(!data){cel.innerHTML='<div class="es">No se pudo cargar</div>';return;}
+  W._pasActual={asignacionId,data};
+  const estColor={'Aprobado':'#2e7d32','Reprobado':'#c62828','Pendiente':'#94a3b8'};
+  cel.innerHTML=`<div class="card"><div class="tw"><table><thead><tr>
+    <th>Alumno</th><th>Empresa/Institución</th><th>Fecha inicio</th><th>Fecha fin</th><th>Nota final</th><th></th>
+  </tr></thead><tbody>
+    ${data.alumnos.map(al=>`<tr>
+      <td><strong>${al.apellido}, ${al.nombre}</strong><br><span style="font-size:10px;color:var(--t3)">${al.matricula||''}</span></td>
+      <td><input type="text" id="pasEmp_${al.alumno_id}" value="${al.empresa||''}" placeholder="Ej: Hospital Regional" style="width:180px"/></td>
+      <td><input type="date" id="pasIni_${al.alumno_id}" value="${al.fecha_inicio||''}" style="width:135px"/></td>
+      <td><input type="date" id="pasFin_${al.alumno_id}" value="${al.fecha_fin||''}" style="width:135px"/></td>
+      <td><span style="background:${estColor[al.estado_nota]||'#94a3b8'};color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700">${al.nota_final??'—'} · ${al.estado_nota}</span></td>
+      <td><button class="bs" onclick="guardarPasantia('${al.alumno_id}')">Guardar</button></td>
+    </tr>`).join('')}
+  </tbody></table></div></div>
+  <p class="tip" style="margin-top:10px">La nota final se carga desde <a href="#" onclick="go('notas');return false;">Registro de Notas</a>, buscando esta misma materia.</p>`;
+}
+async function guardarPasantia(alumnoId){
+  const {asignacionId}=W._pasActual||{};
+  if(!asignacionId)return;
+  const empresa=v('pasEmp_'+alumnoId),fecha_inicio=v('pasIni_'+alumnoId),fecha_fin=v('pasFin_'+alumnoId);
+  try{
+    await api('PUT','/api/pasantias',{alumno_id:alumnoId,asignacion_id:asignacionId,empresa,fecha_inicio,fecha_fin});
+    toast('✓ Datos de pasantía guardados','ok');
+  }catch(e){alert('Error: '+e.message);}
+}
 async function cargarAnalisisPromocion(){
   const carreraId=v('promoCarr'),periodoOrigen=v('promoPeriodoOrigen');
   if(!carreraId){document.getElementById('promoResumen').innerHTML='';document.getElementById('promoLista').innerHTML='<div class="es">Seleccioná una carrera para empezar</div>';return;}
@@ -8989,11 +9073,13 @@ async function pgMiPortal(el){
       <button id="mpTab2Btn" onclick="miPortalTab('asistencia')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">✅ Asistencia</button>
       <button id="mpTab3Btn" onclick="miPortalTab('cuenta')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">💳 Estado de cuenta</button>
       <button id="mpTab4Btn" onclick="miPortalTab('horario')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🕐 Mi Horario</button>
+      <button id="mpTab5Btn" onclick="miPortalTab('pasantia')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🎓 Pasantía</button>
     </div>
     <div id="mpTab1"></div>
     <div id="mpTab2" style="display:none"></div>
     <div id="mpTab3" style="display:none"></div>
-    <div id="mpTab4" style="display:none"></div>`;
+    <div id="mpTab4" style="display:none"></div>
+    <div id="mpTab5" style="display:none"></div>`;
     miPortalTab('notas');
   } else if(me.rol==='docente'){
     el.innerHTML=`<div class="ph"><h3>👨‍🏫 Mi Portal</h3></div>
@@ -9010,15 +9096,15 @@ async function pgMiPortal(el){
 }
 async function miPortalTab(tab){
   const activar=(id,color)=>{
-    ['mpTab1Btn','mpTab2Btn','mpTab3Btn','mpTab4Btn'].forEach(b=>{const el=document.getElementById(b);if(el){el.style.borderBottomColor='transparent';el.style.color='#64748b';}});
+    ['mpTab1Btn','mpTab2Btn','mpTab3Btn','mpTab4Btn','mpTab5Btn'].forEach(b=>{const el=document.getElementById(b);if(el){el.style.borderBottomColor='transparent';el.style.color='#64748b';}});
     const btn=document.getElementById(id);
     if(btn){btn.style.borderBottomColor=color||'#1f8246';btn.style.color=color||'#1f8246';}
   };
   if(me.rol==='alumno'){
-    const tabs={notas:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisNotas},asistencia:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMiAsistencia},cuenta:{btn:'mpTab3Btn',div:'mpTab3',fn:pgMiEstadoCuenta},horario:{btn:'mpTab4Btn',div:'mpTab4',fn:pgCalClases}};
+    const tabs={notas:{btn:'mpTab1Btn',div:'mpTab1',fn:pgMisNotas},asistencia:{btn:'mpTab2Btn',div:'mpTab2',fn:pgMiAsistencia},cuenta:{btn:'mpTab3Btn',div:'mpTab3',fn:pgMiEstadoCuenta},horario:{btn:'mpTab4Btn',div:'mpTab4',fn:pgCalClases},pasantia:{btn:'mpTab5Btn',div:'mpTab5',fn:pgMiPasantia}};
     const t=tabs[tab]; if(!t)return;
     activar(t.btn,'#1f8246');
-    ['mpTab1','mpTab2','mpTab3','mpTab4'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+    ['mpTab1','mpTab2','mpTab3','mpTab4','mpTab5'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
     const div=document.getElementById(t.div); if(!div)return;
     div.style.display='';
     if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
@@ -9031,6 +9117,25 @@ async function miPortalTab(tab){
     div.style.display='';
     if(!div.dataset.loaded){div.dataset.loaded='1'; await t.fn(div);}
   }
+}
+async function pgMiPasantia(el){
+  const pas=await api('GET','/api/pasantias/mi-pasantia').catch(()=>[]);
+  if(!pas||!pas.length){el.innerHTML='<div class="es">No tenés ninguna pasantía asignada.</div>';return;}
+  const estColor={'Aprobado':'#2e7d32','Reprobado':'#c62828','Pendiente':'#94a3b8'};
+  el.innerHTML=pas.map(p=>`<div class="card card-p" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#1e293b">🎓 ${p.materia_nombre}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px">Tutor: ${p.docente_titulo?p.docente_titulo+' ':''}${p.docente_apellido||''}, ${p.docente_nombre||''}</div>
+      </div>
+      <span style="background:${estColor[p.estado_nota]||'#94a3b8'};color:#fff;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700">${p.nota_final??'Sin nota'} · ${p.estado_nota}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px">
+      <div><div style="font-size:10px;color:#94a3b8;text-transform:uppercase">Empresa/Institución</div><div style="font-size:13px;font-weight:600">${p.empresa||'— aún no cargada —'}</div></div>
+      <div><div style="font-size:10px;color:#94a3b8;text-transform:uppercase">Fecha inicio</div><div style="font-size:13px;font-weight:600">${p.fecha_inicio||'—'}</div></div>
+      <div><div style="font-size:10px;color:#94a3b8;text-transform:uppercase">Fecha fin</div><div style="font-size:13px;font-weight:600">${p.fecha_fin||'—'}</div></div>
+    </div>
+  </div>`).join('');
 }
 
 async function pgCalendario(el){
@@ -10064,6 +10169,7 @@ function pgHubAcademico(el){
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
     ${_mCard('notas','✏️','Registro de Notas','Calificaciones','#2563eb','#eff6ff')}
     ${_mCard('asistencia','✅','Asistencia','Control de asistencia','#059669','#f0fdf4')}
+    ${_mCard('pasantias','🎓','Pasantías','Empresa, fechas y nota','#be185d','#fdf2f8')}
     ${_mCard('examenes','📋','Cronograma','Exámenes','#dc2626','#fef2f2')}
     ${esDirec?_mCard('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
     ${esDirec?_mCard('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}

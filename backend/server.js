@@ -2199,29 +2199,31 @@ app.delete('/api/cursos/:id', auth(ADM), (req, res) => {
 // ── MATERIAS ──────────────────────────────────────────────────────────────────
 app.get('/api/materias', auth(), (req, res) => {
   const sede = req.user.sede || 'pjc';
-  const { carrera_id, periodo_id } = req.query;
+  const { carrera_id, periodo_id, tipo } = req.query;
   let where = 'WHERE c.sede_id=?'; const params = [sede];
   if (carrera_id) { where += ' AND m.carrera_id=?'; params.push(carrera_id); }
   if (periodo_id) { where += ' AND m.periodo_id=?'; params.push(periodo_id); }
+  if (tipo)       { where += ' AND m.tipo=?';       params.push(tipo); }
   const q = `SELECT m.*,c.nombre as carrera_nombre,cu.division as curso_division,cu.anio as curso_anio_cu,p.nombre as periodo_nombre
     FROM materias m JOIN carreras c ON m.carrera_id=c.id LEFT JOIN cursos cu ON m.curso_id=cu.id LEFT JOIN periodos p ON m.periodo_id=p.id
     ${where} ORDER BY c.nombre,m.anio,cu.division,m.nombre`;
   res.json(db.prepare(q).all(...params));
 });
 app.post('/api/materias', auth(ADM), (req, res) => {
-  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, periodo_id } = req.body;
+  const { carrera_id, nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, periodo_id, tipo } = req.body;
   if (!periodo_id) return res.status(400).json({ error: 'periodo_id requerido — toda materia debe indicar a qué período académico pertenece' });
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
   const id = 'm_' + Date.now();
-  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id,periodo_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodo_id);
+  db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id,periodo_id,tipo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,carrera_id,nombre,codigo||'',horas_semanales||4,anio||1,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodo_id,tipo==='pasantia'?'pasantia':'regular');
   res.json({ id });
 });
 app.put('/api/materias/:id', auth(ADM), (req, res) => {
-  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id, periodo_id } = req.body;
+  const { nombre, codigo, horas_semanales, anio, peso_tp, peso_parcial, peso_final, dia, turno, curso_id, docente_id, carrera_id, periodo_id, tipo } = req.body;
   const pt = parseInt(peso_tp)||25, pp = parseInt(peso_parcial)||25, pf = parseInt(peso_final)||50;
-  const actual = db.prepare('SELECT periodo_id FROM materias WHERE id=?').get(req.params.id);
+  const actual = db.prepare('SELECT periodo_id, tipo FROM materias WHERE id=?').get(req.params.id);
   const periodoFinal = periodo_id !== undefined ? (periodo_id || null) : (actual ? actual.periodo_id : null);
-  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=?,periodo_id=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodoFinal,req.params.id);
+  const tipoFinal = tipo !== undefined ? (tipo==='pasantia'?'pasantia':'regular') : (actual ? actual.tipo : 'regular');
+  db.prepare('UPDATE materias SET nombre=?,codigo=?,horas_semanales=?,anio=?,peso_tp=?,peso_parcial=?,peso_final=?,dia=?,turno=?,curso_id=?,docente_id=?,periodo_id=?,tipo=? WHERE id=?').run(nombre,codigo,horas_semanales,anio,pt,pp,pf,dia||null,turno||null,curso_id||null,docente_id||null,periodoFinal,tipoFinal,req.params.id);
   // Propagar cambio de docente a todas las asignaciones de esta materia
   if (docente_id) {
     db.prepare('UPDATE asignaciones SET docente_id=? WHERE materia_id=?').run(docente_id, req.params.id);
@@ -2951,7 +2953,7 @@ app.get('/api/asignaciones', auth(), (req, res) => {
   if (materia_id) { where += ' AND a.materia_id=?'; params.push(materia_id); }
   res.json(db.prepare(`
     SELECT a.*,
-      m.nombre as materia_nombre,m.codigo as materia_codigo,m.anio as materia_anio,
+      m.nombre as materia_nombre,m.codigo as materia_codigo,m.anio as materia_anio,m.tipo as materia_tipo,
       m.peso_tp,m.peso_parcial,m.peso_final,
       cu.anio as curso_anio,cu.division as curso_division,
       ca.id as carrera_id,
@@ -3050,6 +3052,7 @@ function eliminarAsignacionCascada(id) {
   db.prepare('DELETE FROM honorarios WHERE asignacion_id=?').run(id);
   db.prepare('DELETE FROM actas_examen WHERE asignacion_id=?').run(id);
   db.prepare('DELETE FROM habilitaciones_examen WHERE asignacion_id=?').run(id);
+  db.prepare('DELETE FROM pasantias WHERE asignacion_id=?').run(id);
   const exams = db.prepare('SELECT id FROM examenes WHERE asignacion_id=?').all(id);
   exams.forEach(e => {
     db.prepare('DELETE FROM wa_recordatorios_examen WHERE examen_id=?').run(e.id);
@@ -5717,6 +5720,75 @@ app.put('/api/extraordinarios/:id', auth(ADM), (req, res) => {
     .run(n, estado, req.params.id);
   audit(req.user.id, 'RESOLVER_EXTRAORDINARIO', 'extraordinarios_pendientes', req.params.id, { nota_extraordinario: n, estado });
   res.json({ ok: true, estado });
+});
+
+// ── PASANTÍAS (materias con tipo='pasantia') ──────────────────────────────────
+// Listado de alumnos de una asignación de pasantía, con su empresa/fechas y nota
+app.get('/api/pasantias/asignacion/:asignacion_id', auth(), (req, res) => {
+  const asig = db.prepare(`
+    SELECT a.*, m.nombre as materia_nombre, m.tipo, cu.anio as curso_anio, cu.division as curso_division, ca.nombre as carrera_nombre
+    FROM asignaciones a JOIN materias m ON a.materia_id=m.id JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+    WHERE a.id=?`).get(req.params.asignacion_id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  if (req.user.rol === 'docente' && asig.docente_id !== req.user.docenteId) return res.status(403).json({ error: 'Sin acceso' });
+  const alumnos = db.prepare(`
+    SELECT al.id, al.matricula, COALESCE(al.nombre,u.nombre) as nombre, COALESCE(al.apellido,u.apellido) as apellido
+    FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id
+    WHERE al.curso_id=? AND al.estado='Activo'
+    ORDER BY COALESCE(al.apellido,u.apellido)`).all(asig.curso_id);
+  const pasMap = {}; db.prepare('SELECT * FROM pasantias WHERE asignacion_id=?').all(req.params.asignacion_id).forEach(p => pasMap[p.alumno_id] = p);
+  const notaMap = {}; db.prepare('SELECT * FROM notas WHERE asignacion_id=?').all(req.params.asignacion_id).forEach(n => notaMap[n.alumno_id] = n);
+  res.json({
+    asignacion: asig,
+    alumnos: alumnos.map(al => ({
+      alumno_id: al.id, matricula: al.matricula, nombre: al.nombre, apellido: al.apellido,
+      empresa: pasMap[al.id]?.empresa || null,
+      fecha_inicio: pasMap[al.id]?.fecha_inicio || null,
+      fecha_fin: pasMap[al.id]?.fecha_fin || null,
+      nota_final: notaMap[al.id]?.nota_final ?? null,
+      estado_nota: notaMap[al.id]?.estado || 'Pendiente',
+    }))
+  });
+});
+app.put('/api/pasantias', auth(), (req, res) => {
+  const { alumno_id, asignacion_id, empresa, fecha_inicio, fecha_fin } = req.body;
+  if (!alumno_id || !asignacion_id) return res.status(400).json({ error: 'alumno_id y asignacion_id requeridos' });
+  const asig = db.prepare('SELECT docente_id FROM asignaciones WHERE id=?').get(asignacion_id);
+  if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+  if (req.user.rol === 'docente' && asig.docente_id !== req.user.docenteId) return res.status(403).json({ error: 'Sin acceso a esta asignación' });
+  if (req.user.rol !== 'docente' && req.user.rol !== 'director') return res.status(403).json({ error: 'Sin acceso' });
+  const existente = db.prepare('SELECT id FROM pasantias WHERE alumno_id=? AND asignacion_id=?').get(alumno_id, asignacion_id);
+  if (existente) {
+    db.prepare(`UPDATE pasantias SET empresa=?,fecha_inicio=?,fecha_fin=?,fecha_actualizacion=datetime('now') WHERE id=?`)
+      .run(empresa||null, fecha_inicio||null, fecha_fin||null, existente.id);
+  } else {
+    db.prepare(`INSERT INTO pasantias (id,alumno_id,asignacion_id,empresa,fecha_inicio,fecha_fin) VALUES (?,?,?,?,?,?)`)
+      .run('pas_'+alumno_id.replace(/[^a-z0-9]/gi,'')+'_'+asignacion_id.replace(/[^a-z0-9]/gi,''), alumno_id, asignacion_id, empresa||null, fecha_inicio||null, fecha_fin||null);
+  }
+  res.json({ ok: true });
+});
+// Pasantía(s) del propio alumno logueado (o de un alumno puntual si lo pide un director/docente)
+app.get('/api/pasantias/mi-pasantia', auth(), (req, res) => {
+  const alumno = req.user.rol === 'alumno' ? db.prepare('SELECT id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id) : null;
+  let alumnoId, cursoId;
+  if (alumno) { alumnoId = alumno.id; cursoId = alumno.curso_id; }
+  else {
+    alumnoId = req.query.alumno_id;
+    const al = alumnoId ? db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(alumnoId) : null;
+    cursoId = al ? al.curso_id : null;
+  }
+  if (!alumnoId || !cursoId) return res.json([]);
+  res.json(db.prepare(`
+    SELECT a.id as asignacion_id, m.nombre as materia_nombre,
+      u.nombre as docente_nombre, u.apellido as docente_apellido, d.titulo as docente_titulo,
+      p.empresa, p.fecha_inicio, p.fecha_fin,
+      n.nota_final, n.estado as estado_nota
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+    LEFT JOIN pasantias p ON p.asignacion_id=a.id AND p.alumno_id=?
+    LEFT JOIN notas n ON n.asignacion_id=a.id AND n.alumno_id=?
+    WHERE a.curso_id=? AND m.tipo='pasantia'`).all(alumnoId, alumnoId, cursoId));
 });
 
 // ── GENERACIÓN AUTOMÁTICA DE ASISTENCIAS (desde horarios, desde fecha_inicio) ─
