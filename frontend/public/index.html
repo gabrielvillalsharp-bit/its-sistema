@@ -4321,20 +4321,20 @@ async function mMateria(m){
   const periodoActivo=periodos.find(p=>p.activo)||periodos[0];
   modal(`<h4>${e?'Editar':'Nueva'} materia</h4>
   <div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#2e7d32">
-    ✓ Al guardar, la materia y su asignación aparecen automáticamente en Notas y Asistencia
+    ✓ Al guardar, la materia y su asignación aparecen automáticamente en Notas y Asistencia. El día y horario se ubican después desde Horario Semanal.
   </div>
   <div class="fg">
   <div class="fr">
-    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía"/></div>
-    <div class="f"><label>Código</label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="ENF-101"/></div>
+    <div class="f"><label>Nombre <span style="color:var(--red)">*</span></label><input id="mn" value="${e?m.nombre:''}" placeholder="Ej: Anatomía" oninput="generarCodigoMateria()"/></div>
+    <div class="f"><label>Código <span class="tip" style="font-weight:400">(automático)</span></label><input id="mc2" value="${e?m.codigo||'':''}" placeholder="Se genera solo"/></div>
   </div>
   <div class="f"><label>Período académico <span style="color:var(--red)">*</span></label>
-    <select id="mper" style="width:100%">
+    <select id="mper" style="width:100%" onchange="generarCodigoMateria()">
       ${periodos.map(p=>`<option value="${p.id}" ${e?(m.periodo_id===p.id?'selected':''):(periodoActivo&&p.id===periodoActivo.id?'selected':'')}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
     </select></div>
   <div class="fr">
     <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
-      <select id="mca" onchange="filtSeccionesMat()">
+      <select id="mca" onchange="filtSeccionesMat();generarCodigoMateria()">
         ${carrs.map(c=>`<option value="${c.id}" ${e&&m.carrera_id===c.id?'selected':''}>${c.nombre}</option>`).join('')}
       </select></div>
     <div class="f"><label>Año <span style="color:var(--red)">*</span></label>
@@ -4352,22 +4352,26 @@ async function mMateria(m){
       <option value="">— Seleccionar docente —</option>
       ${docs.map(d=>`<option value="${d.docente_id}" ${e&&m.docente_id===d.docente_id?'selected':''}>${d.titulo?d.titulo+' ':''}${d.apellido||''}, ${d.nombre}</option>`).join('')}
     </select></div>
-  <div class="fr">
-    <div class="f"><label>Día de clase <span style="color:var(--red)">*</span></label>
-      <select id="mdia">
-        ${['Lunes','Martes','Miércoles','Jueves','Viernes'].map(d=>`<option value="${d}" ${e&&m.dia===d?'selected':''}>${d}</option>`).join('')}
-      </select></div>
-    <div class="f"><label>Turno <span style="color:var(--red)">*</span></label>
-      <select id="mtur">
-        <option value="1" ${e&&m.turno===1?'selected':''}>Turno 1 — 19:00 a 20:20</option>
-        <option value="2" ${e&&m.turno===2?'selected':''}>Turno 2 — 20:40 a 22:00</option>
-      </select></div>
-  </div>
-  <div class="f"><label>Horas semanales</label><input id="mh" type="number" value="${e?m.horas_semanales:4}" min="1" style="width:80px"/></div>
   </div>
   <div class="mf"><button class="bs" onclick="cm()">Cancelar</button>
   <button class="bn" onclick="previsualizarMateria('${e?m.id:''}')">Revisar y guardar →</button></div>`);
   if(e) filtSeccionesMat();
+  else generarCodigoMateria();
+}
+function generarCodigoMateria(){
+  const nombre=v('mn'),carreraId=v('mca');
+  const inp=document.getElementById('mc2');
+  if(!inp||!nombre||!carreraId)return;
+  const PREFIJOS={enf:'ENF',rad:'RAD',instr:'IQ',farm:'FAR',cosA:'COS',agro:'AGR',crim:'CRM',cont:'CONT',elec:'ELEC'};
+  const prefijo=PREFIJOS[carreraId]||carreraId.replace(/[^a-zA-Z]/g,'').slice(0,4).toUpperCase();
+  // Colisión chequeada contra TODAS las materias de la carrera, sin filtrar por
+  // período: hay materias viejas con periodo_id NULL (de antes de este campo)
+  // que igual ocupan un código real y no deben pisarse.
+  const existentes=new Set((W._mats||[]).filter(m=>m.carrera_id===carreraId).map(m=>m.codigo));
+  let n=101;
+  let codigo=`${prefijo}-${n}`;
+  while(existentes.has(codigo)){n++;codigo=`${prefijo}-${n}`;}
+  inp.value=codigo;
 }
 function filtSeccionesMat(){
   const carrId=v('mca'),anio=v('ma');
@@ -4376,37 +4380,29 @@ function filtSeccionesMat(){
   sel.innerHTML='<option value="">— Seleccionar sección —</option>'+filt.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}° — ${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('');
 }
 async function previsualizarMateria(id){
-  const o={nombre:v('mn'),codigo:v('mc2'),periodo_id:v('mper'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),dia:v('mdia'),turno:parseInt(v('mtur')),horas_semanales:parseInt(v('mh'))||4};
-  if(!o.nombre||!o.periodo_id||!o.carrera_id||!o.curso_id||!o.docente_id||!o.dia||!o.turno)return alert('Completar todos los campos obligatorios (*)');
+  const o={nombre:v('mn'),codigo:v('mc2'),periodo_id:v('mper'),carrera_id:v('mca'),anio:parseInt(v('ma')),curso_id:v('msec'),docente_id:v('mdoc'),horas_semanales:4};
+  if(!o.nombre||!o.periodo_id||!o.carrera_id||!o.curso_id||!o.docente_id)return alert('Completar todos los campos obligatorios (*)');
   const carNom=(W._carrs||[]).find(c=>c.id===o.carrera_id)?.nombre||'';
   const perNom=(W._periodosMat||[]).find(p=>String(p.id)===String(o.periodo_id))?.nombre||'';
   const docObj=(W._docsMat||[]).find(d=>d.docente_id===o.docente_id);
   const docNom=docObj?`${docObj.apellido||''}, ${docObj.nombre}`:'—';
   const secObj=(W._cursos||[]).find(s=>s.id===o.curso_id);
   const secNom=secObj?`${secObj.anio}° Secc. ${secObj.division==='U'?'Única':secObj.division}`:'—';
-  let conflicto={tiene_conflicto:false};
-  try{conflicto=await api('GET',`/api/asignaciones/conflicto?docente_id=${o.docente_id}&dia=${encodeURIComponent(o.dia)}&turno=${o.turno}&curso_id=${o.curso_id}&exclude_id=${id||''}`);}catch{}
   modal(`<h4>📋 Confirmar materia</h4>
   <div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:10px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
       <div><span style="font-size:10px;color:var(--t3)">Materia</span><br><strong>${o.nombre}</strong></div>
+      <div><span style="font-size:10px;color:var(--t3)">Código</span><br><strong>${o.codigo||'—'}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Período</span><br><strong>${perNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Carrera</span><br><strong>${carNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Año / Sección</span><br><strong>${o.anio}° — ${secNom}</strong></div>
       <div><span style="font-size:10px;color:var(--t3)">Docente</span><br><strong>${docNom}</strong></div>
-      <div><span style="font-size:10px;color:var(--t3)">Día / Turno</span><br><strong>${o.dia} — T${o.turno} (${o.turno===1?'19:00':'20:40'})</strong></div>
     </div>
   </div>
-  ${conflicto.tiene_conflicto?`<div style="background:#fff3e0;border:2px solid #e65100;border-radius:8px;padding:10px;margin-bottom:10px">
-    <p style="font-weight:700;color:#e65100;font-size:12px">⚠ Conflicto de horario detectado</p>
-    <p style="font-size:12px"><strong>${docNom}</strong> ya tiene <strong>${conflicto.materia||'otra materia'}</strong> el <strong>${o.dia} T${o.turno}</strong>.</p>
-    <p style="font-size:11px;color:#777">El Director debe aprobar este conflicto para habilitarlo.</p>
-  </div>`:'<div style="background:#e8f5e9;border-radius:6px;padding:8px;font-size:12px;color:#2e7d32;margin-bottom:10px">✓ Sin conflictos de horario</div>'}
+  <div style="background:#e3f2fd;border-radius:6px;padding:8px;font-size:12px;color:#1565c0;margin-bottom:10px">ℹ Todavía no tiene día ni horario asignado — se ubica después desde Horario Semanal.</div>
   <div class="mf">
     <button class="bs" onclick="cm()">← Modificar</button>
-    ${conflicto.tiene_conflicto
-      ?`<button class="bs o" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},true)">⚠ Guardar con conflicto</button>`
-      :`<button class="bn" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},false)">✓ Confirmar y guardar</button>`}
+    <button class="bn" onclick="svMat('${id}',${JSON.stringify(o).replace(/"/g,'&quot;')},false)">✓ Confirmar y guardar</button>
   </div>`);
 }
 async function svMat(id,o,conConflicto){
@@ -4416,20 +4412,19 @@ async function svMat(id,o,conConflicto){
     else{const r=await api('POST','/api/materias',o);matId=r.id;}
     // Crear/actualizar asignación automáticamente — usa el período de la MATERIA,
     // no el período "activo" del sistema (pueden no coincidir, ej. cargando materias
-    // de un semestre que todavía no se activó).
+    // de un semestre que todavía no se activó). Sin día/turno todavía: se ubica
+    // después desde Horario Semanal.
     if(o.docente_id&&o.curso_id&&matId&&o.periodo_id){
       const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${o.periodo_id}`).catch(()=>[]);
       if(!existe||!existe.length){
-        // Crear nueva asignación si no existe
-        await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:o.periodo_id,dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
+        // Crear nueva asignación si no existe — sin día/turno todavía (se ubica desde Horario Semanal)
+        await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:o.periodo_id}).catch(()=>{});
       } else {
-        // Actualizar docente y/o día/turno en asignación existente si cambiaron
+        // Solo actualizar docente si cambió — el día/turno se maneja exclusivamente
+        // desde Horario Semanal, nunca se toca acá para no pisarlo sin querer.
         const asig=existe[0];
         if(asig.docente_id!==o.docente_id){
           await api('PUT',`/api/asignaciones/${asig.id}/docente`,{docente_id:o.docente_id}).catch(()=>{});
-        }
-        if(asig.dia!==o.dia||asig.turno!==o.turno){
-          await api('PUT',`/api/asignaciones/${asig.id}`,{dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00',aula:asig.aula||null}).catch(()=>{});
         }
       }
     }
