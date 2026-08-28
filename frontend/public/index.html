@@ -8778,11 +8778,27 @@ function descargarCalendarioAulas(){
 
 // ── CIERRE Y PROMOCIÓN SEMESTRAL ──────────────────────────────────────────────
 async function pgPromocion(el){
+  el.innerHTML=`<div class="ph"><h3>🎓 Cierre y Promoción Semestral</h3></div>
+  <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+    <button id="promoTab1Btn" onclick="promocionTab('cierre')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #166534;background:transparent;cursor:pointer;color:#166534">📋 Cierre de Semestre</button>
+    <button id="promoTab2Btn" onclick="promocionTab('extraordinarios')" style="padding:10px 22px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">📝 Extraordinarios Pendientes</button>
+  </div>
+  <div id="promoTabBody"></div>`;
+  promocionTab('cierre');
+}
+function promocionTab(tab){
+  document.getElementById('promoTab1Btn').style.borderBottomColor=tab==='cierre'?'#166534':'transparent';
+  document.getElementById('promoTab1Btn').style.color=tab==='cierre'?'#166534':'#64748b';
+  document.getElementById('promoTab2Btn').style.borderBottomColor=tab==='extraordinarios'?'#166534':'transparent';
+  document.getElementById('promoTab2Btn').style.color=tab==='extraordinarios'?'#166534':'#64748b';
+  if(tab==='cierre')pgCierreSemestre(document.getElementById('promoTabBody'));
+  else pgExtraordinarios(document.getElementById('promoTabBody'));
+}
+async function pgCierreSemestre(el){
   const [carrs,periodos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/periodos')]);
   W._carrsPromo=carrs;W._periodosPromo=periodos;
   const periodoActivo=periodos.find(p=>p.activo)||periodos[0];
-  el.innerHTML=`<div class="ph"><h3>🎓 Cierre y Promoción Semestral</h3></div>
-  <p class="tip" style="margin-bottom:14px">Analiza las notas del período de origen y clasifica a cada alumno. Una materia con nota 1 NO bloquea la promoción — queda pendiente de examen extraordinario en diciembre. Una materia SIN nota final sí bloquea la promoción hasta que se regularice.</p>
+  el.innerHTML=`<p class="tip" style="margin-bottom:14px">Analiza las notas del período de origen y clasifica a cada alumno. Una materia con nota 1 NO bloquea la promoción — queda pendiente de examen extraordinario en diciembre. Una materia SIN nota final sí bloquea la promoción hasta que se regularice.</p>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <select id="promoCarr" style="min-width:200px" onchange="cargarAnalisisPromocion()">
       <option value="">— Seleccionar carrera —</option>
@@ -8798,6 +8814,62 @@ async function pgPromocion(el){
   </div>
   <div id="promoResumen"></div>
   <div id="promoLista"><div class="es">Seleccioná una carrera para empezar</div></div>`;
+}
+async function pgExtraordinarios(el){
+  const carrs=W._carrsPromo||await api('GET','/api/carreras');
+  W._carrsPromo=carrs;
+  el.innerHTML=`<p class="tip" style="margin-bottom:14px">Materias con nota 1 pendientes de rendir en la instancia extraordinaria de diciembre. Cargá la nota obtenida para cerrar cada caso.</p>
+  <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <select id="extrCarr" style="min-width:200px" onchange="cargarExtraordinarios()">
+      <option value="">Todas las carreras</option>
+      ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>
+    <select id="extrEstado" style="min-width:160px" onchange="cargarExtraordinarios()">
+      <option value="Pendiente">Pendientes</option>
+      <option value="Aprobado">Aprobados</option>
+      <option value="Reprobado">Reprobados</option>
+      <option value="">Todos</option>
+    </select>
+  </div>
+  <div id="extrLista"></div>`;
+  cargarExtraordinarios();
+}
+async function cargarExtraordinarios(){
+  const carreraId=v('extrCarr'),estado=v('extrEstado');
+  const qs=[];
+  if(carreraId)qs.push('carrera_id='+carreraId);
+  if(estado)qs.push('estado='+estado);
+  const cel=document.getElementById('extrLista');
+  cel.innerHTML='<div class="es">Cargando...</div>';
+  const data=await api('GET','/api/extraordinarios'+(qs.length?'?'+qs.join('&'):''));
+  W._extrData=data;
+  if(!data.length){cel.innerHTML='<div class="es">No hay extraordinarios en esta categoría</div>';return;}
+  const estColor={'Pendiente':'#e65100','Aprobado':'#2e7d32','Reprobado':'#c62828'};
+  cel.innerHTML=`<div class="card"><div class="tw"><table><thead><tr>
+    <th>Alumno</th><th>Carrera</th><th>Materia</th><th>Nota 1er Sem.</th><th>Estado</th><th>Nota extraordinario</th><th></th>
+  </tr></thead><tbody>
+    ${data.map(e=>`<tr>
+      <td><strong>${e.alumno_apellido}, ${e.alumno_nombre}</strong><br><span style="font-size:10px;color:var(--t3)">${e.matricula||''}</span></td>
+      <td>${e.carrera_nombre}</td>
+      <td>${e.materia_nombre}</td>
+      <td style="text-align:center">${e.nota_original}</td>
+      <td><span style="background:${estColor[e.estado]};color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700">${e.estado}</span></td>
+      <td>${e.estado==='Pendiente'
+        ?`<input type="number" min="1" max="5" step="1" id="extrNota_${e.id}" style="width:60px" value="${e.nota_extraordinario??''}"/>`
+        :`<span style="font-weight:700">${e.nota_extraordinario??'—'}</span>`}</td>
+      <td>${e.estado==='Pendiente'?`<button class="bs" onclick="guardarExtraordinario('${e.id}')">Guardar</button>`:''}</td>
+    </tr>`).join('')}
+  </tbody></table></div></div>`;
+}
+async function guardarExtraordinario(id){
+  const inp=document.getElementById('extrNota_'+id);
+  const n=parseFloat(inp?.value);
+  if(isNaN(n)||n<1||n>5)return alert('Ingresá una nota válida (1 a 5)');
+  try{
+    const r=await api('PUT','/api/extraordinarios/'+id,{nota_extraordinario:n});
+    toast(`✓ Extraordinario registrado — ${r.estado}`,'ok');
+    cargarExtraordinarios();
+  }catch(e){alert('Error: '+e.message);}
 }
 async function cargarAnalisisPromocion(){
   const carreraId=v('promoCarr'),periodoOrigen=v('promoPeriodoOrigen');
