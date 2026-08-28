@@ -34,6 +34,32 @@ if (periodoExist) {
   console.log(`✅ Período creado: id=${periodoId} — "2do Semestre 2026" (inactivo)`);
 }
 
+// ── 1b. DOCENTES NUEVOS (idempotente) ─────────────────────────────────────────
+// Estas cuentas se crearon manualmente vía UI en algunos entornos (local) pero
+// no en otros (producción). Se garantizan acá para que el seed sea 100%
+// autocontenido y no dependa de pasos manuales previos en cada entorno.
+const HASH_INICIAL = '$2a$10$5UFETQ8mgBVYiufQM3aaGOvCX50WjwIQsJAzsvZ34I9/5Pqc4zKQe'; // 'its2026!'
+const insU = db.prepare(
+  'INSERT OR IGNORE INTO usuarios (id,nombre,apellido,email,password_hash,rol,activo,fecha_registro) VALUES (?,?,?,?,?,?,1,date(\'now\'))'
+);
+const insD = db.prepare(
+  'INSERT OR IGNORE INTO docentes (id,usuario_id,sede_id) VALUES (?,?,\'pjc\')'
+);
+const docentesNuevos = [
+  ['doc_anonimo', 'u_doc_anonimo', 'Docente',  'A Confirmar', null,                    'x'],
+  ['doc_amelia',  'u_doc_amelia',  'Amelia',   'Sanguina',    'a.sanguina@its.edu.py', HASH_INICIAL],
+  ['doc_colman',  'u_doc_colman',  'Cristian', 'Colman',      'c.colman@its.edu.py',   HASH_INICIAL],
+];
+let docCreados = 0;
+db.transaction(() => {
+  docentesNuevos.forEach(([docId, usuId, nombre, apellido, email, hash]) => {
+    const ru = insU.run(usuId, nombre, apellido, email, hash, 'docente');
+    const rd = insD.run(docId, usuId);
+    if (rd.changes) { docCreados++; console.log(`✅ Docente creado: ${docId} — ${nombre} ${apellido}`); }
+  });
+})();
+if (docCreados === 0) console.log('ℹ️  Docentes nuevos: ya existían todos.');
+
 // ── 2. CURSOS (verificación — ya deberían existir) ────────────────────────────
 const cursosNecesarios = [
   'enf_1u','enf_2u','rad_1u','rad_2u','instr_1u','instr_2u',
