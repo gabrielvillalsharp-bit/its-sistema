@@ -17,6 +17,7 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/its.db');
 const db = new Database(DB_PATH);
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 10000'); // esperar hasta 10s si el server de producción tiene el archivo ocupado
 
 console.log('📚 Iniciando seed 2do Semestre 2026...\n');
 
