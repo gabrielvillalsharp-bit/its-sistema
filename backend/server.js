@@ -3003,7 +3003,19 @@ app.post('/api/asignaciones', auth(ADM), (req, res) => {
 app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
   const { dia, turno, hora_inicio, hora_fin, aula } = req.body;
   db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
-  db.prepare('UPDATE horarios SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE asignacion_id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
+  if (dia) {
+    // horarios.asignacion_id no tiene UNIQUE — chequear existencia antes de insertar para no duplicar
+    const yaExiste = db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(req.params.id);
+    if (yaExiste) {
+      db.prepare('UPDATE horarios SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE asignacion_id=?').run(dia,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
+    } else {
+      db.prepare('INSERT INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,?)').run(req.params.id, dia, turno||1, hora_inicio||'19:00', hora_fin||'20:20', aula||null);
+    }
+  } else {
+    // día vacío explícito → quitar del horario visual (horarios.dia es NOT NULL, no se puede solo vaciar)
+    // No borra la asignación ni las notas, solo su ubicación en el calendario.
+    db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(req.params.id);
+  }
   res.json({ ok: true });
 });
 app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
@@ -5483,17 +5495,19 @@ app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
 
 // ── HORARIOS ──────────────────────────────────────────────────────────────────
 app.get('/api/horarios', auth(), (req, res) => {
-  const { asignacion_id, dia, docente_id, docente_usuario_id } = req.query;
+  const { asignacion_id, dia, docente_id, docente_usuario_id, periodo_id, carrera_id } = req.query;
   let where = 'WHERE 1=1'; const params = [];
   if (asignacion_id)      { where += ' AND h.asignacion_id=?'; params.push(asignacion_id); }
   if (dia)                { where += ' AND h.dia=?';           params.push(dia); }
   if (docente_id)         { where += ' AND a.docente_id=?';    params.push(docente_id); }
   if (docente_usuario_id) { where += ' AND u.id=?';            params.push(docente_usuario_id); }
+  if (periodo_id)         { where += ' AND a.periodo_id=?';    params.push(periodo_id); }
+  if (carrera_id)         { where += ' AND ca.id=?';           params.push(carrera_id); }
   res.json(db.prepare(`
     SELECT h.*,
-      a.docente_id,
+      a.docente_id, a.periodo_id, a.curso_id, a.materia_id,
       m.nombre as materia_nombre, m.dia as materia_dia, m.turno as materia_turno,
-      ca.nombre as carrera_nombre,
+      ca.id as carrera_id, ca.nombre as carrera_nombre,
       cu.anio as curso_anio, cu.division as curso_division,
       u.nombre as docente_nombre, u.apellido as docente_apellido, u.id as docente_usuario_id,
       d.titulo as docente_titulo

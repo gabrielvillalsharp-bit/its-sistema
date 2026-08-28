@@ -4402,12 +4402,15 @@ async function svMat(id,o,conConflicto){
         const existe=await api('GET',`/api/asignaciones?materia_id=${matId}&curso_id=${o.curso_id}&periodo_id=${periodo.id}`).catch(()=>[]);
         if(!existe||!existe.length){
           // Crear nueva asignación si no existe
-          await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:periodo.id,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
+          await api('POST','/api/asignaciones',{docente_id:o.docente_id,materia_id:matId,curso_id:o.curso_id,periodo_id:periodo.id,dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00'}).catch(()=>{});
         } else {
-          // Actualizar docente en asignación existente si cambió
+          // Actualizar docente y/o día/turno en asignación existente si cambiaron
           const asig=existe[0];
           if(asig.docente_id!==o.docente_id){
             await api('PUT',`/api/asignaciones/${asig.id}/docente`,{docente_id:o.docente_id}).catch(()=>{});
+          }
+          if(asig.dia!==o.dia||asig.turno!==o.turno){
+            await api('PUT',`/api/asignaciones/${asig.id}`,{dia:o.dia,turno:o.turno,hora_inicio:o.turno===1?'19:00':'20:40',hora_fin:o.turno===1?'20:20':'22:00',aula:asig.aula||null}).catch(()=>{});
           }
         }
       }
@@ -8501,15 +8504,24 @@ async function imprimirActaExamen(examenId, tipoOverride){
 // ── EDITAR REGISTRO DE ASISTENCIA INDIVIDUAL ──────────────────────────────────
 // ── HORARIO SEMANAL DE CLASES ─────────────────────────────────────────────────
 async function pgCalClases(el){
+  const periodos=await api('GET','/api/periodos').catch(()=>[]);
+  const periodoActivo=periodos.find(p=>p.activo)||periodos[0]||null;
+  W._periodoHorario=periodoActivo;
   // Para docente: solicitar solo sus horarios directo desde el servidor
   let url='/api/horarios';
+  const qs=[];
+  if(periodoActivo) qs.push('periodo_id='+periodoActivo.id);
   if(me.rol==='docente'){
     // Intentar con docenteId (id de tabla docentes) y también con usuario id
-    if(me.docenteId) url+='?docente_id='+me.docenteId;
-    else url+='?docente_usuario_id='+me.id;
+    if(me.docenteId) qs.push('docente_id='+me.docenteId);
+    else qs.push('docente_usuario_id='+me.id);
   }
+  if(qs.length) url+='?'+qs.join('&');
   const horarios=await api('GET',url);
   let h=horarios||[];
+  if(me.rol!=='docente'&&periodoActivo){
+    W._asigsPeriodoHorario=await api('GET',`/api/asignaciones?periodo_id=${periodoActivo.id}`).catch(()=>[]);
+  }
   // Fallback extra: si el docente tiene docenteId, filtrar también por docente_usuario_id
   if(me.rol==='docente'&&h.length===0&&me.docenteId){
     // El docenteId puede ser el ID de usuario, intentar buscar por usuario_id
@@ -8536,11 +8548,12 @@ async function pgCalClases(el){
     Estas entradas no deben aparecer en el horario. Revisá la sección <a href="#" onclick="go('materias');return false;" style="color:#166534;text-decoration:underline">Materias</a> y asigná un docente a cada materia.
     <label style="margin-left:12px;cursor:pointer"><input type="checkbox" id="filtHorOcultar" onchange="renderHorario()" checked> Ocultar sin docente</label>
   </div>`:'';
-  el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases</h3>
+  el.innerHTML=`<div class="ph"><h3>📅 Horario Semanal de Clases${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
     <div class="ph-right">
     </div>
-    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs</p>
+    <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs${!esDocente?' · Hacé clic en un bloque vacío (+) para asignar una materia, o en uno ocupado para quitarla':''}</p>
   </div>
+  ${periodoActivo?'':'<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#e65100">⚠ No hay ningún período activo — activá uno desde Configuración → Períodos.</div>'}
   ${alertaHuerfanos}
   <div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
     ${!esDocente?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
@@ -8583,13 +8596,17 @@ function renderHorario(){
   if(ocultarSinDoc)h=h.filter(x=>x.docente_nombre&&x.materia_nombre);
   const turno1=h.filter(x=>x.turno===1);
   const turno2=h.filter(x=>x.turno===2);
-  const cell=(lista,dia)=>{
+  const clickable=me.rol!=='docente'&&!!W._periodoHorario;
+  const cell=(lista,dia,turnoNum)=>{
     const items=lista.filter(x=>x.dia===dia);
-    if(!items.length)return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px;background:#fafaf8"><span style="color:var(--t3);font-size:11px">—</span></td>`;
+    if(!items.length){
+      if(clickable)return `<td onclick="abrirAsignarHorario('${dia}',${turnoNum})" style="border:1px solid var(--bdr);padding:6px;vertical-align:middle;text-align:center;min-width:150px;background:#fafaf8;cursor:pointer" title="Asignar materia"><span style="color:var(--t3);font-size:16px">+</span></td>`;
+      return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px;background:#fafaf8"><span style="color:var(--t3);font-size:11px">—</span></td>`;
+    }
     return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px">
       ${items.map(i=>{
         const sinDocente=!i.docente_nombre;
-        return `<div style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}">
+        return `<div ${clickable?`onclick="gestionarBloqueHorario('${i.asignacion_id}')"`:''} style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}${clickable?';cursor:pointer':''}" ${clickable?'title="Clic para quitar del horario"':''}>
           <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin materia'}</div>
           <div style="color:#555;margin-top:1px">${i.carrera_nombre||''}${i.curso_division&&i.curso_division!=='U'?' Secc. '+i.curso_division:''} ${i.curso_anio?i.curso_anio+'°':''}</div>
           ${me.rol!=='docente'?`<div style="color:${sinDocente?'#c62828':'#777'};font-size:10px;margin-top:2px">${sinDocente?'⚠ Sin docente asignado':(i.titulo?i.titulo+' ':'')+i.docente_nombre+' '+i.docente_apellido}</div>`:''}
@@ -8609,17 +8626,60 @@ function renderHorario(){
         <td style="border:1px solid var(--bdr);padding:8px 10px;font-weight:700;white-space:nowrap;background:#c8e6c9">
           <div style="font-size:13px">1er Turno</div><div style="font-size:11px;color:#555">19:00 – 20:20</div>
         </td>
-        ${dias.map(d=>cell(turno1,d)).join('')}
+        ${dias.map(d=>cell(turno1,d,1)).join('')}
       </tr>
       <tr><td colspan="6" style="border:1px solid var(--bdr);padding:6px 10px;text-align:center;font-size:11px;color:var(--t2);font-style:italic">✦ RECESO — 20:20 a 20:40 hs ✦</td></tr>
       <tr>
         <td style="border:1px solid var(--bdr);padding:8px 10px;font-weight:700;white-space:nowrap;background:#fff3e0">
           <div style="font-size:13px">2do Turno</div><div style="font-size:11px;color:#555">20:40 – 22:00</div>
         </td>
-        ${dias.map(d=>cell(turno2,d)).join('')}
+        ${dias.map(d=>cell(turno2,d,2)).join('')}
       </tr>
     </tbody>
   </table>`;
+}
+function abrirAsignarHorario(dia,turno){
+  const asigs=(W._asigsPeriodoHorario||[]).filter(a=>!a.dia);
+  if(!asigs.length){modal(`<h4>Asignar materia — ${dia} · ${turno===1?'Primera':'Segunda'} Hora</h4>
+    <p style="font-size:12px;color:var(--t2)">No hay materias sin ubicar en el horario de este período. Creá una nueva desde <a href="#" onclick="cm();go('materias');return false;">Materias</a>.</p>
+    <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);return;}
+  modal(`<h4>Asignar materia — ${dia} · ${turno===1?'Primera':'Segunda'} Hora</h4>
+  <div class="f"><label>Materia (solo se muestran las que aún no tienen día/hora en este período)</label>
+  <select id="selAsigHor" style="width:100%">
+    <option value="">— Seleccionar —</option>
+    ${asigs.map(a=>`<option value="${a.id}">${a.carrera_nombre||''} ${a.curso_anio?a.curso_anio+'°':''}${a.curso_division&&a.curso_division!=='U'?' Secc.'+a.curso_division:''} — ${a.materia_nombre} (${a.docente_nombre||'sin docente'} ${a.docente_apellido||''})</option>`).join('')}
+  </select></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button>
+  <button class="bn" onclick="confirmarAsignarHorario('${dia}',${turno})">Asignar</button></div>`);
+}
+async function confirmarAsignarHorario(dia,turno){
+  const asigId=v('selAsigHor');
+  if(!asigId)return alert('Seleccioná una materia');
+  try{
+    await api('PUT',`/api/asignaciones/${asigId}`,{dia,turno,hora_inicio:turno===1?'19:00':'20:40',hora_fin:turno===1?'20:20':'22:00'});
+    cm();
+    toast('✓ Materia ubicada en el horario','ok');
+    await pgCalClases(document.getElementById('mc'));
+  }catch(e){alert('Error: '+e.message);}
+}
+function gestionarBloqueHorario(asignacionId){
+  const h=(W._horarios||[]).find(x=>x.asignacion_id===asignacionId);
+  if(!h)return;
+  modal(`<h4>${h.materia_nombre||'Materia'}</h4>
+  <p style="font-size:12px;color:var(--t2)">${h.carrera_nombre||''} ${h.curso_anio?h.curso_anio+'°':''}${h.curso_division&&h.curso_division!=='U'?' Secc.'+h.curso_division:''} — ${h.dia} · ${h.turno===1?'Primera':'Segunda'} Hora</p>
+  <p style="font-size:12px;color:var(--t2)">Docente: ${h.docente_nombre?((h.docente_titulo?h.docente_titulo+' ':'')+h.docente_nombre+' '+(h.docente_apellido||'')):'⚠ sin asignar'}</p>
+  <p class="tip" style="margin-top:8px">Para cambiar el docente o los datos de la materia, hacelo desde Materias. Acá solo podés quitarla del horario (no se borran sus notas).</p>
+  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button>
+  <button class="bs o" onclick="quitarDeHorario('${asignacionId}')">Quitar del horario</button></div>`);
+}
+async function quitarDeHorario(asigId){
+  if(!confirm('¿Quitar esta materia del horario? La asignación y las notas de los alumnos NO se borran, solo su día/hora en el calendario.'))return;
+  try{
+    await api('PUT',`/api/asignaciones/${asigId}`,{dia:null,turno:1});
+    cm();
+    toast('✓ Quitada del horario','ok');
+    await pgCalClases(document.getElementById('mc'));
+  }catch(e){alert('Error: '+e.message);}
 }
 
 function descargarCalendarioAulas(){
