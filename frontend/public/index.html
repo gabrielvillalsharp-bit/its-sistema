@@ -1572,7 +1572,7 @@ function go(p, _fromHistory){
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
     perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta,
-    'agenda':pgAgenda,'mi-portal':pgMiPortal};
+    'agenda':pgAgenda,'mi-portal':pgMiPortal,'actas':pgActas};
   // Retorna la promesa para que llamadores puedan hacer await go(p)
   return Promise.resolve(pages[p]?.(el));
 }
@@ -10199,6 +10199,7 @@ function pgHubAcademico(el){
     ${esDirec?_mCard('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
     ${esDirec?_mCard('feriados','📅','Feriados','Calendario','#d97706','#fffbeb'):''}
     ${_mCard('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
+    ${_mCard('actas','📋','Actas','Actas de examen cerradas','#1e3a5f','#eff6ff')}
   </div>`;
 }
 function pgHubFinanzas(el){
@@ -13183,43 +13184,77 @@ async function _cerrarActaExamen(asigId,tipo,tipoLbl){
 }
 
 // ── PANEL DIRECTOR: VER E IMPRIMIR ACTAS ─────────────────────────────────────
-async function pgActasExamen(){
-  modal('<div style="text-align:center;padding:30px">⏳ Cargando actas...</div>',true);
-  try{
-    const actas=await api('GET','/api/actas-examen');
-    const TIPO_COLOR={'Parcial':'#1d4ed8','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
-    modal(`<div style="max-height:85vh;overflow-y:auto;min-width:min(700px,90vw)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <h4>📋 Actas de examen cerradas</h4>
-        <span class="bx ba">${actas.length} acta${actas.length!==1?'s':''}</span>
+async function pgActas(el){
+  const esDirec=me.rol==='director';
+  el.innerHTML=`<div class="ph"><h3>📋 Actas de examen</h3></div><div class="es">⏳ Cargando actas...</div>`;
+  let actas=[];
+  try{ actas=await api('GET','/api/actas-examen'); }catch(e){ el.innerHTML='<div class="es">Error al cargar actas</div>'; return; }
+  W._actasTodas=actas;
+  const carreras=[...new Set(actas.map(a=>a.carrera_nombre).filter(Boolean))].sort();
+  const docMap=new Map();
+  actas.forEach(a=>{ if(a.docente_id && !docMap.has(a.docente_id)) docMap.set(a.docente_id,`${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()); });
+  const docList=[...docMap.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  const tipos=[...new Set(actas.map(a=>a.tipo_examen).filter(Boolean))];
+  el.innerHTML=`<div class="ph"><h3>📋 Actas de examen</h3><span class="bx ba">${actas.length} acta${actas.length!==1?'s':''}</span></div>
+  <div class="fb" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    ${esDirec?`<select id="actasFiltCarrera" onchange="filtActas()" style="min-width:170px"><option value="">Todas las carreras</option>${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}
+    ${esDirec?`<select id="actasFiltDocente" onchange="filtActas()" style="min-width:190px"><option value="">Todos los docentes</option>${docList.map(([id,n])=>`<option value="${id}">${n}</option>`).join('')}</select>`:''}
+    <select id="actasFiltTipo" onchange="filtActas()" style="min-width:160px"><option value="">Todos los tipos</option>${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;user-select:none"><input type="checkbox" id="actasSelAll" onchange="toggleSelAllActas(this.checked)"/> Seleccionar todas</label>
+  </div>
+  <div id="actasLista"></div>
+  <div id="actasBarraAccion" style="display:none;position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:10px 0;margin-top:10px;justify-content:flex-end;gap:8px">
+    <button class="bn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9)" onclick="imprimirActasSeleccionadas()">🖨 Imprimir seleccionadas (<span id="actasSelCount">0</span>)</button>
+  </div>`;
+  filtActas();
+}
+function filtActas(){
+  const carrera=v('actasFiltCarrera'), docente=v('actasFiltDocente'), tipo=v('actasFiltTipo');
+  let actas=W._actasTodas||[];
+  if(carrera) actas=actas.filter(a=>a.carrera_nombre===carrera);
+  if(docente) actas=actas.filter(a=>a.docente_id===docente);
+  if(tipo) actas=actas.filter(a=>a.tipo_examen===tipo);
+  const cont=document.getElementById('actasLista'); if(!cont)return;
+  const TIPO_COLOR={'Parcial':'#1d4ed8','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
+  cont.innerHTML=!actas.length?'<div class="es">No hay actas que coincidan con el filtro</div>':actas.map(a=>{
+    const falt=a.alumnos_faltantes?JSON.parse(a.alumnos_faltantes):[];
+    const color=TIPO_COLOR[a.tipo_examen]||'#374151';
+    return`<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start">
+      ${a.estado==='cerrada'?`<input type="checkbox" class="actaChk" value="${a.id}" onchange="actualizarSelActas()" style="margin-top:4px"/>`:'<div style="width:14px;flex-shrink:0"></div>'}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+          <div>
+            <span style="font-weight:700;font-size:13px">${a.materia_nombre||''}</span>
+            <span style="display:inline-block;margin-left:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${color}22;color:${color}">${a.tipo_examen}</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${a.estado==='cerrada'?`<button class="bs" style="font-size:10px;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="imprimirActaExamenCerrada('${a.id}')">🖨 Imprimir</button>
+            <button class="bs d" style="font-size:10px" onclick="desbloquearActa('${a.id}')">🔓 Desbloquear</button>`
+            :`<span class="bx ba" style="font-size:10px">🔓 Desbloqueada</span>`}
+          </div>
+        </div>
+        <div style="font-size:11px;color:#64748b;display:flex;gap:12px;flex-wrap:wrap">
+          <span>👤 ${a.docente_nombre||''} ${a.docente_apellido||''}</span>
+          <span>🏫 ${a.carrera_nombre||''} ${a.curso_anio||''}° ${a.curso_division!=='U'?a.curso_division:''}</span>
+          <span>📅 ${a.fecha_cierre?a.fecha_cierre.slice(0,16).replace('T',' '):''}</span>
+          ${falt.length?`<span style="color:#7c3aed">➕ ${falt.length} faltante${falt.length!==1?'s':''}</span>`:''}
+        </div>
+        ${a.estado==='desbloqueada'?`<div style="font-size:10px;color:#92400e;margin-top:4px;background:#fffbeb;padding:4px 8px;border-radius:4px">🔓 Desbloqueada — Motivo: ${a.motivo_desbloqueo||'—'}</div>`:''}
       </div>
-      ${!actas.length?'<div class="es">No hay actas cerradas aún</div>':actas.map(a=>{
-        const falt=a.alumnos_faltantes?JSON.parse(a.alumnos_faltantes):[];
-        const color=TIPO_COLOR[a.tipo_examen]||'#374151';
-        return`<div style="border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
-            <div>
-              <span style="font-weight:700;font-size:13px">${a.materia_nombre||''}</span>
-              <span style="display:inline-block;margin-left:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${color}22;color:${color}">${a.tipo_examen}</span>
-            </div>
-            <div style="display:flex;gap:6px">
-              ${a.estado==='cerrada'?`<button class="bs" style="font-size:10px;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="imprimirActaExamenCerrada('${a.id}')">🖨 Imprimir</button>
-              <button class="bs d" style="font-size:10px" onclick="desbloquearActa('${a.id}')">🔓 Desbloquear</button>`
-              :`<span class="bx ba" style="font-size:10px">🔓 Desbloqueada</span>`}
-            </div>
-          </div>
-          <div style="font-size:11px;color:#64748b;display:flex;gap:12px;flex-wrap:wrap">
-            <span>👤 ${a.docente_nombre||''} ${a.docente_apellido||''}</span>
-            <span>🏫 ${a.carrera_nombre||''} ${a.curso_anio||''}° ${a.curso_division!=='U'?a.curso_division:''}</span>
-            <span>📅 ${a.fecha_cierre?a.fecha_cierre.slice(0,16).replace('T',' '):''}</span>
-            ${falt.length?`<span style="color:#7c3aed">➕ ${falt.length} faltante${falt.length!==1?'s':''}</span>`:''}
-          </div>
-          ${a.estado==='desbloqueada'?`<div style="font-size:10px;color:#92400e;margin-top:4px;background:#fffbeb;padding:4px 8px;border-radius:4px">🔓 Desbloqueada — Motivo: ${a.motivo_desbloqueo||'—'}</div>`:''}
-        </div>`;
-      }).join('')}
-      <div class="mf" style="margin-top:10px"><button class="bs" onclick="cm()">Cerrar</button></div>
-    </div>`,true);
-  }catch(e){toast('Error: '+e.message,'err');}
+    </div>`;
+  }).join('');
+  actualizarSelActas();
+}
+function toggleSelAllActas(checked){
+  document.querySelectorAll('.actaChk').forEach(c=>c.checked=checked);
+  actualizarSelActas();
+}
+function actualizarSelActas(){
+  const n=document.querySelectorAll('.actaChk:checked').length;
+  const bar=document.getElementById('actasBarraAccion');
+  const cnt=document.getElementById('actasSelCount');
+  if(cnt)cnt.textContent=n;
+  if(bar)bar.style.display=n>0?'flex':'none';
 }
 async function desbloquearActa(actaId){
   modal(`<h4 style="margin-bottom:12px">🔓 Desbloquear acta</h4>
@@ -13237,57 +13272,48 @@ async function _confirmarDesbloqueo(actaId){
     await api('PUT','/api/actas-examen/'+actaId+'/desbloquear',{motivo});
     toast('✓ Acta desbloqueada','ok');
     cm();
-    pgActasExamen();
+    go('actas');
   }catch(e){toast('Error: '+e.message,'err');}
 }
-async function imprimirActaExamenCerrada(actaId){
-  // Obtener datos del acta y de la asignación
-  try{
-    const actas=await api('GET','/api/actas-examen');
-    const acta=actas.find(a=>a.id===actaId);
-    if(!acta){toast('Acta no encontrada','err');return;}
-    const actaData=await api('GET','/api/notas/acta/'+acta.asignacion_id);
-    const {asig,alumnos,inst}=actaData;
-    const CAMPO_MAP={'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio','Final':'final_ord','Final Recuperatorio':'final_recuperatorio','Complementario':'complementario','Extraordinario':'extraordinario',final_ord:'final_ord',final_recuperatorio:'final_recuperatorio',complementario:'complementario',extraordinario:'extraordinario'};
-    const campo=CAMPO_MAP[acta.tipo_examen];
-    const conNota=alumnos.filter(a=>a[campo]!==null&&a[campo]!==undefined);
-    const faltantes=acta.alumnos_faltantes?JSON.parse(acta.alumnos_faltantes):[];
-    const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const fechaCierre=new Date(acta.fecha_cierre);
-    const fechaStr=`${fechaCierre.getDate()} de ${MESES[fechaCierre.getMonth()]} de ${fechaCierre.getFullYear()}`;
-    let logoSrc='';
-    try{const lr=await api('GET','/api/logo');if(lr?.logo)logoSrc=lr.logo;}catch(e){}
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Acta ${acta.tipo_examen} — ${asig.materia_nombre}</title>
-    <style>
-      @page{size:A4 portrait;margin:14mm 16mm}
-      @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;font-size:11px;color:#111}
-      .ph{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px}
-      .ph img{height:60px;object-fit:contain}
-      .ph-info h1{font-size:15px;color:#1e3a5f;font-weight:900}
-      .ph-info .sub{font-size:10px;color:#64748b;margin-top:2px}
-      .sello{display:inline-block;padding:3px 12px;border:2px solid #dc2626;color:#dc2626;font-weight:800;font-size:10px;border-radius:4px;letter-spacing:.05em;margin-top:4px}
-      .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px}
-      .meta-row{display:flex;gap:6px}<br>.meta-row span:first-child{color:#64748b;min-width:80px}
-      table{width:100%;border-collapse:collapse;margin-bottom:14px}
-      thead th{background:#1e3a5f;color:#fff;padding:7px 10px;font-size:10px;font-weight:700}
-      tbody tr:nth-child(even){background:#f8fafc}
-      tbody td{padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
-      .nota-cell{text-align:center;font-weight:800;font-size:13px;color:#166534}
-      .falt-section{border:1.5px solid #7c3aed;border-radius:8px;padding:10px;margin-bottom:14px}
-      .falt-section h3{font-size:11px;color:#5b21b6;margin-bottom:8px}
-      .firmas{display:flex;justify-content:space-around;margin-top:30px}
-      .firma-box{text-align:center;width:180px}
-      .firma-line{border-top:1.5px solid #374151;margin-bottom:6px}
-      .firma-label{font-size:10px;color:#374151}
-      .obs-box{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;margin-bottom:14px}
-      .no-print{position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;gap:12px;justify-content:center;z-index:999}
-      .spacer{height:60px}
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
-    </head><body>
-    <div class="ph">
+const _ACTA_CSS=`
+  @page{size:A4 portrait;margin:14mm 16mm}
+  @media print{.no-print{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#111}
+  .ph{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px}
+  .ph img{height:60px;object-fit:contain}
+  .ph-info h1{font-size:15px;color:#1e3a5f;font-weight:900}
+  .ph-info .sub{font-size:10px;color:#64748b;margin-top:2px}
+  .sello{display:inline-block;padding:3px 12px;border:2px solid #dc2626;color:#dc2626;font-weight:800;font-size:10px;border-radius:4px;letter-spacing:.05em;margin-top:4px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;background:#f8fafc;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px}
+  .meta-row{display:flex;gap:6px}
+  .meta-row span:first-child{color:#64748b;min-width:80px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  thead th{background:#1e3a5f;color:#fff;padding:7px 10px;font-size:10px;font-weight:700}
+  tbody tr:nth-child(even){background:#f8fafc}
+  tbody td{padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:11px}
+  .nota-cell{text-align:center;font-weight:800;font-size:13px;color:#166534}
+  .falt-section{border:1.5px solid #7c3aed;border-radius:8px;padding:10px;margin-bottom:14px}
+  .falt-section h3{font-size:11px;color:#5b21b6;margin-bottom:8px}
+  .firmas{display:flex;justify-content:space-around;margin-top:30px}
+  .firma-box{text-align:center;width:180px}
+  .firma-line{border-top:1.5px solid #374151;margin-bottom:6px}
+  .firma-label{font-size:10px;color:#374151}
+  .obs-box{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;margin-bottom:14px}
+  .no-print{position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;gap:12px;justify-content:center;z-index:999}
+  .spacer{height:60px}
+  .acta-block{padding-bottom:20px}
+`;
+function _actaBodyHtml(acta,actaData,logoSrc){
+  const {asig,alumnos,inst}=actaData;
+  const CAMPO_MAP={'Parcial':'parcial','Recuperatorio':'parcial_recuperatorio','Final':'final_ord','Final Recuperatorio':'final_recuperatorio','Complementario':'complementario','Extraordinario':'extraordinario'};
+  const campo=CAMPO_MAP[acta.tipo_examen];
+  const conNota=alumnos.filter(a=>a[campo]!==null&&a[campo]!==undefined);
+  const faltantes=acta.alumnos_faltantes?JSON.parse(acta.alumnos_faltantes):[];
+  const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const fechaCierre=new Date(acta.fecha_cierre);
+  const fechaStr=`${fechaCierre.getDate()} de ${MESES[fechaCierre.getMonth()]} de ${fechaCierre.getFullYear()}`;
+  return `<div class="ph">
       ${logoSrc?`<img src="${logoSrc}" />`:''}
       <div class="ph-info">
         <div style="font-size:11px;color:#64748b;font-weight:600">${inst?.nombre||'Instituto Técnico Superior'}</div>
@@ -13352,8 +13378,23 @@ async function imprimirActaExamenCerrada(actaId){
       </div>
     </div>
     <div style="font-size:9px;color:#94a3b8;text-align:center;margin-top:20px">
-      Acta generada el ${acta.fecha_cierre?.slice(0,16).replace('T',' ')||''} · Sistema ITS · ID: ${actaId}
-    </div>
+      Acta generada el ${acta.fecha_cierre?.slice(0,16).replace('T',' ')||''} · Sistema ITS · ID: ${acta.id}
+    </div>`;
+}
+async function imprimirActaExamenCerrada(actaId){
+  try{
+    const actas=W._actasTodas||await api('GET','/api/actas-examen');
+    const acta=actas.find(a=>a.id===actaId);
+    if(!acta){toast('Acta no encontrada','err');return;}
+    const actaData=await api('GET','/api/notas/acta/'+acta.asignacion_id);
+    let logoSrc='';
+    try{const lr=await api('GET','/api/logo');if(lr?.logo)logoSrc=lr.logo;}catch(e){}
+    const body=_actaBodyHtml(acta,actaData,logoSrc);
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Acta ${acta.tipo_examen} — ${actaData.asig.materia_nombre}</title>
+    <style>${_ACTA_CSS}</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+    </head><body>
+    ${body}
     <div class="spacer"></div>
     <div class="no-print">
       <button onclick="window.print()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700">🖨 Imprimir</button>
@@ -13362,13 +13403,44 @@ async function imprimirActaExamenCerrada(actaId){
     </div>
     <script>
     function descargarActaPDF(){
-      html2pdf().set({margin:[10,12],filename:'acta_${acta.tipo_examen.replace(/ /g,'_')}_${(asig.materia_nombre||'').replace(/ /g,'_')}.pdf',image:{type:'jpeg',quality:.97},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(document.body).save();
+      html2pdf().set({margin:[10,12],filename:'acta_${acta.tipo_examen.replace(/ /g,'_')}_${(actaData.asig.materia_nombre||'').replace(/ /g,'_')}.pdf',image:{type:'jpeg',quality:.97},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(document.body).save();
     }
     <\/script>
     </body></html>`;
     const w=window.open('','_blank','width=900,height=700');
     w.document.write(html);w.document.close();
   }catch(e){toast('Error al generar acta: '+e.message,'err');}
+}
+async function imprimirActasSeleccionadas(){
+  const ids=[...document.querySelectorAll('.actaChk:checked')].map(c=>c.value);
+  if(!ids.length){toast('Seleccioná al menos un acta','warn');return;}
+  toast('Generando '+ids.length+' acta(s)...','info',5000);
+  try{
+    const actas=W._actasTodas||[];
+    let logoSrc='';
+    try{const lr=await api('GET','/api/logo');if(lr?.logo)logoSrc=lr.logo;}catch(e){}
+    const bloques=[];
+    for(const id of ids){
+      const acta=actas.find(a=>a.id===id);
+      if(!acta)continue;
+      const actaData=await api('GET','/api/notas/acta/'+acta.asignacion_id);
+      bloques.push(_actaBodyHtml(acta,actaData,logoSrc));
+    }
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Actas de examen (${bloques.length})</title>
+    <style>${_ACTA_CSS}
+      .acta-block{page-break-after:always}
+      .acta-block:last-child{page-break-after:auto}
+    </style></head><body>
+    ${bloques.map(b=>`<div class="acta-block">${b}</div>`).join('')}
+    <div class="spacer"></div>
+    <div class="no-print">
+      <button onclick="window.print()" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;font-weight:700">🖨 Imprimir todas</button>
+      <button onclick="window.close()" style="padding:10px 16px;background:#64748b;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px">✕ Cerrar</button>
+    </div>
+    </body></html>`;
+    const w=window.open('','_blank');
+    w.document.write(html); w.document.close();
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 async function guardarTodasNotas(asigId){

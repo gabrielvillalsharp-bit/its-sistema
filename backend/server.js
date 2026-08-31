@@ -3473,17 +3473,18 @@ app.post('/api/actas-examen', auth(['director','docente']), (req, res) => {
   try {
     const { asignacion_id, tipo_examen, alumnos_faltantes, observacion } = req.body;
     if (!asignacion_id || !tipo_examen) return res.status(400).json({ error: 'Faltan datos' });
-    const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
-    const docId = doc?.id || req.body.docente_id;
-    if (!docId && req.user.rol !== 'director') return res.status(400).json({ error: 'No se identificó al docente' });
+    const asig = db.prepare('SELECT periodo_id, docente_id FROM asignaciones WHERE id=?').get(asignacion_id);
+    if (!asig) return res.status(404).json({ error: 'Asignación no encontrada' });
+    // El acta siempre queda a nombre del docente titular de la asignación,
+    // sea quien sea (docente o director) quien la cierre.
+    const docId = asig.docente_id;
     // Verificar que no exista ya
     const existe = db.prepare("SELECT id FROM actas_examen WHERE asignacion_id=? AND tipo_examen=?").get(asignacion_id, tipo_examen);
     if (existe) return res.status(409).json({ error: 'Ya existe un acta cerrada para este examen. Solo el director puede desbloquearla.' });
-    const asig = db.prepare('SELECT periodo_id FROM asignaciones WHERE id=?').get(asignacion_id);
     const id = 'acta_' + Date.now();
     db.prepare(`INSERT INTO actas_examen (id,asignacion_id,tipo_examen,docente_id,estado,alumnos_faltantes,observacion,periodo_id,fecha_cierre)
       VALUES (?,?,?,?,?,?,?,?,datetime('now'))`)
-      .run(id, asignacion_id, tipo_examen, docId || req.user.id, 'cerrada',
+      .run(id, asignacion_id, tipo_examen, docId, 'cerrada',
         alumnos_faltantes ? JSON.stringify(alumnos_faltantes) : null, observacion || null, asig?.periodo_id || null);
     audit(req.user.id, 'CERRAR_ACTA', 'actas_examen', id, { asignacion_id, tipo_examen });
     res.json({ id, ok: true });
