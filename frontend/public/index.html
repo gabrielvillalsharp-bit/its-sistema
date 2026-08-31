@@ -8828,8 +8828,31 @@ async function pgCierreSemestre(el){
       ${periodos.map(p=>`<option value="${p.id}">${p.nombre} (destino)</option>`).join('')}
     </select>
   </div>
+  <div style="background:linear-gradient(135deg,#166534,#1f8246);border-radius:12px;padding:16px 18px;margin-bottom:18px;color:#fff">
+    <div style="font-weight:800;font-size:14px;margin-bottom:4px">🚀 Promover el semestre completo</div>
+    <div style="font-size:12.5px;opacity:.92;margin-bottom:12px">Clasifica y promueve automáticamente a todos los alumnos activos, sin tener que tildarlos uno por uno. Los "No Habilitados" quedan igual marcados para revisión — nunca se los fuerza.</div>
+    <div class="fb" style="gap:8px;flex-wrap:wrap">
+      <button class="bn" style="background:#fff;color:#166534" onclick="promoverTodoElSemestre('')">Promover TODAS las carreras</button>
+      <button class="bs" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4)" onclick="promoverTodoElSemestre(v('promoCarr'))">Promover solo la carrera seleccionada arriba</button>
+    </div>
+  </div>
   <div id="promoResumen"></div>
-  <div id="promoLista"><div class="es">Seleccioná una carrera para empezar</div></div>`;
+  <div id="promoLista"><div class="es">Seleccioná una carrera para revisar el detalle, o usá "Promover el semestre completo" arriba para procesar todo de una vez</div></div>`;
+}
+async function promoverTodoElSemestre(carreraId){
+  const periodoOrigen=v('promoPeriodoOrigen'),periodoDestino=v('promoPeriodoDestino');
+  if(!periodoOrigen)return alert('Elegí el período de origen');
+  const carrNom=carreraId?((W._carrsPromo||[]).find(c=>c.id===carreraId)?.nombre||carreraId):'TODAS las carreras';
+  const destNom=periodoDestino?(W._periodosPromo||[]).find(p=>String(p.id)===periodoDestino)?.nombre:'(sin vincular a un período destino)';
+  if(!confirm(`¿Promover TODO de una vez?\n\nAlcance: ${carrNom}\nDestino: ${destNom}\n\nEsto clasifica y confirma a TODOS los alumnos activos automáticamente. Puede tardar unos segundos si son muchos.`))return;
+  try{
+    toast('Procesando promoción masiva, esperá un momento...','info',8000);
+    const r=await api('POST','/api/promocion/confirmar-todo',{periodo_origen_id:periodoOrigen,periodo_destino_id:periodoDestino||null,carrera_id:carreraId||null});
+    const resumenTxt=Object.entries(r.resumen).map(([k,v])=>`${k}: ${v}`).join(' · ');
+    alert(`✓ Promoción masiva completada\n\nTotal procesados: ${r.total}\n${resumenTxt}`);
+    toast(`✓ ${r.total} alumnos procesados`,'ok',5000);
+    if(v('promoCarr')) cargarAnalisisPromocion();
+  }catch(e){alert('Error: '+e.message);}
 }
 async function pgExtraordinarios(el){
   const carrs=W._carrsPromo||await api('GET','/api/carreras');
@@ -17255,9 +17278,13 @@ async function pgMisNotas(el){
     api('GET','/api/extraordinarios/mis-pendientes').catch(()=>[]),
   ]);
   W._misNotas=notas;
-  const materias=[...new Set((notas||[]).map(n=>n.materia_nombre).filter(Boolean))].sort();
   const carrera=notas?.[0]?.carrera_nombre||'';
   const anio=notas?.[0]?.curso_anio||'';
+  // Períodos presentes en las notas del alumno, más reciente primero (activo primero si lo hay)
+  const periodosMap=new Map();
+  (notas||[]).forEach(n=>{ if(n.periodo_id!=null && !periodosMap.has(n.periodo_id)) periodosMap.set(n.periodo_id,{id:n.periodo_id,nombre:n.periodo_nombre,activo:n.periodo_activo}); });
+  const periodos=[...periodosMap.values()].sort((a,b)=>(b.activo?1:0)-(a.activo?1:0) || b.id-a.id);
+  W._misNotasPeriodoSel=periodos.find(p=>p.activo)?.id ?? periodos[0]?.id ?? null;
   el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3>
     ${carrera?`<span class="bx bb" style="font-size:12px">${carrera} ${anio?anio+'° año':''}</span>`:''}
   </div>
@@ -17269,18 +17296,37 @@ async function pgMisNotas(el){
       <span style="color:#666">Próxima instancia: Examen extraordinario – Diciembre</span>
     </div>`).join('')}
   </div>`:''}
+  ${periodos.length>1?`<div class="fb" style="gap:0;margin-bottom:14px;border-bottom:2px solid var(--bdr);flex-wrap:wrap">
+    ${periodos.map(p=>`<button id="perTabBtn_${p.id}" onclick="cambiarPeriodoMisNotas(${p.id})" style="padding:9px 16px;font-size:12.5px;font-weight:700;border:none;border-bottom:3px solid ${p.id===W._misNotasPeriodoSel?'#166534':'transparent'};background:transparent;cursor:pointer;color:${p.id===W._misNotasPeriodoSel?'#166534':'#64748b'}">${p.nombre}${p.activo?' (actual)':''}</button>`).join('')}
+  </div>`:''}
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
-    <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px">
-      <option value="">Todas las materias (${materias.length})</option>
-      ${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}
-    </select>
+    <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px"></select>
   </div>
-  <div id="tblMisNotas">${renderMisNotas(notas)}</div>
+  <div id="tblMisNotas"></div>
   <p style="font-size:11px;color:var(--t3);margin-top:8px">Las notas son de solo lectura. Para consultas comunicarse con la Secretaría.</p>`;
+  poblarSelectMisNotas();
+  filtMisNotas();
+}
+function cambiarPeriodoMisNotas(periodoId){
+  W._misNotasPeriodoSel=periodoId;
+  (W._misNotas||[]).forEach(n=>{}); // no-op, solo para claridad
+  document.querySelectorAll('[id^="perTabBtn_"]').forEach(b=>{
+    const esEste=b.id==='perTabBtn_'+periodoId;
+    b.style.borderBottomColor=esEste?'#166534':'transparent';
+    b.style.color=esEste?'#166534':'#64748b';
+  });
+  poblarSelectMisNotas();
+  filtMisNotas();
+}
+function poblarSelectMisNotas(){
+  const sel=document.getElementById('filtMisNotasMat'); if(!sel)return;
+  const delPeriodo=(W._misNotas||[]).filter(n=>W._misNotasPeriodoSel==null||n.periodo_id===W._misNotasPeriodoSel);
+  const materias=[...new Set(delPeriodo.map(n=>n.materia_nombre).filter(Boolean))].sort();
+  sel.innerHTML=`<option value="">Todas las materias (${materias.length})</option>${materias.map(m=>`<option value="${m}">${m}</option>`).join('')}`;
 }
 function filtMisNotas(){
   const mat=v('filtMisNotasMat');
-  let notas=W._misNotas||[];
+  let notas=(W._misNotas||[]).filter(n=>W._misNotasPeriodoSel==null||n.periodo_id===W._misNotasPeriodoSel);
   if(mat) notas=notas.filter(n=>n.materia_nombre===mat);
   const el=document.getElementById('tblMisNotas');
   if(el)el.innerHTML=renderMisNotas(notas);

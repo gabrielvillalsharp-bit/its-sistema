@@ -3335,7 +3335,7 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
     && calcularMesesDeuda(req.params.alumno_id).meses_deuda >= UMBRAL_BLOQUEO_NOTAS;
   const rows = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
-      p.nombre as periodo_nombre, ca.nombre as carrera_nombre, cu.anio as curso_anio,
+      p.id as periodo_id, p.nombre as periodo_nombre, p.activo as periodo_activo, ca.nombre as carrera_nombre, cu.anio as curso_anio,
       n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total, n.parcial, n.parcial_recuperatorio,
       n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario, n.ausente,
       n.puntaje_total, n.nota_final, n.estado, n.parcial_efectivo, n.final_efectivo, n.director_pts
@@ -5629,6 +5629,41 @@ app.get('/api/promocion/analisis', auth(ADM), (req, res) => {
   res.json(resultado);
 });
 
+// Confirma la promoción de UN alumno (clasifica, registra, crea extraordinarios y
+// vincula al período destino si corresponde). Reutilizado por el confirm manual
+// (alumnos seleccionados) y por "promover todo el semestre" (todos de una vez).
+function confirmarPromocionAlumno(alumnoId, periodo_origen_id, periodo_destino_id, usuarioId) {
+  const al = db.prepare('SELECT id, curso_id FROM alumnos WHERE id=?').get(alumnoId);
+  if (!al) return null;
+  const { conUno, estado } = clasificarAlumnoPromocion(alumnoId, al.curso_id, periodo_origen_id);
+
+  const existente = db.prepare('SELECT id FROM promocion_semestral WHERE alumno_id=? AND periodo_origen_id=?').get(alumnoId, periodo_origen_id);
+  if (existente) {
+    db.prepare(`UPDATE promocion_semestral SET estado=?,periodo_destino_id=?,fecha_promocion=datetime('now'),promovido_por=? WHERE id=?`)
+      .run(estado, periodo_destino_id || null, usuarioId, existente.id);
+  } else {
+    db.prepare(`INSERT INTO promocion_semestral (id,alumno_id,periodo_origen_id,periodo_destino_id,estado,promovido_por) VALUES (?,?,?,?,?,?)`)
+      .run('promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + periodo_origen_id, alumnoId, periodo_origen_id, periodo_destino_id || null, estado, usuarioId);
+  }
+
+  if (estado !== 'No Habilitado') {
+    conUno.forEach(n => {
+      const exId = 'extr_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + n.asignacion_id.replace(/[^a-z0-9]/gi, '');
+      db.prepare(`INSERT OR IGNORE INTO extraordinarios_pendientes (id,alumno_id,asignacion_id,nota_original,periodo_origen_id) VALUES (?,?,?,?,?)`)
+        .run(exId, alumnoId, n.asignacion_id, n.nota_final, periodo_origen_id);
+    });
+    // Vincular al alumno con las materias del período destino si aún no lo está
+    // (para semestres futuros; el 2do Semestre 2026 ya se vinculó en bloque vía seed)
+    if (periodo_destino_id) {
+      const asigsDestino = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(al.curso_id, periodo_destino_id);
+      asigsDestino.forEach(asig => {
+        const notaId = 'n_promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + asig.id.replace(/[^a-z0-9]/gi, '');
+        db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run(notaId, alumnoId, asig.id, 'Pendiente');
+      });
+    }
+  }
+  return { alumno_id: alumnoId, estado };
+}
 app.post('/api/promocion/confirmar', auth(ADM), (req, res) => {
   const { alumno_ids, periodo_origen_id, periodo_destino_id } = req.body;
   if (!Array.isArray(alumno_ids) || !alumno_ids.length || !periodo_origen_id) {
@@ -5637,40 +5672,34 @@ app.post('/api/promocion/confirmar', auth(ADM), (req, res) => {
   const resultados = [];
   db.transaction(() => {
     alumno_ids.forEach(alumnoId => {
-      const al = db.prepare('SELECT id, curso_id FROM alumnos WHERE id=?').get(alumnoId);
-      if (!al) return;
-      const { conUno, estado } = clasificarAlumnoPromocion(alumnoId, al.curso_id, periodo_origen_id);
-
-      const existente = db.prepare('SELECT id FROM promocion_semestral WHERE alumno_id=? AND periodo_origen_id=?').get(alumnoId, periodo_origen_id);
-      if (existente) {
-        db.prepare(`UPDATE promocion_semestral SET estado=?,periodo_destino_id=?,fecha_promocion=datetime('now'),promovido_por=? WHERE id=?`)
-          .run(estado, periodo_destino_id || null, req.user.id, existente.id);
-      } else {
-        db.prepare(`INSERT INTO promocion_semestral (id,alumno_id,periodo_origen_id,periodo_destino_id,estado,promovido_por) VALUES (?,?,?,?,?,?)`)
-          .run('promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + periodo_origen_id, alumnoId, periodo_origen_id, periodo_destino_id || null, estado, req.user.id);
-      }
-
-      if (estado !== 'No Habilitado') {
-        conUno.forEach(n => {
-          const exId = 'extr_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + n.asignacion_id.replace(/[^a-z0-9]/gi, '');
-          db.prepare(`INSERT OR IGNORE INTO extraordinarios_pendientes (id,alumno_id,asignacion_id,nota_original,periodo_origen_id) VALUES (?,?,?,?,?)`)
-            .run(exId, alumnoId, n.asignacion_id, n.nota_final, periodo_origen_id);
-        });
-        // Vincular al alumno con las materias del período destino si aún no lo está
-        // (para semestres futuros; el 2do Semestre 2026 ya se vinculó en bloque vía seed)
-        if (periodo_destino_id) {
-          const asigsDestino = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(al.curso_id, periodo_destino_id);
-          asigsDestino.forEach(asig => {
-            const notaId = 'n_promo_' + alumnoId.replace(/[^a-z0-9]/gi, '') + '_' + asig.id.replace(/[^a-z0-9]/gi, '');
-            db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run(notaId, alumnoId, asig.id, 'Pendiente');
-          });
-        }
-      }
-      resultados.push({ alumno_id: alumnoId, estado });
+      const r = confirmarPromocionAlumno(alumnoId, periodo_origen_id, periodo_destino_id, req.user.id);
+      if (r) resultados.push(r);
     });
   })();
   audit(req.user.id, 'PROMOCION_SEMESTRAL', 'promocion_semestral', periodo_origen_id, { cantidad: resultados.length, resultados });
   res.json({ ok: true, resultados });
+});
+// Promueve TODO el semestre de una vez: todos los alumnos activos (de una carrera
+// puntual, o de todas si no se manda carrera_id) en un solo paso, sin tener que
+// tildar alumno por alumno. Misma lógica de clasificación y el mismo resguardo de
+// siempre: un "No Habilitado" queda marcado para revisión, nunca se lo vincula a
+// materias nuevas ni se le fuerza una promoción real.
+app.post('/api/promocion/confirmar-todo', auth(ADM), (req, res) => {
+  const { periodo_origen_id, periodo_destino_id, carrera_id } = req.body;
+  if (!periodo_origen_id) return res.status(400).json({ error: 'periodo_origen_id requerido' });
+  let where = "WHERE al.estado='Activo'"; const params = [];
+  if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
+  const alumnos = db.prepare(`SELECT al.id FROM alumnos al ${where}`).all(...params);
+  const resultados = [];
+  db.transaction(() => {
+    alumnos.forEach(al => {
+      const r = confirmarPromocionAlumno(al.id, periodo_origen_id, periodo_destino_id, req.user.id);
+      if (r) resultados.push(r);
+    });
+  })();
+  const resumen = resultados.reduce((acc, r) => { acc[r.estado] = (acc[r.estado] || 0) + 1; return acc; }, {});
+  audit(req.user.id, 'PROMOCION_SEMESTRAL_MASIVA', 'promocion_semestral', periodo_origen_id, { carrera_id: carrera_id || 'todas', cantidad: resultados.length, resumen });
+  res.json({ ok: true, total: resultados.length, resumen });
 });
 
 // ── EXTRAORDINARIOS PENDIENTES (materias con nota 1, a rendir en diciembre) ──
