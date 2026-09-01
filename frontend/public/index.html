@@ -4644,8 +4644,13 @@ async function confirmarImportExcel(){
     if(r.omitidas)resumen+=` · ${r.omitidas} ya existía(n) y se omitieron`;
     if(r.conflictos?.length)resumen+=` · ⚠ ${r.conflictos.length} conflicto(s) de horario detectado(s)`;
     alert(resumen);
-    toast('✓ Importación completada','ok',5000);
-    go('materias');
+    toast('✓ Importación completada — mostrando el horario resultante','ok',5000);
+    // Ir directo al Horario Semanal del período/carrera recién importados, para
+    // ver de un vistazo cómo quedó ubicado (por año, con el selector de arriba).
+    const carreraNombre=(W._carrs||[]).find(c=>c.id===carreraId)?.nombre||'';
+    W._irAHorarioPeriodo=W._impPeriodoId;
+    W._irAHorarioCarrera=carreraNombre;
+    go('calendario-clases');
   }catch(e){alert('Error: '+e.message);}
 }
 
@@ -8694,7 +8699,12 @@ async function imprimirActaExamen(examenId, tipoOverride){
 // ── HORARIO SEMANAL DE CLASES ─────────────────────────────────────────────────
 async function pgCalClases(el){
   const periodos=await api('GET','/api/periodos').catch(()=>[]);
-  const periodoActivo=periodos.find(p=>p.activo)||periodos[0]||null;
+  W._periodosHorarioTodos=periodos;
+  // Si venimos redirigidos desde el importador de Excel, mostramos ESE período
+  // (que puede no ser el activo todavía) y limpiamos la marca — uso único.
+  const periodoDestinoId=W._irAHorarioPeriodo;
+  const periodoActivo=(periodoDestinoId&&periodos.find(p=>String(p.id)===String(periodoDestinoId)))
+    || periodos.find(p=>p.activo) || periodos[0] || null;
   W._periodoHorario=periodoActivo;
   // Docente y alumno reciben solo su propio recorte directo desde el servidor
   // (el alumno no puede pedir el curso de otro — se resuelve server-side).
@@ -8739,8 +8749,12 @@ async function pgCalClases(el){
     Estas entradas no deben aparecer en el horario. Revisá la sección <a href="#" onclick="go('materias');return false;" style="color:#166534;text-decoration:underline">Materias</a> y asigná un docente a cada materia.
     <label style="margin-left:12px;cursor:pointer"><input type="checkbox" id="filtHorOcultar" onchange="renderHorario()" checked> Ocultar sin docente</label>
   </div>`:'';
+  const carreraPreset=W._irAHorarioCarrera||'';
   el.innerHTML=`<div class="ph"><h3>📅 ${esAlumno?'Mi Horario':'Horario Semanal de Clases'}${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
     <div class="ph-right">
+      ${esDirector&&periodos.length>1?`<select id="filtHorPeriodo" onchange="cambiarPeriodoHorario(this.value)" style="min-width:170px;font-weight:700">
+        ${periodos.map(p=>`<option value="${p.id}" ${periodoActivo&&p.id===periodoActivo.id?'selected':''}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
+      </select>`:''}
     </div>
     <p style="font-size:12px;color:var(--t2)">Turno nocturno — 19:00 a 22:00 hs · Receso 20:20–20:40 hs${esDirector?' · Hacé clic en un bloque vacío (+) para asignar una materia, o en uno ocupado para quitarla':''}</p>
   </div>
@@ -8749,7 +8763,7 @@ async function pgCalClases(el){
   ${!esAlumno?`<div class="fb" style="margin-bottom:16px;gap:8px;flex-wrap:wrap">
     ${esDirector?`<select id="filtHorCarr" onchange="renderHorario()" style="min-width:160px">
       <option value="">Todas las carreras</option>
-      ${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      ${carreras.map(c=>`<option value="${c}" ${c===carreraPreset?'selected':''}>${c}</option>`).join('')}
     </select>`:''}
     <select id="filtHorAnio" onchange="renderHorario()" style="min-width:110px">
       <option value="">Todos los años</option>
@@ -8762,6 +8776,12 @@ async function pgCalClases(el){
   </div>`:''}
   <div id="tablaHorario" style="overflow-x:auto"></div>`;
   renderHorario();
+  // Marca de "venir del importador" es de un solo uso — se limpia después de aplicarla.
+  W._irAHorarioPeriodo=null; W._irAHorarioCarrera=null;
+}
+function cambiarPeriodoHorario(periodoId){
+  W._irAHorarioPeriodo=periodoId;
+  go('calendario-clases');
 }
 function renderHorario(){
   const dias=['Lunes','Martes','Miércoles','Jueves','Viernes'];
