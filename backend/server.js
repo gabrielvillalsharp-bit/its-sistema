@@ -2318,18 +2318,23 @@ app.post('/api/materias/importar-excel', auth(ADM), upload.single('archivo'), (r
       const docMatch = matchDocente(docenteExcel);
       if (docenteExcel && !docMatch) docentesNoEncontrados.add(docenteExcel);
 
-      const key = _normTxt(nombreMateria) + '|' + anio;
-      if (vistos.has(key)) continue; // misma materia ya vista (p.ej. varias filas del mismo bloque)
-      vistos.set(key, {
-        nombre: _capitalizar(nombreMateria),
-        anio,
-        dia: diaCanon,
-        turno,
-        hora_inicio: hora_inicio || '19:00',
-        hora_fin: hora_fin || '20:20',
-        docente_nombre_excel: docenteExcel,
-        docente_id: docMatch?.docente_id || null,
-        docente_nombre_match: docMatch ? `${docMatch.apellido}, ${docMatch.nombre}` : null,
+      // "Castellano y Guaraní" en una celda = dos materias distintas dictadas en el
+      // mismo horario/docente, no una sola con nombre compuesto — se separan acá.
+      const nombresIndividuales = nombreMateria.split(/\s+y\s+/i).map(s => s.trim()).filter(Boolean);
+      nombresIndividuales.forEach(nombreParte => {
+        const key = _normTxt(nombreParte) + '|' + anio;
+        if (vistos.has(key)) return; // misma materia ya vista (p.ej. varias filas del mismo bloque)
+        vistos.set(key, {
+          nombre: _capitalizar(nombreParte),
+          anio,
+          dia: diaCanon,
+          turno,
+          hora_inicio: hora_inicio || '19:00',
+          hora_fin: hora_fin || '20:20',
+          docente_nombre_excel: docenteExcel,
+          docente_id: docMatch?.docente_id || null,
+          docente_nombre_match: docMatch ? `${docMatch.apellido}, ${docMatch.nombre}` : null,
+        });
       });
     }
 

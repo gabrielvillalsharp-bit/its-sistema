@@ -4485,59 +4485,116 @@ function renderPreviewImportExcel(){
   const r=W._impPreview;
   const carrs=W._carrs||[];
   const carreraSelId=r.carrera_sugerida?.id||'';
-  modal(`<div style="max-height:85vh;overflow-y:auto;min-width:min(720px,92vw)">
-    <h4 style="margin-bottom:10px">📋 Revisar materias detectadas (${r.materias.length})</h4>
-    <div class="f" style="margin-bottom:10px"><label>Carrera <span style="color:var(--red)">*</span></label>
-      <select id="impCarrera" onchange="recalcularSeccionesImport()">
+  const nuevos=r.materias.filter(m=>!m.docente_id).length;
+  const reconocidos=r.materias.length-nuevos;
+  const anios=[...new Set(r.materias.map(m=>m.anio))].sort((a,b)=>a-b);
+  modal(`<div class="impWrap" style="max-height:85vh;overflow-y:auto;min-width:min(820px,94vw)">
+    <style>
+      .impWrap .impRow{position:relative;border:1.5px solid var(--bdr);border-radius:14px;padding:16px 18px 16px 22px;margin-bottom:12px;background:#fff;box-shadow:var(--shadow-sm);transition:box-shadow .2s,border-color .2s}
+      .impWrap .impRow:hover{box-shadow:var(--shadow-md);border-color:#cbd5c4}
+      .impWrap .impRow.impOff{opacity:.45}
+      .impWrap .impLbl{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px}
+      .impWrap .impNombreInput{font-size:15px;font-weight:800;border:none;border-bottom:1.5px solid transparent;padding:2px 0;background:transparent;width:100%;color:var(--txt)}
+      .impWrap .impNombreInput:focus{border-bottom-color:var(--green);outline:none}
+      .impWrap .impChipRow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+      .impWrap .impChip{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;font-size:12.5px;font-weight:700}
+      .impWrap .impSectionHead{display:flex;align-items:center;gap:10px;margin:20px 0 10px}
+      .impWrap .impSectionHead:first-of-type{margin-top:4px}
+      .impWrap .impGrid4{display:grid;grid-template-columns:64px 1fr 1fr 90px;gap:10px;margin-bottom:10px}
+      .impWrap .impGrid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+      .impWrap select,.impWrap input{font-size:12.5px}
+      @media (max-width:640px){.impWrap .impGrid4{grid-template-columns:1fr 1fr}}
+    </style>
+    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">
+      <div style="width:46px;height:46px;border-radius:13px;background:var(--gl);display:flex;align-items:center;justify-content:center;font-size:23px;flex-shrink:0">📋</div>
+      <div>
+        <h4 style="margin:0 0 3px;font-size:17px">Revisar materias detectadas</h4>
+        <p style="margin:0;font-size:12.5px;color:var(--t2)">Ajustá lo que haga falta antes de confirmar — cada campo es editable.</p>
+      </div>
+    </div>
+    <div class="impChipRow">
+      <div class="impChip" style="background:var(--gl);color:var(--green)">📚 ${r.materias.length} materia${r.materias.length!==1?'s':''} detectada${r.materias.length!==1?'s':''}</div>
+      ${reconocidos?`<div class="impChip" style="background:var(--gl);color:var(--green)">✓ ${reconocidos} docente${reconocidos!==1?'s':''} reconocido${reconocidos!==1?'s':''}</div>`:''}
+      ${nuevos?`<div class="impChip" style="background:var(--al);color:var(--amb)">⚠ ${nuevos} docente${nuevos!==1?'s':''} nuevo${nuevos!==1?'s':''}</div>`:''}
+    </div>
+    <div style="background:#fff;border:1.5px solid var(--bdr);border-radius:14px;padding:14px 16px;margin-bottom:18px;box-shadow:var(--shadow-sm)">
+      <label class="impLbl">Carrera destino</label>
+      <select id="impCarrera" onchange="recalcularSeccionesImport()" style="font-weight:700">
         <option value="">— Seleccionar —</option>
         ${carrs.map(c=>`<option value="${c.id}" ${c.id===carreraSelId?'selected':''}>${c.nombre}</option>`).join('')}
-      </select></div>
-    ${r.docentes_no_encontrados?.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;color:#92400e;margin-bottom:10px">
-      ⚠ ${r.docentes_no_encontrados.length} docente(s) del Excel no coinciden con ninguno existente — vas a poder crearlos abajo en cada fila.
+      </select>
+    </div>
+    ${r.docentes_no_encontrados?.length?`<div style="background:var(--al);border:1.5px solid #f3d29a;border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:18px">⚠</span>
+      <div style="font-size:12.5px;color:var(--amb)"><strong>${r.docentes_no_encontrados.length} docente(s) del Excel no coinciden con ninguno existente.</strong><br>Vas a poder crearlos en el momento, en cada fila marcada abajo.</div>
     </div>`:''}
-    <div id="impFilas">${r.materias.map((m,i)=>_filaImportMateria(m,i)).join('')}</div>
-    <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button>
-    <button class="bn" onclick="confirmarImportExcel()">✓ Crear materias seleccionadas</button></div>
+    ${anios.map(anio=>{
+      const filasAnio=r.materias.map((m,i)=>({m,i})).filter(x=>x.m.anio===anio);
+      return `<div class="impSectionHead">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${anio}°</div>
+        <div style="font-size:11.5px;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.03em">${anio}° año · ${filasAnio.length} materia${filasAnio.length!==1?'s':''}</div>
+        <div style="flex:1;height:1px;background:var(--bdr)"></div>
+      </div>
+      ${filasAnio.map(x=>_filaImportMateria(x.m,x.i)).join('')}`;
+    }).join('')}
+    <div class="mf" style="margin-top:12px;align-items:center">
+      <span id="impSelCount" style="font-size:12px;color:var(--t2);margin-right:auto"></span>
+      <button class="bs" onclick="cm()">Cancelar</button>
+      <button class="bn" onclick="confirmarImportExcel()">✓ Crear materias seleccionadas</button>
+    </div>
   </div>`,true);
   recalcularSeccionesImport();
+  _actualizarContadorImport();
+}
+function _actualizarContadorImport(){
+  const total=document.querySelectorAll('.impChk').length;
+  const sel=document.querySelectorAll('.impChk:checked').length;
+  const el=document.getElementById('impSelCount');
+  if(el)el.textContent=`${sel} de ${total} seleccionada${total!==1?'s':''}`;
+  document.querySelectorAll('.impChk').forEach(chk=>{
+    chk.closest('.impRow')?.classList.toggle('impOff',!chk.checked);
+  });
 }
 function _filaImportMateria(m,i){
   const docs=W._docsMat||[];
-  return `<div class="card" style="padding:10px 12px;margin-bottom:8px" data-idx="${i}">
-    <div class="fr">
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><input type="checkbox" class="impChk" checked data-idx="${i}"/> Incluir</label>
+  const matchOk=!!m.docente_id;
+  return `<div class="impRow" data-idx="${i}">
+    <div style="position:absolute;left:0;top:14px;bottom:14px;width:5px;border-radius:0 4px 4px 0;background:${matchOk?'var(--green)':'var(--amb)'}"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer">
+        <input type="checkbox" class="impChk" checked data-idx="${i}" onchange="_actualizarContadorImport()" style="width:17px;height:17px;flex-shrink:0;accent-color:var(--green)"/>
+        <input class="impNombre impNombreInput" data-idx="${i}" value="${m.nombre}"/>
+      </label>
+      <span class="bx" style="background:${matchOk?'var(--gl)':'var(--al)'};color:${matchOk?'var(--green)':'var(--amb)'};flex-shrink:0">${matchOk?'✓ Docente OK':'⚠ Nuevo'}</span>
     </div>
-    <div class="fr">
-      <div class="f"><label>Materia</label><input class="impNombre" data-idx="${i}" value="${m.nombre}"/></div>
-      <div class="f" style="max-width:90px"><label>Año</label><input class="impAnio" data-idx="${i}" type="number" min="1" max="4" value="${m.anio}"/></div>
-      <div class="f impSeccionWrap" data-idx="${i}"><label>Sección</label><select class="impSeccion" data-idx="${i}"></select></div>
-    </div>
-    <div class="fr">
-      <div class="f"><label>Día</label>
+    <div class="impGrid4">
+      <div><label class="impLbl">Año</label><input class="impAnio" data-idx="${i}" type="number" min="1" max="4" value="${m.anio}" onchange="recalcularSeccionesImport()"/></div>
+      <div class="impSeccionWrap" data-idx="${i}"><label class="impLbl">Sección</label><select class="impSeccion" data-idx="${i}"></select></div>
+      <div><label class="impLbl">Día</label>
         <select class="impDia" data-idx="${i}">
           ${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(d=>`<option ${m.dia===d?'selected':''}>${d}</option>`).join('')}
         </select></div>
-      <div class="f" style="max-width:90px"><label>Turno</label>
+      <div><label class="impLbl">Turno</label>
         <select class="impTurno" data-idx="${i}"><option value="1" ${m.turno===1?'selected':''}>1ra</option><option value="2" ${m.turno===2?'selected':''}>2da</option></select></div>
-      <div class="f"><label>Horario</label><input value="${m.hora_inicio} - ${m.hora_fin}" disabled style="opacity:.6"/></div>
     </div>
-    <div class="f">
-      <label>Docente ${m.docente_id?'':'<span style="color:#d97706">(sin coincidencia — revisar)</span>'}</label>
-      <select class="impDocente" data-idx="${i}" onchange="_toggleNuevoDocente(${i},this.value)">
-        <option value="">— Seleccionar —</option>
-        <option value="__nuevo__" ${!m.docente_id?'selected':''}>➕ Crear nuevo: ${m.docente_nombre_excel||'(sin nombre)'}</option>
-        ${docs.map(d=>`<option value="${d.docente_id}" ${m.docente_id===d.docente_id?'selected':''}>${d.apellido}, ${d.nombre}</option>`).join('')}
-      </select>
-      <div class="impNuevoDocWrap" data-idx="${i}" style="display:${!m.docente_id?'flex':'none'};gap:8px;margin-top:6px">
-        <input class="impDocNombre" data-idx="${i}" placeholder="Nombre" value="${(m.docente_nombre_excel||'').split(' ')[0]||''}" style="flex:1"/>
-        <input class="impDocApellido" data-idx="${i}" placeholder="Apellido" value="${(m.docente_nombre_excel||'').split(' ').slice(1).join(' ')}" style="flex:1"/>
-      </div>
+    <div class="impGrid2">
+      <div><label class="impLbl">🕐 Horario</label><input value="${m.hora_inicio} - ${m.hora_fin}" disabled style="opacity:.55"/></div>
+      <div><label class="impLbl">👤 Docente</label>
+        <select class="impDocente" data-idx="${i}" onchange="_toggleNuevoDocente(${i},this.value)">
+          <option value="">— Seleccionar —</option>
+          <option value="__nuevo__" ${!matchOk?'selected':''}>➕ Crear nuevo: ${m.docente_nombre_excel||'(sin nombre)'}</option>
+          ${docs.map(d=>`<option value="${d.docente_id}" ${m.docente_id===d.docente_id?'selected':''}>${d.apellido}, ${d.nombre}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="impNuevoDocWrap" data-idx="${i}" style="display:${!matchOk?'grid':'none'};grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <div><label class="impLbl">Nombre nuevo docente</label><input class="impDocNombre" data-idx="${i}" placeholder="Nombre" value="${(m.docente_nombre_excel||'').split(' ')[0]||''}"/></div>
+      <div><label class="impLbl">Apellido</label><input class="impDocApellido" data-idx="${i}" placeholder="Apellido" value="${(m.docente_nombre_excel||'').split(' ').slice(1).join(' ')}"/></div>
     </div>
   </div>`;
 }
 function _toggleNuevoDocente(i,val){
   const wrap=document.querySelector(`.impNuevoDocWrap[data-idx="${i}"]`);
-  if(wrap)wrap.style.display=val==='__nuevo__'?'flex':'none';
+  if(wrap)wrap.style.display=val==='__nuevo__'?'grid':'none';
 }
 function recalcularSeccionesImport(){
   const carreraId=v('impCarrera');
