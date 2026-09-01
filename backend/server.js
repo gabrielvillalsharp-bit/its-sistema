@@ -5869,42 +5869,6 @@ app.post('/api/asistencia/generar', auth(ADM), (req, res) => {
 });
 
 // ── PROMOCIÓN DE ALUMNOS A NUEVO PERIODO ──────────────────────────────────────
-app.post('/api/periodos/:id/promover', auth(ADM), (req, res) => {
-  const { modo, carrera_id, curso_origen_id, curso_destino_id } = req.body;
-  const nuevoPeriodo = db.prepare('SELECT * FROM periodos WHERE id=?').get(req.params.id);
-  if (!nuevoPeriodo) return res.status(404).json({ error: 'Período no encontrado' });
-
-  if (modo === 'continuidad') {
-    // Copiar todas las asignaciones del período anterior activo al nuevo
-    const periodoAnterior = db.prepare('SELECT id FROM periodos WHERE id != ? ORDER BY id DESC LIMIT 1').get(req.params.id);
-    if (!periodoAnterior) return res.status(400).json({ error: 'No hay período anterior' });
-    const asigs = db.prepare('SELECT * FROM asignaciones WHERE periodo_id=?').all(periodoAnterior.id);
-    let copiadas = 0;
-    const ins = db.prepare('INSERT OR IGNORE INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id) VALUES (?,?,?,?,?)');
-    db.transaction(() => {
-      asigs.forEach(a => {
-        ins.run('asig_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), a.docente_id, a.materia_id, a.curso_id, req.params.id);
-        copiadas++;
-      });
-    })();
-    return res.json({ ok: true, copiadas, modo: 'continuidad' });
-  }
-
-  if (modo === 'promocion') {
-    // Mover alumnos del curso origen al curso destino
-    if (!curso_origen_id || !curso_destino_id) return res.status(400).json({ error: 'Indicar curso origen y destino' });
-    const alumnos = db.prepare("SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'").all(curso_origen_id);
-    db.transaction(() => {
-      alumnos.forEach(al => {
-        db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_destino_id, al.id);
-      });
-    })();
-    return res.json({ ok: true, promovidos: alumnos.length, modo: 'promocion' });
-  }
-
-  res.status(400).json({ error: 'Modo no reconocido (continuidad|promocion)' });
-});
-
 // ── HABILITACIÓN ESPECIAL DE ALUMNO (ignorar bloqueo de mora) ─────────────────
 app.put('/api/alumnos/:id/habilitar-recuperatorio', auth(ADM), (req, res) => {
   const { asignacion_id } = req.body;

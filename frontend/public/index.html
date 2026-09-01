@@ -4445,8 +4445,10 @@ async function svMat(id,o,conConflicto){
 // ── PERÍODOS ──────────────────────────────────────────────────────────────────
 async function pgPeriodos(el){
   const d=await api('GET','/api/periodos');
+  const esDirec=me.rol==='director';
   el.innerHTML=`<div class="ph"><h3>Períodos académicos</h3>
     <div class="ph-right">
+      ${esDirec?`<button class="bs i" onclick="go('promocion')">🎓 Cierre / Promoción</button>`:''}
       <button class="bs o" onclick="mSegundoSemestre()">📅 2do Semestre</button>
       <button class="bn" onclick="mPer()">+ Nuevo período</button>
     </div></div>
@@ -4456,7 +4458,6 @@ async function pgPeriodos(el){
     <td><span class="bx ${p.activo?'bg':'bgr'}">${p.activo?'Activo':'Cerrado'}</span></td>
     <td><div class="abs">
       <button class="bs i" onclick="actP(${p.id})">${p.activo?'Cerrar':'Activar'}</button>
-      <button class="bs o" onclick="mPromover(${p.id},'${p.nombre}')">⚡ Promover</button>
       <button class="bs d" onclick="del('${p.id}','periodos')">Eliminar</button>
     </div></td></tr>`).join('')}
   </tbody></table></div></div>`;
@@ -4533,48 +4534,6 @@ async function svP(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function actP(id){await api('PUT','/api/periodos/'+id+'/activar');go('periodos');}
-async function mPromover(periodoId, periodoNombre){
-  const [carrs,cursos]=await Promise.all([api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  modal(`<h4>⚡ Asistente de Promoción — ${periodoNombre}</h4>
-  <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Selecciona cómo incorporar datos al nuevo período.</p>
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px">
-      <p style="font-weight:700;margin-bottom:6px">📋 Opción 1 — Continuidad</p>
-      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Copia todas las asignaciones del período anterior. Ideal para semestres sin cambios.</p>
-      <button class="bn" onclick="ejecutarContinuidad(${periodoId})" style="width:100%">Importar datos del período anterior</button>
-    </div>
-    <div style="border:1px solid var(--bdr);border-radius:10px;padding:14px">
-      <p style="font-weight:700;margin-bottom:6px">🎓 Opción 2 — Promoción masiva</p>
-      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Mueve alumnos de un curso a otro (ej: 1er año → 2do año).</p>
-      <div class="fg">
-        <div class="fr">
-          <div class="f"><label>Sección origen (año actual)</label>
-            <select id="prom_orig"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
-          <div class="f"><label>Sección destino (próximo año)</label>
-            <select id="prom_dest"><option value="">— Seleccionar —</option>${cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} — ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('')}</select></div>
-        </div>
-      </div>
-      <button class="bs i" onclick="ejecutarPromocion(${periodoId})" style="width:100%;margin-top:6px">Promover alumnos →</button>
-    </div>
-  </div>
-  <div id="promMsg" style="margin-top:10px"></div>
-  <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`);
-}
-async function ejecutarContinuidad(pid){
-  try{
-    const r=await api('POST','/api/periodos/'+pid+'/promover',{modo:'continuidad'});
-    document.getElementById('promMsg').innerHTML=`<div class="ir ok">✓ ${r.copiadas} asignaciones copiadas del período anterior</div>`;
-  }catch(e){document.getElementById('promMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
-}
-async function ejecutarPromocion(pid){
-  const orig=v('prom_orig'), dest=v('prom_dest');
-  if(!orig||!dest)return alert('Seleccionar curso origen y destino');
-  if(!confirm('¿Confirmar promoción masiva? Los alumnos cambiarán de curso.'))return;
-  try{
-    const r=await api('POST','/api/periodos/'+pid+'/promover',{modo:'promocion',curso_origen_id:orig,curso_destino_id:dest});
-    document.getElementById('promMsg').innerHTML=`<div class="ir ok">✓ ${r.promovidos} alumnos promovidos al nuevo curso</div>`;
-  }catch(e){document.getElementById('promMsg').innerHTML=`<div class="ir err">${e.message}</div>`;}
-}
 
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 async function pgDocentes(el){
@@ -10173,7 +10132,6 @@ function pgHubCarreras(el){
     ${_mCard('cursos','🚪','Cursos','Por carrera','#059669','#f0fdf4')}
     ${_mCard('materias','📖','Materias','Catálogo','#7c3aed','#f5f3ff')}
     ${_mCard('periodos','📅','Períodos','Ciclos académicos','#dc2626','#fef2f2')}
-    ${esDirec?_mCard('promocion','🎓','Cierre / Promoción','Pase de semestre','#d97706','#fffbeb'):''}
   </div>`;
 }
 function pgHubPersonas(el){
