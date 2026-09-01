@@ -2245,6 +2245,166 @@ app.delete('/api/materias/:id', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+// ── IMPORTAR MATERIAS DESDE EXCEL (horario tipo "Turno/Columna1/Nivel/Día/Franja/Horario/Materia/Docente") ──
+function _normTxt(s) {
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+}
+const _DIAS_CANON = { lunes:'Lunes', martes:'Martes', miercoles:'Miércoles', jueves:'Jueves', viernes:'Viernes', sabado:'Sábado', domingo:'Domingo' };
+function _capitalizar(s) {
+  return String(s||'').trim().toLowerCase().replace(/(^|\s)([a-záéíóúñ])/g, (m,p1,p2) => p1+p2.toUpperCase());
+}
+// Analiza el Excel y devuelve una previsualización — no escribe nada en la BD.
+app.post('/api/materias/importar-excel', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    if (!rows.length) return res.status(400).json({ error: 'El archivo está vacío' });
+
+    // Título (para sugerir carrera) — buscamos en las primeras filas la fila de encabezados real
+    const tituloRaw = String(rows[0]?.[0] || '');
+    let headerIdx = -1, cols = {};
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+      const row = rows[i].map(c => _normTxt(c));
+      const iMat = row.findIndex(c => c === 'materia');
+      const iDoc = row.findIndex(c => c === 'docente');
+      if (iMat >= 0 && iDoc >= 0) {
+        headerIdx = i;
+        cols.materia = iMat; cols.docente = iDoc;
+        cols.anio = row.findIndex(c => c.startsWith('columna') || c === 'año' || c === 'anio');
+        cols.dia = row.findIndex(c => c === 'dia');
+        cols.franja = row.findIndex(c => c === 'franja');
+        cols.horario = row.findIndex(c => c === 'horario');
+        break;
+      }
+    }
+    if (headerIdx < 0) return res.status(400).json({ error: 'No se encontraron las columnas Materia/Docente en el archivo' });
+
+    // Sugerir carrera comparando el título contra las carreras existentes
+    const carreras = db.prepare('SELECT id, nombre FROM carreras').all();
+    const tituloNorm = _normTxt(tituloRaw);
+    const carreraSugerida = carreras.find(c => tituloNorm.includes(_normTxt(c.nombre).split(' ')[0])) || null;
+
+    // Docentes existentes para matchear por nombre
+    const docentesDb = db.prepare(`SELECT u.id as usuario_id, u.nombre, u.apellido, d.id as docente_id FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente'`).all();
+    const matchDocente = (nombreExcel) => {
+      const norm = _normTxt(nombreExcel);
+      if (!norm) return null;
+      let m = docentesDb.find(d => _normTxt(`${d.nombre} ${d.apellido}`) === norm || _normTxt(`${d.apellido} ${d.nombre}`) === norm);
+      if (m) return m;
+      const tokensExcel = norm.split(' ').filter(Boolean);
+      m = docentesDb.find(d => {
+        const tokensDb = _normTxt(`${d.nombre} ${d.apellido}`).split(' ').filter(Boolean);
+        return tokensExcel.every(t => tokensDb.includes(t));
+      });
+      return m || null;
+    };
+
+    const vistos = new Map(); // dedup por nombre+año
+    const docentesNoEncontrados = new Set();
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const row = rows[i];
+      const nombreMateria = String(row[cols.materia]||'').trim();
+      if (!nombreMateria) continue;
+      const anioTxt = String(row[cols.anio]||'');
+      const anio = parseInt(anioTxt) || 1;
+      const diaTxt = String(row[cols.dia]||'').trim();
+      const diaCanon = _DIAS_CANON[_normTxt(diaTxt)] || _capitalizar(diaTxt) || null;
+      const franjaTxt = String(row[cols.franja]||'');
+      const turno = /2/.test(franjaTxt) ? 2 : 1;
+      const horarioTxt = String(row[cols.horario]||'');
+      const [hora_inicio, hora_fin] = horarioTxt.split('-').map(s => s.trim());
+      const docenteExcel = String(row[cols.docente]||'').trim();
+      const docMatch = matchDocente(docenteExcel);
+      if (docenteExcel && !docMatch) docentesNoEncontrados.add(docenteExcel);
+
+      const key = _normTxt(nombreMateria) + '|' + anio;
+      if (vistos.has(key)) continue; // misma materia ya vista (p.ej. varias filas del mismo bloque)
+      vistos.set(key, {
+        nombre: _capitalizar(nombreMateria),
+        anio,
+        dia: diaCanon,
+        turno,
+        hora_inicio: hora_inicio || '19:00',
+        hora_fin: hora_fin || '20:20',
+        docente_nombre_excel: docenteExcel,
+        docente_id: docMatch?.docente_id || null,
+        docente_nombre_match: docMatch ? `${docMatch.apellido}, ${docMatch.nombre}` : null,
+      });
+    }
+
+    res.json({
+      carrera_sugerida: carreraSugerida,
+      materias: [...vistos.values()],
+      docentes_no_encontrados: [...docentesNoEncontrados],
+    });
+  } catch(e) { res.status(400).json({ error: 'No se pudo leer el archivo: ' + e.message }); }
+});
+
+// Crea (si corresponde) los docentes nuevos, las materias y sus asignaciones con horario ya ubicado.
+app.post('/api/materias/importar-confirmar', auth(ADM), (req, res) => {
+  const { carrera_id, periodo_id, materias } = req.body;
+  if (!carrera_id || !periodo_id) return res.status(400).json({ error: 'carrera_id y periodo_id requeridos' });
+  if (!Array.isArray(materias) || !materias.length) return res.status(400).json({ error: 'Sin materias para importar' });
+  const PREFIJOS_CODIGO = { enf:'ENF', rad:'RAD', instr:'IQ', farm:'FAR', cosA:'COS', agro:'AGR', crim:'CRM', cont:'CONT', elec:'ELEC' };
+  try {
+    const docentesCreados = new Map(); // "nombre|apellido" normalizado -> docente_id, evita duplicar si se repite en varias filas
+    const resultado = { materias_creadas: 0, docentes_creados: 0, conflictos: [] };
+    const prefijo = PREFIJOS_CODIGO[carrera_id] || String(carrera_id).replace(/[^a-zA-Z]/g,'').slice(0,4).toUpperCase();
+    const codigosExistentes = new Set(db.prepare('SELECT codigo FROM materias WHERE carrera_id=?').all(carrera_id).map(r => r.codigo));
+    let siguienteNum = 101;
+    const generarCodigo = () => {
+      let codigo = `${prefijo}-${siguienteNum}`;
+      while (codigosExistentes.has(codigo)) { siguienteNum++; codigo = `${prefijo}-${siguienteNum}`; }
+      codigosExistentes.add(codigo); siguienteNum++;
+      return codigo;
+    };
+    db.transaction(() => {
+      materias.forEach(mat => {
+        let docenteId = mat.docente_id || null;
+        if (!docenteId && mat.docente_nuevo?.nombre) {
+          const key = _normTxt(mat.docente_nuevo.nombre) + '|' + _normTxt(mat.docente_nuevo.apellido||'');
+          if (docentesCreados.has(key)) {
+            docenteId = docentesCreados.get(key);
+          } else {
+            const sede = req.user.sede || 'pjc';
+            const uid = 'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+            const did = 'd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+            db.prepare('INSERT INTO usuarios (id,nombre,apellido,password_hash,rol) VALUES (?,?,?,?,?)').run(uid, mat.docente_nuevo.nombre, mat.docente_nuevo.apellido||'', bcrypt.hashSync('docente123',10), 'docente');
+            db.prepare('INSERT INTO docentes (id,usuario_id,sede_id) VALUES (?,?,?)').run(did, uid, sede);
+            docenteId = did;
+            docentesCreados.set(key, did);
+            resultado.docentes_creados++;
+          }
+        }
+        if (!docenteId) return; // sin docente no se puede crear la asignación — se omite
+
+        const curso = mat.curso_id
+          ? db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(mat.curso_id, carrera_id)
+          : db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND division=?').get(carrera_id, mat.anio, mat.division||'U');
+        if (!curso) return; // sección inexistente — se omite, el director puede crear la materia manualmente después
+
+        // Evitar duplicar si esta materia ya fue importada antes (mismo nombre+sección+período)
+        const yaExiste = db.prepare('SELECT id FROM materias WHERE carrera_id=? AND curso_id=? AND periodo_id=? AND lower(nombre)=lower(?)').get(carrera_id, curso.id, periodo_id, mat.nombre);
+        if (yaExiste) { resultado.omitidas = (resultado.omitidas||0) + 1; return; }
+
+        const matId = 'm_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+        db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,curso_id,docente_id,periodo_id,tipo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(matId, carrera_id, mat.nombre, mat.codigo||generarCodigo(), 4, mat.anio, 25, 25, 50, curso.id, docenteId, periodo_id, 'regular');
+        resultado.materias_creadas++;
+
+        const { conflicto } = crearAsignacionConHorario({
+          docente_id: docenteId, materia_id: matId, curso_id: curso.id, periodo_id,
+          dia: mat.dia||null, turno: mat.turno||1, hora_inicio: mat.hora_inicio, hora_fin: mat.hora_fin,
+        });
+        if (conflicto) resultado.conflictos.push({ materia: mat.nombre, con: `${conflicto.nombre} ${conflicto.apellido} — ${conflicto.mat}` });
+      });
+    })();
+    audit(req.user.id, 'IMPORTAR_MATERIAS_EXCEL', 'materias', carrera_id, resultado);
+    res.json({ ok: true, ...resultado });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+
 // ── DOCENTES ──────────────────────────────────────────────────────────────────
 app.get('/api/docentes', auth(), (req, res) => {
   const sede = req.user.sede || 'pjc';
@@ -2971,51 +3131,60 @@ app.get('/api/asignaciones', auth(), (req, res) => {
     JOIN periodos p ON a.periodo_id=p.id
     ${where} ORDER BY ca.nombre,cu.anio,cu.division,m.nombre`).all(...params));
 });
+// Crea una asignación con su horario, notas vacías y detección de conflicto de
+// docente. Compartida entre el alta manual (POST /api/asignaciones) y el
+// importador de materias por Excel — misma lógica, un solo lugar.
+function crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_id, dia, turno, hora_inicio, hora_fin, aula }) {
+  const id = 'asig_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  db.prepare('INSERT INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,docente_id,materia_id,curso_id,periodo_id,dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null);
+
+  // Crear espacio de notas vacías para todos los alumnos activos del curso
+  const alumnos = db.prepare("SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'").all(curso_id);
+  alumnos.forEach(al => {
+    try {
+      db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, id, 'Pendiente');
+    } catch {}
+  });
+
+  let conflictoDetectado = null;
+  // Registrar en horarios si tiene día asignado
+  if (dia) {
+    // Detectar conflicto REAL: el MISMO docente ya dando clase en OTRO curso
+    // (otra cohorte) al mismo día/turno — no puede estar en dos lugares a la
+    // vez. Dos materias distintas para el MISMO curso en el mismo día/turno
+    // NO es un conflicto (clase combinada, patrón normal acá).
+    const conflicto = db.prepare(`
+      SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
+      JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+      JOIN materias m ON a.materia_id=m.id
+      WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`).get(docente_id, curso_id, dia, turno||1, id, periodo_id);
+    if (conflicto) {
+      conflictoDetectado = conflicto;
+      const avisoId = 'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+      if (periodo) {
+        try {
+          db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
+            avisoId,
+            `⚠ Conflicto de horario detectado`,
+            `Se creó una asignación en ${dia} turno ${turno||1} donde ${conflicto.nombre} ${conflicto.apellido} ya tiene "${conflicto.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
+            'urgente', 1, 'u_director'
+          );
+        } catch {}
+      }
+    }
+    db.prepare('INSERT OR IGNORE INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,?)').run(id, dia, turno||1, hora_inicio||'19:00', hora_fin||'20:20', aula||null);
+  }
+  return { id, conflicto: conflictoDetectado };
+}
 app.post('/api/asignaciones', auth(ADM), (req, res) => {
   const { docente_id, materia_id, curso_id, periodo_id, dia, turno, hora_inicio, hora_fin, aula } = req.body;
   try {
-    const id = 'asig_'+Date.now();
+    let out;
     db.transaction(() => {
-      // Insertar la asignación con datos de horario
-      db.prepare('INSERT INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,docente_id,materia_id,curso_id,periodo_id,dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null);
-
-      // Crear espacio de notas vacías para todos los alumnos activos del curso
-      const alumnos = db.prepare("SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'").all(curso_id);
-      alumnos.forEach(al => {
-        try {
-          db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), al.id, id, 'Pendiente');
-        } catch {}
-      });
-
-      // Registrar en horarios si tiene día asignado
-      if (dia) {
-        // Detectar conflicto REAL: el MISMO docente ya dando clase en OTRO curso
-        // (otra cohorte) al mismo día/turno — no puede estar en dos lugares a la
-        // vez. Dos materias distintas para el MISMO curso en el mismo día/turno
-        // NO es un conflicto (clase combinada, patrón normal acá).
-        const conflicto = db.prepare(`
-          SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
-          JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
-          JOIN materias m ON a.materia_id=m.id
-          WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`).get(docente_id, curso_id, dia, turno||1, id, periodo_id);
-        if (conflicto) {
-          const avisoId = 'av_conf_'+Date.now();
-          const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-          if (periodo) {
-            try {
-              db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
-                avisoId,
-                `⚠ Conflicto de horario detectado`,
-                `Se creó una asignación en ${dia} turno ${turno||1} donde ${conflicto.nombre} ${conflicto.apellido} ya tiene "${conflicto.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
-                'urgente', 1, 'u_director'
-              );
-            } catch {}
-          }
-        }
-        db.prepare('INSERT OR IGNORE INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,?)').run(id, dia, turno||1, hora_inicio||'19:00', hora_fin||'20:20', aula||null);
-      }
+      out = crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_id, dia, turno, hora_inicio, hora_fin, aula });
     })();
-    res.json({ id, notas_creadas: true });
+    res.json({ id: out.id, notas_creadas: true });
   } catch(e) { res.status(400).json({ error: 'Esta asignación ya existe o hubo un error: '+e.message }); }
 });
 app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {

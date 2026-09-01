@@ -4296,7 +4296,10 @@ async function pgMaterias(el){
   ]);
   W._mats=mats;W._carrs=carrs;W._cursos=cursos;W._docsMat=docs;W._periodosMat=periodos;
   const anios=[...new Set(mats.map(m=>m.anio).filter(Boolean))].sort();
-  el.innerHTML=`<div class="ph"><h3>Materias</h3><button class="bn" onclick="mMateria()">+ Nueva materia</button></div>
+  el.innerHTML=`<div class="ph"><h3>Materias</h3><div class="ph-right">
+    <button class="bs o" onclick="mImportarExcel()">📥 Importar desde Excel</button>
+    <button class="bn" onclick="mMateria()">+ Nueva materia</button>
+  </div></div>
   <p class="tip" style="margin-bottom:10px">Al crear una materia asignás directamente Período, Sección, Docente, Día y Turno. Aparecerá automáticamente en Notas y Asistencia.</p>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
     <select id="filtMCarr" onchange="filtM()" style="min-width:180px"><option value="">Todas las carreras</option>${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
@@ -4438,6 +4441,153 @@ async function svMat(id,o,conConflicto){
     cm();
     if(conConflicto)toast('⚠ Materia guardada con conflicto — pendiente de revisión del Director','warn',5000);
     else toast('✓ Materia guardada y asignada automáticamente','ok');
+    go('materias');
+  }catch(e){alert('Error: '+e.message);}
+}
+
+// ── IMPORTAR MATERIAS DESDE EXCEL ───────────────────────────────────────────────
+function mImportarExcel(){
+  const periodos=W._periodosMat||[];
+  const perNoActivo=periodos.find(p=>!p.activo)||periodos[0];
+  modal(`<h4>📥 Importar materias desde Excel</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Subí el archivo de horario (columnas Turno/Año/Nivel/Día/Franja/Horario/Materia/Docente). El sistema detecta las materias, sugiere la carrera y el docente de cada una.</p>
+  <div class="fg">
+    <div class="f"><label>Período académico destino <span style="color:var(--red)">*</span></label>
+      <select id="impPeriodo">${periodos.map(p=>`<option value="${p.id}" ${perNoActivo&&p.id===perNoActivo.id?'selected':''}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}</select></div>
+    <div class="f"><label>Archivo Excel (.xlsx) <span style="color:var(--red)">*</span></label>
+      <label class="bs" style="cursor:pointer;width:100%;text-align:center;padding:10px">
+        📁 Seleccionar archivo
+        <input type="file" accept=".xlsx,.xls" id="impFile" style="display:none" onchange="document.getElementById('impFileName').textContent=this.files[0]?.name||''"/>
+      </label>
+      <div id="impFileName" style="margin-top:6px;font-size:11px;color:var(--t2)"></div>
+    </div>
+  </div>
+  <div id="impMsg" style="margin-top:8px"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="analizarExcelMaterias()">Analizar archivo →</button></div>`);
+}
+async function analizarExcelMaterias(){
+  const fileInput=document.getElementById('impFile');
+  const periodoId=v('impPeriodo');
+  const file=fileInput?.files?.[0];
+  if(!file)return toast('Seleccioná un archivo','warn');
+  const msg=document.getElementById('impMsg');
+  if(msg)msg.innerHTML='<div style="font-size:12px;color:var(--t2)">⏳ Analizando archivo...</div>';
+  try{
+    const fd=new FormData();fd.append('archivo',file);
+    const r=await api('POST','/api/materias/importar-excel',fd,true);
+    if(!r.materias?.length){if(msg)msg.innerHTML='<div class="ir err">No se detectaron materias en el archivo</div>';return;}
+    W._impPreview=r;W._impPeriodoId=periodoId;
+    cm();
+    renderPreviewImportExcel();
+  }catch(e){if(msg)msg.innerHTML=`<div class="ir err">${e.message}</div>`;}
+}
+function renderPreviewImportExcel(){
+  const r=W._impPreview;
+  const carrs=W._carrs||[];
+  const carreraSelId=r.carrera_sugerida?.id||'';
+  modal(`<div style="max-height:85vh;overflow-y:auto;min-width:min(720px,92vw)">
+    <h4 style="margin-bottom:10px">📋 Revisar materias detectadas (${r.materias.length})</h4>
+    <div class="f" style="margin-bottom:10px"><label>Carrera <span style="color:var(--red)">*</span></label>
+      <select id="impCarrera" onchange="recalcularSeccionesImport()">
+        <option value="">— Seleccionar —</option>
+        ${carrs.map(c=>`<option value="${c.id}" ${c.id===carreraSelId?'selected':''}>${c.nombre}</option>`).join('')}
+      </select></div>
+    ${r.docentes_no_encontrados?.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;color:#92400e;margin-bottom:10px">
+      ⚠ ${r.docentes_no_encontrados.length} docente(s) del Excel no coinciden con ninguno existente — vas a poder crearlos abajo en cada fila.
+    </div>`:''}
+    <div id="impFilas">${r.materias.map((m,i)=>_filaImportMateria(m,i)).join('')}</div>
+    <div class="mf" style="margin-top:12px"><button class="bs" onclick="cm()">Cancelar</button>
+    <button class="bn" onclick="confirmarImportExcel()">✓ Crear materias seleccionadas</button></div>
+  </div>`,true);
+  recalcularSeccionesImport();
+}
+function _filaImportMateria(m,i){
+  const docs=W._docsMat||[];
+  return `<div class="card" style="padding:10px 12px;margin-bottom:8px" data-idx="${i}">
+    <div class="fr">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)"><input type="checkbox" class="impChk" checked data-idx="${i}"/> Incluir</label>
+    </div>
+    <div class="fr">
+      <div class="f"><label>Materia</label><input class="impNombre" data-idx="${i}" value="${m.nombre}"/></div>
+      <div class="f" style="max-width:90px"><label>Año</label><input class="impAnio" data-idx="${i}" type="number" min="1" max="4" value="${m.anio}"/></div>
+      <div class="f impSeccionWrap" data-idx="${i}"><label>Sección</label><select class="impSeccion" data-idx="${i}"></select></div>
+    </div>
+    <div class="fr">
+      <div class="f"><label>Día</label>
+        <select class="impDia" data-idx="${i}">
+          ${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(d=>`<option ${m.dia===d?'selected':''}>${d}</option>`).join('')}
+        </select></div>
+      <div class="f" style="max-width:90px"><label>Turno</label>
+        <select class="impTurno" data-idx="${i}"><option value="1" ${m.turno===1?'selected':''}>1ra</option><option value="2" ${m.turno===2?'selected':''}>2da</option></select></div>
+      <div class="f"><label>Horario</label><input value="${m.hora_inicio} - ${m.hora_fin}" disabled style="opacity:.6"/></div>
+    </div>
+    <div class="f">
+      <label>Docente ${m.docente_id?'':'<span style="color:#d97706">(sin coincidencia — revisar)</span>'}</label>
+      <select class="impDocente" data-idx="${i}" onchange="_toggleNuevoDocente(${i},this.value)">
+        <option value="">— Seleccionar —</option>
+        <option value="__nuevo__" ${!m.docente_id?'selected':''}>➕ Crear nuevo: ${m.docente_nombre_excel||'(sin nombre)'}</option>
+        ${docs.map(d=>`<option value="${d.docente_id}" ${m.docente_id===d.docente_id?'selected':''}>${d.apellido}, ${d.nombre}</option>`).join('')}
+      </select>
+      <div class="impNuevoDocWrap" data-idx="${i}" style="display:${!m.docente_id?'flex':'none'};gap:8px;margin-top:6px">
+        <input class="impDocNombre" data-idx="${i}" placeholder="Nombre" value="${(m.docente_nombre_excel||'').split(' ')[0]||''}" style="flex:1"/>
+        <input class="impDocApellido" data-idx="${i}" placeholder="Apellido" value="${(m.docente_nombre_excel||'').split(' ').slice(1).join(' ')}" style="flex:1"/>
+      </div>
+    </div>
+  </div>`;
+}
+function _toggleNuevoDocente(i,val){
+  const wrap=document.querySelector(`.impNuevoDocWrap[data-idx="${i}"]`);
+  if(wrap)wrap.style.display=val==='__nuevo__'?'flex':'none';
+}
+function recalcularSeccionesImport(){
+  const carreraId=v('impCarrera');
+  document.querySelectorAll('.impSeccionWrap').forEach(wrap=>{
+    const i=wrap.dataset.idx;
+    const anio=parseInt(document.querySelector(`.impAnio[data-idx="${i}"]`)?.value)||1;
+    const sel=wrap.querySelector('.impSeccion');
+    const secciones=(W._cursos||[]).filter(cu=>cu.carrera_id===carreraId&&cu.anio===anio);
+    sel.innerHTML=secciones.length
+      ?secciones.map(cu=>`<option value="${cu.id}">${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')
+      :'<option value="">⚠ No existe esa sección</option>';
+  });
+}
+async function confirmarImportExcel(){
+  const carreraId=v('impCarrera');
+  if(!carreraId)return alert('Seleccioná la carrera');
+  const filas=[...document.querySelectorAll('.impChk:checked')].map(chk=>{
+    const i=chk.dataset.idx;
+    const seccionSel=document.querySelector(`.impSeccion[data-idx="${i}"]`);
+    const docSel=document.querySelector(`.impDocente[data-idx="${i}"]`);
+    const esNuevo=docSel?.value==='__nuevo__';
+    return {
+      nombre:document.querySelector(`.impNombre[data-idx="${i}"]`)?.value?.trim(),
+      anio:parseInt(document.querySelector(`.impAnio[data-idx="${i}"]`)?.value)||1,
+      curso_id:seccionSel?.value||'',
+      dia:document.querySelector(`.impDia[data-idx="${i}"]`)?.value,
+      turno:parseInt(document.querySelector(`.impTurno[data-idx="${i}"]`)?.value)||1,
+      hora_inicio:(W._impPreview.materias[i]?.hora_inicio)||'19:00',
+      hora_fin:(W._impPreview.materias[i]?.hora_fin)||'20:20',
+      docente_id:esNuevo?null:(docSel?.value||null),
+      docente_nuevo:esNuevo?{
+        nombre:document.querySelector(`.impDocNombre[data-idx="${i}"]`)?.value?.trim(),
+        apellido:document.querySelector(`.impDocApellido[data-idx="${i}"]`)?.value?.trim(),
+      }:null,
+    };
+  });
+  const sinSeccion=filas.filter(f=>!f.curso_id);
+  if(sinSeccion.length&&!confirm(`${sinSeccion.length} materia(s) no tienen una sección válida y se van a omitir. ¿Continuar igual?`))return;
+  const sinDocente=filas.filter(f=>!f.curso_id?false:(!f.docente_id&&!(f.docente_nuevo?.nombre)));
+  if(sinDocente.length)return alert('Hay materias sin docente asignado ni datos para crear uno nuevo');
+  try{
+    toast('Creando materias...','info',6000);
+    const r=await api('POST','/api/materias/importar-confirmar',{carrera_id:carreraId,periodo_id:W._impPeriodoId,materias:filas});
+    cm();
+    let resumen=`✓ ${r.materias_creadas} materia(s) creada(s)`;
+    if(r.docentes_creados)resumen+=` · ${r.docentes_creados} docente(s) nuevo(s) (clave inicial: docente123)`;
+    if(r.omitidas)resumen+=` · ${r.omitidas} ya existía(n) y se omitieron`;
+    if(r.conflictos?.length)resumen+=` · ⚠ ${r.conflictos.length} conflicto(s) de horario detectado(s)`;
+    alert(resumen);
+    toast('✓ Importación completada','ok',5000);
     go('materias');
   }catch(e){alert('Error: '+e.message);}
 }
