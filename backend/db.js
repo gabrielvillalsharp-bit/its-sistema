@@ -860,6 +860,19 @@ function init() {
   // que sigue sin periodo_id hasta que se le asigne uno manualmente si hace falta).
   // Obligatorio solo para materias creadas de acá en adelante (validado en el backend).
   try { db.prepare("ALTER TABLE materias ADD COLUMN periodo_id INTEGER REFERENCES periodos(id)").run(); } catch {}
+  // Backfill: materias del catálogo original (creadas antes de que existiera este
+  // campo) quedaron con periodo_id NULL, aunque TODAS sus asignaciones ya apuntan
+  // a período 1 (Año Lectivo 2026) — completa el dato para que dejen de mostrar
+  // "sin período" en Materias y entren bien en los filtros. Solo toca la materia
+  // si NINGUNA de sus asignaciones apunta a otro período (si hay ambigüedad, no
+  // se toca — se deja para revisión manual).
+  try {
+    db.prepare(`
+      UPDATE materias SET periodo_id=1
+      WHERE periodo_id IS NULL
+        AND id NOT IN (SELECT materia_id FROM asignaciones WHERE periodo_id != 1)
+    `).run();
+  } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_nombre TEXT").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_data BLOB").run(); } catch {}
   try { db.prepare("ALTER TABLE examenes ADD COLUMN archivo_tipo TEXT").run(); } catch {}
