@@ -4803,7 +4803,10 @@ async function svDoc(id){
   const o={nombre:v('dn'),apellido:v('dap'),ci:v('dci'),email:v('dem'),telefono:v('dtel'),titulo:v('dtit'),especialidad:v('desp')};
   if(!o.nombre||!o.apellido)return alert('Completar nombre y apellido');
   if(!id)o.password=v('dps')||'docente123';
-  id?await api('PUT','/api/docentes/'+id,o):await api('POST','/api/docentes',o);cm();go('docentes');
+  try{
+    id?await api('PUT','/api/docentes/'+id,o):await api('POST','/api/docentes',o);
+    cm();go('docentes');
+  }catch(e){alert('Error: '+e.message);}
 }
 function mPass(id){modal(`<h4>Cambiar contraseña</h4><div class="fg"><div class="f"><label>Nueva contraseña</label><input id="np" type="password" placeholder="Mín. 6 caracteres"/></div></div>
 <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="svPass('${id}')">Guardar</button></div>`);}

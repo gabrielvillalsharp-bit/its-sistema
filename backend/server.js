@@ -2426,20 +2426,31 @@ app.put('/api/docentes/:docente_id/wa-recordatorios', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/docentes', auth(ADM), (req, res) => {
-  const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
-  const sede = req.user.sede || 'pjc';
-  const uid = 'u_'+Date.now(), did = 'd_'+Date.now();
-  const ciDoc = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
-  db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,email,bcrypt.hashSync(password||'123456',10),'docente');
-  db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono,sede_id) VALUES (?,?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono,sede);
-  res.json({ id: uid, docente_id: did });
+  try {
+    const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
+    const sede = req.user.sede || 'pjc';
+    const uid = 'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), did = 'd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const ciDoc = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
+    // Email vacío como '' (no NULL) chocaría por UNIQUE contra el siguiente docente
+    // sin email — se guarda NULL cuando no se cargó uno real.
+    const emailDoc = email && email.trim() ? email.trim() : null;
+    db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,emailDoc,bcrypt.hashSync(password||'123456',10),'docente');
+    db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono,sede_id) VALUES (?,?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono,sede);
+    res.json({ id: uid, docente_id: did });
+  } catch(e) {
+    const dup = /UNIQUE constraint failed: usuarios\.(ci|email)/.exec(e.message);
+    if (dup) return res.status(400).json({ error: `Ya existe otro usuario con ese ${dup[1]==='ci'?'C.I.':'email'}` });
+    res.status(500).json({ error: 'Error al crear docente: ' + e.message });
+  }
 });
 app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
   try {
     const { nombre, apellido, ci, email, especialidad, titulo, telefono } = req.body;
     const uid = req.params.uid;
     // Actualizar nombre/apellido/email — NUNCA tocar ci en esta query para evitar UNIQUE conflict
-    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre, apellido||'', email, uid);
+    // Email vacío se guarda NULL (no '') para no chocar por UNIQUE contra otro docente sin email.
+    const emailDoc = email && String(email).trim() ? String(email).trim() : null;
+    db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre, apellido||'', emailDoc, uid);
     // Actualizar CI solo si viene un valor explícito distinto al actual
     const ciNueva = ci && String(ci).trim() && String(ci).trim() !== '0.000.000' ? String(ci).trim() : null;
     if (ciNueva) {
