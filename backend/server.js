@@ -3193,9 +3193,36 @@ app.post('/api/asignaciones', auth(ADM), (req, res) => {
   } catch(e) { res.status(400).json({ error: 'Esta asignación ya existe o hubo un error: '+e.message }); }
 });
 app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
-  const { dia, turno, hora_inicio, hora_fin, aula } = req.body;
+  const { dia, turno, hora_inicio, hora_fin, aula, docente_id } = req.body;
+  if (docente_id) db.prepare('UPDATE asignaciones SET docente_id=? WHERE id=?').run(docente_id, req.params.id);
   db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
+  let conflicto = null;
   if (dia) {
+    // Mismo chequeo de conflicto real que al crear: el docente ya dando clase en
+    // OTRO curso al mismo día/turno (ver crearAsignacionConHorario).
+    const asig = db.prepare('SELECT docente_id, curso_id, periodo_id FROM asignaciones WHERE id=?').get(req.params.id);
+    if (asig) {
+      const conf = db.prepare(`
+        SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
+        JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
+        JOIN materias m ON a.materia_id=m.id
+        WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`)
+        .get(asig.docente_id, asig.curso_id, dia, turno||1, req.params.id, asig.periodo_id);
+      if (conf) {
+        conflicto = conf;
+        const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+        if (periodo) {
+          try {
+            db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
+              'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+              `⚠ Conflicto de horario detectado`,
+              `Se movió una asignación a ${dia} turno ${turno||1} donde ${conf.nombre} ${conf.apellido} ya tiene "${conf.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
+              'urgente', 1, 'u_director'
+            );
+          } catch {}
+        }
+      }
+    }
     // horarios.asignacion_id no tiene UNIQUE — chequear existencia antes de insertar para no duplicar
     const yaExiste = db.prepare('SELECT id FROM horarios WHERE asignacion_id=?').get(req.params.id);
     if (yaExiste) {
@@ -3208,7 +3235,7 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
     // No borra la asignación ni las notas, solo su ubicación en el calendario.
     db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(req.params.id);
   }
-  res.json({ ok: true });
+  res.json({ ok: true, conflicto: conflicto ? `${conflicto.nombre} ${conflicto.apellido} — ${conflicto.mat}` : null });
 });
 app.put('/api/asignaciones/:id/docente', auth(ADM), (req, res) => {
   const { docente_id } = req.body;
