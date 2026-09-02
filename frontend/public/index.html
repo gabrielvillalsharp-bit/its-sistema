@@ -4642,7 +4642,11 @@ async function confirmarImportExcel(){
     let resumen=`✓ ${r.materias_creadas} materia(s) creada(s)`;
     if(r.docentes_creados)resumen+=` · ${r.docentes_creados} docente(s) nuevo(s) (clave inicial: docente123)`;
     if(r.omitidas)resumen+=` · ${r.omitidas} ya existía(n) y se omitieron`;
-    if(r.conflictos?.length)resumen+=` · ⚠ ${r.conflictos.length} conflicto(s) de horario detectado(s)`;
+    if(r.conflictos?.length){
+      resumen+=`\n\n⚠ ${r.conflictos.length} conflicto(s) de horario — mismo docente ya dando otra clase a esa hora:\n`;
+      resumen+=r.conflictos.map(c=>`  • "${c.materia}" choca con ${c.con}`).join('\n');
+      resumen+=`\n\nQuedaron marcados en rojo en el Horario Semanal.`;
+    }
     alert(resumen);
     toast('✓ Importación completada — mostrando el horario resultante','ok',5000);
     // Ir directo al Horario Semanal del período/carrera recién importados, para
@@ -8798,6 +8802,52 @@ function renderHorario(){
   const fa=document.getElementById('filtHorAnio')?.value||'';
   const fd=document.getElementById('filtHorDoc')?.value||'';
   const ocultarSinDoc=document.getElementById('filtHorOcultar')?.checked!==false;
+  // Conflictos: mismo docente, mismo día/turno, pero en cursos distintos — se
+  // calcula sobre TODO el horario del período (sin los filtros de arriba), para
+  // no perder de vista un conflicto que involucra una carrera que no estás mirando.
+  const todos=W._horarios||[];
+  const conflictKeys=new Map(); // "docenteId|dia|turno" -> [items]
+  todos.forEach(x=>{
+    if(!x.docente_id||!x.dia)return;
+    const k=x.docente_id+'|'+x.dia+'|'+x.turno;
+    if(!conflictKeys.has(k))conflictKeys.set(k,[]);
+    conflictKeys.get(k).push(x);
+  });
+  // Conflicto real = mismo docente, mismo día/turno, CURSO distinto Y MATERIA
+  // distinta (no puede dictar dos materias distintas a la vez). Si es la misma
+  // materia repetida en dos cursos/carreras es una clase unificada intencional
+  // (un docente dicta lo mismo a dos cohortes juntas), no un choque de horario.
+  const conflictos=[...conflictKeys.values()].filter(arr=>
+    new Set(arr.map(x=>x.curso_id)).size>1 && new Set(arr.map(x=>x.materia_nombre)).size>1
+  );
+  const conflictAsigIds=new Set(conflictos.flat().map(x=>x.asignacion_id));
+  const bannerConflictos=(me.rol==='director'&&conflictos.length)?`<div style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 16px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:800;color:#991b1b;margin-bottom:6px">⚠ ${conflictos.length} conflicto${conflictos.length!==1?'s':''} de horario — mismo docente en dos cursos a la misma hora</div>
+    ${conflictos.map(arr=>`<div style="font-size:11.5px;color:#7f1d1d;padding:3px 0">
+      <strong>${arr[0].docente_nombre} ${arr[0].docente_apellido}</strong> · ${arr[0].dia} · ${arr[0].turno===1?'1ra hora':'2da hora'} —
+      ${arr.map(x=>`"${x.materia_nombre}" (${x.carrera_nombre}${x.curso_division&&x.curso_division!=='U'?' '+x.curso_division:''} ${x.curso_anio}°)`).join(' ⚡ ')}
+    </div>`).join('')}
+  </div>`:'';
+  // Clases unificadas: misma materia, mismo docente, mismo día/turno, dictada a
+  // más de un curso/carrera a la vez a propósito (no es un choque de horario).
+  const unifKeys=new Map();
+  todos.forEach(x=>{
+    if(!x.docente_id||!x.dia||!x.materia_nombre)return;
+    const k=x.docente_id+'|'+x.dia+'|'+x.turno+'|'+x.materia_nombre;
+    if(!unifKeys.has(k))unifKeys.set(k,[]);
+    unifKeys.get(k).push(x);
+  });
+  const unificadas=[...unifKeys.values()].filter(arr=>new Set(arr.map(x=>x.curso_id)).size>1);
+  const unifAsigIds=new Set(unificadas.flat().map(x=>x.asignacion_id));
+  const bannerUnificadas=(me.rol==='director'&&unificadas.length)?`<details style="background:var(--pl);border:1.5px solid #c7c3f0;border-radius:10px;padding:10px 16px;margin-bottom:12px">
+    <summary style="font-size:12.5px;font-weight:800;color:var(--pur);cursor:pointer">🔗 ${unificadas.length} clase${unificadas.length!==1?'s':''} unificada${unificadas.length!==1?'s':''} — misma materia dictada junta a más de una carrera/año</summary>
+    <div style="margin-top:8px">
+    ${unificadas.map(arr=>`<div style="font-size:11.5px;color:#312e6b;padding:3px 0">
+      <strong>${arr[0].docente_nombre} ${arr[0].docente_apellido}</strong> · ${arr[0].dia} · ${arr[0].turno===1?'1ra hora':'2da hora'} · "${arr[0].materia_nombre}" —
+      ${arr.map(x=>`${x.carrera_nombre}${x.curso_division&&x.curso_division!=='U'?' '+x.curso_division:''} ${x.curso_anio}°`).join(' + ')}
+    </div>`).join('')}
+    </div>
+  </details>`:'';
   if(fc){
     if(fc==='Cosmiatría Secc. A')h=h.filter(x=>x.carrera_nombre==='Cosmiatría'&&x.curso_division==='A');
     else if(fc==='Cosmiatría Secc. B')h=h.filter(x=>x.carrera_nombre==='Cosmiatría'&&x.curso_division==='B');
@@ -8820,7 +8870,10 @@ function renderHorario(){
     return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px">
       ${items.map(i=>{
         const sinDocente=!i.docente_nombre;
-        return `<div ${clickable?`onclick="gestionarBloqueHorario('${i.asignacion_id}')"`:''} style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${sinDocente?'border:1px dashed #ef9a9a':''}${clickable?';cursor:pointer':''}" ${clickable?'title="Clic para editar (materia, día, turno, docente)"':''}>
+        const enConflicto=conflictAsigIds.has(i.asignacion_id);
+        const esUnificada=!enConflicto&&unifAsigIds.has(i.asignacion_id);
+        return `<div ${clickable?`onclick="gestionarBloqueHorario('${i.asignacion_id}')"`:''} style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${enConflicto?'border:2px solid #dc2626;box-shadow:0 0 0 1px #dc2626':esUnificada?'border:2px solid var(--pur);box-shadow:0 0 0 1px var(--pur)':sinDocente?'border:1px dashed #ef9a9a':''}${clickable?';cursor:pointer':''}" ${clickable?`title="${enConflicto?'⚠ Conflicto de horario — ':esUnificada?'🔗 Clase unificada con otra carrera/año — ':''}Clic para editar (materia, día, turno, docente)"`:''}>
+          ${enConflicto?'<div style="color:#dc2626;font-weight:800;font-size:10px;margin-bottom:2px">⚠ CONFLICTO</div>':esUnificada?'<div style="color:var(--pur);font-weight:800;font-size:10px;margin-bottom:2px">🔗 UNIFICADA</div>':''}
           <div style="font-weight:700;color:#333">${i.materia_nombre||'Sin materia'}</div>
           <div style="color:#555;margin-top:1px">${i.carrera_nombre||''}${i.curso_division&&i.curso_division!=='U'?' Secc. '+i.curso_division:''} ${i.curso_anio?i.curso_anio+'°':''}</div>
           ${me.rol!=='docente'?`<div style="color:${sinDocente?'#c62828':'#777'};font-size:10px;margin-top:2px">${sinDocente?'⚠ Sin docente asignado':(i.titulo?i.titulo+' ':'')+i.docente_nombre+' '+i.docente_apellido}</div>`:''}
@@ -8830,7 +8883,7 @@ function renderHorario(){
   };
   const el=document.getElementById('tablaHorario');
   if(!el)return;
-  el.innerHTML=`<table style="border-collapse:collapse;width:100%;font-size:12px">
+  el.innerHTML=`${bannerConflictos}${bannerUnificadas}<table style="border-collapse:collapse;width:100%;font-size:12px">
     <thead>
       <tr><th style="padding:8px 10px;background:#166534;color:#fff;border:1px solid #166534;min-width:100px">Turno / Horario</th>
       ${dias.map(d=>`<th style="padding:8px 10px;background:#166534;color:#fff;border:1px solid #166534;text-align:center">${d}</th>`).join('')}</tr>

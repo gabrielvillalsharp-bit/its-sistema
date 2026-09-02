@@ -3165,15 +3165,18 @@ function crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_i
   let conflictoDetectado = null;
   // Registrar en horarios si tiene día asignado
   if (dia) {
-    // Detectar conflicto REAL: el MISMO docente ya dando clase en OTRO curso
-    // (otra cohorte) al mismo día/turno — no puede estar en dos lugares a la
-    // vez. Dos materias distintas para el MISMO curso en el mismo día/turno
-    // NO es un conflicto (clase combinada, patrón normal acá).
+    // Detectar conflicto REAL: el MISMO docente ya dando OTRA MATERIA en OTRO
+    // curso al mismo día/turno — no puede estar en dos lugares a la vez.
+    // Si es la MISMA materia repetida en otro curso/carrera es una clase
+    // unificada intencional (el docente dicta lo mismo a dos cohortes juntas
+    // en el mismo horario), no un choque — se excluye explícitamente.
+    const nombreMateriaActual = db.prepare('SELECT nombre FROM materias WHERE id=?').get(materia_id)?.nombre || '';
     const conflicto = db.prepare(`
       SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
       JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
       JOIN materias m ON a.materia_id=m.id
-      WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`).get(docente_id, curso_id, dia, turno||1, id, periodo_id);
+      WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=? AND m.nombre!=?`)
+      .get(docente_id, curso_id, dia, turno||1, id, periodo_id, nombreMateriaActual);
     if (conflicto) {
       conflictoDetectado = conflicto;
       const avisoId = 'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
@@ -3209,16 +3212,17 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
   db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=?,aula=? WHERE id=?').run(dia||null,turno||1,hora_inicio||'19:00',hora_fin||'20:20',aula||null,req.params.id);
   let conflicto = null;
   if (dia) {
-    // Mismo chequeo de conflicto real que al crear: el docente ya dando clase en
-    // OTRO curso al mismo día/turno (ver crearAsignacionConHorario).
-    const asig = db.prepare('SELECT docente_id, curso_id, periodo_id FROM asignaciones WHERE id=?').get(req.params.id);
+    // Mismo chequeo de conflicto real que al crear: el docente ya dando OTRA
+    // MATERIA en OTRO curso al mismo día/turno (ver crearAsignacionConHorario).
+    // Misma materia repetida en otro curso = clase unificada, no conflicto.
+    const asig = db.prepare('SELECT a.docente_id, a.curso_id, a.periodo_id, m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.id);
     if (asig) {
       const conf = db.prepare(`
         SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
         JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
         JOIN materias m ON a.materia_id=m.id
-        WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`)
-        .get(asig.docente_id, asig.curso_id, dia, turno||1, req.params.id, asig.periodo_id);
+        WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=? AND m.nombre!=?`)
+        .get(asig.docente_id, asig.curso_id, dia, turno||1, req.params.id, asig.periodo_id, asig.materia_nombre);
       if (conf) {
         conflicto = conf;
         const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
