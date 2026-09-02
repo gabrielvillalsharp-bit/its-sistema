@@ -8806,46 +8806,65 @@ function renderHorario(){
   // calcula sobre TODO el horario del período (sin los filtros de arriba), para
   // no perder de vista un conflicto que involucra una carrera que no estás mirando.
   const todos=W._horarios||[];
-  const conflictKeys=new Map(); // "docenteId|dia|turno" -> [items]
+  // Set de materias que dicta cada docente, por curso, en cada día/turno —
+  // permite comparar CURSO CONTRA CURSO en vez de mirar el grupo entero, porque
+  // un tercer curso con una materia distinta no debe "contaminar" un par de
+  // cursos que sí coinciden (ej: Agro 1° y 2° dictan lo mismo combinado, pero
+  // Radiología a esa hora solo dicta una de esas dos materias).
+  const materiasPorSlotCurso=new Map(); // "docId|dia|turno|cursoId" -> Set(materia)
+  const cursosPorSlot=new Map(); // "docId|dia|turno" -> Set(cursoId)
   todos.forEach(x=>{
     if(!x.docente_id||!x.dia)return;
-    const k=x.docente_id+'|'+x.dia+'|'+x.turno;
-    if(!conflictKeys.has(k))conflictKeys.set(k,[]);
-    conflictKeys.get(k).push(x);
+    const kSlot=x.docente_id+'|'+x.dia+'|'+x.turno;
+    const kCurso=kSlot+'|'+x.curso_id;
+    if(!materiasPorSlotCurso.has(kCurso))materiasPorSlotCurso.set(kCurso,new Set());
+    materiasPorSlotCurso.get(kCurso).add(x.materia_nombre);
+    if(!cursosPorSlot.has(kSlot))cursosPorSlot.set(kSlot,new Set());
+    cursosPorSlot.get(kSlot).add(x.curso_id);
   });
-  // Conflicto real = mismo docente, mismo día/turno, CURSO distinto Y MATERIA
-  // distinta (no puede dictar dos materias distintas a la vez). Si es la misma
-  // materia repetida en dos cursos/carreras es una clase unificada intencional
-  // (un docente dicta lo mismo a dos cohortes juntas), no un choque de horario.
-  const conflictos=[...conflictKeys.values()].filter(arr=>
-    new Set(arr.map(x=>x.curso_id)).size>1 && new Set(arr.map(x=>x.materia_nombre)).size>1
-  );
-  const conflictAsigIds=new Set(conflictos.flat().map(x=>x.asignacion_id));
-  const bannerConflictos=(me.rol==='director'&&conflictos.length)?`<div style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 16px;margin-bottom:12px">
-    <div style="font-size:12.5px;font-weight:800;color:#991b1b;margin-bottom:6px">⚠ ${conflictos.length} conflicto${conflictos.length!==1?'s':''} de horario — mismo docente en dos cursos a la misma hora</div>
-    ${conflictos.map(arr=>`<div style="font-size:11.5px;color:#7f1d1d;padding:3px 0">
-      <strong>${arr[0].docente_nombre} ${arr[0].docente_apellido}</strong> · ${arr[0].dia} · ${arr[0].turno===1?'1ra hora':'2da hora'} —
-      ${arr.map(x=>`"${x.materia_nombre}" (${x.carrera_nombre}${x.curso_division&&x.curso_division!=='U'?' '+x.curso_division:''} ${x.curso_anio}°)`).join(' ⚡ ')}
+  const conflictAsigIds=new Set(), unifAsigIds=new Set();
+  const conflictPares=[], unifPares=[]; // para los banners, sin duplicar
+  const vistoPar=new Set();
+  todos.forEach(x=>{
+    if(!x.docente_id||!x.dia)return;
+    const kSlot=x.docente_id+'|'+x.dia+'|'+x.turno;
+    const otrosCursos=[...(cursosPorSlot.get(kSlot)||[])].filter(c=>c!==x.curso_id);
+    let esConflicto=false, esUnificada=false;
+    otrosCursos.forEach(otroCurso=>{
+      const materiasOtro=materiasPorSlotCurso.get(kSlot+'|'+otroCurso)||new Set();
+      const parKey=[x.curso_id,otroCurso].sort().join('~')+'|'+kSlot+'|'+x.materia_nombre;
+      if(materiasOtro.has(x.materia_nombre)){
+        esUnificada=true;
+        if(!vistoPar.has(parKey)){vistoPar.add(parKey);unifPares.push({a:x,cursoOtro:otroCurso});}
+      } else {
+        esConflicto=true;
+        const parKeyC=[x.curso_id,otroCurso].sort().join('~')+'|'+kSlot;
+        if(!vistoPar.has(parKeyC)){vistoPar.add(parKeyC);
+          const otraMateria=todos.find(y=>y.curso_id===otroCurso&&y.docente_id===x.docente_id&&y.dia===x.dia&&y.turno===x.turno);
+          conflictPares.push({a:x,b:otraMateria});
+        }
+      }
+    });
+    if(esConflicto)conflictAsigIds.add(x.asignacion_id);
+    else if(esUnificada)unifAsigIds.add(x.asignacion_id);
+  });
+  const bannerConflictos=(me.rol==='director'&&conflictPares.length)?`<div style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 16px;margin-bottom:12px">
+    <div style="font-size:12.5px;font-weight:800;color:#991b1b;margin-bottom:6px">⚠ ${conflictPares.length} conflicto${conflictPares.length!==1?'s':''} de horario — mismo docente, materias distintas, a la misma hora</div>
+    ${conflictPares.map(({a,b})=>`<div style="font-size:11.5px;color:#7f1d1d;padding:3px 0">
+      <strong>${a.docente_nombre} ${a.docente_apellido}</strong> · ${a.dia} · ${a.turno===1?'1ra hora':'2da hora'} —
+      "${a.materia_nombre}" (${a.carrera_nombre}${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''} ${a.curso_anio}°) ⚡ "${b?.materia_nombre||'?'}" (${b?.carrera_nombre||''}${b?.curso_division&&b.curso_division!=='U'?' '+b.curso_division:''} ${b?.curso_anio||''}°)
     </div>`).join('')}
   </div>`:'';
-  // Clases unificadas: misma materia, mismo docente, mismo día/turno, dictada a
-  // más de un curso/carrera a la vez a propósito (no es un choque de horario).
-  const unifKeys=new Map();
-  todos.forEach(x=>{
-    if(!x.docente_id||!x.dia||!x.materia_nombre)return;
-    const k=x.docente_id+'|'+x.dia+'|'+x.turno+'|'+x.materia_nombre;
-    if(!unifKeys.has(k))unifKeys.set(k,[]);
-    unifKeys.get(k).push(x);
-  });
-  const unificadas=[...unifKeys.values()].filter(arr=>new Set(arr.map(x=>x.curso_id)).size>1);
-  const unifAsigIds=new Set(unificadas.flat().map(x=>x.asignacion_id));
-  const bannerUnificadas=(me.rol==='director'&&unificadas.length)?`<details style="background:var(--pl);border:1.5px solid #c7c3f0;border-radius:10px;padding:10px 16px;margin-bottom:12px">
-    <summary style="font-size:12.5px;font-weight:800;color:var(--pur);cursor:pointer">🔗 ${unificadas.length} clase${unificadas.length!==1?'s':''} unificada${unificadas.length!==1?'s':''} — misma materia dictada junta a más de una carrera/año</summary>
+  const bannerUnificadas=(me.rol==='director'&&unifPares.length)?`<details style="background:var(--pl);border:1.5px solid #c7c3f0;border-radius:10px;padding:10px 16px;margin-bottom:12px">
+    <summary style="font-size:12.5px;font-weight:800;color:var(--pur);cursor:pointer">🔗 ${unifPares.length} clase${unifPares.length!==1?'s':''} unificada${unifPares.length!==1?'s':''} — misma materia dictada junta a más de una carrera/año</summary>
     <div style="margin-top:8px">
-    ${unificadas.map(arr=>`<div style="font-size:11.5px;color:#312e6b;padding:3px 0">
-      <strong>${arr[0].docente_nombre} ${arr[0].docente_apellido}</strong> · ${arr[0].dia} · ${arr[0].turno===1?'1ra hora':'2da hora'} · "${arr[0].materia_nombre}" —
-      ${arr.map(x=>`${x.carrera_nombre}${x.curso_division&&x.curso_division!=='U'?' '+x.curso_division:''} ${x.curso_anio}°`).join(' + ')}
-    </div>`).join('')}
+    ${unifPares.map(({a,cursoOtro})=>{
+      const otro=todos.find(y=>y.curso_id===cursoOtro&&y.docente_id===a.docente_id&&y.dia===a.dia&&y.turno===a.turno&&y.materia_nombre===a.materia_nombre);
+      return `<div style="font-size:11.5px;color:#312e6b;padding:3px 0">
+        <strong>${a.docente_nombre} ${a.docente_apellido}</strong> · ${a.dia} · ${a.turno===1?'1ra hora':'2da hora'} · "${a.materia_nombre}" —
+        ${a.carrera_nombre}${a.curso_division&&a.curso_division!=='U'?' '+a.curso_division:''} ${a.curso_anio}° + ${otro?.carrera_nombre||''}${otro?.curso_division&&otro.curso_division!=='U'?' '+otro.curso_division:''} ${otro?.curso_anio||''}°
+      </div>`;
+    }).join('')}
     </div>
   </details>`:'';
   if(fc){

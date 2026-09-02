@@ -3171,12 +3171,22 @@ function crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_i
     // unificada intencional (el docente dicta lo mismo a dos cohortes juntas
     // en el mismo horario), no un choque — se excluye explícitamente.
     const nombreMateriaActual = db.prepare('SELECT nombre FROM materias WHERE id=?').get(materia_id)?.nombre || '';
-    const conflicto = db.prepare(`
-      SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
+    // Comparar CURSO CONTRA CURSO (no "existe alguna fila con otra materia" en
+    // general): si el OTRO curso también dicta esta misma materia a esa hora,
+    // es clase unificada aunque ese curso tenga además otra materia combinada
+    // con un tercer curso que no coincide — eso no debe contaminar este par.
+    const otrasFilas = db.prepare(`
+      SELECT a.curso_id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
       JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
       JOIN materias m ON a.materia_id=m.id
-      WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=? AND m.nombre!=?`)
-      .get(docente_id, curso_id, dia, turno||1, id, periodo_id, nombreMateriaActual);
+      WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`)
+      .all(docente_id, curso_id, dia, turno||1, id, periodo_id);
+    const materiasPorCurso = new Map();
+    otrasFilas.forEach(r => { if (!materiasPorCurso.has(r.curso_id)) materiasPorCurso.set(r.curso_id, new Set()); materiasPorCurso.get(r.curso_id).add(r.mat); });
+    let conflicto = null;
+    for (const [cId, matSet] of materiasPorCurso) {
+      if (!matSet.has(nombreMateriaActual)) { conflicto = otrasFilas.find(r => r.curso_id === cId); break; }
+    }
     if (conflicto) {
       conflictoDetectado = conflicto;
       const avisoId = 'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
@@ -3217,12 +3227,20 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
     // Misma materia repetida en otro curso = clase unificada, no conflicto.
     const asig = db.prepare('SELECT a.docente_id, a.curso_id, a.periodo_id, m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(req.params.id);
     if (asig) {
-      const conf = db.prepare(`
-        SELECT a.id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
+      // Curso contra curso (ver crearAsignacionConHorario) — un tercer curso con
+      // otra materia combinada no debe invalidar un par que sí coincide.
+      const otrasFilas = db.prepare(`
+        SELECT a.curso_id, u.nombre, u.apellido, m.nombre as mat FROM asignaciones a
         JOIN docentes d ON a.docente_id=d.id JOIN usuarios u ON d.usuario_id=u.id
         JOIN materias m ON a.materia_id=m.id
-        WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=? AND m.nombre!=?`)
-        .get(asig.docente_id, asig.curso_id, dia, turno||1, req.params.id, asig.periodo_id, asig.materia_nombre);
+        WHERE a.docente_id=? AND a.curso_id!=? AND a.dia=? AND a.turno=? AND a.id!=? AND a.periodo_id=?`)
+        .all(asig.docente_id, asig.curso_id, dia, turno||1, req.params.id, asig.periodo_id);
+      const materiasPorCurso = new Map();
+      otrasFilas.forEach(r => { if (!materiasPorCurso.has(r.curso_id)) materiasPorCurso.set(r.curso_id, new Set()); materiasPorCurso.get(r.curso_id).add(r.mat); });
+      let conf = null;
+      for (const [cId, matSet] of materiasPorCurso) {
+        if (!matSet.has(asig.materia_nombre)) { conf = otrasFilas.find(r => r.curso_id === cId); break; }
+      }
       if (conf) {
         conflicto = conf;
         const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
