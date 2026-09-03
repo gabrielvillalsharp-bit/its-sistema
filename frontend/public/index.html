@@ -4500,8 +4500,9 @@ async function _bmcConfirmar(carreraId,periodoId,carNom,perNom){
   if(!mats.length)return;
   if(!confirm(`¿Seguro que querés borrar ${mats.length} materia(s) de ${carNom} — ${perNom}?\n\nSe borran también sus asignaciones, notas y horarios. Esta acción NO se puede deshacer.`))return;
   const nombreEsperado=carNom.trim();
-  const escrito=prompt(`Para confirmar, escribí el nombre de la carrera exactamente: "${nombreEsperado}"`);
-  if(escrito!==nombreEsperado){alert('No coincide — cancelado, no se borró nada.');return;}
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const escrito=prompt(`Para confirmar, escribí el nombre de la carrera: "${nombreEsperado}"`);
+  if(norm(escrito)!==norm(nombreEsperado)){alert('No coincide — cancelado, no se borró nada.');return;}
   try{
     toast(`Borrando ${mats.length} materia(s)...`,'info',6000);
     let ok=0,err=0;
