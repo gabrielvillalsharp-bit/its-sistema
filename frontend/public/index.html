@@ -8841,7 +8841,7 @@ async function pgCalClases(el){
   const carreraPreset=W._irAHorarioCarrera||'';
   el.innerHTML=`<div class="ph"><h3>📅 ${esAlumno?'Mi Horario':'Horario Semanal de Clases'}${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
     <div class="ph-right">
-      ${esDirector&&periodos.length>1?`<select id="filtHorPeriodo" onchange="cambiarPeriodoHorario(this.value)" style="min-width:170px;font-weight:700">
+      ${periodos.length>1?`<select id="filtHorPeriodo" onchange="cambiarPeriodoHorario(this.value)" style="min-width:170px;font-weight:700">
         ${periodos.map(p=>`<option value="${p.id}" ${periodoActivo&&p.id===periodoActivo.id?'selected':''}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
       </select>`:''}
     </div>
