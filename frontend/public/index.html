@@ -4297,6 +4297,7 @@ async function pgMaterias(el){
   W._mats=mats;W._carrs=carrs;W._cursos=cursos;W._docsMat=docs;W._periodosMat=periodos;
   const anios=[...new Set(mats.map(m=>m.anio).filter(Boolean))].sort();
   el.innerHTML=`<div class="ph"><h3>Materias</h3><div class="ph-right">
+    ${me.rol==='director'?`<button class="bs d" onclick="mBorrarMateriasCarrera()">🗑 Borrar materias de una carrera</button>`:''}
     <button class="bs o" onclick="mImportarExcel()">📥 Importar desde Excel</button>
     <button class="bn" onclick="mMateria()">+ Nueva materia</button>
   </div></div>
@@ -4441,6 +4442,74 @@ async function svMat(id,o,conConflicto){
     cm();
     if(conConflicto)toast('⚠ Materia guardada con conflicto — pendiente de revisión del Director','warn',5000);
     else toast('✓ Materia guardada y asignada automáticamente','ok');
+    go('materias');
+  }catch(e){alert('Error: '+e.message);}
+}
+
+// ── BORRAR MATERIAS DE UNA CARRERA (limpieza masiva) ────────────────────────────
+function mBorrarMateriasCarrera(){
+  const carrs=W._carrs||[];
+  const periodos=W._periodosMat||[];
+  modal(`<h4 style="margin-bottom:10px">🗑 Borrar materias de una carrera</h4>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Pensado para limpiar un import erróneo (ej. un seed viejo) antes de volver a cargar. Se borran las materias, sus asignaciones, notas y horarios — <strong>no se puede deshacer</strong>.</p>
+  <div class="fg">
+    <div class="fr">
+      <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
+        <select id="bmcCarrera" onchange="_bmcLimpiarPreview()">
+          <option value="">— Seleccionar —</option>
+          ${carrs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select></div>
+      <div class="f"><label>Período <span style="color:var(--red)">*</span></label>
+        <select id="bmcPeriodo" onchange="_bmcLimpiarPreview()">
+          <option value="">— Seleccionar —</option>
+          ${periodos.map(p=>`<option value="${p.id}">${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
+        </select></div>
+    </div>
+  </div>
+  <div class="mf" style="justify-content:flex-start;margin-top:10px"><button class="bs" onclick="_bmcVerPreview()">Ver materias que se van a borrar →</button></div>
+  <div id="bmcPreview" style="margin-top:12px"></div>
+  <div class="mf"><button class="bs" onclick="cm()">Cancelar</button></div>`);
+}
+function _bmcLimpiarPreview(){
+  const p=document.getElementById('bmcPreview');
+  if(p)p.innerHTML='';
+  W._bmcMats=null;
+}
+async function _bmcVerPreview(){
+  const carreraId=v('bmcCarrera'),periodoId=v('bmcPeriodo');
+  if(!carreraId||!periodoId)return alert('Elegí carrera y período');
+  const p=document.getElementById('bmcPreview');
+  p.innerHTML='<div style="font-size:12px;color:var(--t2)">⏳ Buscando...</div>';
+  const mats=(W._mats||await api('GET','/api/materias')).filter(m=>m.carrera_id===carreraId&&String(m.periodo_id)===String(periodoId));
+  W._bmcMats=mats;
+  const carNom=(W._carrs||[]).find(c=>c.id===carreraId)?.nombre||carreraId;
+  const perNom=(W._periodosMat||[]).find(x=>String(x.id)===String(periodoId))?.nombre||periodoId;
+  if(!mats.length){p.innerHTML=`<div class="es">No hay materias de ${carNom} en ${perNom}</div>`;return;}
+  p.innerHTML=`<div style="background:var(--al);border:1.5px solid #f3d29a;border-radius:10px;padding:12px 14px">
+    <div style="font-size:12.5px;font-weight:800;color:var(--amb);margin-bottom:8px">⚠ Se van a borrar ${mats.length} materia(s) de ${carNom} — ${perNom}</div>
+    <div style="max-height:200px;overflow-y:auto;font-size:12px;color:#7a4a1c">
+      ${mats.map(m=>`<div style="padding:2px 0">• ${m.nombre} (${m.codigo||'sin código'}) — ${m.anio}° año</div>`).join('')}
+    </div>
+  </div>
+  <div class="mf" style="justify-content:flex-start;margin-top:10px">
+    <button class="bn" style="background:linear-gradient(135deg,#dc2626,#991b1b)" onclick="_bmcConfirmar('${carreraId}','${periodoId}','${carNom.replace(/'/g,"\\'")}','${perNom.replace(/'/g,"\\'")}')">🗑 Borrar estas ${mats.length} materias</button>
+  </div>`;
+}
+async function _bmcConfirmar(carreraId,periodoId,carNom,perNom){
+  const mats=W._bmcMats||[];
+  if(!mats.length)return;
+  if(!confirm(`¿Seguro que querés borrar ${mats.length} materia(s) de ${carNom} — ${perNom}?\n\nSe borran también sus asignaciones, notas y horarios. Esta acción NO se puede deshacer.`))return;
+  const nombreEsperado=carNom.trim();
+  const escrito=prompt(`Para confirmar, escribí el nombre de la carrera exactamente: "${nombreEsperado}"`);
+  if(escrito!==nombreEsperado){alert('No coincide — cancelado, no se borró nada.');return;}
+  try{
+    toast(`Borrando ${mats.length} materia(s)...`,'info',6000);
+    let ok=0,err=0;
+    for(const m of mats){
+      try{await api('DELETE','/api/materias/'+m.id);ok++;}catch(e){err++;}
+    }
+    cm();
+    toast(`✓ ${ok} materia(s) borrada(s)${err?` · ⚠ ${err} con error`:''}`,'ok',5000);
     go('materias');
   }catch(e){alert('Error: '+e.message);}
 }
