@@ -2271,7 +2271,10 @@ app.post('/api/materias/importar-excel', auth(ADM), upload.single('archivo'), (r
       if (iMat >= 0 && iDoc >= 0) {
         headerIdx = i;
         cols.materia = iMat; cols.docente = iDoc;
-        cols.anio = row.findIndex(c => c.startsWith('columna') || c === 'año' || c === 'anio');
+        // 'c' ya pasó por _normTxt (NFD + quitar diacríticos), así que "Año" queda
+        // como "ano" (la ñ se descompone en n + tilde combinante, que se elimina) —
+        // comparar contra el literal "año" con ñ nunca iba a matchear.
+        cols.anio = row.findIndex(c => c.startsWith('columna') || c === 'ano' || c === 'anio');
         cols.dia = row.findIndex(c => c === 'dia');
         cols.franja = row.findIndex(c => c === 'franja');
         cols.horario = row.findIndex(c => c === 'horario');
