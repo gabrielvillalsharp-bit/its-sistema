@@ -4569,7 +4569,7 @@ function _filaImportMateria(m,i){
     </div>
     <div class="impGrid4">
       <div><label class="impLbl">Año</label><input class="impAnio" data-idx="${i}" type="number" min="1" max="4" value="${m.anio}" onchange="recalcularSeccionesImport()"/></div>
-      <div class="impSeccionWrap" data-idx="${i}"><label class="impLbl">Sección</label><select class="impSeccion" data-idx="${i}"></select></div>
+      <div class="impSeccionWrap" data-idx="${i}"><label class="impLbl">Sección</label><div class="impSeccionOpts" data-idx="${i}" style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-top:6px"></div></div>
       <div><label class="impLbl">Día</label>
         <select class="impDia" data-idx="${i}">
           ${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(d=>`<option ${m.dia===d?'selected':''}>${d}</option>`).join('')}
@@ -4601,25 +4601,35 @@ function recalcularSeccionesImport(){
   document.querySelectorAll('.impSeccionWrap').forEach(wrap=>{
     const i=wrap.dataset.idx;
     const anio=parseInt(document.querySelector(`.impAnio[data-idx="${i}"]`)?.value)||1;
-    const sel=wrap.querySelector('.impSeccion');
+    const opts=wrap.querySelector('.impSeccionOpts');
     const secciones=(W._cursos||[]).filter(cu=>cu.carrera_id===carreraId&&cu.anio===anio);
-    sel.innerHTML=secciones.length
-      ?secciones.map(cu=>`<option value="${cu.id}">${cu.division==='U'?'Única':'Secc. '+cu.division}</option>`).join('')
-      :'<option value="">⚠ No existe esa sección</option>';
+    if(!secciones.length){
+      opts.innerHTML='<span style="font-size:11.5px;color:var(--amb)">⚠ No existe esa sección</span>';
+      return;
+    }
+    // Si hay una sola sección para ese año, se aplica directo (sin checkbox de por medio).
+    // Si hay MÁS de una (ej. Cosmiatría 1° A/B), se listan todas marcadas por
+    // defecto — la misma materia suele dictarse a ambas secciones juntas — pero
+    // quedan visibles y destildables para no repetir el error de asumir una sola.
+    if(secciones.length===1){
+      opts.innerHTML=`<label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="impSeccionChk" data-idx="${i}" value="${secciones[0].id}" checked style="accent-color:var(--green)"/> ${secciones[0].division==='U'?'Única':'Secc. '+secciones[0].division}</label>`;
+    } else {
+      opts.innerHTML=`<div style="font-size:10px;color:var(--amb);font-weight:700;width:100%;margin-bottom:2px">⚠ ${secciones.length} secciones — revisá cuáles corresponden</div>`
+        +secciones.map(cu=>`<label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" class="impSeccionChk" data-idx="${i}" value="${cu.id}" checked style="accent-color:var(--green)"/> Secc. ${cu.division}</label>`).join('');
+    }
   });
 }
 async function confirmarImportExcel(){
   const carreraId=v('impCarrera');
   if(!carreraId)return alert('Seleccioná la carrera');
-  const filas=[...document.querySelectorAll('.impChk:checked')].map(chk=>{
+  const filas=[...document.querySelectorAll('.impChk:checked')].flatMap(chk=>{
     const i=chk.dataset.idx;
-    const seccionSel=document.querySelector(`.impSeccion[data-idx="${i}"]`);
+    const cursoIds=[...document.querySelectorAll(`.impSeccionChk[data-idx="${i}"]:checked`)].map(c=>c.value);
     const docSel=document.querySelector(`.impDocente[data-idx="${i}"]`);
     const esNuevo=docSel?.value==='__nuevo__';
-    return {
+    const base={
       nombre:document.querySelector(`.impNombre[data-idx="${i}"]`)?.value?.trim(),
       anio:parseInt(document.querySelector(`.impAnio[data-idx="${i}"]`)?.value)||1,
-      curso_id:seccionSel?.value||'',
       dia:document.querySelector(`.impDia[data-idx="${i}"]`)?.value,
       turno:parseInt(document.querySelector(`.impTurno[data-idx="${i}"]`)?.value)||1,
       hora_inicio:(W._impPreview.materias[i]?.hora_inicio)||'19:00',
@@ -4630,9 +4640,11 @@ async function confirmarImportExcel(){
         apellido:document.querySelector(`.impDocApellido[data-idx="${i}"]`)?.value?.trim(),
       }:null,
     };
+    if(!cursoIds.length)return[{...base,curso_id:''}]; // sin sección marcada — se omite, avisado abajo
+    return cursoIds.map(curso_id=>({...base,curso_id}));
   });
   const sinSeccion=filas.filter(f=>!f.curso_id);
-  if(sinSeccion.length&&!confirm(`${sinSeccion.length} materia(s) no tienen una sección válida y se van a omitir. ¿Continuar igual?`))return;
+  if(sinSeccion.length&&!confirm(`${sinSeccion.length} materia(s) no tienen ninguna sección marcada y se van a omitir. ¿Continuar igual?`))return;
   const sinDocente=filas.filter(f=>!f.curso_id?false:(!f.docente_id&&!(f.docente_nuevo?.nombre)));
   if(sinDocente.length)return alert('Hay materias sin docente asignado ni datos para crear uno nuevo');
   try{
