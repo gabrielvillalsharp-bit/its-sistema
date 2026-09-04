@@ -16696,7 +16696,16 @@ function autoMontoArancel(){
     ar=aranceles.find(a=>a.tipo===specificMap[concepto])||aranceles.find(a=>a.tipo==='parcial'&&concepto.includes('Parcial'))||aranceles.find(a=>a.tipo==='final'&&concepto.includes('Final'));
   } else {
     const tipo=Object.entries(genericMap).find(([k])=>concepto&&concepto.includes(k))?.[1];
-    ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
+    if(tipo==='cuota'){
+      // La cuota mensual varía por año del alumno (1° año Gs.300.000, 2° año Gs.400.000) —
+      // antes tomaba siempre la PRIMERA fila tipo='cuota' sin filtrar por año, así que a un
+      // alumno de 2do año se le seguía precargando el monto de 1er año.
+      const alPago=(W._pdata?.als||[]).find(a=>String(a.id)===String(W._pagoSel));
+      const anioAl=Number(alPago?.curso_anio)||1;
+      ar=aranceles.find(a=>a.tipo==='cuota'&&Number(a.anio)===anioAl)||aranceles.find(a=>a.tipo==='cuota');
+    } else {
+      ar=tipo?aranceles.find(a=>a.tipo===tipo):null;
+    }
   }
   if(ar){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=ar.monto;}
 }
