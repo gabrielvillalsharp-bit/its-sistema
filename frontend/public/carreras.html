@@ -329,10 +329,12 @@ function renderStep3(c){ // Valores + Requisitos
     ${tile('req','📋','Requisitos — documentos', `
       <ul class="reqs">${REQ_COMUNES.map(r => `<li>${r}</li>`).join('')}</ul>`)}
     ${tile('val','💰','Valores', `
-      <div class="precio-grid">
+      <div class="precio-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="precio matricula"><div class="l">Matrícula</div><div class="v">GRATIS</div></div>
-        <div class="precio"><div class="l">Cuota mensual</div><div class="v">Gs. ${c.cuota}</div></div>
+        <div class="precio"><div class="l">Cuota 1° año</div><div class="v">Gs. 300.000</div></div>
+        <div class="precio"><div class="l">Cuota 2° año</div><div class="v">Gs. 400.000</div></div>
       </div>
+      <div style="font-size:11px;color:var(--ink-dim);margin-top:8px">La cuota de 2° año rige a partir de agosto de 2026.</div>
       <div class="testi-title">Testimonios de alumnos</div>
       <div class="testi" id="testiBox">
         <div class="testi-txt" id="testiTxt"></div>
