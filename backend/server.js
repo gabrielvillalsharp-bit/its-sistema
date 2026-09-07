@@ -890,6 +890,16 @@ try {
   }
 } catch(e) { console.warn('[Migración] avisos constraint:', e.message); }
 
+// ── MIGRACIÓN DE DATOS: avisos de "Conflicto de horario detectado" que llegaron
+// a todos por error ── Bug: se insertaban sin destinatario, cayendo en el default
+// 'todos' → le aparecían a alumnos y docentes en vez de solo al director. El
+// código ya se corrigió para usar destinatario='director'; esto repara los que
+// ya se habían creado antes del fix.
+try {
+  const rConf = db.prepare("UPDATE avisos SET destinatario='director' WHERE titulo='⚠ Conflicto de horario detectado' AND destinatario!='director'").run();
+  if (rConf.changes) console.log(`[Migración] ${rConf.changes} aviso(s) de conflicto de horario corregidos a destinatario='director' ✓`);
+} catch(e) { console.warn('[Migración] avisos conflicto horario:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: restaura notas perdidas por bug de cache vacio en updN ──
 // Ver commit 5e1d7c1: guardar una nota sin haber cargado antes la grilla completa
 // mandaba la fila entera con campos ausentes como '', que el backend guardaba como
@@ -3193,14 +3203,16 @@ function crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_i
     if (conflicto) {
       conflictoDetectado = conflicto;
       const avisoId = 'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-      const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-      if (periodo) {
+      const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+      if (director) {
         try {
-          db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
+          // destinatario='director' (no el default 'todos') — este aviso es interno
+          // de gestión de horarios, no debe llegarle a alumnos ni docentes.
+          db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
             avisoId,
             `⚠ Conflicto de horario detectado`,
             `Se creó una asignación en ${dia} turno ${turno||1} donde ${conflicto.nombre} ${conflicto.apellido} ya tiene "${conflicto.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
-            'urgente', 1, 'u_director'
+            'urgente', 1, 'director', director.id
           );
         } catch {}
       }
@@ -3246,14 +3258,15 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
       }
       if (conf) {
         conflicto = conf;
-        const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-        if (periodo) {
+        const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
+        if (director) {
           try {
-            db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,usuario_id) VALUES (?,?,?,?,?,?)').run(
+            // destinatario='director' — ver nota en crearAsignacionConHorario
+            db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)').run(
               'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
               `⚠ Conflicto de horario detectado`,
               `Se movió una asignación a ${dia} turno ${turno||1} donde ${conf.nombre} ${conf.apellido} ya tiene "${conf.mat}" en otro curso al mismo horario. Revisar asignaciones.`,
-              'urgente', 1, 'u_director'
+              'urgente', 1, 'director', director.id
             );
           } catch {}
         }

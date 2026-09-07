@@ -8971,7 +8971,7 @@ function renderHorario(){
     return `<td style="border:1px solid var(--bdr);padding:6px;vertical-align:top;min-width:150px">
       ${items.map(i=>{
         const sinDocente=!i.docente_nombre;
-        const enConflicto=conflictAsigIds.has(i.asignacion_id);
+        const enConflicto=me.rol==='director'&&conflictAsigIds.has(i.asignacion_id);
         const esUnificada=!enConflicto&&unifAsigIds.has(i.asignacion_id);
         return `<div ${clickable?`onclick="gestionarBloqueHorario('${i.asignacion_id}')"`:''} style="background:${sinDocente?'#ffebee':getColor(i)};border-radius:6px;padding:5px 8px;margin-bottom:4px;font-size:11px;${enConflicto?'border:2px solid #dc2626;box-shadow:0 0 0 1px #dc2626':esUnificada?'border:2px solid var(--pur);box-shadow:0 0 0 1px var(--pur)':sinDocente?'border:1px dashed #ef9a9a':''}${clickable?';cursor:pointer':''}" ${clickable?`title="${enConflicto?'⚠ Conflicto de horario — ':esUnificada?'🔗 Clase unificada con otra carrera/año — ':''}Clic para editar (materia, día, turno, docente)"`:''}>
           ${enConflicto?'<div style="color:#dc2626;font-weight:800;font-size:10px;margin-bottom:2px">⚠ CONFLICTO</div>':esUnificada?'<div style="color:var(--pur);font-weight:800;font-size:10px;margin-bottom:2px">🔗 UNIFICADA</div>':''}
