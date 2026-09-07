@@ -11565,6 +11565,33 @@ app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── ALUMNOS SIN NINGÚN REGISTRO (candidatos a "cáscara vacía") ────────────────
+// Criterio: sin usuario de acceso, sin ninguna nota y sin ningún pago — o sea,
+// nunca se les cargó nada real desde que se crearon (típico de una importación
+// a medio terminar o un alta de prueba). No filtra por estado porque un alumno
+// activo de verdad casi siempre tiene al menos notas (se crean automáticamente
+// al asignarle curso) o un usuario_id.
+app.get('/api/alumnos/sin-registros', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT a.id, a.estado, a.fecha_ingreso,
+        COALESCE(a.nombre,u.nombre,'') as nombre,
+        COALESCE(a.apellido,u.apellido,'') as apellido,
+        COALESCE(a.ci,u.ci,'') as ci, a.telefono,
+        c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
+      FROM alumnos a
+      LEFT JOIN usuarios u ON a.usuario_id=u.id
+      LEFT JOIN carreras c ON a.carrera_id=c.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id
+      WHERE a.usuario_id IS NULL
+        AND NOT EXISTS (SELECT 1 FROM notas n WHERE n.alumno_id=a.id)
+        AND NOT EXISTS (SELECT 1 FROM pagos p WHERE p.alumno_id=a.id)
+      ORDER BY COALESCE(a.apellido,u.apellido)
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // /webhook/whatsapp ya está registrado arriba como alias de manejarWebhookWA
 
 // ── PANEL DE INTERESADOS (admisiones bot) ────────────────────────────────────
