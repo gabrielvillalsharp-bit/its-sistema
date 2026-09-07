@@ -3691,6 +3691,19 @@ function waMostrarMensaje(idx){
 }
 
 // ── AVISOS ────────────────────────────────────────────────────────────────────
+// Mapea el título de un aviso auto-generado a la sección donde se puede
+// corroborar/corregir el problema, para que el clic navegue ahí en vez de
+// simplemente desaparecer el aviso sin poder hacer nada con él.
+function destinoAviso(titulo){
+  const t=(titulo||'').toLowerCase();
+  if(t.includes('conflicto de horario'))return 'calendario-clases';
+  if(t.includes('pérdida de nota')||t.includes('perdida de nota'))return 'notas';
+  if(t.includes('solicitud de registro'))return 'solicitudes';
+  if(t.includes('reemplazo'))return 'reemplazos';
+  if(t.includes('examen programado')||t.includes('recuperatorio')||t.includes('archivo adjunto en examen'))return 'examenes';
+  if(t.includes('whatsapp'))return 'whatsapp';
+  return null;
+}
 async function pgAvisos(el){
   // Ocultar notificaciones mientras el usuario está en la sección de avisos
   const nb=document.getElementById('nav-avisos-btn');
@@ -3704,7 +3717,7 @@ async function pgAvisos(el){
   ]);
   const puedeEditar=me.rol==='director'||me.rol==='docente';
   const esDirector=me.rol==='director';
-  const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos'};
+  const destLabel={todos:'Todos',docentes:'Solo docentes',alumnos:'Solo alumnos',director:'Solo director'};
 
   // Para docente: cargar sus próximos exámenes
   let misExamenes=[];
@@ -3745,6 +3758,16 @@ async function pgAvisos(el){
     if(card){card.style.opacity='0';card.style.transform='translateY(-6px)';card.style.transition='all 0.25s';setTimeout(()=>{card.remove();checkNotifAvisos();},260);}
     else{checkNotifAvisos();}
   }
+  // Clic en el aviso: si es de un tipo con sección relacionada, navega ahí para
+  // corroborar/corregir; si no, se comporta como antes (solo marcar leído).
+  function irAvisoDestino(id){
+    const vst=JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]');
+    if(!vst.includes(id)){vst.push(id);localStorage.setItem('its_avisos_vistos',JSON.stringify(vst));}
+    const a=avisos.find(x=>x.id===id);
+    const destino=destinoAviso(a?.titulo);
+    if(destino)go(destino);
+    else marcarAvisoLeido(id);
+  }
   const avisosLeidos=avisos.filter(a=>vistos.has(a.id));
   // Avisos académicos vs. del sistema (pedido del director, para mejor organización) —
   // 'sistema' hoy es solo lo técnico/infraestructura (ej. watchdog de WhatsApp); todo lo
@@ -3755,7 +3778,9 @@ async function pgAvisos(el){
   function renderAvisoCard(a,leido=false){
     const tipoIco={urgente:'🔴',examen:'🔵',administrativo:'🟡',info:'🟢'};
     const ico=tipoIco[a.tipo]||'⚪';
-    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" data-tipo="${a.tipo}" data-categoria="${a.categoria||'academico'}" style="${leido?'opacity:0.6;border-left-style:dashed;':''}cursor:pointer;position:relative" onclick="marcarAvisoLeido('${a.id}')" title="Clic para marcar como leído">
+    const destino=destinoAviso(a.titulo);
+    const tipTexto=destino?'Clic para ir a la sección relacionada':'Clic para marcar como leído';
+    return `<div id="av-${a.id}" class="aviso-card ${a.tipo}" data-tipo="${a.tipo}" data-categoria="${a.categoria||'academico'}" style="${leido?'opacity:0.6;border-left-style:dashed;':''}cursor:pointer;position:relative" onclick="irAvisoDestino('${a.id}')" title="${tipTexto}">
     ${!leido?'<div style="position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#3b82f6"></div>':''}
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;padding-right:${!leido?'16px':'0'}">
       <span class="aviso-titulo">${a.fijado?'📌 ':''}${ico} ${a.titulo}</span>
@@ -3768,7 +3793,7 @@ async function pgAvisos(el){
     <div style="font-size:13px;margin-top:8px;line-height:1.5">${a.contenido}</div>
     <div class="aviso-meta" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
       <span>Por: ${a.autor_nombre} ${a.autor_apellido||''} · ${a.fecha_creacion?.split('T')[0]||''}</span>
-      ${!leido?'<em style="color:#3b82f6;font-size:10px;font-weight:600">● Clic para marcar como leído</em>':'<em style="color:var(--t3)">✓ Leído</em>'}
+      ${leido?'<em style="color:var(--t3)">✓ Leído</em>':destino?'<em style="color:#166534;font-size:10px;font-weight:600">➜ Clic para revisar y corregir</em>':'<em style="color:#3b82f6;font-size:10px;font-weight:600">● Clic para marcar como leído</em>'}
     </div>
   </div>`;
   }
@@ -3793,6 +3818,7 @@ async function pgAvisos(el){
     });
   };
   W.marcarAvisoLeido=marcarAvisoLeido;
+  W.irAvisoDestino=irAvisoDestino;
 
   function buildCatSeccion(subset,catKey){
     const sinLeer=subset.filter(a=>!vistos.has(a.id));
@@ -3820,7 +3846,7 @@ async function pgAvisos(el){
       <div style="flex:1;height:1px;background:#bfdbfe"></div>
       <span style="font-size:11px;font-weight:800;color:#1d4ed8;white-space:nowrap">🔵 SIN LEER — ${sinLeer.length}</span>
       <div style="flex:1;height:1px;background:#bfdbfe"></div>
-      ${puedeEditar?`<button onclick="[...document.querySelectorAll('#avisos-cat-${catKey} [id^=av-]')].forEach(c=>c.click())" style="padding:4px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Leer todos</button>`:''}
+      ${puedeEditar?`<button onclick="[...document.querySelectorAll('#avisos-cat-${catKey} [id^=av-]')].forEach(c=>W.marcarAvisoLeido(c.id.replace('av-','')))" style="padding:4px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Leer todos</button>`:''}
     </div>
     ${sinLeer.map(a=>renderAvisoCard(a,false)).join('')}`:''}
     <!-- Leídos -->
@@ -3852,7 +3878,7 @@ async function pgAvisos(el){
 
   el.innerHTML=`<div class="ph"><h3>Avisos y comunicados</h3>
     <div class="ph-right">
-      ${avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>c.click())" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
+      ${avisosSinLeer.length?`<button class="bs" onclick="[...document.querySelectorAll('[id^=av-]')].forEach(c=>W.marcarAvisoLeido(c.id.replace('av-','')))" title="Marcar todos como leídos">✓ Leer todos</button>`:''}
       ${vistos.size?`<button class="bs" style="background:#fef2f2;border-color:#fca5a5;color:#dc2626" onclick="limpiarAvisosLeidos()" title="Eliminar los ya leídos de la vista">🗑 Limpiar leídos (${vistos.size})</button>`:''}
       ${puedeEditar?`<button class="bn" onclick="mAviso()">+ Nuevo aviso</button>`:''}
       ${me.rol==='docente'?`<button class="bs o" onclick="mAvisoDirector()" title="Enviar mensaje privado al Director">✉ Avisar al Director</button>`:''}
