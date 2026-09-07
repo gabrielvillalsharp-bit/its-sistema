@@ -11566,28 +11566,45 @@ app.get('/api/alumnos/depuracion', auth(ADM), (req, res) => {
 });
 
 // ── ALUMNOS SIN NINGÚN REGISTRO (candidatos a "cáscara vacía") ────────────────
-// Criterio: sin usuario de acceso, sin ninguna nota y sin ningún pago — o sea,
-// nunca se les cargó nada real desde que se crearon (típico de una importación
-// a medio terminar o un alta de prueba). No filtra por estado porque un alumno
-// activo de verdad casi siempre tiene al menos notas (se crean automáticamente
-// al asignarle curso) o un usuario_id.
+// Criterio (afinado con casos reales, ver auditoría 2026-09-07):
+// 1. Ninguna de sus filas de notas tiene NINGÚN valor cargado (TP/parcial/final/etc).
+//    Nota: la fila de notas SIEMPRE existe para un alumno con curso asignado (se
+//    crea vacía automáticamente) — exigir "no exista la fila" casi nunca detecta
+//    nada real; lo que importa es que esté vacía, no que falte.
+// 2. Sin ningún pago.
+// 3. Ingresó ANTES del inicio del semestre/período activo más reciente (o del
+//    próximo período ya cargado con semestre=2 si todavía no se activó) — esto
+//    excluye a los recién inscriptos que legítimamente aún no tuvieron su primer
+//    TP ni pagaron la primera cuota. Sin este corte, un alumno anotado hoy mismo
+//    aparecía como "candidato a borrar", lo cual es peligroso.
 app.get('/api/alumnos/sin-registros', auth(ADM), (req, res) => {
   try {
+    const corte = db.prepare("SELECT MIN(fecha_inicio) c FROM periodos WHERE semestre=2").get()?.c
+      || db.prepare("SELECT fecha_inicio FROM periodos WHERE activo=1 LIMIT 1").get()?.fecha_inicio
+      || '1900-01-01';
     const rows = db.prepare(`
       SELECT a.id, a.estado, a.fecha_ingreso,
         COALESCE(a.nombre,u.nombre,'') as nombre,
         COALESCE(a.apellido,u.apellido,'') as apellido,
         COALESCE(a.ci,u.ci,'') as ci, a.telefono,
+        CASE WHEN a.usuario_id IS NOT NULL THEN 1 ELSE 0 END as tiene_acceso,
         c.nombre as carrera_nombre, cu.anio as curso_anio, cu.division as curso_division
       FROM alumnos a
       LEFT JOIN usuarios u ON a.usuario_id=u.id
       LEFT JOIN carreras c ON a.carrera_id=c.id
       LEFT JOIN cursos cu ON a.curso_id=cu.id
-      WHERE a.usuario_id IS NULL
-        AND NOT EXISTS (SELECT 1 FROM notas n WHERE n.alumno_id=a.id)
+      WHERE NOT EXISTS (
+          SELECT 1 FROM notas n WHERE n.alumno_id=a.id AND (
+            n.tp1 IS NOT NULL OR n.tp2 IS NOT NULL OR n.tp3 IS NOT NULL OR n.tp4 IS NOT NULL OR n.tp5 IS NOT NULL
+            OR n.parcial IS NOT NULL OR n.parcial_recuperatorio IS NOT NULL
+            OR n.final_ord IS NOT NULL OR n.final_recuperatorio IS NOT NULL OR n.complementario IS NOT NULL
+            OR n.extraordinario IS NOT NULL OR n.director_pts IS NOT NULL OR n.puntaje_total IS NOT NULL OR n.nota_final IS NOT NULL
+          )
+        )
         AND NOT EXISTS (SELECT 1 FROM pagos p WHERE p.alumno_id=a.id)
+        AND (a.fecha_ingreso IS NULL OR a.fecha_ingreso < ?)
       ORDER BY COALESCE(a.apellido,u.apellido)
-    `).all();
+    `).all(corte);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
