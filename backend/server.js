@@ -12251,8 +12251,6 @@ app.get('/api/rsvp/fiorella', auth(['director']), (req, res) => {
   const lista = db.prepare('SELECT * FROM rsvp_fiorella ORDER BY id DESC').all();
   res.json({ lista, total: lista.reduce((s,r)=>s+r.cantidad,0) });
 });
-app.get('/invitacion-fiorella', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','invitacion-fiorella.html')));
-
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {
