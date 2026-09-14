@@ -1435,7 +1435,7 @@ const _NAV_ICO={
   'hub-finanzas':    'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   'drive':           'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
 };
-const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍'};
+const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍','nautilus':'🗂️'};
 function _niIco(id,emojiOnly){
   if(emojiOnly) return _NAV_EMO[id]||'📌';
   const d=_NAV_ICO[id]||_NAV_ICO['_default'];
@@ -1455,6 +1455,7 @@ function navFor(r){
       {id:'hub-principal',l:'Gestión Institucional',c:'#1f8246',r:['director','docente']},
       {id:'hub-finanzas',l:'Finanzas y Recursos',c:'#7F77DD',r:['director']},
       {id:'drive',l:'Drive',c:'#0d9488',r:['director']},
+      {id:'nautilus',l:'Nautilus',c:'#0369a1',r:['director']},
     ]},
     {g:'Administración',i:[
       {id:'auditoria',l:'Auditoría',c:'#64748b',r:['director']},
@@ -1562,7 +1563,7 @@ function go(p, _fromHistory){
     'hub-principal':pgHubPrincipal,'hub-carreras':pgHubCarreras,'hub-personas':pgHubPersonas,'hub-academico':pgHubAcademico,'hub-finanzas':pgHubFinanzas,'drive':pgDrive,
     solicitudes:pgSolicitudes,depuracion:pgDepuracion,duplicados:pgDuplicados,limpieza:pgLimpieza,interesados:pgInteresados,papelera:pgPapelera,
     'habilitaciones-docente':pgHabilitacionesDocente,
-    documentos:pgDocumentos,formularios:pgFormularios,
+    documentos:pgDocumentos,formularios:pgFormularios,nautilus:pgNautilus,
     'pagos-pendientes-wa':pgPagosPendientesWA,
     whatsapp:pgWhatsApp,'wa-chat':pgWaChat,
     'repositorio':pgRepositorio,
@@ -7033,6 +7034,176 @@ async function descargarRepositorio(id, nombre){
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(e){toast('Error al descargar: '+e.message,'err');}
+}
+
+// ── NAUTILUS (carpetas de alumnos por carrera/año + PDF individual) ──────────
+async function pgNautilus(el){
+  el.innerHTML='<div class="ph"><h3>🗂️ Nautilus</h3></div>'+skeletonTable(4,6);
+  try{
+    const carpetas=await api('GET','/api/nautilus/carpetas');
+    W._nautCarpetas=carpetas;
+    nautRenderLista(el);
+  }catch(e){ el.innerHTML='<div class="es">Error: '+e.message+'</div>'; }
+}
+function nautRenderLista(el){
+  const carpetas=W._nautCarpetas||[];
+  el.innerHTML=`
+  <div class="ph"><h3>🗂️ Nautilus</h3><p style="font-size:12px;color:var(--t2)">Carpetas de alumnos por carrera y año — documentos individuales en PDF</p></div>
+  <div class="fb" style="margin-bottom:14px"><button class="bn" onclick="mNautNuevaCarpeta()">＋ Crear carpeta</button></div>
+  ${!carpetas.length?'<div class="es">Todavía no hay carpetas creadas.</div>':`
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+    ${carpetas.map(c=>`
+      <div style="background:#fff;border:1px solid var(--bdr);border-radius:14px;padding:16px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.08)'" onmouseout="this.style.boxShadow='none'" onclick="nautAbrirCarpeta('${c.id}')">
+        <div style="font-size:26px;margin-bottom:8px">📁</div>
+        <div style="font-weight:700;color:var(--txt);font-size:14px">${c.carrera_nombre}</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:2px">${c.anio}° año${c.seccion?' · Sección '+c.seccion:''}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:8px">${c.total_alumnos} alumno${c.total_alumnos===1?'':'s'} · ${c.total_con_pdf} con PDF</div>
+      </div>
+    `).join('')}
+  </div>`}`;
+}
+async function mNautNuevaCarpeta(){
+  let carreras=[];
+  try{ carreras=await api('GET','/api/carreras'); }catch(e){ toast('Error: '+e.message,'err'); return; }
+  modal(`<h4>📁 Crear carpeta de alumnos</h4>
+    <div id="ncErr"></div>
+    <div class="fg">
+      <div class="f"><label>Carrera *</label><select id="ncCarrera"><option value="">Seleccioná...</option>${carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
+      <div class="fr">
+        <div class="f"><label>Año *</label><input id="ncAnio" type="number" min="1" max="6" placeholder="Ej: 1"/></div>
+        <div class="f"><label>Sección (opcional)</label><input id="ncSeccion" placeholder="Ej: A"/></div>
+      </div>
+    </div>
+    <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="nautCrearCarpeta()">Crear</button></div>
+  `);
+}
+async function nautCrearCarpeta(){
+  const carrera_id=v('ncCarrera'), anio=v('ncAnio'), seccion=v('ncSeccion');
+  if(!carrera_id||!anio){ document.getElementById('ncErr').innerHTML='<div class="es" style="color:var(--red)">Carrera y año son obligatorios</div>'; return; }
+  try{
+    await api('POST','/api/nautilus/carpetas',{carrera_id,anio,seccion});
+    cm(); toast('Carpeta creada','ok');
+    pgNautilus(document.getElementById('mc'));
+  }catch(e){ document.getElementById('ncErr').innerHTML='<div class="es" style="color:var(--red)">'+e.message+'</div>'; }
+}
+async function nautAbrirCarpeta(id){
+  const el=document.getElementById('mc');
+  el.innerHTML=skeletonTable(4,6);
+  try{
+    const carpeta=await api('GET','/api/nautilus/carpetas/'+id);
+    W._nautCarpetaActual=carpeta;
+    nautRenderDetalle(el);
+  }catch(e){ el.innerHTML='<div class="es">Error: '+e.message+'</div>'; }
+}
+async function nautRefrescarCarpeta(){
+  const id=W._nautCarpetaActual.id;
+  const carpeta=await api('GET','/api/nautilus/carpetas/'+id);
+  W._nautCarpetaActual=carpeta;
+  nautRenderDetalle(document.getElementById('mc'));
+}
+function nautRenderDetalle(el){
+  const c=W._nautCarpetaActual;
+  el.innerHTML=`
+  <div class="ph">
+    <button class="bn" onclick="pgNautilus(document.getElementById('mc'))" style="margin-bottom:8px">← Volver a carpetas</button>
+    <h3>📁 ${c.carrera_nombre} — ${c.anio}° año${c.seccion?' · Sección '+c.seccion:''}</h3>
+  </div>
+  <div class="fb" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <label class="bn" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="nautImportarExcel(this)"/></label>
+    <button class="bn" onclick="nautDescargarZip()">⬇️ Descargar todo (ZIP)</button>
+    <button class="bn" style="color:var(--red);margin-left:auto" onclick="nautEliminarCarpeta()">🗑️ Eliminar carpeta</button>
+  </div>
+  ${!c.alumnos.length?'<div class="es">Sin alumnos todavía — importá un Excel con columnas Nombre, Apellido y Número de Cédula.</div>':`
+  <table class="tbl">
+    <thead><tr><th>Nombre</th><th>Apellido</th><th>Cédula</th><th>Documento</th><th style="text-align:right">Acciones</th></tr></thead>
+    <tbody>
+      ${c.alumnos.map(a=>`
+        <tr>
+          <td>${a.nombre}</td>
+          <td>${a.apellido}</td>
+          <td>${a.cedula||'-'}</td>
+          <td>${a.tiene_pdf?`<span style="color:var(--green);font-weight:600">✅ ${a.pdf_nombre}</span>`:'<span style="color:var(--t3)">Sin PDF</span>'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <div style="display:inline-flex;gap:6px;align-items:center">
+            ${a.tiene_pdf?`<button class="bn" style="padding:6px 10px;font-size:12px" onclick="nautVerPdf('${a.id}')">👁️ Ver</button>`:''}
+            <label class="bn" style="padding:6px 10px;font-size:12px;cursor:pointer">${a.tiene_pdf?'🔄 Reemplazar':'📎 Adjuntar'}<input type="file" accept="application/pdf" style="display:none" onchange="nautAdjuntarPdf(this,'${a.id}')"/></label>
+            <button class="bn" style="padding:6px 10px;font-size:12px" onclick="mNautEditarAlumno('${a.id}')">✏️</button>
+            <button class="bn" style="padding:6px 10px;font-size:12px;background:var(--rl);color:var(--red);box-shadow:none" onclick="nautEliminarAlumno('${a.id}')">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>`}`;
+}
+async function nautImportarExcel(input){
+  if(!input.files[0])return;
+  const fd=new FormData(); fd.append('archivo',input.files[0]);
+  try{
+    const r=await api('POST','/api/nautilus/carpetas/'+W._nautCarpetaActual.id+'/importar-excel',fd,true);
+    toast(`${r.insertados} alumno(s) importado(s)`,'ok');
+    nautRefrescarCarpeta();
+  }catch(e){ toast('Error al importar: '+e.message,'err'); }
+  input.value='';
+}
+async function nautAdjuntarPdf(input,alumnoId){
+  if(!input.files[0])return;
+  const fd=new FormData(); fd.append('pdf',input.files[0]);
+  try{
+    await api('POST','/api/nautilus/alumnos/'+alumnoId+'/pdf',fd,true);
+    toast('PDF adjuntado','ok');
+    nautRefrescarCarpeta();
+  }catch(e){ toast('Error al subir PDF: '+e.message,'err'); }
+  input.value='';
+}
+function nautVerPdf(alumnoId){
+  window.open(`/api/nautilus/alumnos/${alumnoId}/pdf?token=${encodeURIComponent(tok)}`,'_blank');
+}
+function mNautEditarAlumno(alumnoId){
+  const a=W._nautCarpetaActual.alumnos.find(x=>x.id===alumnoId);
+  if(!a)return;
+  modal(`<h4>✏️ Editar alumno</h4>
+    <div id="eaErr"></div>
+    <div class="fg">
+      <div class="fr">
+        <div class="f"><label>Nombre *</label><input id="eaNombre" value="${a.nombre.replace(/"/g,'&quot;')}"/></div>
+        <div class="f"><label>Apellido *</label><input id="eaApellido" value="${a.apellido.replace(/"/g,'&quot;')}"/></div>
+      </div>
+      <div class="f"><label>Cédula</label><input id="eaCedula" value="${(a.cedula||'').replace(/"/g,'&quot;')}"/></div>
+    </div>
+    <div class="mf"><button class="bs" onclick="cm()">Cancelar</button><button class="bn" onclick="nautGuardarAlumno('${alumnoId}')">Guardar</button></div>
+  `);
+}
+async function nautGuardarAlumno(alumnoId){
+  const nombre=v('eaNombre'), apellido=v('eaApellido'), cedula=v('eaCedula');
+  if(!nombre||!apellido){ document.getElementById('eaErr').innerHTML='<div class="es" style="color:var(--red)">Nombre y apellido son obligatorios</div>'; return; }
+  try{
+    await api('PUT','/api/nautilus/alumnos/'+alumnoId,{nombre,apellido,cedula});
+    cm(); toast('Alumno actualizado','ok');
+    nautRefrescarCarpeta();
+  }catch(e){ document.getElementById('eaErr').innerHTML='<div class="es" style="color:var(--red)">'+e.message+'</div>'; }
+}
+async function nautEliminarAlumno(alumnoId){
+  if(!window.confirm('¿Quitar este alumno de la lista? Se perderá también su PDF adjunto.'))return;
+  try{
+    await api('DELETE','/api/nautilus/alumnos/'+alumnoId);
+    toast('Alumno eliminado','ok');
+    nautRefrescarCarpeta();
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+async function nautEliminarCarpeta(){
+  const c=W._nautCarpetaActual;
+  if(!window.confirm(`¿Eliminar la carpeta "${c.carrera_nombre} — ${c.anio}° año"? Se perderán todos los alumnos y PDFs de esta carpeta.`))return;
+  try{
+    await api('DELETE','/api/nautilus/carpetas/'+c.id);
+    toast('Carpeta eliminada','ok');
+    pgNautilus(document.getElementById('mc'));
+  }catch(e){ toast('Error: '+e.message,'err'); }
+}
+function nautDescargarZip(){
+  const c=W._nautCarpetaActual;
+  if(!c.alumnos.some(a=>a.tiene_pdf)){ toast('La carpeta no tiene documentos para descargar','warn'); return; }
+  window.open(`/api/nautilus/carpetas/${c.id}/descargar?token=${encodeURIComponent(tok)}`,'_blank');
 }
 
 // ── EGRESO Y PASAJE DE AÑO ────────────────────────────────────────────────────

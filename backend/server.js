@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const archiver = require('archiver');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const cron = require('node-cron');
@@ -112,6 +113,31 @@ try {
   )`).run();
   try { db.prepare('ALTER TABLE documentos ADD COLUMN carpeta_id TEXT REFERENCES documento_carpetas(id)').run(); } catch {}
 } catch(e) { console.warn('[Migración] documentos:', e.message); }
+
+// ── MIGRACIÓN: Nautilus (carpetas de alumnos por carrera/año + PDF individual) ─
+// Mismo criterio que "documentos": archivos chicos, pocos usuarios subiendo → BLOB en SQLite.
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS nautilus_carpetas (
+    id TEXT PRIMARY KEY,
+    carrera_id TEXT NOT NULL REFERENCES carreras(id),
+    seccion TEXT,
+    anio INTEGER NOT NULL,
+    creado_por TEXT REFERENCES usuarios(id),
+    fecha TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  )`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS nautilus_alumnos (
+    id TEXT PRIMARY KEY,
+    carpeta_id TEXT NOT NULL REFERENCES nautilus_carpetas(id),
+    nombre TEXT NOT NULL,
+    apellido TEXT NOT NULL,
+    cedula TEXT,
+    orden INTEGER,
+    pdf_nombre TEXT,
+    pdf_datos BLOB,
+    pdf_mime TEXT,
+    pdf_subido_en TEXT
+  )`).run();
+} catch(e) { console.warn('[Migración] nautilus:', e.message); }
 
 // ── MIGRACIÓN: documentos institucionales ─────────────────────────────────────
 try {
@@ -10764,6 +10790,175 @@ app.get('/api/repositorio/:id/archivo', auth(), (req, res) => {
 // DELETE: eliminación de archivos deshabilitada para proteger integridad de datos
 app.delete('/api/repositorio/:id', auth(['director','docente']), (req, res) => {
   res.status(403).json({ error: 'La eliminación de archivos no está permitida' });
+});
+
+// ── NAUTILUS (carpetas de alumnos por carrera/año + PDF individual) ──────────
+app.post('/api/nautilus/carpetas', auth(ADM), (req, res) => {
+  try {
+    const { carrera_id, seccion, anio } = req.body;
+    if (!carrera_id || !anio) return res.status(400).json({ error: 'Carrera y año son obligatorios' });
+    const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
+    if (!carrera) return res.status(400).json({ error: 'Carrera inválida' });
+    const id = 'ncp_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    db.prepare('INSERT INTO nautilus_carpetas (id,carrera_id,seccion,anio,creado_por,fecha) VALUES (?,?,?,?,?,?)')
+      .run(id, carrera_id, seccion ? String(seccion).trim() : null, parseInt(anio,10), req.user.id, nowStr());
+    audit(req.user.id,'CREAR_CARPETA_NAUTILUS','nautilus_carpetas',id,{carrera_id,seccion,anio});
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/nautilus/carpetas', auth(ADM), (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT c.id, c.carrera_id, ca.nombre as carrera_nombre, c.seccion, c.anio, c.fecha,
+        (SELECT COUNT(*) FROM nautilus_alumnos a WHERE a.carpeta_id=c.id) as total_alumnos,
+        (SELECT COUNT(*) FROM nautilus_alumnos a WHERE a.carpeta_id=c.id AND a.pdf_datos IS NOT NULL) as total_con_pdf
+      FROM nautilus_carpetas c JOIN carreras ca ON ca.id=c.carrera_id
+      ORDER BY c.fecha DESC
+    `).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/nautilus/carpetas/:id', auth(ADM), (req, res) => {
+  try {
+    const carpeta = db.prepare(`
+      SELECT c.id, c.carrera_id, ca.nombre as carrera_nombre, c.seccion, c.anio, c.fecha
+      FROM nautilus_carpetas c JOIN carreras ca ON ca.id=c.carrera_id WHERE c.id=?
+    `).get(req.params.id);
+    if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
+    const alumnos = db.prepare(`
+      SELECT id, nombre, apellido, cedula, orden, pdf_nombre, pdf_subido_en,
+        (pdf_datos IS NOT NULL) as tiene_pdf
+      FROM nautilus_alumnos WHERE carpeta_id=? ORDER BY orden, apellido, nombre
+    `).all(req.params.id);
+    res.json({ ...carpeta, alumnos });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/nautilus/carpetas/:id', auth(ADM), (req, res) => {
+  try {
+    const carpeta = db.prepare('SELECT id FROM nautilus_carpetas WHERE id=?').get(req.params.id);
+    if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
+    db.prepare('DELETE FROM nautilus_alumnos WHERE carpeta_id=?').run(req.params.id);
+    db.prepare('DELETE FROM nautilus_carpetas WHERE id=?').run(req.params.id);
+    audit(req.user.id,'ELIMINAR_CARPETA_NAUTILUS','nautilus_carpetas',req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/nautilus/carpetas/:id/importar-excel', auth(ADM), upload.single('archivo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
+    const carpeta = db.prepare('SELECT id FROM nautilus_carpetas WHERE id=?').get(req.params.id);
+    if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
+
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    if (!rows.length) return res.status(400).json({ error: 'El archivo está vacío' });
+
+    const header = rows[0].map(c => _normTxt(c));
+    const iNombre = header.findIndex(c => c === 'nombre');
+    const iApellido = header.findIndex(c => c === 'apellido');
+    const iCedula = header.findIndex(c => c.includes('cedula'));
+    if (iNombre < 0 || iApellido < 0) return res.status(400).json({ error: 'No se encontraron las columnas Nombre/Apellido en el archivo' });
+
+    let orden = db.prepare('SELECT COALESCE(MAX(orden),0) as m FROM nautilus_alumnos WHERE carpeta_id=?').get(req.params.id).m;
+    let insertados = 0;
+    const insert = db.prepare('INSERT INTO nautilus_alumnos (id,carpeta_id,nombre,apellido,cedula,orden) VALUES (?,?,?,?,?,?)');
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const nombre = String(row[iNombre]||'').trim();
+      const apellido = String(row[iApellido]||'').trim();
+      if (!nombre && !apellido) continue;
+      const cedula = iCedula >= 0 ? String(row[iCedula]||'').trim() : '';
+      orden++;
+      const id = 'nal_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)+'_'+i;
+      insert.run(id, req.params.id, nombre, apellido, cedula || null, orden);
+      insertados++;
+    }
+    audit(req.user.id,'IMPORTAR_EXCEL_NAUTILUS','nautilus_carpetas',req.params.id,{insertados});
+    res.json({ ok:true, insertados });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/nautilus/alumnos/:id', auth(ADM), (req, res) => {
+  try {
+    const al = db.prepare('SELECT id FROM nautilus_alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const { nombre, apellido, cedula } = req.body;
+    if (!nombre || !apellido) return res.status(400).json({ error: 'Nombre y apellido son obligatorios' });
+    db.prepare('UPDATE nautilus_alumnos SET nombre=?, apellido=?, cedula=? WHERE id=?')
+      .run(String(nombre).trim(), String(apellido).trim(), cedula ? String(cedula).trim() : null, req.params.id);
+    audit(req.user.id,'EDITAR_ALUMNO_NAUTILUS','nautilus_alumnos',req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/nautilus/alumnos/:id', auth(ADM), (req, res) => {
+  try {
+    const al = db.prepare('SELECT id FROM nautilus_alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    db.prepare('DELETE FROM nautilus_alumnos WHERE id=?').run(req.params.id);
+    audit(req.user.id,'ELIMINAR_ALUMNO_NAUTILUS','nautilus_alumnos',req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/nautilus/alumnos/:id/pdf', auth(ADM), upload.single('pdf'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
+    if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'El archivo debe ser un PDF' });
+    if (req.file.size > 15*1024*1024) return res.status(400).json({ error: 'El PDF no puede superar 15 MB' });
+    const al = db.prepare('SELECT id FROM nautilus_alumnos WHERE id=?').get(req.params.id);
+    if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+    db.prepare('UPDATE nautilus_alumnos SET pdf_nombre=?, pdf_datos=?, pdf_mime=?, pdf_subido_en=? WHERE id=?')
+      .run(req.file.originalname, req.file.buffer, req.file.mimetype, nowStr(), req.params.id);
+    audit(req.user.id,'SUBIR_PDF_NAUTILUS','nautilus_alumnos',req.params.id,{archivo:req.file.originalname});
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/nautilus/alumnos/:id/pdf', auth(ADM), (req, res) => {
+  try {
+    const al = db.prepare('SELECT pdf_nombre, pdf_datos, pdf_mime FROM nautilus_alumnos WHERE id=?').get(req.params.id);
+    if (!al || !al.pdf_datos) return res.status(404).json({ error: 'Sin PDF adjunto' });
+    res.set('Content-Type', al.pdf_mime||'application/pdf');
+    res.set('Content-Disposition', `inline; filename="${al.pdf_nombre}"`);
+    res.send(Buffer.from(al.pdf_datos));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/nautilus/carpetas/:id/descargar', auth(ADM), async (req, res) => {
+  try {
+    const carpeta = db.prepare(`
+      SELECT c.id, ca.nombre as carrera_nombre, c.seccion, c.anio
+      FROM nautilus_carpetas c JOIN carreras ca ON ca.id=c.carrera_id WHERE c.id=?
+    `).get(req.params.id);
+    if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
+    const alumnos = db.prepare(`
+      SELECT nombre, apellido, pdf_nombre, pdf_datos FROM nautilus_alumnos
+      WHERE carpeta_id=? AND pdf_datos IS NOT NULL ORDER BY apellido, nombre
+    `).all(req.params.id);
+    if (!alumnos.length) return res.status(400).json({ error: 'La carpeta no tiene documentos para descargar' });
+
+    const zipNombre = `${carpeta.carrera_nombre} ${carpeta.anio}${carpeta.seccion?(' '+carpeta.seccion):''}`.replace(/[\\/:*?"<>|]/g,'_');
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="${zipNombre}.zip"`);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', err => { console.error('Nautilus ZIP error:', err.message); res.status(500).end(); });
+    archive.pipe(res);
+    const usados = new Set();
+    for (const al of alumnos) {
+      let nombreArchivo = `${al.apellido} ${al.nombre}`.trim().replace(/[\\/:*?"<>|]/g,'_') + '.pdf';
+      let base = nombreArchivo, n = 1;
+      while (usados.has(nombreArchivo)) { nombreArchivo = base.replace(/\.pdf$/,'') + ` (${++n}).pdf`; }
+      usados.add(nombreArchivo);
+      archive.append(Buffer.from(al.pdf_datos), { name: nombreArchivo });
+    }
+    audit(req.user.id,'DESCARGAR_ZIP_NAUTILUS','nautilus_carpetas',req.params.id,{cantidad:alumnos.length});
+    await archive.finalize();
+  } catch(e) { if (!res.headersSent) res.status(500).json({ error: e.message }); }
 });
 
 // ── DOCUMENTOS (repositorio institucional tipo Drive) ─────────────────────────
