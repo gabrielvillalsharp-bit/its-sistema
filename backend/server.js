@@ -729,6 +729,73 @@ try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER 
   db.prepare(`DELETE FROM notas WHERE asignacion_id='asig_doc_jimenez_FAR_106_farm_1u'`).run();
   db.prepare(`DELETE FROM asignaciones WHERE id='asig_doc_jimenez_FAR_106_farm_1u'`).run();
 }
+// ── MIGRACIÓN: ajustes horario 2do semestre según planilla de docentes (2026-10-01) ──
+// - Salud Mental (Enf 2°): de Natalia Martínez a Natalia Valenzuela, pasa a Vie 1ra hora
+// - Informática (Enf 2°): pasa a Vie 2da hora (unificada con Informática Farmacia 2°, misma docente)
+// - Técnicas Radiológicas (IQ 2°): de Marcial Palacios a Paulo Higuchi (libera el choque de Palacios del viernes 2da hora)
+// Se ubican por período+curso+materia (los ids de asignación del import son aleatorios). Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_horario_2s_planilla_docentes'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const buscar = (curso, materia) => db.prepare(
+        'SELECT a.id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?'
+      ).get(per.id, curso, materia);
+      const mover = (id, dia, turno, hi, hf) => {
+        db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=? WHERE id=?').run(dia, turno, hi, hf, id);
+        db.prepare('UPDATE horarios SET dia=?,turno=?,hora_inicio=?,hora_fin=? WHERE asignacion_id=?').run(dia, turno, hi, hf, id);
+      };
+      db.transaction(() => {
+        const sm = buscar('enf_2u', 'Enfermeria En Salud Mental');
+        const inf = buscar('enf_2u', 'Informatica');
+        const tr = buscar('instr_2u', 'Tecnicas Radiologicas');
+        if (sm && inf) {
+          db.prepare("UPDATE asignaciones SET docente_id='doc_valenz' WHERE id=?").run(sm.id);
+          mover(sm.id, 'Viernes', 1, '19:00', '20:20');
+          mover(inf.id, 'Viernes', 2, '20:40', '22:00');
+        }
+        if (tr) db.prepare("UPDATE asignaciones SET docente_id='doc_higuchi' WHERE id=?").run(tr.id);
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_horario_2s_planilla_docentes','1')").run();
+      })();
+    }
+  } catch (e) { console.warn('Migración horario 2do semestre:', e.message); }
+}
+// ── MIGRACIÓN: materias que faltaban en el 2do semestre según planilla de docentes (2026-10-01) ──
+// Electricidad 2° (Mareco, 6 materias con los días de su planilla), Cultivos, Forrajes y Pasturas
+// (Agro 2°, Giménez) e Introducción a la Enfermería (Enf 1°, Ayala) — estas dos sin día fijo (sábados en la
+// planilla; la grilla semanal solo muestra lunes a viernes). Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_materias_faltantes_2s'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const insM = db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,?,?,25,25,50)');
+      const existe = (mat, curso) => db.prepare('SELECT 1 FROM asignaciones WHERE periodo_id=? AND materia_id=? AND curso_id=?').get(per.id, mat, curso);
+      const T1 = ['19:00','20:20'], T2 = ['20:40','22:00'];
+      const nuevas = [
+        // [id, carrera, nombre, codigo, anio, docente, curso, dia, turno]
+        ['m_elc_208','elec','Electrotecnia II','ELC-208',2,'doc_mareco','elec_2u','Martes',1],
+        ['m_elc_209','elec','Diseño, Proyecto y Presupuesto','ELC-209',2,'doc_mareco','elec_2u','Martes',2],
+        ['m_elc_210','elec','Física','ELC-210',2,'doc_mareco','elec_2u','Miércoles',1],
+        ['m_elc_211','elec','Metodología de Calidad 5S','ELC-211',2,'doc_mareco','elec_2u','Miércoles',2],
+        ['m_elc_212','elec','Electrotecnia Digital','ELC-212',2,'doc_mareco','elec_2u','Jueves',1],
+        ['m_elc_213','elec','Electrotecnia de Potencia','ELC-213',2,'doc_mareco','elec_2u','Jueves',2],
+        ['m_enf_s2_intro','enf','Introducción a la Enfermería','ENF-S2-INTRO',1,'doc_ayala_a','enf_1u',null,1],
+        ['m_agr_202','agro','Cultivos, Forrajes y Pasturas','AGR-202',2,'doc_gimenez','agro_2u',null,1],
+      ];
+      db.transaction(() => {
+        nuevas.forEach(([mid, car, nombre, cod, anio, doc, curso, dia, turno]) => {
+          insM.run(mid, car, nombre, cod, 4, anio);
+          if (existe(mid, curso)) return;
+          const [hi, hf] = turno === 2 ? T2 : T1;
+          crearAsignacionConHorario({ docente_id: doc, materia_id: mid, curso_id: curso, periodo_id: per.id, dia, turno, hora_inicio: hi, hora_fin: hf });
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_materias_faltantes_2s','1')").run();
+      })();
+    }
+  } catch (e) { console.warn('Migración materias faltantes 2do semestre:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)

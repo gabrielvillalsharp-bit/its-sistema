@@ -50,6 +50,7 @@ const docentesNuevos = [
   ['doc_anonimo', 'u_doc_anonimo', 'Docente',  'A Confirmar', null,                    'x'],
   ['doc_amelia',  'u_doc_amelia',  'Amelia',   'Sanguina',    'a.sanguina@its.edu.py', HASH_INICIAL],
   ['doc_colman',  'u_doc_colman',  'Cristian', 'Colman',      'c.colman@its.edu.py',   HASH_INICIAL],
+  ['doc_aguiar',  'u_doc_aguiar',  'Antonia',  'Aguiar',      'a.aguiar@its.edu.py',   HASH_INICIAL],
 ];
 let docCreados = 0;
 db.transaction(() => {
@@ -212,7 +213,7 @@ const asigs = [
   ['doc_perez',    'ENF-S4-102', 'enf_2u'], // María Elena
   ['doc_perez',    'ENF-S4-103', 'enf_2u'], // María Elena
   ['doc_valenz',   'ENF-S4-104', 'enf_2u'], // Natalia Valenzuela
-  ['doc_natalia',  'ENF-S4-105', 'enf_2u'], // Natalia Martínez
+  ['doc_valenz',   'ENF-S4-105', 'enf_2u'], // Natalia Valenzuela — Salud Mental y Psiquiatría (según planilla docentes)
 
   // RADIOLOGÍA 2° SEM
   ['doc_natalia',  'RAD-S2-101', 'rad_1u'], // Natalia Martínez
@@ -226,7 +227,7 @@ const asigs = [
   ['doc_aranda',   'RAD-S4-104', 'rad_2u'], // Angela Aranda
   ['doc_gimenez',  'RAD-S4-105', 'rad_2u'], // Mirta Giménez
   ['doc_perez',    'RAD-S4-106', 'rad_2u'], // María Elena
-  ['doc_anonimo',  'RAD-S4-107', 'rad_2u'], // Embriología Básica — sin docente confirmado en horario
+  ['doc_aguiar',   'RAD-S4-107', 'rad_2u'], // Antonia Aguiar — Embriología Básica
 
   // IQ 2° SEM
   ['doc_perez',    'IQ-S2-101',  'instr_1u'], // María Elena
@@ -235,13 +236,13 @@ const asigs = [
   ['doc_gonzalez', 'IQ-S2-104',  'instr_1u'], // Karen González
   ['doc_rojas',    'IQ-S2-105',  'instr_1u'], // Favio Rojas
   // IQ 4° SEM
-  ['doc_valenz',   'IQ-S4-101',  'instr_2u'], // Natalia Valenzuela — Hematología
-  ['doc_valenz',   'IQ-S4-102',  'instr_2u'], // Natalia Valenzuela — Enfermería Quirúrgica (mismo docente que Hematología)
+  ['doc_anonimo',  'IQ-S4-101',  'instr_2u'], // Hematología — sin docente en planilla (antes Valenzuela)
+  ['doc_anonimo',  'IQ-S4-102',  'instr_2u'], // Enfermería Quirúrgica — sin docente en planilla (antes Valenzuela)
   ['doc_natalia',  'IQ-S4-103',  'instr_2u'], // Natalia Martínez (Inglés)
   ['doc_gimenez',  'IQ-S4-104',  'instr_2u'], // Mirta Giménez
   ['doc_perez',    'IQ-S4-105',  'instr_2u'], // María Elena — Lengua Castellana
   ['doc_perez',    'IQ-S4-106',  'instr_2u'], // María Elena — Lengua Guaraní
-  ['doc_palacios', 'IQ-S4-107',  'instr_2u'], // Marcial Palacios
+  ['doc_higuchi',  'IQ-S4-107',  'instr_2u'], // Paulo Higuchi — Técnicas Radiológicas (según planilla docentes)
 
   // FARMACIA 2° SEM
   ['doc_perez',    'FAR-S2-101', 'farm_1u'], // María Elena
@@ -251,12 +252,12 @@ const asigs = [
   ['doc_rojas',    'FAR-S2-105', 'farm_1u'], // Favio Rojas
   // FARMACIA 4° SEM
   ['doc_aranda',   'FAR-S4-101', 'farm_2u'], // Angela Aranda
-  ['doc_anonimo',  'FAR-S4-102', 'farm_2u'], // Marketing Farmacéutico — sin docente confirmado
-  ['doc_anonimo',  'FAR-S4-103', 'farm_2u'], // Técnicas de Atención al Cliente — sin docente confirmado
+  ['doc_aguero',   'FAR-S4-102', 'farm_2u'], // Gabriela Agüero — Marketing (planilla: Marketing y Atención al Cliente)
+  ['doc_aguero',   'FAR-S4-103', 'farm_2u'], // Gabriela Agüero — Técnicas de Atención al Cliente
   ['doc_aguero',   'FAR-S4-104', 'farm_2u'], // Gabriela Agüero
   ['doc_amelia',   'FAR-S4-105', 'farm_2u'], // Amelia Sanguina — Lengua Guaraní
   ['doc_valenz',   'FAR-S4-106', 'farm_2u'], // Natalia Valenzuela — Informática
-  ['doc_valenz',   'FAR-S4-107', 'farm_2u'], // Natalia Valenzuela — Contabilidad (mismo docente que Informática)
+  ['doc_anonimo',  'FAR-S4-107', 'farm_2u'], // Contabilidad Básica — sin docente en planilla (antes Valenzuela)
   ['doc_amelia',   'FAR-S4-108', 'farm_2u'], // Amelia Sanguina — Lengua Castellana
 
   // COSMIATRÍA 2° SEM — Grupo A y B (docente puede diferir por grupo)

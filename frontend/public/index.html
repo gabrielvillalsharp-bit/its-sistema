@@ -9112,7 +9112,10 @@ function renderHorario(){
     otrosCursos.forEach(otroCurso=>{
       const materiasOtro=materiasPorSlotCurso.get(kSlot+'|'+otroCurso)||new Set();
       const parKey=[x.curso_id,otroCurso].sort().join('~')+'|'+kSlot+'|'+x.materia_nombre;
-      if(materiasOtro.has(x.materia_nombre)){
+      // Clase combinada: si ambos cursos comparten AL MENOS una materia en esta franja es una
+      // sola clase unificada (ej: Castellano para 3 cursos + Guaraní solo para 2), no un choque.
+      const misMaterias=materiasPorSlotCurso.get(kSlot+'|'+x.curso_id)||new Set();
+      if(materiasOtro.has(x.materia_nombre)||[...misMaterias].some(m=>materiasOtro.has(m))){
         esUnificada=true;
         if(!vistoPar.has(parKey)){vistoPar.add(parKey);unifPares.push({a:x,cursoOtro:otroCurso});}
       } else {
