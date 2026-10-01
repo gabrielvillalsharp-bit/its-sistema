@@ -796,6 +796,33 @@ try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER 
     }
   } catch (e) { console.warn('Migración materias faltantes 2do semestre:', e.message); }
 }
+// ── MIGRACIÓN: Myrian Carrillo sale del 2do semestre; sus materias pasan a Natalia Valenzuela (2026-10-01) ──
+// Ética de Cosmiatría 2° Secc. A y B pasan a Valenzuela. En Secc. B se invierte el martes (Ética 1ra, Química 2da)
+// para que Ética quede junta con la Secc. A (clase unificada) y no choque con Informática de Criminalística 2°
+// (martes 2da hora, misma docente). Química de Noelia Ayala queda también unificada en la 2da hora.
+// La cuenta de Myrian se desactiva (no se borra: conserva sus notas del 1er semestre).
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_myrian_a_valenzuela_2s'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const buscar = (curso, materia) => db.prepare(
+        'SELECT a.id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?'
+      ).get(per.id, curso, materia);
+      const mover = (id, turno, hi, hf) => {
+        db.prepare('UPDATE asignaciones SET turno=?,hora_inicio=?,hora_fin=? WHERE id=?').run(turno, hi, hf, id);
+        db.prepare('UPDATE horarios SET turno=?,hora_inicio=?,hora_fin=? WHERE asignacion_id=?').run(turno, hi, hf, id);
+      };
+      db.transaction(() => {
+        db.prepare("UPDATE asignaciones SET docente_id='doc_valenz' WHERE periodo_id=? AND docente_id='doc_carrillo'").run(per.id);
+        const eB = buscar('cosA_1b', 'Etica'), qB = buscar('cosA_1b', 'Quimica');
+        if (eB && qB) { mover(eB.id, 1, '19:00', '20:20'); mover(qB.id, 2, '20:40', '22:00'); }
+        db.prepare("UPDATE usuarios SET activo=0 WHERE id='u_doc_carrillo'").run();
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_myrian_a_valenzuela_2s','1')").run();
+      })();
+    }
+  } catch (e) { console.warn('Migración Myrian→Valenzuela:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
