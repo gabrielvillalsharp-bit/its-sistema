@@ -1020,6 +1020,16 @@ try {
   if (rConf.changes) console.log(`[Migración] ${rConf.changes} aviso(s) de conflicto de horario corregidos a destinatario='director' ✓`);
 } catch(e) { console.warn('[Migración] avisos conflicto horario:', e.message); }
 
+// ── MIGRACIÓN: borra los avisos fijados de "Conflicto de horario detectado" generados al importar el
+// 2do semestre (2026-10-01). Una sola vez; los que se generen después por cambios manuales siguen apareciendo.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_borrar_avisos_conflicto_2s'").get()) {
+    const r = db.prepare("DELETE FROM avisos WHERE titulo='⚠ Conflicto de horario detectado'").run();
+    db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_borrar_avisos_conflicto_2s','1')").run();
+    if (r.changes) console.log(`[Migración] ${r.changes} aviso(s) de conflicto de horario eliminados ✓`);
+  }
+} catch(e) { console.warn('[Migración] borrar avisos conflicto:', e.message); }
+
 // ── MIGRACIÓN DE DATOS: restaura notas perdidas por bug de cache vacio en updN ──
 // Ver commit 5e1d7c1: guardar una nota sin haber cargado antes la grilla completa
 // mandaba la fila entera con campos ausentes como '', que el backend guardaba como
