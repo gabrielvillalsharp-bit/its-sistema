@@ -9275,8 +9275,9 @@ app.post('/api/whatsapp/reset', auth(ADM), async (req, res) => {
     // 3. Obtener QR
     const qrResp = await fetch(`${base}/instance/connect/${EVO_INSTANCE}`, { headers: h });
     const qrData = await qrResp.json().catch(()=>({}));
-    const qr   = qrData?.base64 || qrData?.qrcode?.base64 || createData?.qrcode?.base64 || null;
-    const code  = qrData?.code   || qrData?.qrcode?.code   || null;
+    const ext  = _evoExtractQR(qrData);
+    const qr   = ext.qr || _evoStr(createData?.qrcode?.base64);
+    const code = ext.code || _evoStr(createData?.qrcode?.code);
     console.log('[WA] Reset completo — QR disponible:', !!qr);
     res.json({ ok: true, qr, code, raw: qrData });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -9299,9 +9300,15 @@ app.post('/api/whatsapp/desconectar', auth(ADM), async (req, res) => {
 });
 
 // Helper: extraer QR de la respuesta de Evolution API (varios formatos)
+// Evolution a veces devuelve `code` como objeto/número (p. ej. en respuestas de error): solo se aceptan strings.
+function _evoStr(v) {
+  if (typeof v === 'string') return v || null;
+  if (v && typeof v === 'object' && typeof v.code === 'string') return v.code || null;
+  return null;
+}
 function _evoExtractQR(d) {
-  const qr   = d?.base64 || d?.qrcode?.base64 || d?.qr?.base64 || null;
-  const code = d?.code   || d?.qrcode?.code   || d?.qr?.code   || null;
+  const qr   = _evoStr(d?.base64) || _evoStr(d?.qrcode?.base64) || _evoStr(d?.qr?.base64) || null;
+  const code = _evoStr(d?.code)   || _evoStr(d?.qrcode?.code)   || _evoStr(d?.qr?.code)   || null;
   return { qr, code };
 }
 

@@ -3445,6 +3445,9 @@ async function waDiagReconfigurar(){
   if(btn){btn.disabled=false;btn.textContent='🔧 Reconfigurar webhook ahora';}
 }
 function _waShowQR(qr,code){
+  // Defensivo: si el servidor manda algo que no sea string (objeto/número) se ignora
+  if(typeof qr!=='string')qr=null;
+  if(typeof code!=='string')code=null;
   // Muestra el QR en un modal. qr=base64 image, code=string crudo
   if(qr){
     modal(`<div style="text-align:center;padding:8px">
