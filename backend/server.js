@@ -704,6 +704,10 @@ try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").r
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
 
+// Desde 2026-10-05 un docente PUEDE dictar 2 materias distintas (en cursos distintos) en la misma hora
+// (1ra o 2da): ya no es un choque ni genera avisos. Poner en false para volver a la detección anterior.
+const PERMITE_DOS_MATERIAS_POR_HORA = true;
+
 // ── MIGRACIÓN DE DATOS: asignar días a materias sin horario ──────────────────
 {
   const migHorarios = [
@@ -3350,7 +3354,7 @@ app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
 // conflicto: es una clase combinada, patrón normal en esta institución.
 app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
   const { docente_id, dia, turno, curso_id, exclude_id } = req.query;
-  if (!docente_id || !dia || !turno) return res.json({ tiene_conflicto: false });
+  if (PERMITE_DOS_MATERIAS_POR_HORA || !docente_id || !dia || !turno) return res.json({ tiene_conflicto: false });
   let q = `SELECT a.id, m.nombre as materia FROM asignaciones a JOIN materias m ON a.materia_id=m.id
     WHERE a.docente_id=? AND a.dia=? AND a.turno=?`;
   const params = [docente_id, dia, parseInt(turno)];
@@ -3438,7 +3442,7 @@ function crearAsignacionConHorario({ docente_id, materia_id, curso_id, periodo_i
     for (const [cId, matSet] of materiasPorCurso) {
       if (!matSet.has(nombreMateriaActual)) { conflicto = otrasFilas.find(r => r.curso_id === cId); break; }
     }
-    if (conflicto) {
+    if (conflicto && !PERMITE_DOS_MATERIAS_POR_HORA) {
       conflictoDetectado = conflicto;
       const avisoId = 'av_conf_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
       const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
@@ -3494,7 +3498,7 @@ app.put('/api/asignaciones/:id', auth(ADM), (req, res) => {
       for (const [cId, matSet] of materiasPorCurso) {
         if (!matSet.has(asig.materia_nombre)) { conf = otrasFilas.find(r => r.curso_id === cId); break; }
       }
-      if (conf) {
+      if (conf && !PERMITE_DOS_MATERIAS_POR_HORA) {
         conflicto = conf;
         const director = db.prepare("SELECT id FROM usuarios WHERE rol='director' AND activo=1 LIMIT 1").get();
         if (director) {
