@@ -823,6 +823,105 @@ try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER 
     }
   } catch (e) { console.warn('Migración Myrian→Valenzuela:', e.message); }
 }
+// ── MIGRACIÓN: ajustes del horario 2do semestre según observaciones de la planilla de docentes (2026-10-05) ──
+// Autorizado por el director. Quitar del horario + eliminar materia (solo si no tiene ninguna nota cargada ni
+// exámenes; si los tiene solo se quita del horario y se avisa por consola), renombres, cambios de día/hora,
+// Bioética, Informática (Cosmiatría 2°), separación Hematología / Enfermería Quirúrgica y Horticultura única.
+// Marecos (Electricidad) no se toca.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_observaciones_horario_2s'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const T = { 1: ['19:00','20:20'], 2: ['20:40','22:00'] };
+      const hallar = (curso, nombre) => db.prepare(
+        'SELECT a.id, a.materia_id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?'
+      ).get(per.id, curso, nombre);
+      const tieneDatos = (id) => db.prepare(`SELECT COUNT(*) c FROM notas WHERE asignacion_id=? AND (estado!='Pendiente'
+        OR COALESCE(tp1,0)+COALESCE(tp2,0)+COALESCE(tp3,0)+COALESCE(tp4,0)+COALESCE(tp5,0)+COALESCE(parcial,0)+COALESCE(parcial_recuperatorio,0)
+          +COALESCE(final_ord,0)+COALESCE(final_recuperatorio,0)+COALESCE(complementario,0)+COALESCE(extraordinario,0)+COALESCE(director_pts,0)>0
+        OR puntaje_total IS NOT NULL OR ausente=1)`).get(id).c > 0
+        || db.prepare('SELECT COUNT(*) c FROM examenes WHERE asignacion_id=?').get(id).c > 0;
+      const quitarHorario = (id) => {
+        db.prepare('UPDATE asignaciones SET dia=NULL WHERE id=?').run(id);
+        db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(id);
+      };
+      const eliminar = (curso, nombre) => {
+        const a = hallar(curso, nombre);
+        if (!a) return;
+        if (tieneDatos(a.id)) { quitarHorario(a.id); console.warn(`[Migración horario 2S] "${nombre}" ${curso} tiene notas/exámenes: solo se quitó del horario`); return; }
+        eliminarAsignacionCascada(a.id);
+        const resto = db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=?').get(a.materia_id).c;
+        if (!resto) { try { db.prepare('DELETE FROM materias WHERE id=?').run(a.materia_id); } catch {} }
+      };
+      const mover = (curso, nombre, dia, turno) => {
+        const a = hallar(curso, nombre);
+        if (!a) return;
+        const [hi, hf] = T[turno];
+        db.prepare('UPDATE asignaciones SET dia=?,turno=?,hora_inicio=?,hora_fin=? WHERE id=?').run(dia, turno, hi, hf, a.id);
+        db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(a.id);
+        db.prepare("INSERT INTO horarios (asignacion_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,'')").run(a.id, dia, turno, hi, hf);
+      };
+      const renombrar = (curso, viejo, nuevo) => {
+        const a = hallar(curso, viejo);
+        if (!a) return;
+        const otros = db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=? AND periodo_id!=?').get(a.materia_id, per.id).c;
+        if (otros) { console.warn(`[Migración horario 2S] "${viejo}" ${curso} se usa en otro período: no se renombra`); return; }
+        db.prepare('UPDATE materias SET nombre=? WHERE id=?').run(nuevo, a.materia_id);
+      };
+      const crear = (mid, carrera, nombre, codigo, anio, docente, curso, dia, turno) => {
+        db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,4,?,25,25,50)').run(mid, carrera, nombre, codigo, anio);
+        if (db.prepare('SELECT 1 FROM asignaciones WHERE periodo_id=? AND materia_id=? AND curso_id=?').get(per.id, mid, curso)) return;
+        const [hi, hf] = T[turno];
+        crearAsignacionConHorario({ docente_id: docente, materia_id: mid, curso_id: curso, periodo_id: per.id, dia, turno, hora_inicio: hi, hora_fin: hf });
+      };
+      db.transaction(() => {
+        // Ana Ayala — Prácticas Enf. 2° sale del horario y se elimina
+        eliminar('enf_2u', 'Practicas');
+        // Noelia Ayala — Química Cosmiatría 1° Secc. A a la 1ra hora
+        mover('cosA_1a', 'Quimica', 'Martes', 1);
+        // Nelly Carmona — Suelo y Clima es una sola materia
+        renombrar('agro_1u', 'Suelo', 'Suelo y Clima');
+        eliminar('agro_1u', 'Clima');
+        // Mirta Giménez — sin Cultivos/Forrajes/Pasturas; Matemática Agro 2° al jueves 1ra; Horticultura única
+        eliminar('agro_2u', 'Cultivos, Forrajes y Pasturas');
+        mover('agro_2u', 'Matematica', 'Jueves', 1);
+        const h1 = hallar('agro_1u', 'Horticultura'), h2 = hallar('agro_2u', 'Horticultura');
+        if (h1 && h2 && h1.materia_id !== h2.materia_id) {
+          db.prepare('UPDATE asignaciones SET materia_id=? WHERE id=?').run(h1.materia_id, h2.id);
+          if (!db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=?').get(h2.materia_id).c) {
+            try { db.prepare('DELETE FROM materias WHERE id=?').run(h2.materia_id); } catch {}
+          }
+        }
+        // Paulo Higuchi
+        renombrar('rad_2u', 'Patologia - Fisiologia', 'Patología Médica');
+        renombrar('enf_1u', 'Anatomia', 'Anatomía y Fisiología Humana II');
+        mover('instr_2u', 'Tecnicas Radiologicas', 'Miércoles', 1);
+        // María Elena Pérez
+        eliminar('rad_1u', 'Castellano');
+        eliminar('cosA_1a', 'Castellano');
+        mover('enf_2u', 'Guarani', 'Miércoles', 2);
+        // Favio Rojas
+        renombrar('cosA_2u', 'Semiologia Ii', 'Semiología de la Piel II');
+        renombrar('farm_1u', 'Patologia', 'Patología General');
+        renombrar('instr_1u', 'Patologia', 'Patología Quirúrgica');
+        crear('m_cos_bioetica', 'cosA', 'Bioética', 'COS-BIOETICA', 1, 'doc_rojas', 'cosA_1a', 'Martes', 2);
+        // Amelia Sanguina
+        eliminar('cosA_1b', 'Castellano');
+        renombrar('cosA_2u', 'Guarani', 'Guaraní y Castellano');
+        // Natalia Valenzuela
+        renombrar('instr_2u', 'Hematologia - Enfermeria Quirurgica', 'Hematología');
+        crear('m_iq_enfqx', 'instr', 'Enfermería Quirúrgica', 'IQ-ENFQX', 2, 'doc_valenz', 'instr_2u', 'Lunes', 1);
+        eliminar('cosA_1a', 'Etica');
+        crear('m_cos_informatica', 'cosA', 'Informática', 'COS-INFORM', 2, 'doc_valenz', 'cosA_2u', 'Jueves', 1);
+        renombrar('enf_2u', 'Enfermeria En Salud Mental', 'Enfermería en Salud Mental y Psiquiatría');
+        eliminar('farm_2u', 'Contabilidad Basica');
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_observaciones_horario_2s','1')").run();
+      })();
+      console.log('[Migración] Ajustes de horario 2do semestre (observaciones planilla docentes) aplicados ✓');
+    }
+  } catch (e) { console.warn('Migración observaciones horario 2S:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
@@ -3262,8 +3361,17 @@ app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
   res.json({ tiene_conflicto: !!conflicto, materia: conflicto?.materia || null });
 });
 
+// Semestre en curso = período más reciente (año, semestre) que ya empezó. NO es el período "activo" del
+// sistema (ese sigue siendo el Año Lectivo, del que cuelgan matrículas y cuotas). Los docentes solo ven
+// las materias de este período, no las de semestres anteriores.
+function periodoVigenteId() {
+  const r = db.prepare("SELECT id FROM periodos WHERE fecha_inicio<=date('now') ORDER BY anio DESC, semestre DESC, fecha_inicio DESC LIMIT 1").get();
+  return r ? r.id : null;
+}
 app.get('/api/asignaciones', auth(), (req, res) => {
-  const { docente_id, curso_id, periodo_id, materia_id } = req.query;
+  const { docente_id, curso_id, materia_id } = req.query;
+  let { periodo_id } = req.query;
+  if (req.user.rol === 'docente') periodo_id = periodoVigenteId() || periodo_id;
   const sede = req.user.sede || 'pjc';
   let where = 'WHERE ca.sede_id=?'; const params = [sede];
   if (docente_id) { where += ' AND a.docente_id=?'; params.push(docente_id); }
@@ -5897,8 +6005,10 @@ app.post('/api/examenes/confirmar-importar', auth(ADM), (req, res) => {
 
 // ── HORARIOS ──────────────────────────────────────────────────────────────────
 app.get('/api/horarios', auth(), (req, res) => {
-  const { asignacion_id, dia, docente_id, docente_usuario_id, periodo_id, carrera_id } = req.query;
-  let { curso_id } = req.query;
+  const { asignacion_id, dia, docente_id, docente_usuario_id, carrera_id } = req.query;
+  let { curso_id, periodo_id } = req.query;
+  // Un docente solo ve el horario del semestre en curso (ver periodoVigenteId)
+  if (req.user.rol === 'docente') periodo_id = periodoVigenteId() || periodo_id;
   // Un alumno solo puede ver el horario de su propio curso, sin importar qué
   // curso_id pida por query — se resuelve server-side, no confiamos en el cliente.
   if (req.user.rol === 'alumno') {

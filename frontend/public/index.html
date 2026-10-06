@@ -8992,7 +8992,13 @@ async function pgCalClases(el){
   // Si venimos redirigidos desde el importador de Excel, mostramos ESE período
   // (que puede no ser el activo todavía) y limpiamos la marca — uso único.
   const periodoDestinoId=W._irAHorarioPeriodo;
-  const periodoActivo=(periodoDestinoId&&periodos.find(p=>String(p.id)===String(periodoDestinoId)))
+  // Docente: siempre el semestre en curso (período más reciente que ya empezó), nunca uno anterior.
+  const hoyISO=new Date().toISOString().split('T')[0];
+  const periodoVigenteDoc=me.rol==='docente'
+    ? [...periodos].filter(p=>(p.fecha_inicio||'')<=hoyISO).sort((a,b)=>(b.anio-a.anio)||(b.semestre-a.semestre))[0]
+    : null;
+  const periodoActivo=periodoVigenteDoc
+    || (periodoDestinoId&&periodos.find(p=>String(p.id)===String(periodoDestinoId)))
     || periodos.find(p=>p.activo) || periodos[0] || null;
   W._periodoHorario=periodoActivo;
   // Docente y alumno reciben solo su propio recorte directo desde el servidor
@@ -9041,7 +9047,7 @@ async function pgCalClases(el){
   const carreraPreset=W._irAHorarioCarrera||'';
   el.innerHTML=`<div class="ph"><h3>📅 ${esAlumno?'Mi Horario':'Horario Semanal de Clases'}${periodoActivo?' — '+periodoActivo.nombre:''}</h3>
     <div class="ph-right">
-      ${periodos.length>1?`<select id="filtHorPeriodo" onchange="cambiarPeriodoHorario(this.value)" style="min-width:170px;font-weight:700">
+      ${periodos.length>1&&me.rol!=='docente'?`<select id="filtHorPeriodo" onchange="cambiarPeriodoHorario(this.value)" style="min-width:170px;font-weight:700">
         ${periodos.map(p=>`<option value="${p.id}" ${periodoActivo&&p.id===periodoActivo.id?'selected':''}>${p.nombre}${p.activo?' (activo)':''}</option>`).join('')}
       </select>`:''}
     </div>
