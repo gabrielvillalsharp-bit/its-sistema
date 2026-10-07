@@ -982,6 +982,30 @@ const PERMITE_DOS_MATERIAS_POR_HORA = true;
     }
   } catch (e) { console.warn('Migración horario Excel 06/10:', e.message); }
 }
+// ── MIGRACIÓN: Biología y Bioquímica (Radiología 2°, Angela Aranda) son 2 materias independientes (2026-10-06) ──
+// La asignación combinada "Biologia - Bioquimica" pasa a ser "Biología" (conserva sus notas) y se crea
+// "Bioquímica" aparte, mismo docente, curso, día y hora, con sus propias planillas de notas. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_biologia_bioquimica_split'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const a = db.prepare("SELECT a.id, a.materia_id, a.docente_id, a.dia, a.turno, a.hora_inicio, a.hora_fin FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id='rad_2u' AND m.nombre='Biologia - Bioquimica'").get(per.id);
+      if (a) {
+        db.transaction(() => {
+          const otros = db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=? AND periodo_id!=?').get(a.materia_id, per.id).c;
+          if (!otros) db.prepare("UPDATE materias SET nombre='Biología' WHERE id=?").run(a.materia_id);
+          db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES ('m_rad_bioquimica','rad','Bioquímica','RAD-BIOQ',4,2,25,25,50)").run();
+          if (!db.prepare("SELECT 1 FROM asignaciones WHERE periodo_id=? AND materia_id='m_rad_bioquimica' AND curso_id='rad_2u'").get(per.id)) {
+            crearAsignacionConHorario({ docente_id: a.docente_id, materia_id: 'm_rad_bioquimica', curso_id: 'rad_2u', periodo_id: per.id, dia: a.dia, turno: a.turno, hora_inicio: a.hora_inicio, hora_fin: a.hora_fin });
+          }
+          db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_biologia_bioquimica_split','1')").run();
+        })();
+        console.log('[Migración] Biología y Bioquímica (Radiología 2°) separadas en 2 materias ✓');
+      }
+    }
+  } catch (e) { console.warn('Migración Biología/Bioquímica:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
