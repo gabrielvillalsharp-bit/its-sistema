@@ -1006,6 +1006,124 @@ const PERMITE_DOS_MATERIAS_POR_HORA = true;
     }
   } catch (e) { console.warn('Migración Biología/Bioquímica:', e.message); }
 }
+// ── MIGRACIÓN: calendario de exámenes PARCIALES del 2do semestre 2026 (12/10 al 13/11) ──
+// Aprobado por el director (2026-10-06). Reglas: examen el día y hora de clase de la materia, un día sí y un
+// día no para cada curso, docente con una sola materia por día, máx. 6 aulas por franja (clase unificada =
+// 1 aula), las materias de una misma hora de clase se rinden por separado y Cosmiatría una materia por día
+// (única excepción aprobada: jueves 22/10, Castellano de Cosm. 1° A y Biología de la Piel II de Cosm. 1° B).
+// Electricidad (Marecos) e Introducción a la Enfermería quedan fuera. Una fila por asignación. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_parciales_2s_2026'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const cal = [ // [curso_id, materia, fecha, hora]
+      ["enf_1u","Psicologia","2026-10-12","19:00"],
+      ["enf_2u","Bioseguridad","2026-10-12","19:00"],
+      ["rad_1u","Psicologia","2026-10-12","19:00"],
+      ["rad_2u","Patología Médica","2026-10-12","19:00"],
+      ["farm_2u","Atencion Al Cliente","2026-10-12","20:40"],
+      ["agro_1u","Suelo y Clima","2026-10-13","19:00"],
+      ["cosA_2u","Semiología de la Piel II","2026-10-13","19:00"],
+      ["crim_1u","Documentologia","2026-10-13","19:00"],
+      ["cosA_1b","Castellano","2026-10-14","19:00"],
+      ["enf_2u","Castellano","2026-10-14","19:00"],
+      ["farm_2u","Botanica Farmaceutica","2026-10-14","19:00"],
+      ["instr_2u","Matematica","2026-10-14","20:40"],
+      ["rad_2u","Matematica","2026-10-14","20:40"],
+      ["cosA_1a","Guaraní","2026-10-15","19:00"],
+      ["crim_1u","Fisica","2026-10-15","20:40"],
+      ["enf_1u","Castellano","2026-10-16","19:00"],
+      ["farm_1u","Farmacotecnia","2026-10-16","19:00"],
+      ["farm_2u","Guarani","2026-10-16","19:00"],
+      ["instr_2u","Guarani","2026-10-16","19:00"],
+      ["instr_2u","Enfermería Quirúrgica","2026-10-19","19:00"],
+      ["rad_2u","Bioquímica","2026-10-19","20:40"],
+      ["agro_2u","Economia","2026-10-20","19:00"],
+      ["cosA_1a","Quimica","2026-10-20","19:00"],
+      ["cosA_1b","Quimica","2026-10-20","20:40"],
+      ["crim_2u","Informatica","2026-10-20","20:40"],
+      ["cosA_2u","Emprendimiento Laboral","2026-10-21","19:00"],
+      ["agro_1u","Biologia Aplicada","2026-10-22","19:00"],
+      ["agro_2u","Matematica","2026-10-22","19:00"],
+      ["cosA_1a","Castellano","2026-10-22","19:00"],
+      ["cosA_1b","Biologia De La Piel Ii","2026-10-22","20:40"],
+      ["enf_1u","Epidemiologia","2026-10-23","20:40"],
+      ["enf_2u","Informatica","2026-10-23","20:40"],
+      ["farm_2u","Informatica","2026-10-23","20:40"],
+      ["rad_2u","Embriologia Basica","2026-10-23","20:40"],
+      ["farm_2u","Quimica Organica","2026-10-26","19:00"],
+      ["rad_2u","Fisiología Médica","2026-10-26","19:00"],
+      ["farm_1u","Primeros Auxilios","2026-10-26","20:40"],
+      ["instr_1u","Primeros Auxilios","2026-10-26","20:40"],
+      ["crim_2u","Guarani","2026-10-27","19:00"],
+      ["agro_1u","Horticultura","2026-10-27","20:40"],
+      ["agro_2u","Horticultura","2026-10-27","20:40"],
+      ["cosA_2u","Uso De Aparatologia","2026-10-27","20:40"],
+      ["cosA_1b","Guaraní","2026-10-28","19:00"],
+      ["instr_2u","Tecnicas Radiologicas","2026-10-28","19:00"],
+      ["enf_1u","Tecnologia En Enfermeria","2026-10-28","20:40"],
+      ["rad_1u","Tecnicas Radiologicas","2026-10-28","20:40"],
+      ["agro_1u","Guarani","2026-10-29","20:40"],
+      ["agro_2u","Guarani","2026-10-29","20:40"],
+      ["cosA_2u","Bioquímica Aplicada A La Cosmetología","2026-10-29","20:40"],
+      ["crim_2u","Matematica","2026-10-29","20:40"],
+      ["rad_1u","Practicas Radiologicas","2026-10-30","20:40"],
+      ["farm_2u","Marketing","2026-11-02","20:40"],
+      ["instr_2u","Ingles","2026-11-02","20:40"],
+      ["agro_2u","Emprendedurismo","2026-11-03","19:00"],
+      ["cosA_1b","Etica","2026-11-03","19:00"],
+      ["agro_1u","Matematica","2026-11-04","19:00"],
+      ["cosA_1a","Biologia De La Piel Ii","2026-11-04","19:00"],
+      ["crim_1u","Sociologia","2026-11-04","19:00"],
+      ["enf_2u","Guarani","2026-11-04","20:40"],
+      ["agro_2u","Produccion De Aves","2026-11-05","19:00"],
+      ["cosA_2u","Informática","2026-11-05","19:00"],
+      ["crim_2u","Metodologia","2026-11-05","19:00"],
+      ["enf_2u","Enfermería en Salud Mental y Psiquiatría","2026-11-06","19:00"],
+      ["farm_2u","Castellano","2026-11-06","19:00"],
+      ["instr_2u","Castellano","2026-11-06","19:00"],
+      ["rad_1u","Epidemiología","2026-11-06","19:00"],
+      ["rad_2u","Castellano","2026-11-06","19:00"],
+      ["instr_1u","Patología Quirúrgica","2026-11-06","20:40"],
+      ["farm_1u","Castellano","2026-11-09","19:00"],
+      ["instr_1u","Castellano","2026-11-09","19:00"],
+      ["instr_2u","Hematología","2026-11-09","19:00"],
+      ["enf_1u","Anatomía y Fisiología Humana II","2026-11-09","20:40"],
+      ["rad_1u","Castellano","2026-11-09","20:40"],
+      ["rad_2u","Biología","2026-11-09","20:40"],
+      ["cosA_1a","Bioética","2026-11-10","20:40"],
+      ["crim_1u","Medicina Legal","2026-11-10","20:40"],
+      ["agro_1u","Produccion Bovina","2026-11-11","19:00"],
+      ["agro_2u","Produccion Bovina","2026-11-11","19:00"],
+      ["crim_2u","Practicas","2026-11-11","19:00"],
+      ["farm_1u","Ingles","2026-11-11","20:40"],
+      ["instr_1u","Ingles","2026-11-11","20:40"],
+      ["cosA_1b","Tecnicas Cosmeticas","2026-11-12","19:00"],
+      ["crim_1u","Genetica Forense","2026-11-12","19:00"],
+      ["cosA_1a","Tecnicas Cosmeticas","2026-11-12","20:40"],
+      ["instr_1u","Fundamentos En Instrumentacion Qx","2026-11-13","19:00"],
+      ["farm_1u","Patología General","2026-11-13","20:40"],
+      ];
+      const buscar = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const yaTiene = db.prepare("SELECT 1 FROM examenes WHERE asignacion_id=? AND tipo='Parcial'");
+      const ins = db.prepare("INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,'Parcial',?,?,NULL,?,NULL,20)");
+      let creados = 0; const faltan = [];
+      db.transaction(() => {
+        cal.forEach(([curso, mat, fecha, hora], i) => {
+          const a = buscar.get(per.id, curso, mat);
+          if (!a) { faltan.push(curso + ' / ' + mat); return; }
+          if (yaTiene.get(a.id)) return;
+          ins.run('ep2_' + String(i + 1).padStart(3, '0'), a.id, fecha, hora, per.id);
+          creados++;
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_parciales_2s_2026','1')").run();
+      })();
+      console.log(`[Migración] Parciales 2do semestre: ${creados} exámenes cargados ✓`);
+      if (faltan.length) console.warn('[Migración] Parciales 2do semestre — sin asignación para:', faltan.join('; '));
+    }
+  } catch (e) { console.warn('Migración parciales 2do semestre:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
