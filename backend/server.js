@@ -1124,6 +1124,84 @@ const PERMITE_DOS_MATERIAS_POR_HORA = true;
     }
   } catch (e) { console.warn('Migración parciales 2do semestre:', e.message); }
 }
+// ── MIGRACIÓN: recordatorios de examen a docentes — solo 24h y 12h antes (2026-10-06) ──
+// A pedido del director: se desactivan 48h/6h/4h/3h. OJO: WA_AUTO_PAUSADO sigue en true (restricción de Meta,
+// 2026-07-20), así que mientras esa bandera no se cambie NO sale ningún recordatorio automático, ni siquiera 24h/12h.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_wa_reglas_24_12_20261006'").get()) {
+    const setRegla = db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)");
+    ['24h', '12h'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '1', `Regla WA ${k}`));
+    ['48h', '6h', '4h', '3h'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '0', `Regla WA ${k}`));
+    setRegla.run('mig_wa_reglas_24_12_20261006', '1', 'Migración: recordatorios de examen solo 24h y 12h');
+    console.log('[Migración] Recordatorios de examen: solo 24h y 12h activos ✓');
+  }
+} catch (e) { console.warn('[Migración] Reglas WA 24h/12h:', e.message); }
+
+// ── MIGRACIÓN: completar planillas de notas faltantes del 2do semestre (2026-10-06) ──
+// Alumnos activos que se sumaron a un curso DESPUÉS de crearse sus asignaciones no tenían fila de notas en alguna
+// materia del 2do semestre y no la veían en "Mis calificaciones". Se crea la fila "Pendiente" que falte.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_notas_faltantes_2s_20261006'").get()) {
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (per) {
+      const faltan = db.prepare(`SELECT al.id alumno_id, a.id asignacion_id FROM alumnos al
+        JOIN asignaciones a ON a.curso_id=al.curso_id AND a.periodo_id=?
+        WHERE al.estado='Activo' AND NOT EXISTS (SELECT 1 FROM notas n WHERE n.alumno_id=al.id AND n.asignacion_id=a.id)`).all(per.id);
+      const insN = db.prepare("INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,'Pendiente')");
+      db.transaction(() => {
+        faltan.forEach((f, i) => insN.run('n_bf_' + Date.now() + '_' + i, f.alumno_id, f.asignacion_id));
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_notas_faltantes_2s_20261006','1')").run();
+      })();
+      console.log(`[Migración] Planillas de notas del 2do semestre completadas: ${faltan.length} filas ✓`);
+    }
+  }
+} catch (e) { console.warn('[Migración] Notas faltantes 2S:', e.message); }
+// ── MIGRACIÓN: Radiología 1° — sale Epidemiología (Agüero), entra Anatomía y Fisiología Humana II (Higuchi) ──
+// La materia es la misma clase que Enfermería 1° (lunes 2da hora): se comparte como clase unificada (1 aula).
+// Además se reacomodan las fechas de parciales afectadas (ver CAL). Pedido del director 2026-10-06. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_rad1_anatomia_20261006'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const buscar = db.prepare('SELECT a.id, a.materia_id, a.docente_id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const enf = buscar.get(per.id, 'enf_1u', 'Anatomía y Fisiología Humana II');
+      if (enf) {
+        const CAL = [ // [curso_id, materia, fecha, hora] — parciales que cambian de fecha / nuevos
+          ['rad_1u', 'Castellano', '2026-11-02', '20:40'],                       // antes 09/11 (chocaba con Anatomía el mismo día)
+          ['rad_1u', 'Anatomía y Fisiología Humana II', '2026-11-09', '20:40'],  // unificada con Enfermería 1° (misma fecha y hora)
+        ];
+        db.transaction(() => {
+          const epi = buscar.get(per.id, 'rad_1u', 'Epidemiología');
+          if (epi) {
+            db.prepare("DELETE FROM examenes WHERE asignacion_id=? AND tipo='Parcial' AND id LIKE 'ep2_%'").run(epi.id);
+            const conNotas = db.prepare(`SELECT COUNT(*) c FROM notas WHERE asignacion_id=? AND (estado!='Pendiente' OR puntaje_total IS NOT NULL OR ausente=1
+              OR COALESCE(tp1,0)+COALESCE(tp2,0)+COALESCE(tp3,0)+COALESCE(tp4,0)+COALESCE(tp5,0)+COALESCE(parcial,0)+COALESCE(director_pts,0)>0)`).get(epi.id).c;
+            if (conNotas) { console.warn('[Migración Rad 1°] Epidemiología tiene notas cargadas: no se elimina'); }
+            else {
+              eliminarAsignacionCascada(epi.id);
+              if (!db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=?').get(epi.materia_id).c) { try { db.prepare('DELETE FROM materias WHERE id=?').run(epi.materia_id); } catch {} }
+            }
+          }
+          db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES ('m_rad_ayf','rad','Anatomía y Fisiología Humana II','RAD-AYF',4,1,25,25,50)").run();
+          if (!buscar.get(per.id, 'rad_1u', 'Anatomía y Fisiología Humana II')) {
+            crearAsignacionConHorario({ docente_id: enf.docente_id, materia_id: 'm_rad_ayf', curso_id: 'rad_1u', periodo_id: per.id, dia: 'Lunes', turno: 2, hora_inicio: '20:40', hora_fin: '22:00' });
+          }
+          const updEx = db.prepare("UPDATE examenes SET fecha=?, hora=? WHERE asignacion_id=? AND tipo='Parcial'");
+          const insEx = db.prepare("INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,'Parcial',?,?,NULL,?,NULL,20)");
+          CAL.forEach(([curso, mat, fecha, hora], i) => {
+            const a = buscar.get(per.id, curso, mat);
+            if (!a) { console.warn(`[Migración Rad 1°] sin asignación: ${curso} / ${mat}`); return; }
+            if (db.prepare("SELECT 1 FROM examenes WHERE asignacion_id=? AND tipo='Parcial'").get(a.id)) updEx.run(fecha, hora, a.id);
+            else insEx.run('ep2_r1_' + String(i + 1).padStart(2, '0'), a.id, fecha, hora, per.id);
+          });
+          db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_rad1_anatomia_20261006','1')").run();
+        })();
+        console.log('[Migración] Radiología 1°: Anatomía y Fisiología Humana II (compartida con Enfermería 1°) en lugar de Epidemiología ✓');
+      }
+    }
+  } catch (e) { console.warn('Migración Rad 1° Anatomía:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
@@ -4025,7 +4103,8 @@ app.get('/api/notas/alumno/:alumno_id', auth(), (req, res) => {
     && calcularMesesDeuda(req.params.alumno_id).meses_deuda >= UMBRAL_BLOQUEO_NOTAS;
   const rows = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia_nombre, m.peso_tp, m.peso_parcial, m.peso_final,
-      p.id as periodo_id, p.nombre as periodo_nombre, p.activo as periodo_activo, ca.nombre as carrera_nombre, cu.anio as curso_anio,
+      p.id as periodo_id, p.nombre as periodo_nombre, p.activo as periodo_activo, p.anio as periodo_anio, p.semestre as periodo_semestre, p.fecha_inicio as periodo_inicio,
+      ca.nombre as carrera_nombre, cu.anio as curso_anio,
       n.tp1, n.tp2, n.tp3, n.tp4, n.tp5, n.tp_total, n.parcial, n.parcial_recuperatorio,
       n.final_ord, n.final_recuperatorio, n.complementario, n.extraordinario, n.ausente,
       n.puntaje_total, n.nota_final, n.estado, n.parcial_efectivo, n.final_efectivo, n.director_pts
@@ -4651,8 +4730,9 @@ app.get('/api/examenes', auth(), (req, res) => {
   }
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
-    if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
-    if (al?.curso_id)   { where += ' AND cu.id=?';  params.push(al.curso_id); }
+    // Sin carrera o sin curso asignado NO se filtra "por nada": antes veía los exámenes de TODAS las carreras
+    if (!al?.carrera_id || !al?.curso_id) return res.json([]);
+    where += ' AND ca.id=? AND cu.id=?'; params.push(al.carrera_id, al.curso_id);
   }
   try {
     res.json(db.prepare(`
@@ -5259,8 +5339,9 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
   // Alumno: solo ve exámenes de su carrera Y su propio año/curso
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
-    if (al?.carrera_id) { where += ' AND ca.id=?'; params.push(al.carrera_id); }
-    if (al?.curso_id)   { where += ' AND cu.id=?';  params.push(al.curso_id); }
+    // Sin carrera o sin curso asignado NO se filtra "por nada": antes veía los exámenes de TODAS las carreras
+    if (!al?.carrera_id || !al?.curso_id) return res.json([]);
+    where += ' AND ca.id=? AND cu.id=?'; params.push(al.carrera_id, al.curso_id);
   }
   // Docente: forzar filtro por sus propias asignaciones (seguridad server-side)
   if (req.user.rol === 'docente' && !docente_id) {

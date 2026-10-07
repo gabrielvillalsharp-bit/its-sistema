@@ -1733,7 +1733,7 @@ async function pgDash(el){
   if(me.rol==='alumno'){
     if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno vinculado</div>';return;}
     const hoy=new Date().toISOString().split('T')[0];
-    const lim=new Date();lim.setDate(lim.getDate()+30);
+    const lim=new Date();lim.setDate(lim.getDate()+120); // todo el semestre: antes solo 30 días y los parciales de más adelante no aparecían
     const limStr=lim.toISOString().split('T')[0];
     const [notas,asist,pagosData,exams,avs,extrasPend]=await Promise.all([
       api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]),
@@ -1851,9 +1851,9 @@ async function pgDash(el){
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
     const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.destinatario!=='director'&&a.categoria!=='sistema');
-    const periodoActivo=dash.periodo_activo||'Período activo';
-    // Filtrar asignaciones del período activo
-    const misAsigs=(asigs||[]).filter(a=>a.periodo_nombre===periodoActivo);
+    // El servidor ya entrega al docente solo las materias del semestre en curso (no el "período activo" del año lectivo)
+    const misAsigs=asigs||[];
+    const periodoActivo=(misAsigs[0]&&misAsigs[0].periodo_nombre)||dash.periodo_activo||'Período activo';
     const pendientesNotas=misAsigs.filter(a=>a.notas_cargadas<a.total_alumnos);
     el.innerHTML=`
     ${_dashHero(saludo,me.nombre,fechaCap,periodoActivo,[
@@ -18055,9 +18055,13 @@ async function pgMisNotas(el){
   const anio=notas?.[0]?.curso_anio||'';
   // Períodos presentes en las notas del alumno, más reciente primero (activo primero si lo hay)
   const periodosMap=new Map();
-  (notas||[]).forEach(n=>{ if(n.periodo_id!=null && !periodosMap.has(n.periodo_id)) periodosMap.set(n.periodo_id,{id:n.periodo_id,nombre:n.periodo_nombre,activo:n.periodo_activo}); });
-  const periodos=[...periodosMap.values()].sort((a,b)=>(b.activo?1:0)-(a.activo?1:0) || b.id-a.id);
-  W._misNotasPeriodoSel=periodos.find(p=>p.activo)?.id ?? periodos[0]?.id ?? null;
+  // Semestre en curso = el más reciente que ya empezó (NO el "período activo" del año lectivo, que es el 1er semestre
+  // y hacía que el alumno abriera "Mis calificaciones" en las materias viejas y creyera que faltaban las nuevas).
+  const hoyISO=new Date().toISOString().split('T')[0];
+  (notas||[]).forEach(n=>{ if(n.periodo_id!=null && !periodosMap.has(n.periodo_id)) periodosMap.set(n.periodo_id,{id:n.periodo_id,nombre:n.periodo_nombre,activo:n.periodo_activo,anio:n.periodo_anio||0,semestre:n.periodo_semestre||0,inicio:n.periodo_inicio||'',
+    etq:n.periodo_semestre?((n.periodo_semestre===1?'1er':n.periodo_semestre+'do')+' Semestre '+(n.periodo_anio||'')):n.periodo_nombre}); });
+  const periodos=[...periodosMap.values()].sort((a,b)=>((b.inicio<=hoyISO?1:0)-(a.inicio<=hoyISO?1:0)) || (b.anio-a.anio) || (b.semestre-a.semestre) || (b.id-a.id));
+  W._misNotasPeriodoSel=periodos[0]?.id ?? null;
   el.innerHTML=`<div class="ph"><h3>📚 Mis calificaciones</h3>
     ${carrera?`<span class="bx bb" style="font-size:12px">${carrera} ${anio?anio+'° año':''}</span>`:''}
   </div>
@@ -18070,7 +18074,7 @@ async function pgMisNotas(el){
     </div>`).join('')}
   </div>`:''}
   ${periodos.length>1?`<div class="fb" style="gap:0;margin-bottom:14px;border-bottom:2px solid var(--bdr);flex-wrap:wrap">
-    ${periodos.map(p=>`<button id="perTabBtn_${p.id}" onclick="cambiarPeriodoMisNotas(${p.id})" style="padding:9px 16px;font-size:12.5px;font-weight:700;border:none;border-bottom:3px solid ${p.id===W._misNotasPeriodoSel?'#166534':'transparent'};background:transparent;cursor:pointer;color:${p.id===W._misNotasPeriodoSel?'#166534':'#64748b'}">${p.nombre}${p.activo?' (actual)':''}</button>`).join('')}
+    ${periodos.map(p=>`<button id="perTabBtn_${p.id}" onclick="cambiarPeriodoMisNotas(${p.id})" style="padding:9px 16px;font-size:12.5px;font-weight:700;border:none;border-bottom:3px solid ${p.id===W._misNotasPeriodoSel?'#166534':'transparent'};background:transparent;cursor:pointer;color:${p.id===W._misNotasPeriodoSel?'#166534':'#64748b'}">${p.etq||p.nombre}${p.id===periodos[0].id?' (actual)':''}</button>`).join('')}
   </div>`:''}
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <select id="filtMisNotasMat" onchange="filtMisNotas()" style="min-width:200px"></select>
