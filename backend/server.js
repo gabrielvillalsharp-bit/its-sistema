@@ -926,6 +926,62 @@ const PERMITE_DOS_MATERIAS_POR_HORA = true;
     }
   } catch (e) { console.warn('Migración observaciones horario 2S:', e.message); }
 }
+// ── MIGRACIÓN: horario 2do semestre actualizado por el director en Excel (2026-10-06) ──
+// - Cosmiatría 2°: se elimina "Guaraní y Castellano" (Amelia) del jueves 1ra hora (queda solo Informática)
+// - Cosmiatría 1° Secc. A (jueves 1ra, Amelia) y Secc. B (miércoles 1ra, María Elena): Castellano y Guaraní,
+//   como DOS materias independientes, cada una con sus notas
+// - Radiología 1°: Castellano (María Elena, lunes 2da) y Epidemiología (Agüero, viernes 1ra)
+// - Radiología 2°: Patología Médica y Fisiología Médica son 2 materias independientes (Higuchi, lunes 1ra)
+// Solo se borra si la asignación no tiene notas ni exámenes cargados. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_horario_excel_20261006'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const T = { 1: ['19:00','20:20'], 2: ['20:40','22:00'] };
+      const tieneDatos = (id) => db.prepare(`SELECT COUNT(*) c FROM notas WHERE asignacion_id=? AND (estado!='Pendiente'
+        OR COALESCE(tp1,0)+COALESCE(tp2,0)+COALESCE(tp3,0)+COALESCE(tp4,0)+COALESCE(tp5,0)+COALESCE(parcial,0)+COALESCE(parcial_recuperatorio,0)
+          +COALESCE(final_ord,0)+COALESCE(final_recuperatorio,0)+COALESCE(complementario,0)+COALESCE(extraordinario,0)+COALESCE(director_pts,0)>0
+        OR puntaje_total IS NOT NULL OR ausente=1)`).get(id).c > 0
+        || db.prepare('SELECT COUNT(*) c FROM examenes WHERE asignacion_id=?').get(id).c > 0;
+      const eliminar = (curso, nombre) => {
+        const a = db.prepare('SELECT a.id, a.materia_id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?').get(per.id, curso, nombre);
+        if (!a) return;
+        if (tieneDatos(a.id)) {
+          db.prepare('UPDATE asignaciones SET dia=NULL WHERE id=?').run(a.id);
+          db.prepare('DELETE FROM horarios WHERE asignacion_id=?').run(a.id);
+          console.warn(`[Migración horario Excel] "${nombre}" ${curso} tiene notas/exámenes: solo se quitó del horario`);
+          return;
+        }
+        eliminarAsignacionCascada(a.id);
+        if (!db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=?').get(a.materia_id).c) {
+          try { db.prepare('DELETE FROM materias WHERE id=?').run(a.materia_id); } catch {}
+        }
+      };
+      const crear = (mid, carrera, nombre, codigo, anio, docente, curso, dia, turno) => {
+        db.prepare('INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES (?,?,?,?,4,?,25,25,50)').run(mid, carrera, nombre, codigo, anio);
+        if (db.prepare('SELECT 1 FROM asignaciones WHERE periodo_id=? AND materia_id=? AND curso_id=?').get(per.id, mid, curso)) return;
+        const [hi, hf] = T[turno];
+        crearAsignacionConHorario({ docente_id: docente, materia_id: mid, curso_id: curso, periodo_id: per.id, dia, turno, hora_inicio: hi, hora_fin: hf });
+      };
+      // Amelia Sanguina: su id de docente cambia según el entorno, se busca por apellido
+      const docAmelia = (db.prepare("SELECT d.id FROM docentes d JOIN usuarios u ON u.id=d.usuario_id WHERE u.apellido='Sanguina' LIMIT 1").get() || {}).id;
+      if (!docAmelia) throw new Error('docente Sanguina no encontrada');
+      db.transaction(() => {
+        eliminar('cosA_2u', 'Guaraní y Castellano');
+        crear('m_cos_castellano', 'cosA', 'Castellano', 'COS-CAST', 1, docAmelia, 'cosA_1a', 'Jueves', 1);
+        crear('m_cos_guarani',    'cosA', 'Guaraní',    'COS-GUAR', 1, docAmelia, 'cosA_1a', 'Jueves', 1);
+        crear('m_cos_castellano', 'cosA', 'Castellano', 'COS-CAST', 1, 'doc_perez',  'cosA_1b', 'Miércoles', 1);
+        crear('m_cos_guarani',    'cosA', 'Guaraní',    'COS-GUAR', 1, 'doc_perez',  'cosA_1b', 'Miércoles', 1);
+        crear('m_rad_castellano', 'rad',  'Castellano',   'RAD-CAST', 1, 'doc_perez',  'rad_1u', 'Lunes', 2);
+        crear('m_rad_epidemiologia', 'rad', 'Epidemiología', 'RAD-EPID', 1, 'doc_aguero', 'rad_1u', 'Viernes', 1);
+        crear('m_rad_fisiologia_med', 'rad', 'Fisiología Médica', 'RAD-FISIO', 2, 'doc_higuchi', 'rad_2u', 'Lunes', 1);
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_horario_excel_20261006','1')").run();
+      })();
+      console.log('[Migración] Ajustes de horario 2do semestre (Excel del director 06/10) aplicados ✓');
+    }
+  } catch (e) { console.warn('Migración horario Excel 06/10:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
