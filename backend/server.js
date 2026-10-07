@@ -1202,6 +1202,75 @@ try {
     }
   } catch (e) { console.warn('Migración Rad 1° Anatomía:', e.message); }
 }
+// ── MIGRACIÓN: compactación del calendario de parciales 2do semestre (2026-10-06) ──
+// A pedido del director: menos días de espera entre exámenes de un mismo curso, con las mismas reglas.
+// Se mueven solo las fechas de los parciales cargados por la migración mig_parciales_2s_2026 (ids ep2_*).
+// Agropecuaria, Cosmiatría 1° A, Enfermería 1° y Radiología 1° no se tocan. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_parciales_compactos_20261006'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const CAL = [ // [curso_id, materia, fecha, hora]
+          ["farm_1u","Castellano","2026-10-12","19:00"],
+          ["farm_2u","Quimica Organica","2026-10-12","19:00"],
+          ["instr_1u","Castellano","2026-10-12","19:00"],
+          ["instr_2u","Enfermería Quirúrgica","2026-10-12","19:00"],
+          ["rad_2u","Fisiología Médica","2026-10-12","19:00"],
+          ["cosA_2u","Uso De Aparatologia","2026-10-13","20:40"],
+          ["crim_1u","Medicina Legal","2026-10-13","20:40"],
+          ["crim_2u","Guarani","2026-10-13","19:00"],
+          ["farm_1u","Ingles","2026-10-14","20:40"],
+          ["instr_1u","Ingles","2026-10-14","20:40"],
+          ["instr_2u","Tecnicas Radiologicas","2026-10-14","19:00"],
+          ["cosA_2u","Bioquímica Aplicada A La Cosmetología","2026-10-15","20:40"],
+          ["crim_2u","Matematica","2026-10-15","20:40"],
+          ["enf_2u","Enfermería en Salud Mental y Psiquiatría","2026-10-16","19:00"],
+          ["farm_2u","Castellano","2026-10-16","19:00"],
+          ["instr_1u","Patología Quirúrgica","2026-10-16","20:40"],
+          ["instr_2u","Castellano","2026-10-16","19:00"],
+          ["rad_2u","Castellano","2026-10-16","19:00"],
+          ["farm_1u","Primeros Auxilios","2026-10-19","20:40"],
+          ["farm_2u","Atencion Al Cliente","2026-10-19","20:40"],
+          ["instr_1u","Primeros Auxilios","2026-10-19","20:40"],
+          ["instr_2u","Ingles","2026-10-19","20:40"],
+          ["rad_2u","Biología","2026-10-19","20:40"],
+          ["crim_1u","Documentologia","2026-10-20","19:00"],
+          ["enf_2u","Guarani","2026-10-21","20:40"],
+          ["instr_2u","Matematica","2026-10-21","20:40"],
+          ["rad_2u","Matematica","2026-10-21","20:40"],
+          ["crim_1u","Genetica Forense","2026-10-22","19:00"],
+          ["crim_2u","Metodologia","2026-10-22","19:00"],
+          ["farm_1u","Patología General","2026-10-23","20:40"],
+          ["instr_1u","Fundamentos En Instrumentacion Qx","2026-10-23","19:00"],
+          ["farm_2u","Marketing","2026-10-26","20:40"],
+          ["instr_2u","Hematología","2026-10-26","19:00"],
+          ["rad_2u","Bioquímica","2026-10-26","20:40"],
+          ["cosA_2u","Semiología de la Piel II","2026-10-27","19:00"],
+          ["crim_1u","Sociologia","2026-10-28","19:00"],
+          ["crim_2u","Practicas","2026-10-28","19:00"],
+          ["cosA_2u","Informática","2026-10-29","19:00"],
+          ["farm_2u","Guarani","2026-10-30","19:00"],
+          ["instr_2u","Guarani","2026-10-30","19:00"],
+          ["rad_2u","Patología Médica","2026-11-02","19:00"],
+          ["cosA_1b","Biologia De La Piel Ii","2026-11-05","20:40"],
+      ];
+      const buscar = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const upd = db.prepare("UPDATE examenes SET fecha=?, hora=? WHERE asignacion_id=? AND tipo='Parcial' AND id LIKE 'ep2_%'");
+      let movidos = 0; const faltan = [];
+      db.transaction(() => {
+        CAL.forEach(([curso, mat, fecha, hora]) => {
+          const a = buscar.get(per.id, curso, mat);
+          if (!a) { faltan.push(curso + ' / ' + mat); return; }
+          movidos += upd.run(fecha, hora, a.id).changes;
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_parciales_compactos_20261006','1')").run();
+      })();
+      console.log(`[Migración] Calendario de parciales compactado: ${movidos} exámenes reprogramados ✓`);
+      if (faltan.length) console.warn('[Migración] Compactación parciales — sin asignación para:', faltan.join('; '));
+    }
+  } catch (e) { console.warn('Migración compactación parciales:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
