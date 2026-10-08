@@ -1271,6 +1271,55 @@ try {
     }
   } catch (e) { console.warn('Migración compactación parciales:', e.message); }
 }
+// ── MIGRACIÓN: Radiología 2° — cambios pedidos por el director (2026-10-07) ──
+// - Se eliminan "Fisiología Médica" (Higuchi) y "Bioquímica" (Aranda) con sus parciales
+// - Biología (Aranda) rinde el lunes 12/10
+// - Se agrega "Prácticas Radiológicas" (Marcial Palacios), jueves 2da hora, con su parcial
+// Solo se borra si la asignación no tiene notas cargadas. Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_rad2_cambios_20261007'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const buscar = db.prepare('SELECT a.id, a.materia_id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const sinNotas = (id) => db.prepare(`SELECT COUNT(*) c FROM notas WHERE asignacion_id=? AND (estado!='Pendiente' OR puntaje_total IS NOT NULL OR ausente=1
+        OR COALESCE(tp1,0)+COALESCE(tp2,0)+COALESCE(tp3,0)+COALESCE(tp4,0)+COALESCE(tp5,0)+COALESCE(parcial,0)+COALESCE(director_pts,0)>0)`).get(id).c === 0;
+      const eliminar = (curso, nombre) => {
+        const a = buscar.get(per.id, curso, nombre);
+        if (!a) return;
+        db.prepare("DELETE FROM examenes WHERE asignacion_id=? AND tipo='Parcial' AND id LIKE 'ep2_%'").run(a.id);
+        if (!sinNotas(a.id)) { console.warn(`[Migración Rad 2°] "${nombre}" tiene notas cargadas: no se elimina`); return; }
+        eliminarAsignacionCascada(a.id);
+        if (!db.prepare('SELECT COUNT(*) c FROM asignaciones WHERE materia_id=?').get(a.materia_id).c) { try { db.prepare('DELETE FROM materias WHERE id=?').run(a.materia_id); } catch {} }
+      };
+      const pal = db.prepare("SELECT d.id FROM docentes d JOIN usuarios u ON u.id=d.usuario_id WHERE u.apellido='Palacios' LIMIT 1").get();
+      if (!pal) throw new Error('docente Palacios no encontrado');
+      const CAL = [ // [curso_id, materia, fecha, hora] — parciales que cambian de fecha / nuevos
+        ['rad_2u', 'Biología', '2026-10-12', '20:40'],                   // primer examen de Rad. 2° (antes 19/10)
+        ['rad_2u', 'Prácticas Radiológicas', '2026-10-29', '20:40'],     // materia nueva (Palacios, jueves 2da hora)
+        ['farm_2u', 'Quimica Organica', '2026-11-02', '19:00'],          // antes 12/10: Aranda no puede tener 2 materias el mismo día (Biología)
+      ];
+      db.transaction(() => {
+        eliminar('rad_2u', 'Fisiología Médica');
+        eliminar('rad_2u', 'Bioquímica');
+        db.prepare("INSERT OR IGNORE INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final) VALUES ('m_rad2_practicas','rad','Prácticas Radiológicas','RAD-PRAC2',4,2,25,25,50)").run();
+        if (!buscar.get(per.id, 'rad_2u', 'Prácticas Radiológicas')) {
+          crearAsignacionConHorario({ docente_id: pal.id, materia_id: 'm_rad2_practicas', curso_id: 'rad_2u', periodo_id: per.id, dia: 'Jueves', turno: 2, hora_inicio: '20:40', hora_fin: '22:00' });
+        }
+        const updEx = db.prepare("UPDATE examenes SET fecha=?, hora=? WHERE asignacion_id=? AND tipo='Parcial'");
+        const insEx = db.prepare("INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,'Parcial',?,?,NULL,?,NULL,20)");
+        CAL.forEach(([curso, mat, fecha, hora], i) => {
+          const a = buscar.get(per.id, curso, mat);
+          if (!a) { console.warn(`[Migración Rad 2°] sin asignación: ${curso} / ${mat}`); return; }
+          if (db.prepare("SELECT 1 FROM examenes WHERE asignacion_id=? AND tipo='Parcial'").get(a.id)) updEx.run(fecha, hora, a.id);
+          else insEx.run('ep2_r2_' + String(i + 1).padStart(2, '0'), a.id, fecha, hora, per.id);
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_rad2_cambios_20261007','1')").run();
+      })();
+      console.log('[Migración] Radiología 2°: sin Fisiología Médica ni Bioquímica; con Prácticas Radiológicas (Palacios) ✓');
+    }
+  } catch (e) { console.warn('Migración Rad 2° cambios:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
