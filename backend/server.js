@@ -4162,12 +4162,15 @@ function calcularMesesDeuda(alumno_id) {
   // en mayo no puede deber la cuota de marzo. Sin esto, cualquier alumno inscripto
   // después de marzo queda bloqueado aunque esté al día desde su primer mes.
   const al = db.prepare('SELECT fecha_ingreso FROM alumnos WHERE id=?').get(alumno_id);
-  let cuotaInicio = 1;
+  // Pedido del director (2026-10-12): Marzo y Abril (cuotas 1 y 2) ya no se exigen para ver las notas;
+  // se exige desde Mayo (cuota 3) en adelante.
+  const CUOTA_INICIO_EXIGIDA = 3;
+  let cuotaInicio = CUOTA_INICIO_EXIGIDA;
   if (al?.fecha_ingreso) {
     const mesIngreso = new Date(al.fecha_ingreso + 'T00:00:00').getMonth() + 1;
-    // Semestre 1 (mar–jul): desde cuota 1. Semestre 2 (ago–dic): desde cuota 6.
+    // Semestre 1 (mar–jul): desde CUOTA_INICIO_EXIGIDA. Semestre 2 (ago–dic): desde cuota 6.
     // No importa el mes exacto dentro del semestre — siempre desde el inicio del semestre.
-    cuotaInicio = mesIngreso >= 8 ? 6 : 1;
+    cuotaInicio = mesIngreso >= 8 ? 6 : CUOTA_INICIO_EXIGIDA;
   }
   const cuotasVencidas = Array.from({ length: cuotaLimite }, (_, i) => 'Cuota ' + (i + 1))
     .filter(c => parseInt(c.split(' ')[1]) >= cuotaInicio);
