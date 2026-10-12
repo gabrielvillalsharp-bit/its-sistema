@@ -9099,21 +9099,34 @@ const stmtExamSinArch = db.prepare(`
     AND (d.wa_recordatorios_activo IS NULL OR d.wa_recordatorios_activo = 1)
 `);
 
-cron.schedule('0 8 * * *', async () => {
-  if (WA_AUTO_PAUSADO) return; // ⏸ PAUSADO
+// A pedido del director (2026-10-12): este aviso sale a las 10:00 (lun–vie), un día hábil antes del examen,
+// solo a docentes que todavía no cargaron el archivo. Es independiente de WA_AUTO_PAUSADO: el resto de los
+// automáticos sigue pausado; este se controla con WA_AVISO_CARGA_ACTIVO y la regla wa_regla_aviso24_activa.
+// Los exámenes del lunes se avisan el viernes (no se envía en fin de semana).
+const WA_AVISO_CARGA_ACTIVO = true;
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_aviso24_10am_20261012'").get()) {
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('wa_regla_aviso24_activa','1','Regla WA aviso24')").run();
+    db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('mig_aviso24_10am_20261012','1','Aviso de carga de examen 24h, 10:00')").run();
+  }
+} catch(e) { console.warn('[Migración] aviso24:', e.message); }
+cron.schedule('0 10 * * 1-5', async () => {
+  if (!WA_AVISO_CARGA_ACTIVO) return;
   if (!enHoraPermitida()) return;
   const reglaAviso = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_regla_aviso24_activa'").get();
   if (reglaAviso?.valor === '0') return;
   try {
-    // Fecha de mañana en hora Paraguay (DST-aware)
+    // Próximo día hábil en hora Paraguay (DST-aware): viernes → lunes, resto → mañana
     const pyHoy = pyNow();
-    const manana = new Date(pyHoy.getTime() + 24 * 60 * 60 * 1000);
+    const viernes = pyHoy.getDay() === 5;
+    const manana = new Date(pyHoy.getTime() + (viernes ? 3 : 1) * 24 * 60 * 60 * 1000);
     const fechaManana = `${manana.getFullYear()}-${String(manana.getMonth()+1).padStart(2,'0')}-${String(manana.getDate()).padStart(2,'0')}`;
+    const etiquetaDia = viernes ? `el lunes ${String(manana.getDate()).padStart(2,'0')}/${String(manana.getMonth()+1).padStart(2,'0')}` : 'mañana';
     const examenes = stmtExamSinArch.all(fechaManana);
     let enviados = 0;
     for (const ex of examenes) {
-      // Evitar duplicado: solo un aviso '24h' por examen
-      const ya = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='24h'`).get(ex.id);
+      // Evitar duplicado: solo un aviso '24h' por examen (un envío fallido no cuenta como enviado)
+      const ya = db.prepare(`SELECT id FROM wa_recordatorios_examen WHERE examen_id=? AND tipo='24h' AND estado='enviado'`).get(ex.id);
       if (ya) continue;
       const curso = `${ex.curso_anio}° ${ex.curso_division === 'U' ? '' : ex.curso_division}`.trim();
       const vars24 = {
@@ -9127,7 +9140,7 @@ cron.schedule('0 8 * * *', async () => {
         aula:       '',
         horas_rest: '',
       };
-      const msg = buildWaMsg('wa_tpl_aviso24', vars24);
+      const msg = buildWaMsg('wa_tpl_aviso24', vars24).replace(/\*mañana\*/g, `*${etiquetaDia}*`);
       const {ok} = await sendWhatsApp(ex.telefono, msg);
       const rid = 'war_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
       db.prepare(`INSERT INTO wa_recordatorios_examen (id,examen_id,docente_id,tipo,estado) VALUES (?,?,?,?,?)`).run(rid, ex.id, ex.docente_id, '24h', ok?'enviado':'fallido');
@@ -9382,7 +9395,7 @@ const WA_REGLAS_DEF = [
   { key:'6h',      label:'6 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'4h',      label:'4 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'3h',      label:'3 horas antes del examen',    cron:'Cada hora (±30 min)', tipo:'recordatorio', defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
-  { key:'aviso24',   label:'Aviso: archivo pendiente 24h',  cron:'7:00 AM — diario',   tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
+  { key:'aviso24',   label:'Aviso: archivo pendiente 24h',  cron:'10:00 AM — lun a vie', tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora}' },
   { key:'urgente',   label:'Urgente: sin archivo ≤7h',      cron:'Cada hora',           tipo:'carga',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {hora} {horas_rest}' },
   { key:'puntajes',  label:'Aviso: puntajes sin cargar ≥8d',cron:'9:00 AM — lun a vie', tipo:'notas',        defaultActiva:true,  vars:'{docente} {materia} {tipo} {carrera} {curso} {fecha} {dias}' },
 ];
