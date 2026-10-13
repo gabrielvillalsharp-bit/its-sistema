@@ -9109,6 +9109,8 @@ try {
     db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES ('wa_regla_aviso24_activa','1','Regla WA aviso24')").run();
     db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('mig_aviso24_10am_20261012','1','Aviso de carga de examen 24h, 10:00')").run();
   }
+  // Miércoles 14/10/2026: exámenes suspendidos por Dirección (a reprogramar) → sin avisos de carga ese día
+  db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('fechas_examen_suspendidas','2026-10-14','Fechas (CSV) con exámenes suspendidos: sin aviso de carga')").run();
 } catch(e) { console.warn('[Migración] aviso24:', e.message); }
 cron.schedule('0 10 * * 1-5', async () => {
   if (!WA_AVISO_CARGA_ACTIVO) return;
@@ -9122,6 +9124,9 @@ cron.schedule('0 10 * * 1-5', async () => {
     const manana = new Date(pyHoy.getTime() + (viernes ? 3 : 1) * 24 * 60 * 60 * 1000);
     const fechaManana = `${manana.getFullYear()}-${String(manana.getMonth()+1).padStart(2,'0')}-${String(manana.getDate()).padStart(2,'0')}`;
     const etiquetaDia = viernes ? `el lunes ${String(manana.getDate()).padStart(2,'0')}/${String(manana.getMonth()+1).padStart(2,'0')}` : 'mañana';
+    // Fechas con exámenes suspendidos (CSV en configuracion): no se avisa de exámenes que no se rinden ese día
+    const suspendidas = (db.prepare("SELECT valor FROM configuracion WHERE clave='fechas_examen_suspendidas'").get()?.valor || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (suspendidas.includes(fechaManana)) { console.log(`[CRON 10AM] ${fechaManana} con exámenes suspendidos — no se envían avisos`); return; }
     const examenes = stmtExamSinArch.all(fechaManana);
     let enviados = 0;
     for (const ex of examenes) {
