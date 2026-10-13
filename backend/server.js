@@ -1320,6 +1320,38 @@ try {
     }
   } catch (e) { console.warn('Migración Rad 2° cambios:', e.message); }
 }
+// ── MIGRACIÓN: Radiología 1° — parciales más seguidos (2026-10-12) ──
+// Pedido del director: Radiología 1° rendía el 12/10 y recién el 28/10. Cada examen va su día y hora de clase;
+// Anatomía II es clase unificada con Enfermería 1° (se mueven los dos). Corre una sola vez.
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_rad1_compacto_20261012'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+      const CAL = [ // [curso_id, materia, fecha, hora]
+        ['rad_1u', 'Practicas Radiologicas', '2026-10-16', '20:40'],
+        ['rad_1u', 'Castellano', '2026-10-19', '20:40'],
+        ['rad_1u', 'Tecnicas Radiologicas', '2026-10-21', '20:40'],
+        ['rad_1u', 'Anatomía y Fisiología Humana II', '2026-10-26', '20:40'],
+        ['enf_1u', 'Anatomía y Fisiología Humana II', '2026-10-26', '20:40'], // unificada con Rad. 1°
+      ];
+      const asigs = db.prepare('SELECT a.id, a.curso_id, m.nombre FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=?').all(per.id);
+      const upd = db.prepare("UPDATE examenes SET fecha=?, hora=? WHERE asignacion_id=? AND tipo='Parcial'");
+      let movidos = 0; const faltan = [];
+      db.transaction(() => {
+        CAL.forEach(([curso, mat, fecha, hora]) => {
+          const a = asigs.find(x => x.curso_id === curso && norm(x.nombre) === norm(mat));
+          if (!a) { faltan.push(curso + ' / ' + mat); return; }
+          movidos += upd.run(fecha, hora, a.id).changes;
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_rad1_compacto_20261012','1')").run();
+      })();
+      console.log(`[Migración] Radiología 1° compactada: ${movidos} parciales reprogramados ✓`);
+      if (faltan.length) console.warn('[Migración] Rad 1° compacto — sin asignación para:', faltan.join('; '));
+    }
+  } catch (e) { console.warn('Migración Rad 1° compacto:', e.message); }
+}
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
