@@ -4867,6 +4867,19 @@ app.get('/api/honorarios/resumen', auth(ADM), (req, res) => {
 });
 
 // ── EXÁMENES ──────────────────────────────────────────────────────────────────
+// Fechas con exámenes suspendidos (configuracion.fechas_examen_suspendidas, CSV). Docentes y alumnos no ven los
+// exámenes de esas fechas; Dirección sí, para poder reprogramarlos. No se borra nada.
+function fechasExamenSuspendidas() {
+  return (db.prepare("SELECT valor FROM configuracion WHERE clave='fechas_examen_suspendidas'").get()?.valor || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+}
+function filtroExamenesSuspendidos(req, where, params) {
+  if (req.user.rol !== 'docente' && req.user.rol !== 'alumno') return where;
+  const susp = fechasExamenSuspendidas();
+  if (!susp.length) return where;
+  params.push(...susp);
+  return where + ` AND e.fecha NOT IN (${susp.map(() => '?').join(',')})`;
+}
 app.get('/api/examenes', auth(), (req, res) => {
   const { periodo_id, carrera_id, tipo, desde, hasta } = req.query;
   const sede = req.user.sede || 'pjc';
@@ -4887,6 +4900,7 @@ app.get('/api/examenes', auth(), (req, res) => {
     if (!al?.carrera_id || !al?.curso_id) return res.json([]);
     where += ' AND ca.id=? AND cu.id=?'; params.push(al.carrera_id, al.curso_id);
   }
+  where = filtroExamenesSuspendidos(req, where, params);
   try {
     res.json(db.prepare(`
       SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id,
@@ -4963,6 +4977,9 @@ app.get('/api/examenes/pendientes-notas', auth(['director','docente']), (req, re
     WHERE e.fecha <= ? AND ca.sede_id=?`;
   const params = [flStr, sede];
   if (docente_id) { sql += ' AND a.docente_id=?'; params.push(docente_id); }
+  // Exámenes de fechas suspendidas no se rindieron: no cuentan como "puntajes sin cargar"
+  const suspPend = fechasExamenSuspendidas();
+  if (suspPend.length) { sql += ` AND e.fecha NOT IN (${suspPend.map(() => '?').join(',')})`; params.push(...suspPend); }
   sql += ' ORDER BY ca.nombre, cu.anio, m.nombre, e.fecha';
 
   const exams = db.prepare(sql).all(...params);
@@ -5502,6 +5519,7 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
     where += " AND e.tipo NOT IN ('Recuperatorio','final_recuperatorio','Final Recuperatorio')";
   }
+  where = filtroExamenesSuspendidos(req, where, params);
   res.json(db.prepare(`
     SELECT e.*,
       m.nombre as materia_nombre,
