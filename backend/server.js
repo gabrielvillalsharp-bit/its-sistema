@@ -63,6 +63,21 @@ const apiLimiter = rateLimit({
 
 app.use(compression());
 app.use(express.json());
+// ── Contexto de la petición para la AUDITORÍA: IP, dispositivo y origen de cada acción ───────────────────────
+// origen: 'web' (persona usando la plataforma), 'asistente' (el asistente de IA actuando con una sesión, se declara con
+// el encabezado X-Origen: asistente) o 'automatico' (procesos programados / del sistema: no hay petición).
+const { AsyncLocalStorage } = require('async_hooks');
+const _reqCtx = new AsyncLocalStorage();
+function _dispositivoCorto(ua) {
+  ua = String(ua || '');
+  const nav = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : (ua ? 'Otro' : '');
+  const so = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+  return [nav, so].filter(Boolean).join(' · ') || null;
+}
+app.use((req, res, next) => {
+  const origenH = String(req.headers['x-origen'] || '').toLowerCase();
+  _reqCtx.run({ ip: req.ip || null, dispositivo: _dispositivoCorto(req.headers['user-agent']), origen: origenH === 'asistente' ? 'asistente' : 'web' }, next);
+});
 // Forzar UTF-8 en todas las respuestas JSON para evitar CÃ©sar en lugar de César
 app.use((req, res, next) => {
   const orig = res.json.bind(res);
@@ -701,6 +716,10 @@ try {
 } catch {}
 
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN alumno_id TEXT").run(); } catch {}
+// Auditoría: desde dónde (IP, dispositivo) y quién actuó (web / asistente / automatico). Los registros viejos quedan en NULL.
+try { db.prepare("ALTER TABLE auditoria ADD COLUMN ip TEXT").run(); } catch {}
+try { db.prepare("ALTER TABLE auditoria ADD COLUMN dispositivo TEXT").run(); } catch {}
+try { db.prepare("ALTER TABLE auditoria ADD COLUMN origen TEXT").run(); } catch {}
 try { db.prepare("ALTER TABLE solicitudes_registro ADD COLUMN tipo TEXT DEFAULT 'nuevo'").run(); } catch {}
 try { db.prepare("ALTER TABLE asignaciones ADD COLUMN parcial_bloqueado INTEGER DEFAULT 0").run(); } catch {}
 
@@ -2585,9 +2604,11 @@ function nowDate() { return nowSys().toISOString().split('T')[0]; }
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
-    db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha) VALUES (?,?,?,?,?,?,?)').run(
+    const ctx = _reqCtx.getStore();
+    db.prepare('INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha,ip,dispositivo,origen) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
       'aud_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-      usuario_id, accion, tabla, String(registro_id||''), detalle ? JSON.stringify(detalle) : null, nowStr()
+      usuario_id, accion, tabla, String(registro_id||''), detalle ? JSON.stringify(detalle) : null, nowStr(),
+      ctx ? ctx.ip : null, ctx ? ctx.dispositivo : null, ctx ? ctx.origen : 'automatico'
     );
   } catch(e) { console.error('Audit error:', e.message); }
 }
@@ -2642,7 +2663,8 @@ app.post('/api/login', loginLimiter, (req, res) => {
   // Buscar por email, por CI, o por email generado desde CI (ci@its.edu.py)
   const ciEmail = `${email}@its.edu.py`;
   const u = db.prepare('SELECT * FROM usuarios WHERE (email=? OR ci=? OR email=?) AND activo=1').get(email, email, ciEmail);
-  if (!u) return res.status(401).json({ error: 'Credenciales incorrectas' });
+  // Intentos fallidos: se guarda el usuario escrito (NUNCA la contraseña), la IP y el dispositivo (ver audit()).
+  if (!u) { audit('desconocido', 'LOGIN_FAIL', 'usuarios', '', { email: String(email).slice(0, 80), motivo: 'usuario_inexistente' }); return res.status(401).json({ error: 'Credenciales incorrectas' }); }
 
   let autenticado = bcrypt.compareSync(password, u.password_hash);
 
@@ -2658,7 +2680,18 @@ app.post('/api/login', loginLimiter, (req, res) => {
     }
   }
 
-  if (!autenticado) return res.status(401).json({ error: 'Credenciales incorrectas' });
+  if (!autenticado) {
+    audit(u.id, 'LOGIN_FAIL', 'usuarios', u.id, { email: String(email).slice(0, 80), motivo: 'contrasena_incorrecta' });
+    // Alerta al director: 5 o más fallos seguidos sobre la misma cuenta en 15 minutos (una sola alerta por ventana).
+    try {
+      const desde = new Date(nowSys().getTime() - 15 * 60000).toISOString().replace('T', ' ').slice(0, 19);
+      const fallos = db.prepare("SELECT COUNT(*) n FROM auditoria WHERE accion='LOGIN_FAIL' AND usuario_id=? AND fecha>=?").get(u.id, desde).n;
+      if (fallos >= 5 && fallos % 5 === 0) {
+        _avisarDirectorWA('🔐 Intentos fallidos de ingreso', `Cuenta: <strong>${u.apellido||''}, ${u.nombre||''}</strong> (${u.rol}) — ${fallos} intentos fallidos en los últimos 15 minutos. Ver detalle (IP y dispositivo) en Auditoría → LOGIN_FAIL.`, true);
+      }
+    } catch (e) { console.warn('[LOGIN_FAIL] alerta:', e.message); }
+    return res.status(401).json({ error: 'Credenciales incorrectas' });
+  }
   let docenteId = null, alumnoId = null;
   if (u.rol === 'docente') {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(u.id);

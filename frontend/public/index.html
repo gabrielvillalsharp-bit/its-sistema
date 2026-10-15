@@ -20243,12 +20243,20 @@ function audRow(r,accionColor){
     cambioHtml+=`${cambioHtml?'<br>':''}<button onclick="event.stopPropagation();go('papelera')" style="margin-top:3px;font-size:10px;padding:3px 8px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">♻️ Ir a Papelera</button>`;
   }
 
+  // Origen (persona / asistente / automático), IP y dispositivo desde donde se hizo la acción (registros nuevos)
+  const metaAud=[
+    r.origen==='asistente'?'<span class="bx ba" style="font-size:9px" title="Acción realizada por el asistente de IA con una sesión">🤖 asistente</span>':'',
+    r.origen==='automatico'?'<span class="bx bgr" style="font-size:9px" title="Proceso programado del sistema">⚙ automático</span>':'',
+    r.ip?`<code style="font-size:9px;color:#6b7280">${r.ip}</code>`:'',
+    r.dispositivo?`<span style="font-size:9px;color:#9ca3af">${r.dispositivo}</span>`:''
+  ].filter(Boolean).join(' ');
+  if(metaAud) cambioHtml+=`${cambioHtml?'<br>':''}${metaAud}`;
   // Detalle expandido (JSON legible)
   const detalleExpanded = Object.entries(det).length
     ? Object.entries(det).map(([k,vl])=>`<div style="display:flex;gap:8px;padding:2px 0;border-bottom:1px solid #f0f0f0;font-size:10px"><span style="color:#9ca3af;min-width:120px;flex-shrink:0">${k}</span><span style="color:#374151;font-weight:500;word-break:break-all">${JSON.stringify(vl)}</span></div>`).join('')
     : '<span style="color:#9ca3af;font-size:10px">Sin detalle</span>';
 
-  const accionBadgeMap={LOGIN:'bg',UPDATE_NOTA:'bb',UPDATE_ASISTENCIA:'bb',DELETE:'br',DELETE_COMPLETO:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba',HONORARIO:'ba',CREATE:'bg',INSERT:'bg',UPDATE:'bb',SOLICITUD_ALUMNO:'bb',RESOLVER_ALUMNO:'bg',EGRESO:'bg',CONSTANCIA:'bg',REPARAR:'ba'};
+  const accionBadgeMap={LOGIN:'bg',LOGIN_FAIL:'br',UPDATE_NOTA:'bb',UPDATE_ASISTENCIA:'bb',DELETE:'br',DELETE_COMPLETO:'br',BACKUP:'bg',ERROR:'br',HABILITAR:'ba',PAGO:'bb',REEMPLAZO:'ba',HONORARIO:'ba',CREATE:'bg',INSERT:'bg',UPDATE:'bb',SOLICITUD_ALUMNO:'bb',RESOLVER_ALUMNO:'bg',EGRESO:'bg',CONSTANCIA:'bg',REPARAR:'ba'};
 
   const tdStyle='padding:5px 8px;border:1px solid var(--bdr);vertical-align:top';
   const descCell=puedNav
