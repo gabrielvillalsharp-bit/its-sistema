@@ -3351,6 +3351,10 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     curso_id   !== undefined ? (curso_id||null) : actual.curso_id,
     req.params.id
   );
+  // Al asignar o cambiar el curso, crear las planillas de notas que falten (período activo y semestre en curso).
+  // Antes no se creaban: el alumno quedaba con materias sin planilla y con notas/asistencia en blanco.
+  const cursoFinalAl = curso_id !== undefined ? (curso_id||null) : actual.curso_id;
+  if (cursoFinalAl) crearNotasPendientes(req.params.id, cursoFinalAl);
   // Si cambió nombre o apellido, sincronizar en usuarios (nombre, apellido y email)
   if (actual.usuario_id && (nombre !== undefined || apellido !== undefined)) {
     const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
@@ -12903,6 +12907,13 @@ app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
 // automática del QR "Soy nuevo/a" (sin aprobación manual). Devuelve { aid } o lanza error.
 function aprobarRegistroNuevo(sol, actorId, opts = {}) {
   let aid = null;
+  // Solicitudes sin curso (p. ej. formulario web): si la carrera tiene un único 1° año, se asigna ese. Con varias
+  // secciones (p. ej. Cosmiatría A/B) no se adivina: queda sin curso para que Dirección lo asigne.
+  let cursoSol = sol.curso_id || null;
+  if (!cursoSol) {
+    const c1 = db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=1 AND activo=1').all(sol.carrera_id);
+    if (c1.length === 1) cursoSol = c1[0].id;
+  }
   db.transaction(() => {
 
         const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
@@ -12940,13 +12951,13 @@ function aprobarRegistroNuevo(sol, actorId, opts = {}) {
           const matricula = `${prefix}${String(maxNum+1).padStart(3,'0')}`;
           aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
           db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-            .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+            .run(aid, finalUid, matricula, sol.carrera_id, cursoSol, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
         } else {
           aid = yaAlumno.id;
           // Sincronizar: carrera, curso, estado, datos personales — igual que un alumno nuevo
           const upd = ['carrera_id=?', 'estado=\'Activo\'', 'nombre=?', 'apellido=?'];
           const upv = [sol.carrera_id, sol.nombre, sol.apellido];
-          if (sol.curso_id) { upd.push('curso_id=?'); upv.push(sol.curso_id); }
+          if (cursoSol) { upd.push('curso_id=?'); upv.push(cursoSol); }
           if (ciRaw)        { upd.push('ci=?');       upv.push(ciRaw); }
           if (sol.telefono) { upd.push('telefono=?');  upv.push(sol.telefono); }
           upv.push(aid);
@@ -12954,7 +12965,7 @@ function aprobarRegistroNuevo(sol, actorId, opts = {}) {
         }
 
         // ── 3. Crear notas para las materias del curso: período activo Y semestre en curso ──
-        crearNotasPendientes(aid, sol.curso_id || db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(aid)?.curso_id);
+        crearNotasPendientes(aid, cursoSol || db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(aid)?.curso_id);
         db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(sol.id);
   })();
   audit(actorId,'APROBAR_REGISTRO','solicitudes_registro',sol.id,{nombre:sol.nombre});
