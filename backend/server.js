@@ -1352,6 +1352,21 @@ try {
     }
   } catch (e) { console.warn('Migración Rad 1° compacto:', e.message); }
 }
+// ── MIGRACIÓN: planillas de notas faltantes (2026-10-15) ──
+// Alumnos dados de alta por QR / aprobación después de crearse el 2do semestre no recibieron sus planillas de notas del
+// semestre en curso (solo se creaban para el período activo) y entraban con notas y asistencia en blanco. Se crean las que
+// falten para todos los alumnos activos con curso. Idempotente; corre una sola vez.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_notas_faltantes_20261015'").get()) {
+    let creadas = 0;
+    db.transaction(() => {
+      db.prepare("SELECT id, curso_id FROM alumnos WHERE estado='Activo' AND curso_id IS NOT NULL").all()
+        .forEach(a => { creadas += crearNotasPendientes(a.id, a.curso_id); });
+      db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_notas_faltantes_20261015','1')").run();
+    })();
+    console.log(`[Migración] Planillas de notas faltantes completadas: ${creadas} filas ✓`);
+  }
+} catch (e) { console.warn('[Migración] Notas faltantes 20261015:', e.message); }
 // ── MIGRACIÓN: exámenes finales ordinarios julio 2026 ────────────────────────
 {
   const insEx = db.prepare(`INSERT OR IGNORE INTO examenes(id,asignacion_id,tipo,fecha,hora,aula,periodo_id,puntos_max)
@@ -3797,6 +3812,27 @@ app.get('/api/asignaciones/conflicto', auth(ADM), (req, res) => {
 function periodoVigenteId() {
   const r = db.prepare("SELECT id FROM periodos WHERE fecha_inicio<=date('now') ORDER BY anio DESC, semestre DESC, fecha_inicio DESC LIMIT 1").get();
   return r ? r.id : null;
+}
+// Planillas de notas ("Pendiente") de un alumno para las materias de su curso, en el período ACTIVO y en el semestre EN CURSO.
+// Antes las altas por QR/aprobación solo cubrían el período activo (Año Lectivo): el alumno nuevo entraba y veía notas y
+// asistencia en blanco en el 2do semestre. Idempotente: solo crea las filas que faltan.
+function crearNotasPendientes(alumnoId, cursoId) {
+  if (!alumnoId || !cursoId) return 0;
+  const pids = new Set();
+  const act = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+  if (act) pids.add(act.id);
+  const vig = periodoVigenteId();
+  if (vig) pids.add(vig);
+  let creadas = 0;
+  const falta = db.prepare('SELECT 1 FROM notas WHERE alumno_id=? AND asignacion_id=?');
+  const ins = db.prepare("INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,'Pendiente')");
+  pids.forEach(pid => {
+    db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(cursoId, pid).forEach((asig, i) => {
+      if (falta.get(alumnoId, asig.id)) return;
+      try { creadas += ins.run('n_np_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 6), alumnoId, asig.id).changes; } catch {}
+    });
+  });
+  return creadas;
 }
 app.get('/api/asignaciones', auth(), (req, res) => {
   const { docente_id, curso_id, materia_id } = req.query;
@@ -12250,6 +12286,8 @@ app.post('/pub/alumno/completar', (req, res) => {
       const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
       if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
     }
+    // Planillas de notas del curso (período activo y semestre en curso): sin ellas el alumno entra y ve todo en blanco
+    crearNotasPendientes(alumno_id, db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(alumno_id)?.curso_id);
     // Asignar carrera si el alumno no tenía ninguna (tipo sin_asignar)
     if (!alumno.carrera_id && carrera_id) {
       db.prepare('UPDATE alumnos SET carrera_id=? WHERE id=?').run(carrera_id, alumno_id);
@@ -12317,6 +12355,16 @@ app.post('/pub/solicitud-registro', (req, res) => {
   const id = 'sreg_'+Date.now();
   db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,curso_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(id, nombre, apellido, ci||'', telefono, carrera_id, curso_id||null, alumno_id||null, tipo||'nuevo');
+  // Alta AUTOMÁTICA del QR "Soy nuevo/a": son alumnos nuevos, no hace falta aprobación del director (pedido 2026-10-15).
+  // Requiere CI y un curso válido de esa carrera; si algo falta o falla, queda pendiente como antes para que el director la resuelva.
+  let autoAprobado = false;
+  if (tipo === 'qr' && !esCambioCarrera && String(ci||'').replace(/\D/g,'') && curso_id
+      && db.prepare('SELECT 1 FROM cursos WHERE id=? AND carrera_id=? AND activo=1').get(curso_id, carrera_id)) {
+    try {
+      aprobarRegistroNuevo(db.prepare('SELECT * FROM solicitudes_registro WHERE id=?').get(id), 'sistema_qr', { soloPorCi: true });
+      autoAprobado = true;
+    } catch(e) { console.warn('[SOLICITUD_REGISTRO] Alta automática falló, queda pendiente:', e.message); }
+  }
   // Avisar al director: hasta ahora estas solicitudes quedaban invisibles salvo que
   // entrara manualmente al widget de Inicio — no generaban ningún aviso ni notificación,
   // por lo que alumnos completaban el formulario del QR y "no llegaba" ninguna señal al director.
@@ -12325,11 +12373,12 @@ app.post('/pub/solicitud-registro', (req, res) => {
     const carreraNom = db.prepare('SELECT nombre FROM carreras WHERE id=?').get(carrera_id)?.nombre || carrera_id;
     if (director) {
       db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
-        .run('av_solreg_' + Date.now(), '📝 Nueva solicitud de registro (QR)', `Alumno: <strong>${apellido}, ${nombre}</strong> — Carrera: <strong>${carreraNom}</strong><br>CI: ${ci||'—'} · Tel: ${telefono}<br>Revisar y aprobar en Alumnos y Usuarios.`, 'info', 0, 'director', director.id);
+        .run('av_solreg_' + Date.now(), autoAprobado ? '✅ Alumno nuevo registrado por QR' : '📝 Nueva solicitud de registro (QR)',
+          `Alumno: <strong>${apellido}, ${nombre}</strong> — Carrera: <strong>${carreraNom}</strong><br>CI: ${ci||'—'} · Tel: ${telefono}<br>${autoAprobado ? 'Dado de alta automáticamente: ya puede ingresar y ver sus materias.' : 'Revisar y aprobar en Alumnos y Usuarios.'}`, 'info', 0, 'director', director.id);
     }
   } catch(e) { console.warn('[SOLICITUD_REGISTRO] Error al avisar:', e.message); }
-  audit('sistema_publico', 'SOLICITUD_REGISTRO', 'solicitudes_registro', id, { nombre, apellido, ci, carrera_id });
-  res.json({ id, ok: true });
+  audit('sistema_publico', 'SOLICITUD_REGISTRO', 'solicitudes_registro', id, { nombre, apellido, ci, carrera_id, autoAprobado });
+  res.json({ id, ok: true, autoAprobado });
 });
 
 // ── INCORPORACIÓN ACADÉMICA (público) ─────────────────────────────────────────
@@ -12849,6 +12898,76 @@ app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Aprobación de una solicitud de alta de alumno nuevo (QR / formulario): crea usuario + alumno + planillas de notas
+// (período activo y semestre en curso) y envía la bienvenida por WhatsApp. La usa el director al aprobar y el alta
+// automática del QR "Soy nuevo/a" (sin aprobación manual). Devuelve { aid } o lanza error.
+function aprobarRegistroNuevo(sol, actorId, opts = {}) {
+  let aid = null;
+  db.transaction(() => {
+
+        const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
+        const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+
+        // ── 1. Encontrar o crear usuario ────────────────────────────────────
+        const existPorCi = ciRaw ? db.prepare('SELECT id, rol FROM usuarios WHERE ci=?').get(ciRaw) : null;
+        // Alta automática (opts.soloPorCi): nunca enlazar por nombre ni con usuarios que no sean alumnos (p. ej. un docente)
+        if (opts.soloPorCi && existPorCi && existPorCi.rol !== 'alumno') throw new Error('La C.I. pertenece a un usuario que no es alumno');
+        const existPorNombre = (!existPorCi && !opts.soloPorCi) ? db.prepare("SELECT id, rol FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
+        let finalUid;
+        if (existPorCi) {
+          finalUid = existPorCi.id;
+          if (existPorCi.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
+        } else if (existPorNombre) {
+          finalUid = existPorNombre.id;
+          if (existPorNombre.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
+        } else {
+          let emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'@its.edu.py';
+          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
+            emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+          finalUid = 'u_a_'+Date.now();
+          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
+            .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
+        }
+
+        // ── 2. Encontrar o crear alumno, siempre sincronizar datos ─────────
+        const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
+        if (!yaAlumno) {
+          const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
+          const yr = nowSys().getFullYear();
+          const prefix = `${carr?.codigo||'ALU'}-${yr}-`;
+          const existingMats = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(sol.carrera_id, prefix+'%');
+          const maxNum = existingMats.reduce((mx,r)=>{ const n=parseInt((r.matricula||'').slice(prefix.length))||0; return Math.max(mx,n); },0);
+          const matricula = `${prefix}${String(maxNum+1).padStart(3,'0')}`;
+          aid = 'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+            .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
+        } else {
+          aid = yaAlumno.id;
+          // Sincronizar: carrera, curso, estado, datos personales — igual que un alumno nuevo
+          const upd = ['carrera_id=?', 'estado=\'Activo\'', 'nombre=?', 'apellido=?'];
+          const upv = [sol.carrera_id, sol.nombre, sol.apellido];
+          if (sol.curso_id) { upd.push('curso_id=?'); upv.push(sol.curso_id); }
+          if (ciRaw)        { upd.push('ci=?');       upv.push(ciRaw); }
+          if (sol.telefono) { upd.push('telefono=?');  upv.push(sol.telefono); }
+          upv.push(aid);
+          db.prepare(`UPDATE alumnos SET ${upd.join(',')} WHERE id=?`).run(...upv);
+        }
+
+        // ── 3. Crear notas para las materias del curso: período activo Y semestre en curso ──
+        crearNotasPendientes(aid, sol.curso_id || db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(aid)?.curso_id);
+        db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(sol.id);
+  })();
+  audit(actorId,'APROBAR_REGISTRO','solicitudes_registro',sol.id,{nombre:sol.nombre});
+  // Enviar WhatsApp de bienvenida con credenciales al alumno aprobado
+  if (sol.telefono) {
+    const usuAprobado = db.prepare('SELECT u.email FROM alumnos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.id=?').get(aid);
+    const ciNum = String(sol.ci||'').replace(/[^0-9]/g,'');
+    const nombreCompleto = (sol.nombre||'')+' '+(sol.apellido||'');
+    enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
+  }
+  return { aid };
+}
+
 app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
   const { accion, motivo } = req.body;
   const sol = db.prepare('SELECT * FROM solicitudes_registro WHERE id=?').get(req.params.id);
@@ -12862,16 +12981,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
           updFields.push("estado='Activo'");
           updVals.push(sol.alumno_id);
           db.prepare(`UPDATE alumnos SET ${updFields.join(',')} WHERE id=?`).run(...updVals);
-          if (sol.curso_id) {
-            const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-            if (periodo) {
-              const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(sol.curso_id, periodo.id);
-              asigs.forEach((asig, i) => {
-                db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)')
-                  .run('n_cc_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5), sol.alumno_id, asig.id, 'Pendiente');
-              });
-            }
-          }
+          if (sol.curso_id) crearNotasPendientes(sol.alumno_id, sol.curso_id);
           db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
           audit(req.user.id,'APROBAR_CAMBIO_CARRERA','solicitudes_registro',req.params.id,{alumno_id:sol.alumno_id,carrera_id:sol.carrera_id});
           return res.json({ ok: true, tipo: 'cambio_carrera' });
@@ -12915,76 +13025,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
         } catch(e) { return res.status(500).json({ error: e.message }); }
       }
     try {
-      db.transaction(() => {
-        const ciRaw = String(sol.ci||'').replace(/[^0-9]/g,'');
-        const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-
-        // ── 1. Encontrar o crear usuario ────────────────────────────────────
-        const existPorCi = ciRaw ? db.prepare('SELECT id, rol FROM usuarios WHERE ci=?').get(ciRaw) : null;
-        const existPorNombre = !existPorCi ? db.prepare("SELECT id, rol FROM usuarios WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1").get(norm(sol.nombre), norm(sol.apellido)) : null;
-        let finalUid;
-        if (existPorCi) {
-          finalUid = existPorCi.id;
-          if (existPorCi.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
-        } else if (existPorNombre) {
-          finalUid = existPorNombre.id;
-          if (existPorNombre.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
-        } else {
-          let emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'@its.edu.py';
-          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-            emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
-          finalUid = 'u_a_'+Date.now();
-          db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
-            .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
-        }
-
-        // ── 2. Encontrar o crear alumno, siempre sincronizar datos ─────────
-        const yaAlumno = db.prepare('SELECT id FROM alumnos WHERE usuario_id=?').get(finalUid);
-        let aid;
-        if (!yaAlumno) {
-          const carr = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(sol.carrera_id);
-          const yr = nowSys().getFullYear();
-          const prefix = `${carr?.codigo||'ALU'}-${yr}-`;
-          const existingMats = db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(sol.carrera_id, prefix+'%');
-          const maxNum = existingMats.reduce((mx,r)=>{ const n=parseInt((r.matricula||'').slice(prefix.length))||0; return Math.max(mx,n); },0);
-          const matricula = `${prefix}${String(maxNum+1).padStart(3,'0')}`;
-          aid = 'a_'+Date.now();
-          db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido,telefono) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-            .run(aid, finalUid, matricula, sol.carrera_id, sol.curso_id||null, nowDate(), 'Activo', ciRaw, sol.nombre, sol.apellido, sol.telefono||'');
-        } else {
-          aid = yaAlumno.id;
-          // Sincronizar: carrera, curso, estado, datos personales — igual que un alumno nuevo
-          const upd = ['carrera_id=?', 'estado=\'Activo\'', 'nombre=?', 'apellido=?'];
-          const upv = [sol.carrera_id, sol.nombre, sol.apellido];
-          if (sol.curso_id) { upd.push('curso_id=?'); upv.push(sol.curso_id); }
-          if (ciRaw)        { upd.push('ci=?');       upv.push(ciRaw); }
-          if (sol.telefono) { upd.push('telefono=?');  upv.push(sol.telefono); }
-          upv.push(aid);
-          db.prepare(`UPDATE alumnos SET ${upd.join(',')} WHERE id=?`).run(...upv);
-        }
-
-        // ── 3. Crear notas para todas las asignaciones del periodo activo ──
-        const cursoId = sol.curso_id;
-        if (cursoId) {
-          const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-          if (periodo) {
-            const asigs = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?').all(cursoId, periodo.id);
-            asigs.forEach((asig, i) => {
-              try { db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_qr_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,5), aid, asig.id, 'Pendiente'); } catch {}
-            });
-          }
-        }
-        db.prepare("UPDATE solicitudes_registro SET estado='aprobado' WHERE id=?").run(req.params.id);
-      })();
-      audit(req.user.id,'APROBAR_REGISTRO','solicitudes_registro',req.params.id,{nombre:sol.nombre});
-      // Enviar WhatsApp de bienvenida con credenciales al alumno aprobado
-      if (sol.telefono) {
-        const usuAprobado = db.prepare('SELECT u.email FROM alumnos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.ci=? OR (a.nombre=? AND a.apellido=?) LIMIT 1')
-          .get(String(sol.ci||'').replace(/[^0-9]/g,''), sol.nombre, sol.apellido);
-        const ciNum = String(sol.ci||'').replace(/[^0-9]/g,'');
-        const nombreCompleto = (sol.nombre||'')+' '+(sol.apellido||'');
-        enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
-      }
+      aprobarRegistroNuevo(sol, req.user.id);
     } catch(e) { return res.status(500).json({ error: e.message }); }
   } else {
     db.prepare("UPDATE solicitudes_registro SET estado='rechazado',motivo_rechazo=? WHERE id=?").run(motivo||'', req.params.id);
