@@ -3112,16 +3112,30 @@ app.put('/api/docentes/:docente_id/wa-recordatorios', auth(ADM), (req, res) => {
   audit(req.user.id, 'WA_RECORDATORIOS_TOGGLE', 'docentes', req.params.docente_id, { activo: !!activo });
   res.json({ ok: true });
 });
+// Usuario institucional de un docente: nombre + apellido (sin tildes ni espacios) + @its.edu.py. Si ya existe, se
+// le agregan los últimos 3 dígitos de la cédula. Pedido del director (2026-10-16): no se necesita un correo personal.
+function emailDocenteGenerado(nombre, apellido, ci, excluirUid) {
+  const norm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const base = norm(nombre) + norm(apellido);
+  if (!base) return null;
+  let email = base + '@its.edu.py';
+  if (db.prepare('SELECT 1 FROM usuarios WHERE email=? AND id!=?').get(email, excluirUid || '')) {
+    const suf = String(ci||'').replace(/\D/g,'').slice(-3) || String(Date.now()%1000);
+    email = base + suf + '@its.edu.py';
+  }
+  return email;
+}
 app.post('/api/docentes', auth(ADM), (req, res) => {
   try {
     const { nombre, apellido, ci, email, password, especialidad, titulo, telefono } = req.body;
     const sede = req.user.sede || 'pjc';
     const uid = 'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), did = 'd_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     const ciDoc = ci && ci.trim() && ci.trim() !== '0.000.000' ? ci.trim() : null;
-    // Email vacío como '' (no NULL) chocaría por UNIQUE contra el siguiente docente
-    // sin email — se guarda NULL cuando no se cargó uno real.
-    const emailDoc = email && email.trim() ? email.trim() : null;
-    db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,emailDoc,bcrypt.hashSync(password||'123456',10),'docente');
+    // Sin correo cargado: se genera nombreapellido@its.edu.py (nunca '' porque chocaría por UNIQUE).
+    const emailDoc = email && email.trim() ? email.trim() : emailDocenteGenerado(nombre, apellido, ciDoc, uid);
+    // Contraseña: la indicada; si no, su número de cédula (solo dígitos); en último caso la de siempre.
+    const passDoc = password || (ciDoc ? ciDoc.replace(/\D/g,'') : '') || '123456';
+    db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol) VALUES (?,?,?,?,?,?,?)').run(uid,nombre,apellido,ciDoc,emailDoc,bcrypt.hashSync(passDoc,10),'docente');
     db.prepare('INSERT INTO docentes (id,usuario_id,especialidad,titulo,telefono,sede_id) VALUES (?,?,?,?,?,?)').run(did,uid,especialidad,titulo,telefono,sede);
     res.json({ id: uid, docente_id: did });
   } catch(e) {
@@ -3136,7 +3150,9 @@ app.put('/api/docentes/:uid', auth(ADM), (req, res) => {
     const uid = req.params.uid;
     // Actualizar nombre/apellido/email — NUNCA tocar ci en esta query para evitar UNIQUE conflict
     // Email vacío se guarda NULL (no '') para no chocar por UNIQUE contra otro docente sin email.
-    const emailDoc = email && String(email).trim() ? String(email).trim() : null;
+    // Sin correo: se conserva el que ya tenía o se genera nombreapellido@its.edu.py.
+    const emailActualDoc = db.prepare('SELECT email FROM usuarios WHERE id=?').get(uid)?.email || null;
+    const emailDoc = email && String(email).trim() ? String(email).trim() : (emailActualDoc || emailDocenteGenerado(nombre, apellido, ci, uid));
     db.prepare('UPDATE usuarios SET nombre=?,apellido=?,email=? WHERE id=?').run(nombre, apellido||'', emailDoc, uid);
     // Actualizar CI solo si viene un valor explícito distinto al actual
     const ciNueva = ci && String(ci).trim() && String(ci).trim() !== '0.000.000' ? String(ci).trim() : null;
