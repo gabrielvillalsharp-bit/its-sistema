@@ -16420,7 +16420,7 @@ async function selAlumnoPago(alId){
               onmouseover="this.style.background='#ede9fe';this.style.borderColor='#7c3aed'"
               onmouseout="this.style.background='#f5f3ff';this.style.borderColor='#c4b5fd'"
               style="padding:10px 18px;border:1.5px dashed #c4b5fd;border-radius:12px;background:#f5f3ff;color:#5b21b6;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s"
-              title="Registrar pago de la Monografía Final de Grado">🎓 Registrar pago de Monografía Final de Grado · Gs. ${MONOGRAFIA_MONTO.toLocaleString('es-PY')}</button>`;
+              title="Registrar pago de la Monografía Final de Grado">🎓 Registrar pago de Monografía Final de Grado · Gs. ${monografiaMonto().toLocaleString('es-PY')}</button>`;
           })()}
         </div>
 
@@ -16805,7 +16805,11 @@ async function pgLeerComprobanteIA(){
 
 // Monografía Final de Grado: un único pago de Gs. 1.800.000 por alumno (botón en el panel de Pagos)
 const MONOGRAFIA_CONCEPTO='Monografía Final de Grado';
-const MONOGRAFIA_MONTO=1800000;
+const MONOGRAFIA_MONTO=1800000; // valor de respaldo; el vigente sale de Aranceles (editable)
+function monografiaMonto(){
+  const ar=(W._pdata?.aranceles||[]).find(a=>a.concepto===MONOGRAFIA_CONCEPTO&&a.activo!==0);
+  return ar?Number(ar.monto)||MONOGRAFIA_MONTO:MONOGRAFIA_MONTO;
+}
 function registrarPagoMonografia(alId){
   mPagoDirecto(alId, MONOGRAFIA_CONCEPTO);
 }
@@ -17012,8 +17016,8 @@ function mPago(){
 }
 function autoMontoArancel(){
   const concepto=v('pgco');
-  // Monografía Final de Grado: valor fijo Gs. 1.800.000
-  if(concepto===MONOGRAFIA_CONCEPTO){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=MONOGRAFIA_MONTO;return;}
+  // Monografía Final de Grado: monto vigente desde Aranceles (por defecto Gs. 1.800.000)
+  if(concepto===MONOGRAFIA_CONCEPTO){const inp=document.getElementById('pgmo');if(inp&&!inp.value)inp.value=monografiaMonto();return;}
   const aranceles=W._pdata?.aranceles||[];
   // Mapa específico primero (5 exámenes con arancel), luego genérico como fallback
   const specificMap={

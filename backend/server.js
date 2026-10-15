@@ -13213,6 +13213,13 @@ try {
     }
   }
 } catch(e) { console.error('Aranceles seed error:', e.message); }
+// Monografía Final de Grado: arancel propio (Gs. 1.800.000), editable desde Aranceles. Se siembra solo si no existe.
+try {
+  if (!db.prepare("SELECT 1 FROM aranceles WHERE concepto='Monografía Final de Grado'").get()) {
+    db.prepare("INSERT INTO aranceles (id,concepto,monto,tipo,carrera_id,descripcion,anio,activo) VALUES ('ar_monografia','Monografía Final de Grado',1800000,'otro',NULL,'Pago único por alumno',NULL,1)").run();
+    console.log('✓ Arancel sembrado: Monografía Final de Grado — Gs. 1800000');
+  }
+} catch(e) { console.error('Arancel monografía seed error:', e.message); }
 
 app.listen(PORT, () => {
   console.log(`✓ ITS v4 en http://localhost:${PORT}`);
