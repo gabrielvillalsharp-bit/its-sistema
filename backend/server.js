@@ -5150,6 +5150,9 @@ app.get('/api/examenes', auth(), (req, res) => {
     // Sin carrera o sin curso asignado NO se filtra "por nada": antes veía los exámenes de TODAS las carreras
     if (!al?.carrera_id || !al?.curso_id) return res.json([]);
     where += ' AND ca.id=? AND cu.id=?'; params.push(al.carrera_id, al.curso_id);
+    // Solo el semestre en curso (no los exámenes del semestre anterior)
+    const pvAl = periodoVigenteId();
+    if (pvAl) { where += ' AND e.periodo_id=?'; params.push(pvAl); }
   }
   where = filtroExamenesSuspendidos(req, where, params);
   try {
@@ -5763,6 +5766,9 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
     // Sin carrera o sin curso asignado NO se filtra "por nada": antes veía los exámenes de TODAS las carreras
     if (!al?.carrera_id || !al?.curso_id) return res.json([]);
     where += ' AND ca.id=? AND cu.id=?'; params.push(al.carrera_id, al.curso_id);
+    // Solo el semestre en curso (no los exámenes del semestre anterior)
+    const pvAl = periodoVigenteId();
+    if (pvAl) { where += ' AND e.periodo_id=?'; params.push(pvAl); }
   }
   // Docente: forzar filtro por sus propias asignaciones (seguridad server-side)
   if (req.user.rol === 'docente' && !docente_id) {
@@ -6714,6 +6720,8 @@ app.get('/api/horarios', auth(), (req, res) => {
   let { curso_id, periodo_id } = req.query;
   // Un docente solo ve el horario del semestre en curso (ver periodoVigenteId)
   if (req.user.rol === 'docente') periodo_id = periodoVigenteId() || periodo_id;
+  // Un alumno solo ve el semestre en curso (alumno solo ve el semestre en curso: antes veía también el horario del 1er semestre)
+  if (req.user.rol === 'alumno') periodo_id = periodoVigenteId() || periodo_id;
   // Un alumno solo puede ver el horario de su propio curso, sin importar qué
   // curso_id pida por query — se resuelve server-side, no confiamos en el cliente.
   if (req.user.rol === 'alumno') {
