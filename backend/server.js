@@ -5755,25 +5755,6 @@ app.delete('/api/examenes/bulk/tipo', auth(ADM), (req, res) => {
 });
 
 // Exámenes del día / semana para el calendario
-// ── DESCARGA: Calendario de Parciales Recuperatorios (PDF) ───────────────────────────────────────────────────────
-// Alumno: el PDF de SU curso. Docente y director: el calendario general (todas las carreras). Los PDF son archivos
-// estáticos en backend/docs/recuperatorios (versión al 19/10/2026); si Dirección reprograma fechas hay que volver a generarlos.
-app.get('/api/descargas/recuperatorios', auth(), (req, res) => {
-  const dir = path.join(__dirname, 'docs', 'recuperatorios');
-  let archivo = 'general.pdf', nombre = 'Parciales_Recuperatorios_2do_Semestre_2026.pdf';
-  if (req.user.rol === 'alumno') {
-    const al = db.prepare('SELECT curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
-    const cid = String(al?.curso_id || '').replace(/[^A-Za-z0-9_]/g, '');
-    if (!cid || !fs.existsSync(path.join(dir, `curso_${cid}.pdf`))) return res.status(404).json({ error: 'Todavía no hay calendario de recuperatorios para tu curso.' });
-    archivo = `curso_${cid}.pdf`; nombre = 'Mis_Parciales_Recuperatorios_2do_Semestre_2026.pdf';
-  }
-  const ruta = path.join(dir, archivo);
-  if (!fs.existsSync(ruta)) return res.status(404).json({ error: 'Calendario no disponible' });
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
-  res.sendFile(ruta);
-});
-
 app.get('/api/examenes/calendario', auth(), (req, res) => {
   const { desde, hasta, docente_id } = req.query;
   let where = 'WHERE 1=1'; const params = [];
