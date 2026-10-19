@@ -1259,6 +1259,42 @@ const PERMITE_DOS_MATERIAS_POR_HORA = true;
     }
   } catch (e) { console.warn('Migración recuperatorios 2do semestre:', e.message); }
 }
+// ── MIGRACIÓN: recuperatorios con mismo curso o mismo docente a la misma hora → la 2ª materia pasa a la semana siguiente (2026-10-19) ──
+// Regla pedida por el director: el día fijado se rinde UNA materia y la otra se rinde el mismo día de la semana siguiente.
+// 9 grupos de examen (10 filas; las clases unificadas se mueven juntas). Verificado: sin cruces restantes y sin caer en
+// un día con parcial ordinario del mismo curso. Solo cambia la fecha de filas 'Recuperatorio' er2_* ya cargadas. Una sola vez.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_recuperatorios_desfase_2s_2026'").get()) {
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (per) {
+      const mover = [ // [curso_id, materia, nueva_fecha, hora]
+      ["instr_2u","Enfermería Quirúrgica","2026-11-09","19:00"],
+      ["rad_1u","Castellano","2026-11-09","20:40"],
+      ["cosA_1a","Guaraní","2026-11-19","19:00"],
+      ["farm_2u","Guarani","2026-11-13","19:00"],
+      ["instr_2u","Guarani","2026-11-13","19:00"],
+      ["instr_1u","Patología Quirúrgica","2026-11-13","20:40"],
+      ["farm_2u","Marketing","2026-11-23","20:40"],
+      ["agro_2u","Emprendedurismo","2026-11-24","19:00"],
+      ["agro_1u","Matematica","2026-11-25","19:00"],
+      ["agro_2u","Produccion De Aves","2026-11-26","19:00"],
+      ];
+      const buscar = db.prepare('SELECT a.id FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const upd = db.prepare("UPDATE examenes SET fecha=?, hora=? WHERE asignacion_id=? AND tipo='Recuperatorio' AND id LIKE 'er2_%'");
+      let movidos = 0; const faltan = [];
+      db.transaction(() => {
+        mover.forEach(([curso, mat, fecha, hora]) => {
+          const a = buscar.get(per.id, curso, mat);
+          if (!a) { faltan.push(curso + ' / ' + mat); return; }
+          movidos += upd.run(fecha, hora, a.id).changes;
+        });
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_recuperatorios_desfase_2s_2026','1')").run();
+      })();
+      console.log(`[Migración] Recuperatorios desfasados a la semana siguiente: ${movidos} exámenes ✓`);
+      if (faltan.length) console.warn('[Migración] Recuperatorios desfase — sin asignación para:', faltan.join('; '));
+    }
+  }
+} catch (e) { console.warn('Migración recuperatorios desfase:', e.message); }
 // ── MIGRACIÓN: quita el aviso "Exámenes del miércoles 14/10 suspendidos" (2026-10-19) ──────────────────────────
 // A pedido del director. Se desactiva igual que el botón de eliminar aviso (activo=0). NO toca la configuración
 // fechas_examen_suspendidas: esos 6 exámenes siguen ocultos para docentes y alumnos hasta que se reprogramen.
