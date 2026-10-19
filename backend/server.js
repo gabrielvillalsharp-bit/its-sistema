@@ -1511,7 +1511,7 @@ try {
     if (!flag && per) {
       const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
       const CAL = [ // [curso_id, materia, fecha, hora]
-        ['rad_1u', 'Practicas Radiologicas', '2026-10-16', '20:40'],
+        ['rad_1u', 'Practicas Radiologicas', '2026-10-30', '20:40'], // 16/10 → 30/10 (movido en prod el 19/10; así una base nueva queda igual)
         ['rad_1u', 'Castellano', '2026-10-19', '20:40'],
         ['rad_1u', 'Tecnicas Radiologicas', '2026-10-21', '20:40'],
         ['rad_1u', 'Anatomía y Fisiología Humana II', '2026-10-26', '20:40'],
