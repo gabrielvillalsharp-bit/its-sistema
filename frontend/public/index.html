@@ -1416,6 +1416,7 @@ const _NAV_ICO={
   'mis-materias':    'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
   'mis-honorarios':  'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   'mis-notas':       'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  'mis-examenes':    'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
   'mi-asistencia':   'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
   'mi-estado-cuenta':'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
   'repositorio':'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
@@ -1435,7 +1436,7 @@ const _NAV_ICO={
   'hub-finanzas':    'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
   'drive':           'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
 };
-const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍','nautilus':'🗂️'};
+const _NAV_EMO={'carreras':'🏫','cursos':'🚪','materias':'📖','periodos':'📅','docentes':'👨‍🏫','alumnos':'👥','asignaciones':'🔗','constancias':'📄','examenes':'📋','mis-examenes':'📋','notas':'✏️','asistencia':'✅','reemplazos':'🔄','pagos':'💳','honorarios':'💵','repositorio-programas':'📁','repositorio-contenidos':'📂','whatsapp':'💬','solicitudes':'👤','dashboard':'🏠','avisos':'🔔','calendario':'📅','calendario-clases':'🕐','perfil':'👤','usuarios':'🔑','institucion':'🏛️','auditoria':'🔍','nautilus':'🗂️'};
 function _niIco(id,emojiOnly){
   if(emojiOnly) return _NAV_EMO[id]||'📌';
   const d=_NAV_ICO[id]||_NAV_ICO['_default'];
@@ -1463,6 +1464,7 @@ function navFor(r){
     ]},
     {g:'Mi área',i:[
       {id:'mi-portal',l:'Mi portal',c:'#1f8246',r:['docente','alumno']},
+      {id:'mis-examenes',l:'Mis exámenes',c:'#1565c0',r:['alumno']},
     ]},
     {g:'Cuenta',i:[
       {id:'perfil',l:'Mi perfil',c:'#1f8246',r:['director','docente','alumno']},
@@ -1571,7 +1573,7 @@ function go(p, _fromHistory){
     'repositorio-contenidos':pgRepContenidos,
     'registro-habilitados':pgRegistroHabilitados,
     escala:pgEscala,institucion:pgInst,usuarios:pgUsuarios,auditoria:pgAuditoria,
-    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,
+    perfil:pgPerfil,'mis-materias':pgMisMat,'mis-notas':pgMisNotas,'mis-examenes':pgMisExamenes,
     'mi-asistencia':pgMiAsistencia,'mi-estado-cuenta':pgMiEstadoCuenta,
     'agenda':pgAgenda,'mi-portal':pgMiPortal,'actas':pgActas};
   // Retorna la promesa para que llamadores puedan hacer await go(p)
@@ -1752,7 +1754,7 @@ async function pgDash(el){
     const deuda=pagosData?.pagos?.length?0:1; // simplificado: si tiene pagos registrados
     el.innerHTML=`
     ${_dashHero(saludo,me.nombre,fechaCap,'Mi cuenta',[
-      {l:'✏️ Mis notas',p:'mis-notas'},{l:'✅ Mi asistencia',p:'mi-asistencia'},
+      {l:'✏️ Mis notas',p:'mis-notas'},{l:'📋 Mis exámenes',p:'mis-examenes'},{l:'✅ Mi asistencia',p:'mi-asistencia'},
       {l:'💳 Mi estado de cuenta',p:'mi-estado-cuenta'}
     ])}
 
@@ -1812,7 +1814,7 @@ async function pgDash(el){
     <div class="card card-p" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <p style="font-size:14px;font-weight:700">📅 Horario de exámenes</p>
-        <button class="bs" style="font-size:11px" onclick="go('calendario')">Ver calendario →</button>
+        <button class="bs" style="font-size:11px" onclick="go('mis-examenes')">Ver parciales y recuperatorios →</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
       ${exams.map(e=>{
@@ -9755,6 +9757,78 @@ async function pgMiPasantia(el){
       <div><div style="font-size:10px;color:#94a3b8;text-transform:uppercase">Fecha fin</div><div style="font-size:13px;font-weight:600">${p.fecha_fin||'—'}</div></div>
     </div>
   </div>`).join('');
+}
+
+// ── MIS EXÁMENES (alumno): parciales ordinarios y recuperatorios del semestre en curso ──────────────────────────
+const _ME_DIAS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function _meHoyISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+async function pgMisExamenes(el){
+  if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno vinculado</div>';return;}
+  el.innerHTML='<div class="ph"><h3>📋 Mis exámenes</h3></div>'+skeletonTable(6,5);
+  const pers=await api('GET','/api/periodos').catch(()=>[]);
+  const hoy=_meHoyISO();
+  // Semestre en curso = el más reciente que ya empezó (mismo criterio que "Mis calificaciones")
+  const per=(pers||[]).filter(p=>!p.fecha_inicio||p.fecha_inicio<=hoy).sort((a,b)=>(b.anio-a.anio)||(b.semestre-a.semestre)||String(b.fecha_inicio||'').localeCompare(String(a.fecha_inicio||'')))[0];
+  const exs=await api('GET','/api/examenes'+(per?'?periodo_id='+per.id:'')).catch(()=>[]);
+  const porFecha=(a,b)=>(a.fecha+(a.hora||'')).localeCompare(b.fecha+(b.hora||''));
+  const ord=(exs||[]).filter(e=>e.tipo==='Parcial').sort(porFecha);
+  const rec=(exs||[]).filter(e=>e.tipo==='Recuperatorio').sort(porFecha);
+  W._misExs={ord,rec,sel:'ord'};
+  const ref=ord[0]||rec[0];
+  const etq=per?((per.semestre===1?'1er':per.semestre+'do')+' Semestre '+(per.anio||'')):'';
+  el.innerHTML=`<div class="ph"><h3>📋 Mis exámenes</h3>
+    ${ref?`<span class="bx bb" style="font-size:12px">${ref.carrera_nombre||''} ${ref.curso_anio?ref.curso_anio+'° año':''}${ref.curso_division&&ref.curso_division!=='U'?' · Secc. '+ref.curso_division:''}</span>`:''}
+    ${etq?`<span class="bx bgr" style="font-size:12px">${etq}</span>`:''}
+  </div>
+  <div class="fb" style="gap:0;margin-bottom:14px;border-bottom:2px solid var(--bdr);flex-wrap:wrap">
+    <button id="meTab_ord" onclick="meTab('ord')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1565c0;background:transparent;cursor:pointer;color:#1565c0">📝 Parciales ordinarios (${ord.length})</button>
+    <button id="meTab_rec" onclick="meTab('rec')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🔁 Parciales recuperatorios (${rec.length})</button>
+  </div>
+  <div id="meLista"></div>`;
+  meTab('ord');
+}
+function meTab(t){
+  if(!W._misExs) return;
+  W._misExs.sel=t;
+  const col=t==='ord'?'#1565c0':'#b45309';
+  ['ord','rec'].forEach(k=>{
+    const b=document.getElementById('meTab_'+k); if(!b) return;
+    b.style.borderBottomColor=k===t?col:'transparent'; b.style.color=k===t?col:'#64748b';
+  });
+  const lista=t==='ord'?W._misExs.ord:W._misExs.rec;
+  const hoy=_meHoyISO();
+  const box=document.getElementById('meLista'); if(!box) return;
+  const nota=t==='rec'
+    ?'<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#92400e">🔁 El parcial recuperatorio se rinde el mismo día de la semana y en el mismo horario de tu clase. Para rendirlo tenés que tener abonado el arancel de <strong>Parcial Recuperatorio</strong>; ante dudas consultá en Secretaría.</div>'
+    :'<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#1e3a8a">📝 Calendario de tus parciales ordinarios. Se rinden el día y en el horario de tu clase de cada materia.</div>';
+  if(!lista.length){
+    box.innerHTML=nota+`<div class="es">${t==='ord'?'Todavía no hay parciales ordinarios programados para tu curso.':'Todavía no hay parciales recuperatorios programados para tu curso.'}</div>`;
+    return;
+  }
+  const prox=lista.filter(e=>e.fecha>=hoy), pas=lista.filter(e=>e.fecha<hoy);
+  const dif=f=>Math.round((new Date(f+'T12:00:00')-new Date(hoy+'T12:00:00'))/86400000);
+  const fila=e=>{
+    const d=new Date(e.fecha+'T12:00:00'), n=dif(e.fecha), rendido=e.fecha<hoy;
+    const chip=rendido?'<span class="bx bgr" style="font-size:11px">Rendido</span>'
+      :n===0?'<span class="bx br" style="font-size:11px">¡Hoy!</span>'
+      :n===1?'<span class="bx ba" style="font-size:11px">Mañana</span>'
+      :'<span class="bx bb" style="font-size:11px">En '+n+' días</span>';
+    const prof=((e.docente_apellido||'')+' '+(e.docente_nombre||'')).trim();
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:${rendido?'#f8fafc':'#fff'};border-radius:10px;border:1px solid #e2e8f0;margin-bottom:8px;${rendido?'opacity:.75':''}">
+      <div style="text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px 10px;min-width:56px;flex-shrink:0">
+        <div style="font-size:18px;font-weight:900;color:#1e293b;line-height:1">${d.getDate()}</div>
+        <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase">${d.toLocaleString('es',{month:'short'})}</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:#1e293b">${e.materia_nombre||'—'}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">${_ME_DIAS[d.getDay()]}${e.hora?' · 🕐 '+e.hora:''}${prof?' · 👤 '+prof:''}${e.aula?' · 📍 '+e.aula:''}</div>
+      </div>
+      <div style="flex-shrink:0">${chip}</div>
+    </div>`;
+  };
+  box.innerHTML=nota
+    +(prox.length?`<p style="font-size:12px;font-weight:800;color:#166534;margin:4px 0 8px">PRÓXIMOS (${prox.length})</p>${prox.map(fila).join('')}`:'')
+    +(pas.length?`<p style="font-size:12px;font-weight:800;color:#64748b;margin:14px 0 8px">YA RENDIDOS (${pas.length})</p>${pas.map(fila).join('')}`:'');
 }
 
 async function pgCalendario(el){
