@@ -5143,7 +5143,8 @@ app.get('/api/examenes', auth(), (req, res) => {
   if (req.user.rol === 'docente') {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
-    where += " AND e.tipo NOT IN ('Recuperatorio','final_recuperatorio','Final Recuperatorio')";
+    // El docente SÍ ve los Parciales Recuperatorios (tipo 'Recuperatorio'); los finales recuperatorios siguen ocultos para él.
+    where += " AND e.tipo NOT IN ('final_recuperatorio','Final Recuperatorio')";
   }
   if (req.user.rol === 'alumno') {
     const al = db.prepare('SELECT carrera_id, curso_id FROM alumnos WHERE usuario_id=?').get(req.user.id);
@@ -5774,7 +5775,8 @@ app.get('/api/examenes/calendario', auth(), (req, res) => {
   if (req.user.rol === 'docente' && !docente_id) {
     const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
     if (doc) { where += ' AND a.docente_id=?'; params.push(doc.id); }
-    where += " AND e.tipo NOT IN ('Recuperatorio','final_recuperatorio','Final Recuperatorio')";
+    // El docente SÍ ve los Parciales Recuperatorios (tipo 'Recuperatorio'); los finales recuperatorios siguen ocultos para él.
+    where += " AND e.tipo NOT IN ('final_recuperatorio','Final Recuperatorio')";
   }
   where = filtroExamenesSuspendidos(req, where, params);
   res.json(db.prepare(`
