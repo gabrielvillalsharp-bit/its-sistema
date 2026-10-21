@@ -32,6 +32,14 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'its_secret_2026_cambiar_en_produccion';
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ── MENSAJES AUTOMÁTICOS CANCELADOS (orden del director, 2026-10-20) ─────────────────────────────────────────────
+// Se mantienen guardados los datos (comprobantes y mensajes recibidos) pero el sistema NO responde ni escribe solo por:
+const WA_ACUSE_COMPROBANTE_ACTIVO = false;      // "Recibimos su comprobante" / "pago verificado" / "no pudimos verificar" al alumno
+const WA_RECORDATORIO_COMPROMISOS_ACTIVO = false; // recordatorio diario de las 7:00 por compromisos de pago
+const WA_BOT_ACTIVO = false;                    // respuestas automáticas (IA) a quien escribe al WhatsApp del instituto
+const WA_CONSTANCIA_PAGO_ACTIVO = false;        // constancia de pago por WhatsApp al registrar un pago (individual y por lote)
+const WA_BIENVENIDA_QR_NUEVO_ACTIVO = false;    // bienvenida con usuario y contraseña al alumno que escanea el QR y elige "Soy nuevo/a"
+
 // ── SEGURIDAD: CORS restringido ───────────────────────────────────────────────
 app.use(cors({
   origin: function(origin, callback) {
@@ -516,15 +524,18 @@ async function enviarWA(numero, msg, tipo) {
     if (!r.ok) {
       console.error(`[WA] enviar ${r.status} → ${numNorm}: ${respTxt.slice(0,400)}`);
       botLog(numero, 'envio_fallido', `HTTP ${r.status} → ${numNorm}: ${respTxt.slice(0,300)}`);
+      waRegistrarEnvio({ telefono: numForDb, mensaje: msg, estado: 'fallido', detalle: `HTTP ${r.status}`, motivo: tipo === 'bot' ? 'respuesta_bot' : undefined });
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numForDb,msg.slice(0,200),'fallido',nowStr()); } catch {}
     } else {
       console.log(`[WA] enviar OK (${r.status}) → ${numNorm}`);
       botLog(numero, 'envio_ok', `→ ${numNorm}: "${msg}"`);
+      waRegistrarEnvio({ telefono: numForDb, mensaje: msg, estado: 'enviado', motivo: tipo === 'bot' ? 'respuesta_bot' : undefined });
       try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run(msgId,'individual',numForDb,msg.slice(0,200),'enviado',nowStr()); } catch {}
     }
   } catch(e) {
     console.error('[WA] enviar error:', e.message);
     botLog(numero, 'envio_error', e.message);
+    waRegistrarEnvio({ telefono: numForDb, mensaje: msg, estado: 'fallido', detalle: e.message, motivo: tipo === 'bot' ? 'respuesta_bot' : undefined });
     try { db.prepare("INSERT INTO wa_mensajes (id,tipo,destinatario_telefono,mensaje,estado,fecha) VALUES (?,?,?,?,?,?)").run('bm_'+Date.now(),'individual',numForDb,msg.slice(0,100),'fallido',nowStr()); } catch {}
   }
 }
@@ -5975,7 +5986,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .replace(/\{monto\}/g, montoTotalFmt)
           .replace(/\{fecha\}/g, fechaFmt)
           .replace(/\{url\}/g, APP_URL);
-        sendWhatsApp(alFull.telefono, waMsg).catch(() => {});
+        if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsg, { motivo: 'constancia_pago' }).catch(() => {});
       }
     }
 
@@ -6101,7 +6112,7 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
       .replace(/\{monto\}/g, montoFmt)
       .replace(/\{fecha\}/g, fechaFmt)
       .replace(/\{url\}/g, APP_URL);
-    sendWhatsApp(alFull.telefono, waMsg).catch(()=>{});
+    if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsg, { motivo: 'constancia_pago' }).catch(()=>{});
   }
 
   return { ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen };
@@ -6164,7 +6175,7 @@ app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
     const alTel = db.prepare('SELECT telefono FROM alumnos WHERE id=?').get(alumno_id)?.telefono;
     if (pend.numero && normalizarTelefono(pend.numero) !== normalizarTelefono(alTel||'')) {
       const montoFmt = 'Gs. '+Number(parseFloat(monto)||0).toLocaleString('es-PY');
-      enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
+      if (WA_ACUSE_COMPROBANTE_ACTIVO) enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
     }
 
     res.json({ ok: true, id: result.id, habilitado_examen: result.habilitado_examen, tipo_examen: result.tipo_examen });
@@ -6180,7 +6191,7 @@ app.post('/api/pagos/pendientes-wa/:id/rechazar', auth(ADM), (req, res) => {
       .run(req.user.id, nowStr(), req.params.id);
     audit(req.user.id, 'RECHAZAR_PAGO_WA', 'pagos_pendientes_wa', req.params.id, { motivo });
 
-    enviarWA(pend.numero, `No pudimos verificar su comprobante de transferencia. 🙏${motivo ? '\nMotivo: '+motivo : ''}\n\nPor favor, comuníquese con el Instituto o envíe nuevamente una imagen clara del comprobante.`, 'pago_rechazado').catch(()=>{});
+    if (WA_ACUSE_COMPROBANTE_ACTIVO) enviarWA(pend.numero, `No pudimos verificar su comprobante de transferencia. 🙏${motivo ? '\nMotivo: '+motivo : ''}\n\nPor favor, comuníquese con el Instituto o envíe nuevamente una imagen clara del comprobante.`, 'pago_rechazado').catch(()=>{});
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -9161,7 +9172,114 @@ async function _sendWhatsAppTwilio(numero, texto, sid, token, from) {
     return { ok: false, error: e.message, numero };
   }
 }
-async function sendWhatsApp(phone, message) {
+
+// ── REGISTRO DETALLADO DE ENVÍOS DE WHATSAPP (2026-10-20) ─────────────────────────────────────────────────────────
+// Cada mensaje que el sistema manda queda anotado aquí: cuándo (hora de Paraguay), a quién (nombre y teléfono), por qué motivo,
+// el TEXTO EXACTO enviado, quién lo disparó y si salió o no. Es el registro que revisa el director (WhatsApp → 📒 Registro).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS wa_registro_envios (
+    id TEXT PRIMARY KEY,
+    fecha TEXT NOT NULL,
+    telefono TEXT NOT NULL,
+    destinatario_nombre TEXT,
+    destinatario_tipo TEXT,
+    destinatario_id TEXT,
+    motivo TEXT,
+    disparado_por TEXT,
+    mensaje TEXT NOT NULL,
+    estado TEXT NOT NULL,
+    detalle TEXT,
+    canal TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_wa_reg_fecha ON wa_registro_envios(fecha);
+  CREATE INDEX IF NOT EXISTS idx_wa_reg_tel ON wa_registro_envios(telefono);
+`);
+const WA_MOTIVOS = {
+  aviso_carga_examen_docente: 'Aviso de carga de examen (docente, 24 h antes)',
+  recordatorio_examen: 'Recordatorio de examen',
+  bienvenida_usuario_y_clave: 'Bienvenida con usuario y contraseña',
+  credenciales_reenviadas: 'Reenvío de usuario y contraseña',
+  constancia_pago: 'Constancia de pago',
+  comprobante_transferencia: 'Comprobante de transferencia',
+  recordatorio_compromiso_pago: 'Recordatorio de compromiso de pago',
+  alerta_perdida_nota: 'Alerta de posible pérdida de nota',
+  aviso_puntajes: 'Aviso de puntajes sin cargar',
+  mensaje_manual: 'Mensaje manual del director',
+  mensaje_masivo: 'Mensaje masivo a docentes',
+  mensaje_programado: 'Mensaje programado',
+  respuesta_manual_chat: 'Respuesta manual desde el chat',
+  respuesta_bot: 'Respuesta automática del bot',
+  otro: 'Otro'
+};
+function waClasificarMotivo(m) {
+  const t = String(m || '');
+  if (/Carga de Examen Pendiente/i.test(t)) return 'aviso_carga_examen_docente';
+  if (/Bienvenid[oa]\/a/i.test(t)) return 'bienvenida_usuario_y_clave';
+  if (/compromiso de pago/i.test(t)) return 'recordatorio_compromiso_pago';
+  if (/comprobante/i.test(t)) return 'comprobante_transferencia';
+  if (/constancia|pago.*registrad|abon[oó]/i.test(t)) return 'constancia_pago';
+  if (/p[eé]rdida de nota/i.test(t)) return 'alerta_perdida_nota';
+  if (/puntajes? .*(sin cargar|pendiente)/i.test(t)) return 'aviso_puntajes';
+  if (/recordatorio|examen/i.test(t)) return 'recordatorio_examen';
+  return 'otro';
+}
+function waHoraParaguay() {
+  return new Date().toLocaleString('sv-SE', { timeZone: 'America/Asuncion' }); // "YYYY-MM-DD HH:MM:SS"
+}
+function waRegistrarEnvio({ telefono, mensaje, estado, detalle, motivo, por, canal }) {
+  try {
+    const tel = String(telefono || '').replace(/[^0-9]/g, '');
+    const ult = tel.slice(-9);
+    let dest = null, tipo = null, did = null;
+    if (ult.length >= 7) {
+      const al = db.prepare(`SELECT id, nombre, apellido FROM alumnos WHERE replace(replace(replace(replace(telefono,' ',''),'-',''),'+',''),'.','') LIKE ? ORDER BY (estado='Activo') DESC LIMIT 1`).get('%' + ult);
+      if (al) { dest = `${al.apellido || ''}, ${al.nombre || ''}`.trim(); tipo = 'alumno'; did = al.id; }
+      else {
+        const dc = db.prepare(`SELECT d.id, u.nombre, u.apellido FROM docentes d JOIN usuarios u ON u.id=d.usuario_id WHERE replace(replace(replace(replace(d.telefono,' ',''),'-',''),'+',''),'.','') LIKE ? LIMIT 1`).get('%' + ult);
+        if (dc) { dest = `${dc.apellido || ''}, ${dc.nombre || ''}`.trim(); tipo = 'docente'; did = dc.id; }
+      }
+    }
+    let quien = 'Sistema (automático)';
+    if (por) {
+      const u = db.prepare('SELECT nombre, apellido, rol FROM usuarios WHERE id=?').get(por);
+      quien = u ? `${u.nombre || ''} ${u.apellido || ''}`.trim() + (u.rol ? ` (${u.rol})` : '') : String(por);
+    }
+    const mot = (motivo && WA_MOTIVOS[motivo]) ? motivo : waClasificarMotivo(mensaje);
+    db.prepare(`INSERT INTO wa_registro_envios (id,fecha,telefono,destinatario_nombre,destinatario_tipo,destinatario_id,motivo,disparado_por,mensaje,estado,detalle,canal)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run('wr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), waHoraParaguay(), tel || String(telefono || ''), dest, tipo, did, mot, quien, String(mensaje || ''), estado, detalle ? String(detalle).slice(0, 300) : null, canal || 'whatsapp');
+  } catch (e) { console.error('[WA-REGISTRO]', e.message); }
+}
+// Motivo de un mensaje del registro anterior: primero por su texto; si no se reconoce, por el tipo con que se guardó
+function waMotivoViejo(w) {
+  const porTexto = waClasificarMotivo(w.mensaje);
+  if (porTexto !== 'otro') return porTexto;
+  if (w.wtipo === 'bienvenida') return 'bienvenida_usuario_y_clave';
+  if (w.wtipo === 'masivo') return 'mensaje_masivo';
+  if (w.wtipo === 'programado') return 'mensaje_programado';
+  if (w.wtipo === 'individual' && w.enviado_por && w.enviado_por !== 'sistema_auto') return 'mensaje_manual';
+  return 'otro';
+}
+// Una sola vez: pasa al registro nuevo los mensajes anotados antes (tabla wa_mensajes), para tener todo el historial junto.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_wa_registro_backfill_20261020'").get()) {
+    const viejos = db.prepare(`SELECT w.id, w.fecha, w.destinatario_telefono tel, w.destinatario_nombre nom, w.destinatario_tipo tdest, w.destinatario_id did, w.mensaje, w.estado, w.enviado_por, w.tipo wtipo,
+      u.nombre un, u.apellido ua FROM wa_mensajes w LEFT JOIN usuarios u ON u.id=w.enviado_por WHERE w.destinatario_telefono IS NOT NULL ORDER BY w.fecha`).all();
+    const ins = db.prepare(`INSERT OR IGNORE INTO wa_registro_envios (id,fecha,telefono,destinatario_nombre,destinatario_tipo,destinatario_id,motivo,disparado_por,mensaje,estado,detalle,canal)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+    db.transaction(() => {
+      for (const w of viejos) {
+        // wa_mensajes guarda la hora en UTC: se pasa a hora de Paraguay (UTC-3) para que todo el registro use la misma hora
+        let f = w.fecha || '';
+        try { const d = new Date(String(f).replace(' ', 'T') + 'Z'); if (!isNaN(d)) f = d.toLocaleString('sv-SE', { timeZone: 'America/Asuncion' }); } catch {}
+        const quien = w.enviado_por === 'sistema_auto' || !w.enviado_por ? 'Sistema (automático)' : (w.un ? `${w.un} ${w.ua || ''}`.trim() : String(w.enviado_por));
+        ins.run('wh_' + w.id, f, String(w.tel || '').replace(/[^0-9]/g, ''), w.nom || null, w.tdest || null, w.did || null, waMotivoViejo(w), quien, w.mensaje || '', w.estado || 'enviado', 'Registro anterior al 20/10/2026', 'whatsapp');
+      }
+    })();
+    db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_wa_registro_backfill_20261020','1')").run();
+    console.log(`[Migración] Registro de envíos WhatsApp: ${viejos.length} mensajes anteriores incorporados ✓`);
+  }
+} catch (e) { console.warn('[Migración] registro envíos backfill:', e.message); }
+async function _sendWhatsAppInterno(phone, message) {
   const numero = normalizarTelefono(phone);
   if (!numero) {
     console.warn('[WA] Teléfono inválido:', phone);
@@ -9184,7 +9302,7 @@ async function sendWhatsApp(phone, message) {
   const TW_FROM = process.env.TWILIO_WHATSAPP_FROM;
   if (WA_PROVIDER !== 'evolution' && TW_SID && TW_TOK && TW_FROM) {
     console.log(`[WA-Twilio] Enviando a ${numero} (${enviados+1}/${WA_LIMITE_DIARIO} hoy)`);
-    return await _sendWhatsAppTwilio(numero, mensajeVariado, TW_SID, TW_TOK, TW_FROM);
+    return { ...(await _sendWhatsAppTwilio(numero, mensajeVariado, TW_SID, TW_TOK, TW_FROM)), _texto: mensajeVariado, _canal: 'twilio' };
   }
 
   // ── Camino viejo: Evolution API (fallback si Twilio no está configurado) ──────
@@ -9207,22 +9325,36 @@ async function sendWhatsApp(phone, message) {
   let lastErr = '';
   for (const body of payloads) {
     try {
-      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
       const rawText = await resp.text();
       let data = {};
       try { data = JSON.parse(rawText); } catch {}
       if (resp.ok) {
         console.log(`[WA] ✅ Enviado a ${numero} → key:${data?.key?.id||'ok'}`);
-        return { ok: true, numero };
+        return { ok: true, numero, _texto: mensajeVariado, _canal: 'evolution' };
       }
-      lastErr = rawText.slice(0, 300);
-      console.warn(`[WA] Falló payload ${JSON.stringify(Object.keys(body))}: ${resp.status} → ${lastErr}`);
+      lastErr = `HTTP ${resp.status}: ${rawText.slice(0, 250)}`;
+      console.warn(`[WA] Falló payload ${JSON.stringify(Object.keys(body))}: ${resp.status} → ${rawText.slice(0, 300)}`);
+      // Solo un error de formato (400/422) justifica probar el siguiente formato; con otro error el mensaje pudo haber salido
+      if (resp.status !== 400 && resp.status !== 422) break;
     } catch(e) {
       lastErr = e.message;
       console.error('[WA] Error fetch:', e.message);
+      const agotado = e.name === 'TimeoutError' || e.name === 'AbortError';
+      return { ok: false, error: agotado ? 'Tiempo de espera agotado: el mensaje pudo haberse enviado igual (revisar el chat)' : `Evolution API: ${lastErr}`, numero, sinConfirmar: agotado, _texto: mensajeVariado, _canal: 'evolution' };
     }
   }
-  return { ok: false, error: `Evolution API: ${lastErr}`, numero };
+  return { ok: false, error: `Evolution API: ${lastErr}`, numero, _texto: mensajeVariado, _canal: 'evolution' };
+}
+// Envío con registro detallado. meta = { motivo, por }  (por = id de usuario si lo disparó una persona)
+async function sendWhatsApp(phone, message, meta = {}) {
+  const r = await _sendWhatsAppInterno(phone, message);
+  waRegistrarEnvio({
+    telefono: r.numero || phone, mensaje: r._texto || message,
+    estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'),
+    detalle: r.ok ? null : r.error, motivo: meta.motivo, por: meta.por, canal: r._canal
+  });
+  return r;
 }
 // ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
 async function enviarBienvenidaQR(telefono, nombre, email, ci) {
@@ -9423,6 +9555,17 @@ try {
   // Miércoles 14/10/2026: exámenes suspendidos por Dirección (a reprogramar) → sin avisos de carga ese día
   db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('fechas_examen_suspendidas','2026-10-14','Fechas (CSV) con exámenes suspendidos: sin aviso de carga')").run();
 } catch(e) { console.warn('[Migración] aviso24:', e.message); }
+// 2026-10-20, a pedido del director: de los recordatorios de examen queda SOLO el de 24 horas antes (el aviso de carga de las 10:00,
+// que se registra como tipo '24h'). Los de 48h/12h/6h/4h/3h, el urgente y el de puntajes quedan desactivados.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_wa_solo_24h_20261020'").get()) {
+    const setRegla = db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)");
+    ['48h','12h','6h','4h','3h','urgente','puntajes'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '0', `Regla WA ${k}`));
+    ['24h','aviso24'].forEach(k => setRegla.run(`wa_regla_${k}_activa`, '1', `Regla WA ${k}`));
+    setRegla.run('mig_wa_solo_24h_20261020', '1', 'Migración: de los recordatorios solo queda el de 24 horas');
+    console.log('[Migración] Recordatorios de examen: solo 24 horas antes ✓');
+  }
+} catch(e) { console.warn('[Migración] solo 24h:', e.message); }
 cron.schedule('0 10 * * 1-5', async () => {
   if (!WA_AVISO_CARGA_ACTIVO) return;
   if (!enHoraPermitida()) return;
@@ -10220,7 +10363,7 @@ app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
 app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   const { telefono, mensaje, destinatario_tipo, destinatario_id, destinatario_nombre } = req.body;
   if (!telefono || !mensaje) return res.status(400).json({ error: 'Teléfono y mensaje requeridos' });
-  const waRes = await sendWhatsApp(telefono, mensaje);
+  const waRes = await sendWhatsApp(telefono, mensaje, { motivo: 'mensaje_manual', por: req.user.id });
   const ok = waRes.ok;
   const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
   db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
@@ -10254,7 +10397,7 @@ app.post('/api/whatsapp/enviar-credenciales/:alumno_id', auth(ADM), async (req, 
       .replace(/\{email\}/g, al.email||'')
       .replace(/\{ci\}/g, al.ci||'(tu número de cédula)')
       .replace(/\{url\}/g, APP_URL);
-    const waRes = await sendWhatsApp(al.telefono, msg);
+    const waRes = await sendWhatsApp(al.telefono, msg, { motivo: 'credenciales_reenviadas', por: req.user.id });
     const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
     db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
       VALUES (?,?,?,?,?,?,?,?,?)`)
@@ -10276,7 +10419,7 @@ app.post('/api/whatsapp/masivo', auth(ADM), async (req, res) => {
       AND d.telefono IS NOT NULL AND d.telefono!=''`).all();
     let enviados=0, fallidos=0;
     for (const doc of docentes) {
-      const {ok} = await sendWhatsApp(doc.telefono, mensaje);
+      const {ok} = await sendWhatsApp(doc.telefono, mensaje, { motivo: 'mensaje_masivo', por: req.user.id });
       const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
       db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
         VALUES (?,?,?,?,?,?,?,?,?)`)
@@ -10302,6 +10445,25 @@ app.get('/api/whatsapp/historial', auth(ADM), (req, res) => {
     ${where} ORDER BY w.fecha DESC LIMIT ${parseInt(lim)||200}`).all(...p);
   const resumen = db.prepare(`SELECT tipo,estado,COUNT(*) as total FROM wa_mensajes GROUP BY tipo,estado`).all();
   res.json({ mensajes: rows, resumen });
+});
+
+// ── WHATSAPP: REGISTRO DETALLADO DE ENVÍOS (director) ──────────────────────────────────────────────────────────────
+app.get('/api/whatsapp/registro', auth(ADM), (req, res) => {
+  try {
+    const { desde, hasta, q, motivo, estado, limit: lim } = req.query;
+    let where = 'WHERE 1=1'; const p = [];
+    if (desde)  { where += ' AND fecha >= ?'; p.push(desde + ' 00:00:00'); }
+    if (hasta)  { where += ' AND fecha <= ?'; p.push(hasta + ' 23:59:59'); }
+    if (motivo) { where += ' AND motivo = ?'; p.push(motivo); }
+    if (estado) { where += ' AND estado = ?'; p.push(estado); }
+    if (q) { const like = '%' + String(q).trim() + '%'; where += ' AND (destinatario_nombre LIKE ? OR telefono LIKE ? OR mensaje LIKE ? OR disparado_por LIKE ?)'; p.push(like, like, like, like); }
+    const limite = Math.min(parseInt(lim) || 500, 5000);
+    const filas = db.prepare(`SELECT * FROM wa_registro_envios ${where} ORDER BY fecha DESC, id DESC LIMIT ${limite}`).all(...p);
+    const total = db.prepare(`SELECT COUNT(*) n FROM wa_registro_envios ${where}`).get(...p).n;
+    const porEstado = db.prepare(`SELECT estado, COUNT(*) n FROM wa_registro_envios ${where} GROUP BY estado`).all(...p);
+    const porMotivo = db.prepare(`SELECT motivo, COUNT(*) n FROM wa_registro_envios ${where} GROUP BY motivo ORDER BY n DESC`).all(...p);
+    res.json({ total, mostrados: filas.length, filas, porEstado, porMotivo, motivos: WA_MOTIVOS });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── WHATSAPP GESTIÓN: programados (crear / listar / cancelar) ─────────────────
@@ -10451,7 +10613,7 @@ function manejarWebhookWA(req, res) {
             db.prepare(`INSERT INTO pagos_pendientes_wa (id,numero,nombre_contacto,alumno_id,imagen_data,imagen_mime,mensaje_texto)
               VALUES (?,?,?,?,?,?,?)`)
               .run(ppid, numero, nombre, alumno?.id||null, imgB64, mime, texto.trim()||null);
-            enviarWA(numero, 'Recibimos su comprobante de transferencia. ✅ Será revisado por el Instituto y le confirmaremos en breve. ¡Gracias!')
+            if (WA_ACUSE_COMPROBANTE_ACTIVO) enviarWA(numero, 'Recibimos su comprobante de transferencia. ✅ Será revisado por el Instituto y le confirmaremos en breve. ¡Gracias!')
               .catch(e=>console.error('[WEBHOOK WA] ack comprobante:', e.message));
             // Análisis automático con IA (no bloquea la respuesta del webhook)
             analizarComprobanteWA(ppid, imgB64, mime).catch(e=>console.error('[WEBHOOK WA] análisis IA:', e.message));
@@ -10467,7 +10629,7 @@ function manejarWebhookWA(req, res) {
           .run(wrid, numero, nombre, texto.trim(), nowStr());
       } catch(e) {}
       // Procesar bot (async, no esperar)
-      procesarMensajeBot(numero, texto.trim()).catch(e=>console.error('[BOT]', e.message));
+      if (WA_BOT_ACTIVO) procesarMensajeBot(numero, texto.trim()).catch(e=>console.error('[BOT]', e.message));
     }
   } catch(e) { console.error('[WEBHOOK WA]', e.message); }
 }
@@ -10773,7 +10935,7 @@ app.post('/api/whatsapp/chats/:numero/enviar', auth(ADM), async (req, res) => {
   const { mensaje } = req.body;
   if (!mensaje?.trim()) return res.status(400).json({ error: 'Mensaje vacío' });
   try {
-    const result = await sendWhatsApp(req.params.numero, mensaje.trim());
+    const result = await sendWhatsApp(req.params.numero, mensaje.trim(), { motivo: 'respuesta_manual_chat', por: req.user.id });
     if (!result.ok) return res.status(500).json({ error: result.error || 'Error al enviar' });
     // Guardar en historial local
     try {
@@ -10811,7 +10973,7 @@ cron.schedule('* * * * *', async () => {
         db.prepare("UPDATE wa_programados SET estado='enviado' WHERE id=?").run(prog.id);
         console.log(`[Programado WA] masivo ${prog.id}: ${env}/${docentes.length} enviados`);
       } else {
-        const {ok} = await sendWhatsApp(prog.destinatario_telefono, prog.mensaje);
+        const {ok} = await sendWhatsApp(prog.destinatario_telefono, prog.mensaje, { motivo: 'mensaje_programado' });
         db.prepare("UPDATE wa_programados SET estado=? WHERE id=?").run(ok?'enviado':'cancelado', prog.id);
         if (ok) {
           db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
@@ -10845,7 +11007,7 @@ cron.schedule('0 7 * * *', async () => {
       if (!comp.telefono) continue;
       const diasRestantes = comp.fecha_limite === fecha3 ? 3 : 1;
       const msg = `Estimado/a *${comp.apellido}, ${comp.nombre}*:\n\nLe recordamos que tiene un *compromiso de pago* pendiente con el Instituto por *Gs. ${Number(comp.monto_total).toLocaleString()}*.\n\nFecha límite: *${comp.fecha_limite}* (${diasRestantes === 1 ? 'mañana' : 'en 3 días'}).\n\nPor favor acérquese a secretaría para regularizar su situación. Si ya realizó el pago, puede ignorar este mensaje.`;
-      await sendWhatsApp(comp.telefono, msg).catch(() => {});
+      if (WA_RECORDATORIO_COMPROMISOS_ACTIVO) await sendWhatsApp(comp.telefono, msg, { motivo: 'recordatorio_compromiso_pago' }).catch(() => {});
     }
     console.log(`[Cron Compromisos] Procesados ${pendientes.length} recordatorios`);
   } catch(e) { console.error('[Cron Compromisos]', e.message); }
@@ -13195,7 +13357,7 @@ function aprobarRegistroNuevo(sol, actorId, opts = {}) {
     const usuAprobado = db.prepare('SELECT u.email FROM alumnos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.id=?').get(aid);
     const ciNum = String(sol.ci||'').replace(/[^0-9]/g,'');
     const nombreCompleto = (sol.nombre||'')+' '+(sol.apellido||'');
-    enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
+    if (WA_BIENVENIDA_QR_NUEVO_ACTIVO) enviarBienvenidaQR(sol.telefono, nombreCompleto.trim(), usuAprobado?.email||'(ver en el sistema)', ciNum);
   }
   return { aid };
 }

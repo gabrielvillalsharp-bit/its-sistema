@@ -2312,8 +2312,8 @@ async function pgWhatsApp(el){
 
   // Pre-computar fragmentos complejos fuera del template literal principal
   const recibLbl = '💬 Recibidos'+(noLeidos?' <span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+noLeidos+'</span>':'');
-  const tabLabels = {enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',conversaciones:'💬 Conversaciones',docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot',botlog:'🔍 Log Bot'};
-  const tabsHTML = ['enviar','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].map((t,i)=>{
+  const tabLabels = {registro:'📒 Registro',enviar:'📤 Enviar',masivo:'📢 Masivo',programar:'⏰ Programar',conversaciones:'💬 Conversaciones',docentes:'👥 Docentes',reglas:'⚙️ Reglas',plantillas:'📝 Plantillas',bot:'🤖 Bot',botlog:'🔍 Log Bot'};
+  const tabsHTML = ['enviar','registro','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].map((t,i)=>{
     const bg=i===0?'#128C7E':'transparent', cl=i===0?'#fff':'#555';
     return '<button id="wa-tab-'+t+'" onclick="waTab(\''+t+'\')" style="padding:8px 14px;border:none;background:'+bg+';color:'+cl+';border-radius:8px 8px 0 0;cursor:pointer;font-size:12px;font-weight:600">'+tabLabels[t]+'</button>';
   }).join('');
@@ -2512,6 +2512,24 @@ async function pgWhatsApp(el){
   </div>
 
   <!-- Panel: Masivo -->
+  <div id="wa-panel-registro" style="display:none">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#166534">
+      📒 <strong>Registro detallado de envíos.</strong> Cada mensaje que sale del sistema: día y hora (Paraguay), a quién, por qué motivo, el texto exacto enviado, quién lo disparó y si salió.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <label style="font-size:11px;color:#64748b">Desde <input type="date" id="wa-reg-desde" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px" onchange="waCargarRegistro()"></label>
+      <label style="font-size:11px;color:#64748b">Hasta <input type="date" id="wa-reg-hasta" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px" onchange="waCargarRegistro()"></label>
+      <select id="wa-reg-motivo" onchange="waCargarRegistro()" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px"><option value="">Todos los motivos</option></select>
+      <select id="wa-reg-estado" onchange="waCargarRegistro()" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px"><option value="">Todos los estados</option><option value="enviado">Enviado</option><option value="fallido">Fallido</option><option value="sin_confirmar">Sin confirmar</option></select>
+      <input type="text" id="wa-reg-q" placeholder="Buscar nombre, teléfono o texto..." oninput="clearTimeout(W._waRegT);W._waRegT=setTimeout(waCargarRegistro,350)" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;width:220px">
+      <button onclick="waRegistroMes()" style="font-size:11px;padding:4px 10px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:5px;cursor:pointer;color:#0369a1">Este mes</button>
+      <button onclick="waRegistroHoy()" style="font-size:11px;padding:4px 10px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:5px;cursor:pointer;color:#0369a1">Hoy</button>
+      <button onclick="waRegistroLimpiar()" style="font-size:11px;padding:4px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;cursor:pointer;color:#64748b">✕ Limpiar</button>
+    </div>
+    <div id="wa-reg-resumen" style="font-size:12px;color:#475569;margin-bottom:8px"></div>
+    <div id="wa-reg-cuerpo"><div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Cargando...</div></div>
+  </div>
+
   <div id="wa-panel-masivo" style="display:none">
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;max-width:560px">
       <h3 style="margin:0 0 6px;font-size:14px;color:#333">📢 Envío masivo a docentes</h3>
@@ -2911,16 +2929,50 @@ async function waBorrarBotLog(){
 }
 
 function waTab(t){
-  ['enviar','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].forEach(x=>{
+  ['enviar','registro','masivo','programar','conversaciones','docentes','reglas','plantillas','bot','botlog'].forEach(x=>{
     const p=document.getElementById('wa-panel-'+x);
     const b=document.getElementById('wa-tab-'+x);
     if(p) p.style.display=x===t?'block':'none';
     if(b){b.style.background=x===t?'#128C7E':'transparent';b.style.color=x===t?'#fff':'#555';}
   });
   if(t==='botlog') waCargarBotLog();
+  if(t==='registro') waCargarRegistro();
   if(t==='plantillas') loadWAPlantillas();
   if(t==='bot') waBotCargarMensajes();
   if(t==='conversaciones') waConvCargar();
+}
+// ── Registro detallado de envíos de WhatsApp ──
+function _regHoyPY(){return new Date().toLocaleDateString('sv-SE',{timeZone:'America/Asuncion'});}
+function waRegistroHoy(){const d=_regHoyPY();document.getElementById('wa-reg-desde').value=d;document.getElementById('wa-reg-hasta').value=d;waCargarRegistro();}
+function waRegistroMes(){const d=_regHoyPY();document.getElementById('wa-reg-desde').value=d.slice(0,8)+'01';document.getElementById('wa-reg-hasta').value='';waCargarRegistro();}
+function waRegistroLimpiar(){['wa-reg-desde','wa-reg-hasta','wa-reg-q','wa-reg-motivo','wa-reg-estado'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});waCargarRegistro();}
+function waRegVerMas(id){const f=document.getElementById('wa-reg-msg-'+id);if(!f)return;const abierto=f.dataset.abierto==='1';f.dataset.abierto=abierto?'0':'1';f.textContent=abierto?f.dataset.corto:f.dataset.largo;f.style.whiteSpace=abierto?'nowrap':'pre-wrap';}
+async function waCargarRegistro(){
+  const cuerpo=document.getElementById('wa-reg-cuerpo'); if(!cuerpo) return;
+  const desdeEl=document.getElementById('wa-reg-desde');
+  if(desdeEl&&!desdeEl.dataset.init){desdeEl.dataset.init='1';desdeEl.value=_regHoyPY().slice(0,8)+'01';} // por defecto: este mes
+  const qs=new URLSearchParams({limit:'1500'});
+  [['desde','wa-reg-desde'],['hasta','wa-reg-hasta'],['q','wa-reg-q'],['motivo','wa-reg-motivo'],['estado','wa-reg-estado']].forEach(([k,i])=>{const v=document.getElementById(i)?.value; if(v) qs.set(k,v);});
+  cuerpo.innerHTML='<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Cargando...</div>';
+  let r; try{ r=await api('GET','/api/whatsapp/registro?'+qs.toString()); }catch(e){ cuerpo.innerHTML='<div class="es">Error: '+e.message+'</div>'; return; }
+  const sel=document.getElementById('wa-reg-motivo');
+  if(sel&&sel.options.length<=1){ Object.entries(r.motivos||{}).forEach(([k,v])=>{const o=document.createElement('option');o.value=k;o.textContent=v;sel.appendChild(o);}); }
+  const n=(e)=>(r.porEstado.find(x=>x.estado===e)||{n:0}).n;
+  document.getElementById('wa-reg-resumen').innerHTML='<strong>'+r.total+'</strong> mensajes'+(r.total>r.mostrados?' (se muestran los '+r.mostrados+' más recientes)':'')+' · ✅ '+n('enviado')+' enviados · ❌ '+n('fallido')+' fallidos · ⏳ '+n('sin_confirmar')+' sin confirmar'
+    +(r.porMotivo.length?'<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+r.porMotivo.map(m=>'<span style="background:#f1f5f9;border-radius:10px;padding:2px 9px;font-size:11px;color:#475569">'+((r.motivos||{})[m.motivo]||m.motivo)+': <strong>'+m.n+'</strong></span>').join('')+'</div>':'');
+  if(!r.filas.length){ cuerpo.innerHTML='<div class="es">No hay mensajes con esos filtros.</div>'; return; }
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const badge=e=>e==='enviado'?'<span style="background:#dcfce7;color:#166534;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">Enviado</span>':e==='sin_confirmar'?'<span style="background:#fef3c7;color:#92400e;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">Sin confirmar</span>':'<span style="background:#fee2e2;color:#991b1b;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">Fallido</span>';
+  cuerpo.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f8fafc;text-align:left">'
+    +['Día y hora','Para','Motivo','Mensaje (clic para ver completo)','Estado','Lo disparó'].map(t=>'<th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;color:#475569;font-size:11px">'+t+'</th>').join('')+'</tr></thead><tbody>'
+    +r.filas.map(f=>{const corto=String(f.mensaje||'').replace(/\s+/g,' ').slice(0,110)+(String(f.mensaje||'').length>110?'…':'');
+      return '<tr style="border-bottom:1px solid #f1f5f9;vertical-align:top"><td style="padding:7px 10px;white-space:nowrap">'+esc((f.fecha||'').slice(0,16))+'</td>'
+      +'<td style="padding:7px 10px"><strong>'+esc(f.destinatario_nombre||'(no está en la ficha)')+'</strong>'+(f.destinatario_tipo?' <span style="color:#94a3b8;font-size:10px">'+esc(f.destinatario_tipo)+'</span>':'')+'<div style="color:#64748b;font-size:11px">'+esc(f.telefono)+'</div></td>'
+      +'<td style="padding:7px 10px">'+esc((r.motivos||{})[f.motivo]||f.motivo||'')+'</td>'
+      +'<td style="padding:7px 10px;max-width:420px"><div id="wa-reg-msg-'+esc(f.id)+'" data-corto="'+esc(corto)+'" data-largo="'+esc(f.mensaje)+'" data-abierto="0" onclick="waRegVerMas(\''+esc(f.id)+'\')" style="cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155">'+esc(corto)+'</div></td>'
+      +'<td style="padding:7px 10px;white-space:nowrap">'+badge(f.estado)+(f.detalle&&f.estado!=='enviado'?'<div style="color:#991b1b;font-size:10px;max-width:170px;white-space:normal">'+esc(f.detalle)+'</div>':'')+'</td>'
+      +'<td style="padding:7px 10px;color:#475569">'+esc(f.disparado_por||'')+'</td></tr>';}).join('')
+    +'</tbody></table></div>';
 }
 let _waConvDatos=[];
 async function waConvCargar(){
