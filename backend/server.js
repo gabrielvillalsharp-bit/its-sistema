@@ -1316,6 +1316,17 @@ try {
     if (r.changes) console.log(`[Migración] Aviso de exámenes suspendidos 14/10 eliminado (${r.changes}) ✓`);
   }
 } catch (e) { console.warn('[Migración] quitar aviso suspendidos:', e.message); }
+// ── MIGRACIÓN: limpieza de peso de la base (2026-10-21, orden del director) ──────────────────────────────────────
+// La base pesaba ~500 MB. Borra las copias exactas repetidas del Drive (misma carpeta) y los adjuntos de exámenes del 1er semestre,
+// y compacta (VACUUM). Corre UNA vez, antes del respaldo de arranque, así la copia de respaldo ya sale chica. Archivo de seguridad
+// de los adjuntos: ITS_SETUP/Archivo_examenes_1er_semestre (PC del director) + its_2026-10-19.db. Ver backend/limpieza_peso.js.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_limpieza_peso_20261019'").get()) {
+    const { limpiarPeso } = require('./limpieza_peso');
+    const st = limpiarPeso(db);
+    db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('mig_limpieza_peso_20261019',?,'Migración: limpieza de peso de la base (duplicados de Drive y adjuntos 1er semestre)')").run(JSON.stringify(st));
+  }
+} catch (e) { console.warn('[Migración] limpieza peso:', e.message); }
 // ── MIGRACIÓN: recordatorios de examen a docentes — solo 24h y 12h antes (2026-10-06) ──
 // A pedido del director: se desactivan 48h/6h/4h/3h. OJO: WA_AUTO_PAUSADO sigue en true (restricción de Meta,
 // 2026-07-20), así que mientras esa bandera no se cambie NO sale ningún recordatorio automático, ni siquiera 24h/12h.
