@@ -6035,7 +6035,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .replace(/\{recibo\}/g, recibosLote.join(', '))
           .replace(/\{url\}/g, APP_URL);
         const loteTpl = getWASistemaTpl('constancia_pago');
-        const waMsgLote = (recibosLote.length && !loteTpl.includes('{recibo}')) ? waMsg + `\n\n🧾 *Recibo${recibosLote.length > 1 ? 's' : ''} N°:* ${recibosLote.join(', ')}` : waMsg;
+        const waMsgLote = reciboEnConstancia(waMsg, loteTpl, recibosLote.join(', '), recibosLote.length > 1);
         if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgLote, { motivo: 'constancia_pago' }).catch(() => {});
       }
     }
@@ -6168,7 +6168,7 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
       .replace(/\{recibo\}/g, nroRecibo || '')
       .replace(/\{url\}/g, APP_URL);
     // La constancia siempre lleva el N° de recibo (si la plantilla no tiene {recibo}, se agrega al final)
-    const waMsgFinal = (nroRecibo && !pagoTpl.includes('{recibo}')) ? waMsg + `\n\n🧾 *Recibo N°:* ${nroRecibo}` : waMsg;
+    const waMsgFinal = reciboEnConstancia(waMsg, pagoTpl, nroRecibo);
     if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgFinal, { motivo: 'constancia_pago' }).catch(()=>{});
   }
 
@@ -6271,6 +6271,44 @@ app.put('/api/pagos/:id', auth(ADM), (req, res) => {
     })();
     audit(req.user.id,'EDIT','pagos',req.params.id,{recibo:p.nro_recibo,antes:{concepto:p.concepto,monto:p.monto,fecha_pago:p.fecha_pago},despues:{concepto:nuevo.concepto,monto:nuevo.monto,fecha_pago:nuevo.fecha_pago}});
     res.json({ ok: true, nro_recibo: p.nro_recibo });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Si la plantilla de la constancia no trae {recibo}, el N° de recibo se agrega al detalle (debajo de la fecha) o, si no hay detalle, al final
+function reciboEnConstancia(msg, tpl, nro, plural) {
+  if (!nro || tpl.includes('{recibo}')) return msg;
+  const etiqueta = plural ? 'Recibos N°' : 'Recibo N°';
+  return /• Fecha:[^\n]*/.test(msg) ? msg.replace(/• Fecha:[^\n]*/, m => `${m}\n• ${etiqueta}: ${nro}`) : msg + `\n\n🧾 *${etiqueta}:* ${nro}`;
+}
+// Reenvía la constancia de un pago YA registrado (con su N° de recibo y su fecha real), sin crear un pago nuevo. Solo director.
+app.post('/api/pagos/:id/reenviar-constancia', auth(ADM), async (req, res) => {
+  try {
+    const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
+    if (p.estado === 'Anulado') return res.status(400).json({ error: `El recibo ${p.nro_recibo || ''} está anulado.` });
+    const al = db.prepare('SELECT nombre, apellido, telefono FROM alumnos WHERE id=?').get(p.alumno_id);
+    if (!al?.telefono) return res.status(400).json({ error: 'El alumno no tiene teléfono registrado' });
+    const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+    const MESES_CUOTA = ['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
+    const conceptoDisplay = String(p.concepto || '').replace(/^Cuota (\d+)$/i, (_, n) => MESES_CUOTA[parseInt(n)] ? `Cuota ${n} — ${MESES_CUOTA[parseInt(n)]}` : p.concepto);
+    let lineaMateria = '';
+    if (p.asignacion_id) {
+      const asig = db.prepare('SELECT m.nombre as materia_nombre FROM asignaciones a JOIN materias m ON a.materia_id=m.id WHERE a.id=?').get(p.asignacion_id);
+      if (asig?.materia_nombre) lineaMateria = `\n• Materia: ${asig.materia_nombre}`;
+    }
+    const pagoTpl = getWASistemaTpl('constancia_pago');
+    const waMsg = pagoTpl
+      .replace(/\{nombre\}/g, `${al.nombre} ${al.apellido}`.trim())
+      .replace(/\{concepto\}/g, conceptoDisplay)
+      .replace(/\{materia\}/g, lineaMateria)
+      .replace(/\{monto\}/g, 'Gs. ' + Number(p.monto || 0).toLocaleString('es-PY'))
+      .replace(/\{fecha\}/g, String(p.fecha_pago || '').split('-').reverse().join('/'))
+      .replace(/\{recibo\}/g, p.nro_recibo || '')
+      .replace(/\{url\}/g, APP_URL);
+    const waMsgFinal = reciboEnConstancia(waMsg, pagoTpl, p.nro_recibo);
+    const r = await sendWhatsApp(al.telefono, waMsgFinal, { motivo: 'constancia_pago_reenvio', por: req.user.id });
+    audit(req.user.id, 'REENVIAR_CONSTANCIA', 'pagos', p.id, { recibo: p.nro_recibo, enviado: !!r.ok });
+    res.json({ ok: !!r.ok, nro_recibo: p.nro_recibo, estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'), error: r.ok ? undefined : r.error });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
