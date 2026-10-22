@@ -1316,6 +1316,33 @@ try {
     if (r.changes) console.log(`[Migración] Aviso de exámenes suspendidos 14/10 eliminado (${r.changes}) ✓`);
   }
 } catch (e) { console.warn('[Migración] quitar aviso suspendidos:', e.message); }
+// ── MIGRACIÓN: Cosmiatría 1°B — se invierten los recuperatorios de Guaraní y Castellano (2026-10-21, pedido del director) ──
+// Guaraní pasa del miércoles 04/11 al miércoles 18/11 y Castellano (clase unificada con Enfermería 2°) del 18/11 al 04/11, ambos 19:00.
+// Solo actúa si las fechas actuales son las esperadas (si el director ya las cambió a mano, no toca nada). Una sola vez.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_cosm1b_invertir_rec_20261021'").get()) {
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (per) {
+      const buscar = db.prepare("SELECT e.id, e.fecha FROM examenes e JOIN asignaciones a ON a.id=e.asignacion_id JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=? AND e.tipo='Recuperatorio'");
+      const upd = db.prepare("UPDATE examenes SET fecha=?, hora='19:00' WHERE id=?");
+      // [curso, materia, fecha_actual_esperada, fecha_nueva]
+      const cambios = [
+        ['cosA_1b', 'Guaraní', '2026-11-04', '2026-11-18'],
+        ['cosA_1b', 'Castellano', '2026-11-18', '2026-11-04'],
+        ['enf_2u', 'Castellano', '2026-11-18', '2026-11-04'],
+      ];
+      const filas = cambios.map(([c, m, antes, nueva]) => ({ c, m, antes, nueva, ex: buscar.get(per.id, c, m) || buscar.get(per.id, c, m.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) }));
+      const todoEsperado = filas.every(x => x.ex && x.ex.fecha === x.antes);
+      if (todoEsperado) {
+        db.transaction(() => { filas.forEach(x => upd.run(x.nueva, x.ex.id)); })();
+        console.log('[Migración] Cosmiatría 1°B: Guaraní → 18/11 y Castellano (con Enfermería 2°) → 04/11 ✓');
+      } else {
+        console.warn('[Migración] Cosmiatría 1°B: las fechas actuales no son las esperadas, no se cambió nada:', filas.map(x => `${x.c} ${x.m}=${x.ex ? x.ex.fecha : 'sin examen'}`).join('; '));
+      }
+      db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_cosm1b_invertir_rec_20261021','1')").run();
+    }
+  }
+} catch (e) { console.warn('[Migración] Cosmiatría 1°B invertir:', e.message); }
 // ── MIGRACIÓN: limpieza de peso de la base (2026-10-21, orden del director) ──────────────────────────────────────
 // La base pesaba ~500 MB. Borra las copias exactas repetidas del Drive (misma carpeta) y los adjuntos de exámenes del 1er semestre,
 // y compacta (VACUUM). Corre UNA vez, antes del respaldo de arranque, así la copia de respaldo ya sale chica. Archivo de seguridad
