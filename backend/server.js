@@ -14,6 +14,7 @@ const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 const { geminiChat, geminiLeerComprobante } = require('./gemini');
+const { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados } = require('./pagos_recibos');
 
 // ── CACHE EN MEMORIA para datos estáticos (TTL 60s) ──────────────────────────
 const _cache = {};
@@ -37,7 +38,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const WA_ACUSE_COMPROBANTE_ACTIVO = false;      // "Recibimos su comprobante" / "pago verificado" / "no pudimos verificar" al alumno
 const WA_RECORDATORIO_COMPROMISOS_ACTIVO = false; // recordatorio diario de las 7:00 por compromisos de pago
 const WA_BOT_ACTIVO = false;                    // respuestas automáticas (IA) a quien escribe al WhatsApp del instituto
-const WA_CONSTANCIA_PAGO_ACTIVO = false;        // constancia de pago por WhatsApp al registrar un pago (individual y por lote)
+const WA_CONSTANCIA_PAGO_ACTIVO = true;         // constancia de pago por WhatsApp al registrar un pago (individual y por lote); reactivada 2026-10-21 con N° de recibo
 const WA_BIENVENIDA_QR_NUEVO_ACTIVO = false;    // bienvenida con usuario y contraseña al alumno que escanea el QR y elige "Soy nuevo/a"
 
 // ── SEGURIDAD: CORS restringido ───────────────────────────────────────────────
@@ -98,6 +99,7 @@ app.use((req, res, next) => {
 app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
+prepararPagos(db); // número de recibo, historial, anulación (ver pagos_recibos.js)
 
 // ── MIGRACIÓN: tabla interesados_bot ─────────────────────────────────────────
 try {
@@ -5943,7 +5945,7 @@ app.get('/api/pagos/resumen-kanban', auth(ADM), (req, res) => {
       COUNT(CASE WHEN p.concepto LIKE 'Cuota %' THEN 1 ELSE NULL END)              AS cuotas_pagadas,
       COUNT(p.id)                                                                   AS total_pagos
     FROM alumnos al
-    LEFT JOIN pagos p ON p.alumno_id = al.id
+    LEFT JOIN pagos p ON p.alumno_id = al.id AND p.estado='Pagado'
     ${where}
     GROUP BY al.id
   `).all(...params);
@@ -5963,8 +5965,12 @@ app.get('/api/pagos/alumno/:alumno_id', auth(), (req, res) => {
   const al = db.prepare('SELECT a.*, c.nombre as carrera_nombre, cu.anio as curso_anio FROM alumnos a LEFT JOIN carreras c ON a.carrera_id=c.id LEFT JOIN cursos cu ON a.curso_id=cu.id WHERE a.id=?').get(req.params.alumno_id);
   // Alumno solo puede ver su propio perfil
   if (req.user.rol === 'alumno' && al?.usuario_id !== req.user.id) return res.status(403).json({ error: 'Sin acceso' });
-  const pagos = db.prepare(`SELECT p.*,c.nombre as carrera,m.nombre as materia_nombre FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN asignaciones asig ON p.asignacion_id=asig.id LEFT JOIN materias m ON asig.materia_id=m.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC`).all(req.params.alumno_id);
-  const totalPagado = pagos.reduce((s,p)=>s+p.monto,0);
+  const pagosTodos = db.prepare(`SELECT p.*,c.nombre as carrera,m.nombre as materia_nombre,
+    (SELECT TRIM(COALESCE(u.nombre,'')||' '||COALESCE(u.apellido,'')) FROM usuarios u WHERE u.id=p.registrado_por) as registrado_por_nombre,
+    (SELECT TRIM(COALESCE(u.nombre,'')||' '||COALESCE(u.apellido,'')) FROM usuarios u WHERE u.id=p.anulado_por) as anulado_por_nombre
+    FROM pagos p JOIN alumnos al ON p.alumno_id=al.id LEFT JOIN carreras c ON al.carrera_id=c.id LEFT JOIN asignaciones asig ON p.asignacion_id=asig.id LEFT JOIN materias m ON asig.materia_id=m.id WHERE p.alumno_id=? ORDER BY p.fecha_pago DESC, p.nro_recibo_num DESC`).all(req.params.alumno_id);
+  const pagos = req.user.rol === 'alumno' ? pagosTodos.filter(p => p.estado !== 'Anulado') : pagosTodos; // el alumno no ve recibos anulados
+  const totalPagado = pagos.filter(p => p.estado !== 'Anulado').reduce((s,p)=>s+p.monto,0);
   res.json({ pagos, totalPagado, alumno: al });
 });
 app.post('/api/pagos/lote', auth(ADM), (req, res) => {
@@ -5982,11 +5988,12 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
   if (!tipoExamen) return res.status(400).json({ error: 'Concepto no válido para pago por lote' });
   try {
     const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
-    const fechaHoy = nowDate();
+    const fechaHoy = hoyPY();
     const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
     const montoUnit = parseFloat(monto_unitario) || 0;
     let registros = 0;
     const idsHabilitados = [];
+    const recibosLote = [];
     const insertLote = db.transaction(() => {
       asignacion_ids.forEach((asig_id, i) => {
         const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asig_id, tipoExamen);
@@ -5994,6 +6001,8 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
         const pid = 'pg_' + (Date.now() + i) + '_' + i;
         db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,0,0)')
           .run(pid, alumno_id, periodo_id, concepto, montoUnit, fecha_pago || fechaHoy, 'Pagado', comprobante || null, medio_pago || 'Efectivo', asig_id);
+        db.prepare('UPDATE pagos SET registrado_por=? WHERE id=?').run(req.user.id, pid);
+        recibosLote.push(db.prepare('SELECT nro_recibo FROM pagos WHERE id=?').get(pid)?.nro_recibo);
         const habId = 'hab_' + (Date.now() + i) + '_' + i;
         db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
           .run(habId, alumno_id, asig_id, tipoExamen, req.user.id, fechaHoy, `Habilitado por pago de ${concepto} (lote)`, esRecup);
@@ -6023,12 +6032,15 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .replace(/\{materia\}/g, `\n• Materias habilitadas (${registros}): ${listaMaterias}`)
           .replace(/\{monto\}/g, montoTotalFmt)
           .replace(/\{fecha\}/g, fechaFmt)
+          .replace(/\{recibo\}/g, recibosLote.join(', '))
           .replace(/\{url\}/g, APP_URL);
-        if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsg, { motivo: 'constancia_pago' }).catch(() => {});
+        const loteTpl = getWASistemaTpl('constancia_pago');
+        const waMsgLote = (recibosLote.length && !loteTpl.includes('{recibo}')) ? waMsg + `\n\n🧾 *Recibo${recibosLote.length > 1 ? 's' : ''} N°:* ${recibosLote.join(', ')}` : waMsg;
+        if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgLote, { motivo: 'constancia_pago' }).catch(() => {});
       }
     }
 
-    res.json({ ok: true, registros });
+    res.json({ ok: true, registros, recibos: recibosLote });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6065,7 +6077,8 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
     const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asignacion_id, tipoExamen);
     if (dup) { const e = new Error(`El alumno ya tiene habilitación registrada para ${concepto} en esta materia. No se puede pagar dos veces el mismo examen en la misma materia.`); e.status = 400; throw e; }
   }
-  const id = 'pg_'+Date.now();
+  const id = 'pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
+  const similaresPrevios = pagosSimilares(db, alumno_id, concepto, asignacion_id||null); // posibles duplicados (antes de insertar)
   // Buscar el arancel correspondiente al concepto para validar el monto
   const al = db.prepare('SELECT carrera_id FROM alumnos WHERE id=?').get(alumno_id);
   const tipoMap = {
@@ -6091,14 +6104,17 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
   const montoPagado = parseFloat(monto)||0;
   const montoEsperado = arancelEsperado ? arancelEsperado.monto : null;
   const montoPendiente = montoEsperado && montoPagado < montoEsperado ? montoEsperado - montoPagado : 0;
-  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id||null,concepto,montoPagado,fecha_pago||nowDate(),'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null,mora_exonerada?1:0,moraMonto);
+  db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,comprobante,descuento,beca,medio_pago,asignacion_id,mora_exonerada,mora_monto) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(id,alumno_id,periodo_id||null,concepto,montoPagado,fecha_pago||hoyPY(),'Pagado',comprobante||null,descuento||0,beca||null,medio_pago||'Efectivo',asignacion_id||null,mora_exonerada?1:0,moraMonto);
+  // Registro único: el N° de recibo lo asigna la base (trigger); acá se anota quién lo registró
+  db.prepare('UPDATE pagos SET registrado_por=? WHERE id=?').run(usuarioId||null, id);
+  const nroRecibo = db.prepare('SELECT nro_recibo FROM pagos WHERE id=?').get(id)?.nro_recibo || null;
   const alNom = db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(alumno_id);
   audit(usuarioId,'PAGO','pagos',id,{alumno_id, alumno: alNom?`${alNom.apellido}, ${alNom.nombre}`:alumno_id, concepto, monto:montoPagado, medio_pago, mora_exonerada:mora_exonerada?1:0, mora_monto:moraMonto});
 
   // Auto-crear habilitación por pago de examen con arancel (para la materia específica)
   let habilitadoExamen = false;
   if (tipoExamen && asignacion_id) {
-    const fechaHoy = nowDate();
+    const fechaHoy = hoyPY();
     const habId = 'hab_' + Date.now() + '_' + alumno_id;
     const esRecup = tipoExamen === 'parcial_recuperatorio' ? 1 : 0;
     db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
@@ -6111,7 +6127,7 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
   const alFull = db.prepare('SELECT a.nombre, a.apellido, a.telefono FROM alumnos a WHERE a.id=?').get(alumno_id);
   if (alFull?.telefono) {
     const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
-    const fechaFmt = (fecha_pago||nowDate()).split('-').reverse().join('/');
+    const fechaFmt = (fecha_pago||hoyPY()).split('-').reverse().join('/');
     const montoFmt = 'Gs. '+Number(montoPagado).toLocaleString('es-PY');
     const nombreCompleto = `${alFull.nombre} ${alFull.apellido}`.trim();
     // Reemplazar "Cuota N" por nombre del mes completo
@@ -6149,11 +6165,14 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
       .replace(/\{materia\}/g, lineaMateria)
       .replace(/\{monto\}/g, montoFmt)
       .replace(/\{fecha\}/g, fechaFmt)
+      .replace(/\{recibo\}/g, nroRecibo || '')
       .replace(/\{url\}/g, APP_URL);
-    if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsg, { motivo: 'constancia_pago' }).catch(()=>{});
+    // La constancia siempre lleva el N° de recibo (si la plantilla no tiene {recibo}, se agrega al final)
+    const waMsgFinal = (nroRecibo && !pagoTpl.includes('{recibo}')) ? waMsg + `\n\n🧾 *Recibo N°:* ${nroRecibo}` : waMsg;
+    if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgFinal, { motivo: 'constancia_pago' }).catch(()=>{});
   }
 
-  return { ok: true, id, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen };
+  return { ok: true, id, nro_recibo: nroRecibo, advertencia_duplicado: similaresPrevios.length ? { mensaje: `Ya existe un pago de "${concepto}" para este alumno (${similaresPrevios.map(x => x.nro_recibo || x.id).join(', ')}). Revisá si es un duplicado.`, pagos: similaresPrevios } : null, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen };
 }
 app.post('/api/pagos', auth(ADM), (req, res) => {
   try {
@@ -6216,7 +6235,7 @@ app.post('/api/pagos/pendientes-wa/:id/aprobar', auth(ADM), (req, res) => {
       if (WA_ACUSE_COMPROBANTE_ACTIVO) enviarWA(pend.numero, `¡Buenas noticias! ✅ Su pago de *${concepto}* por *${montoFmt}* fue verificado y registrado correctamente. Gracias por su transferencia.`, 'pago_aprobado').catch(()=>{});
     }
 
-    res.json({ ok: true, id: result.id, habilitado_examen: result.habilitado_examen, tipo_examen: result.tipo_examen });
+    res.json({ ok: true, id: result.id, nro_recibo: result.nro_recibo, habilitado_examen: result.habilitado_examen, tipo_examen: result.tipo_examen });
   } catch(e) { res.status(e.status||500).json({ error: e.message }); }
 });
 app.post('/api/pagos/pendientes-wa/:id/rechazar', auth(ADM), (req, res) => {
@@ -6240,27 +6259,64 @@ app.put('/api/pagos/:id', auth(ADM), (req, res) => {
     const { concepto, monto, fecha_pago, medio_pago, comprobante } = req.body;
     const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
     if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
-    db.prepare('UPDATE pagos SET concepto=?,monto=?,fecha_pago=?,medio_pago=?,comprobante=? WHERE id=?')
-      .run(concepto||p.concepto, parseFloat(monto)||p.monto, fecha_pago||p.fecha_pago, medio_pago||p.medio_pago, comprobante||null, req.params.id);
-    audit(req.user.id,'EDIT','pagos',req.params.id,{antes:{concepto:p.concepto,monto:p.monto},despues:{concepto,monto,fecha_pago}});
+    if (p.estado === 'Anulado') return res.status(400).json({ error: `El recibo ${p.nro_recibo || ''} está anulado y no se puede editar.` });
+    const nuevo = { concepto: concepto || p.concepto, monto: parseFloat(monto) || p.monto, fecha_pago: fecha_pago || p.fecha_pago, medio_pago: medio_pago || p.medio_pago, comprobante: comprobante || null };
+    db.transaction(() => {
+      db.prepare('UPDATE pagos SET concepto=?,monto=?,fecha_pago=?,medio_pago=?,comprobante=? WHERE id=?')
+        .run(nuevo.concepto, nuevo.monto, nuevo.fecha_pago, nuevo.medio_pago, nuevo.comprobante, req.params.id);
+      // Historial: cada campo que cambió queda con su valor anterior y el nuevo, quién y cuándo
+      for (const c of ['concepto', 'monto', 'fecha_pago', 'medio_pago', 'comprobante']) {
+        if (String(p[c] ?? '') !== String(nuevo[c] ?? '')) registrarHistorial(db, { pago_id: p.id, nro_recibo: p.nro_recibo, usuario_id: req.user.id, accion: 'editado', campo: c, antes: p[c], despues: nuevo[c] });
+      }
+    })();
+    audit(req.user.id,'EDIT','pagos',req.params.id,{recibo:p.nro_recibo,antes:{concepto:p.concepto,monto:p.monto,fecha_pago:p.fecha_pago},despues:{concepto:nuevo.concepto,monto:nuevo.monto,fecha_pago:nuevo.fecha_pago}});
+    res.json({ ok: true, nro_recibo: p.nro_recibo });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Buscar un pago por su N° de recibo (acepta "R-000123", "R123" o "123"): datos, quién lo registró y todo su historial
+app.get('/api/pagos/recibo/:nro', auth(ADM), (req, res) => {
+  try {
+    const crudo = String(req.params.nro || '').trim().toUpperCase();
+    const num = parseInt(crudo.replace(/\D/g, ''), 10);
+    if (!num) return res.status(400).json({ error: 'Número de recibo inválido' });
+    const nro = fmtRecibo(num);
+    const p = db.prepare('SELECT * FROM pagos WHERE nro_recibo=?').get(nro);
+    const hist = db.prepare('SELECT * FROM pagos_historial WHERE nro_recibo=? ORDER BY fecha, rowid').all(nro);
+    if (!p && !hist.length) return res.status(404).json({ error: `No existe el recibo ${nro}` });
+    const al = p ? db.prepare('SELECT id,nombre,apellido,ci,telefono FROM alumnos WHERE id=?').get(p.alumno_id) : null;
+    res.json({ nro_recibo: nro, pago: p || null, alumno: al || null, registrado_por_nombre: p ? nombreUsuario(db, p.registrado_por) : null,
+      anulado_por_nombre: p ? nombreUsuario(db, p.anulado_por) : null, historial: hist, eliminado: !p });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+// Posibles duplicados (mismo alumno + concepto [+ materia] pagado más de una vez) para que el director los revise
+app.get('/api/pagos/duplicados', auth(ADM), (req, res) => {
+  try { const grupos = listarDuplicados(db); res.json({ total: grupos.length, probables: grupos.filter(g => g.probable).length, grupos }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/pagos/duplicados/revisar', auth(ADM), (req, res) => {
+  try {
+    const { clave, nota } = req.body || {};
+    if (!clave) return res.status(400).json({ error: 'clave requerida' });
+    db.prepare('INSERT OR REPLACE INTO pagos_dup_revisados (clave,revisado_por,fecha,nota) VALUES (?,?,?,?)').run(clave, req.user.id, horaPY(), nota || null);
+    audit(req.user.id, 'PAGO_DUPLICADO_REVISADO', 'pagos', clave, { nota: nota || null });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+// ANULAR (ya no se borra): el pago queda con su número, el motivo, quién y cuándo. Solo el director.
 app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
   try {
+    const motivo = String((req.body && req.body.motivo) || req.query.motivo || '').trim();
+    if (motivo.length < 5) return res.status(400).json({ error: 'Indicá el motivo de la anulación (mínimo 5 caracteres).' });
     const p = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
-    if (p) {
-      // Enriquecer con nombre del alumno para el display
-      const al = p.alumno_id ? db.prepare('SELECT nombre, apellido FROM alumnos WHERE id=?').get(p.alumno_id) : null;
-      const nombreAl = al ? `${al.nombre||''} ${al.apellido||''}`.trim() : p.alumno_id;
-      guardarEnPapelera('pago',
-        `${p.concepto||'Pago'} — ${nombreAl} — Gs. ${(p.monto||0).toLocaleString()} (${p.fecha_pago||'sin fecha'})`,
-        p, req.user?.id
-      );
-    }
-    db.prepare('DELETE FROM pagos WHERE id=?').run(req.params.id);
-    // Si el pago era de un examen con arancel vinculado a una materia, eliminar la habilitación creada por ese pago
-    if (p?.asignacion_id && p?.alumno_id) {
+    if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
+    if (p.estado === 'Anulado') return res.status(400).json({ error: `El recibo ${p.nro_recibo || ''} ya está anulado.` });
+    db.transaction(() => {
+      db.prepare("UPDATE pagos SET estado='Anulado', anulado_por=?, anulado_en=?, anulado_motivo=? WHERE id=?").run(req.user.id, horaPY(), motivo, p.id);
+      registrarHistorial(db, { pago_id: p.id, nro_recibo: p.nro_recibo, usuario_id: req.user.id, accion: 'anulado', campo: 'estado', antes: p.estado, despues: 'Anulado', motivo });
+    })();
+    // Si el pago era de un examen con arancel vinculado a una materia, se quita la habilitación creada por ese pago
+    if (p.asignacion_id && p.alumno_id) {
       const ARANCEL_TIPO_MAP = {
         'Examen Parcial Recuperatorio': 'parcial_recuperatorio',
         'Examen Final Ordinario':       'final_ord',
@@ -6274,8 +6330,8 @@ app.delete('/api/pagos/:id', auth(ADM), (req, res) => {
           .run(p.alumno_id, p.asignacion_id, tipoExamen);
       }
     }
-    audit(req.user.id,'DELETE','pagos',req.params.id,{concepto:p?.concepto,monto:p?.monto});
-    res.json({ ok: true });
+    audit(req.user.id,'ANULAR_PAGO','pagos',p.id,{recibo:p.nro_recibo,concepto:p.concepto,monto:p.monto,motivo});
+    res.json({ ok: true, nro_recibo: p.nro_recibo });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6444,7 +6500,7 @@ app.get('/api/pagos/deudores', auth(ADM), (req, res) => {
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     WHERE al.estado='Activo'
       AND al.id NOT IN (
-        SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE ?
+        SELECT alumno_id FROM pagos WHERE periodo_id=? AND concepto LIKE ? AND estado='Pagado'
       )
     ORDER BY COALESCE(al.apellido,u.apellido)`).all(periodo.id, `%${conc}%`));
 });
@@ -6538,7 +6594,7 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
     deudores: `SELECT COALESCE(al.apellido,u.apellido) as Apellido,COALESCE(al.nombre,u.nombre) as Nombre,
       COALESCE(al.ci,u.ci) as CI,al.telefono as Telefono,c.nombre as Carrera
       FROM alumnos al JOIN carreras c ON al.carrera_id=c.id LEFT JOIN usuarios u ON al.usuario_id=u.id
-      WHERE al.estado='Activo' AND al.id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=(SELECT id FROM periodos WHERE activo=1) AND concepto LIKE '%Matrícula%')
+      WHERE al.estado='Activo' AND al.id NOT IN (SELECT alumno_id FROM pagos WHERE periodo_id=(SELECT id FROM periodos WHERE activo=1) AND concepto LIKE '%Matrícula%' AND estado='Pagado')
       ORDER BY c.nombre,COALESCE(al.apellido,u.apellido)`,
   };
   const sql = tablas[req.params.tabla];
@@ -7352,7 +7408,7 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
     const stmtCheckEmail = db.prepare("SELECT id FROM usuarios WHERE email=? AND COALESCE(ci,'')!=?");
     const stmtInsertUsu  = db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)');
     const stmtInsertAl   = db.prepare('INSERT INTO alumnos (id,usuario_id,matricula,carrera_id,curso_id,fecha_ingreso,estado,ci,nombre,apellido) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    const stmtCheckPago  = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtCheckPago  = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=? AND estado='Pagado'");
     const stmtInsertPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
     const stmtSinAsignar = db.prepare('UPDATE alumnos SET carrera_id=NULL, curso_id=NULL WHERE id=?');
 
@@ -7464,7 +7520,7 @@ app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) 
         if (!al) { results.errores.push(`Fila ${i+2}: CI ${ci} no encontrada`); return; }
 
         const carr = db.prepare('SELECT nombre FROM carreras WHERE id=?').get(al.carrera_id);
-        const pagoExistente = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?').get(al.id, concepto, periodo?.id||null);
+        const pagoExistente = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=? AND estado='Pagado'").get(al.id, concepto, periodo?.id||null);
 
         if (pagoExistente) {
           results.conflictos.push({
@@ -7642,7 +7698,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
     const stmtUpdAl   = db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=? WHERE id=?');
     const stmtAsigs   = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?');
     const stmtInsNota = db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)');
-    const stmtChkPago = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtChkPago = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=? AND estado='Pagado'");
     const stmtInsPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
 
     const results = { ok: 0, errores: [], alumnos_creados: 0, alumnos_actualizados: 0, credenciales: [] };
@@ -7779,7 +7835,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
     const stmtUpdateAl   = db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=? WHERE id=?');
     const stmtAsigs      = db.prepare('SELECT id FROM asignaciones WHERE curso_id=? AND periodo_id=?');
     const stmtInsertNota = db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)');
-    const stmtCheckPago  = db.prepare('SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=?');
+    const stmtCheckPago  = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto=? AND periodo_id=? AND estado='Pagado'");
     const stmtInsertPago = db.prepare('INSERT INTO pagos (id,alumno_id,periodo_id,concepto,monto,fecha_pago,estado,medio_pago) VALUES (?,?,?,?,?,?,?,?)');
 
     const results = { ok: 0, conflictos: [], errores: [], sin_alumno: [], alumnos_creados: 0, alumnos_actualizados: 0, credenciales: [], columnas: pagoIdxs.map(p => p.h) };
@@ -7899,8 +7955,16 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
 // Confirmar reemplazo de pago en conflicto
 app.put('/api/pagos/:id/reemplazar', auth(ADM), (req, res) => {
   const { concepto, monto, fecha_pago, medio_pago } = req.body;
-  db.prepare('UPDATE pagos SET concepto=?,monto=?,fecha_pago=?,medio_pago=?,estado=? WHERE id=?').run(concepto,monto,fecha_pago,medio_pago||'Transferencia','Pagado',req.params.id);
-  res.json({ ok: true });
+  const antes = db.prepare('SELECT * FROM pagos WHERE id=?').get(req.params.id);
+  if (!antes) return res.status(404).json({ error: 'Pago no encontrado' });
+  if (antes.estado === 'Anulado') return res.status(400).json({ error: `El recibo ${antes.nro_recibo || ''} está anulado y no se puede reemplazar.` });
+  db.transaction(() => {
+    db.prepare('UPDATE pagos SET concepto=?,monto=?,fecha_pago=?,medio_pago=?,estado=? WHERE id=?').run(concepto,monto,fecha_pago,medio_pago||'Transferencia','Pagado',req.params.id);
+    for (const [c, nv] of [['concepto', concepto], ['monto', monto], ['fecha_pago', fecha_pago], ['medio_pago', medio_pago || 'Transferencia']]) {
+      if (String(antes[c] ?? '') !== String(nv ?? '')) registrarHistorial(db, { pago_id: antes.id, nro_recibo: antes.nro_recibo, usuario_id: req.user.id, accion: 'editado', campo: c, antes: antes[c], despues: nv, motivo: 'Reemplazo desde importación' });
+    }
+  })();
+  res.json({ ok: true, nro_recibo: antes.nro_recibo });
 });
 
 // ── PROPAGACIÓN AUTOMÁTICA: nuevo alumno al curso → registrar en notas/asistencia
@@ -11121,7 +11185,7 @@ app.post('/api/alumnos/:id/director-pts-bulk', auth(['director']), (req, res) =>
 
 // Verificar si existe pago de constancia
 app.get('/api/constancias/pago/:alumno_id', auth(ADM), (req, res) => {
-  const pago = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto='Constancia de estudios' ORDER BY fecha_pago DESC LIMIT 1").get(req.params.alumno_id);
+  const pago = db.prepare("SELECT id FROM pagos WHERE alumno_id=? AND concepto='Constancia de estudios' AND estado='Pagado' ORDER BY fecha_pago DESC LIMIT 1").get(req.params.alumno_id);
   const arancel = db.prepare("SELECT monto FROM aranceles WHERE concepto LIKE '%constancia%' AND activo=1 LIMIT 1").get();
   res.json({ pagado: !!pago, pago_id: pago?.id||null, arancel: arancel?.monto||30000 });
 });
@@ -11300,7 +11364,7 @@ app.get('/api/alumnos/:id/estado-cuenta', auth(['director','alumno']), (req, res
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   const periodo = db.prepare('SELECT * FROM periodos WHERE activo=1').get();
   const pagos = db.prepare(`
-    SELECT * FROM pagos WHERE alumno_id=? ${periodo?'AND periodo_id=?':''} ORDER BY fecha_pago DESC`).all(...(periodo?[req.params.id,periodo.id]:[req.params.id]));
+    SELECT * FROM pagos WHERE alumno_id=? AND estado!='Anulado' ${periodo?'AND periodo_id=?':''} ORDER BY fecha_pago DESC`).all(...(periodo?[req.params.id,periodo.id]:[req.params.id]));
   const aranceles = db.prepare(`SELECT * FROM aranceles WHERE activo=1`).all();
   // Calcular deudas por cuota
   const cuotasOblig = ['Matrícula','Cuota 1','Cuota 2','Cuota 3','Cuota 4','Cuota 5'];
@@ -11725,8 +11789,8 @@ app.get('/api/gestion-alumnos/inactivos', auth(ADM), (req, res) => {
         cu.anio,
         cu.division,
         cu.seccion,
-        (SELECT COUNT(*) FROM pagos p WHERE p.alumno_id = al.id)          AS total_pagos,
-        (SELECT MAX(p.fecha_pago) FROM pagos p WHERE p.alumno_id = al.id) AS ultimo_pago,
+        (SELECT COUNT(*) FROM pagos p WHERE p.alumno_id = al.id AND p.estado='Pagado')          AS total_pagos,
+        (SELECT MAX(p.fecha_pago) FROM pagos p WHERE p.alumno_id = al.id AND p.estado='Pagado') AS ultimo_pago,
         (SELECT COUNT(*) FROM asistencia ast WHERE ast.alumno_id = al.id AND ast.estado = 'A') AS total_ausencias,
         (SELECT COUNT(*) FROM asistencia ast WHERE ast.alumno_id = al.id) AS total_clases,
         (SELECT MAX(ast.fecha) FROM asistencia ast WHERE ast.alumno_id = al.id) AS ultima_clase
