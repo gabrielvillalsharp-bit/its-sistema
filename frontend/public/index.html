@@ -2096,7 +2096,7 @@ async function pgDash(el){
                 <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''}${s.curso_anio?' · '+s.curso_anio+'°'+(s.curso_division&&s.curso_division!=='U'?' '+s.curso_division:''):''}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''}${s.curso_anio?' · '+s.curso_anio+'°'+(s.curso_division&&s.curso_division!=='U'?' '+s.curso_division:''):''}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:800;white-space:nowrap;flex-shrink:0">NUEVO</span>
               </div>`).join('')+(qr.length>4?`<div style="padding:5px 14px;font-size:10px;color:#92400e;font-weight:600">+${qr.length-4} más</div>`:'');
@@ -2109,7 +2109,7 @@ async function pgDash(el){
                 <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''} · 📱 ${s.telefono||'—'}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''} · 📱 ${s.telefono||'—'}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#ede9fe;color:#6d28d9;font-weight:800;white-space:nowrap;flex-shrink:0">WA BOT</span>
               </div>`).join('')+(bot.length>4?`<div style="padding:5px 14px;font-size:10px;color:#6d28d9;font-weight:600">+${bot.length-4} más</div>`:'');
@@ -2121,7 +2121,7 @@ async function pgDash(el){
                 <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.materia||s.carrera_nombre||''}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.materia||s.carrera_nombre||''}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#dbeafe;color:#1e40af;font-weight:800;white-space:nowrap;flex-shrink:0">PENDIENTE</span>
               </div>`).join('')+(doc.length>4?`<div style="padding:5px 14px;font-size:10px;color:#0369a1;font-weight:600">+${doc.length-4} más</div>`:'');
@@ -5010,8 +5010,8 @@ async function pgDocentes(el){
   el.innerHTML=`<div class="ph"><h3>Docentes (${d.length})</h3>
     <div class="ph-right"><button class="bn" onclick="mDoc()">+ Nuevo docente</button></div></div>
   <div style="margin-bottom:12px"><input id="filtDocs" placeholder="🔍 Buscar por nombre, CI o especialidad..." oninput="renderDocentes()" style="max-width:380px"/></div>
-  <div id="tablaDocentes"><div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
-  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
+  <div id="tablaDocentes"><div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Cód.</th><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td style="white-space:nowrap;font-size:11px;color:#64748b;font-weight:700">${d2.codigo||'—'}</td><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
     <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
     <td style="font-size:12px">${d2.email||'-'}</td>
     <td><span class="bx ba">${d2.titulo||'—'}</span></td>
@@ -5027,12 +5027,12 @@ async function pgDocentes(el){
 function renderDocentes(){
   const q=(document.getElementById('filtDocs')?.value||'').toLowerCase().trim();
   const d=q?(W._docsAll||[]).filter(x=>{
-    return (x.nombre+' '+x.apellido).toLowerCase().includes(q)||(x.ci||'').toLowerCase().includes(q);
+    return (x.nombre+' '+x.apellido).toLowerCase().includes(q)||(x.ci||'').toLowerCase().includes(q)||(x.codigo||'').toLowerCase().includes(q);
   }):W._docsAll||[];
   const el=document.getElementById('tablaDocentes');
   if(!el)return;
-  el.innerHTML=`<div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
-  ${d.map(d2=>`<tr><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
+  el.innerHTML=`<div class="card"><div class="tw"><table class="docs-table"><thead><tr><th>Cód.</th><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Email</th><th>Título</th><th>Est.</th><th></th></tr></thead><tbody>
+  ${d.map(d2=>`<tr><td style="white-space:nowrap;font-size:11px;color:#64748b;font-weight:700">${d2.codigo||'—'}</td><td><strong>${d2.nombre} ${d2.apellido}</strong></td><td>${d2.ci||'-'}</td>
     <td style="font-size:12px">${d2.telefono?`<span style="color:#2e7d32;font-weight:600">📱 ${d2.telefono}</span>`:'<span style="color:#bbb">—</span>'}</td>
     <td style="font-size:12px">${d2.email||'-'}</td>
     <td><span class="bx ba">${d2.titulo||'—'}</span></td>
@@ -6198,7 +6198,7 @@ function exRow(e){
     <td style="white-space:nowrap;font-weight:600">${e.fecha?fmtFecha(e.fecha):'—'}</td>
     <td style="white-space:nowrap">${e.hora||'—'}</td>
     <td><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:10px">${TIPO_LBL[e.tipo]||e.tipo||'—'}</span></td>
-    <td><strong>${e.materia_nombre||'—'}</strong></td>
+    <td><strong>${e.materia_nombre||'—'}</strong>${e.acta_nro?`<div style="font-size:10px;color:#94a3b8;font-weight:600">${e.materia_codigo?e.materia_codigo+' · ':''}Acta ${e.acta_nro}</div>`:''}</td>
     <td style="font-size:12px">${e.carrera_nombre||'—'}${e.curso_anio?' '+e.curso_anio+'°':''}</td>
     <td style="font-size:12px;white-space:nowrap">${e.curso_division&&e.curso_division!=='U'?'<span class="bx bb" style="font-size:10px">Secc. '+e.curso_division+'</span>':'<span style="color:var(--t2)">Única</span>'}</td>
     <td style="font-size:12px">${e.docente_nombre||''} ${e.docente_apellido||''}</td>
@@ -6298,7 +6298,7 @@ function exRowNoDate(e){
   return `<tr style="transition:background .12s" onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
     <td style="${td};text-align:left;font-weight:700;color:#1e293b;font-size:12px;white-space:nowrap">${e.hora||'—'}</td>
     <td style="${td};text-align:left"><span class="bx ${tipoColor[e.tipo]||'bgr'}" style="font-size:9px;white-space:nowrap">${TIPO_LBL2[e.tipo]||e.tipo||'—'}</span></td>
-    <td style="${td};text-align:left"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span></td>
+    <td style="${td};text-align:left"><span style="font-weight:600;color:#111827;font-size:12px">${e.materia_nombre||'—'}</span>${e.acta_nro?`<div style="font-size:10px;color:#94a3b8;font-weight:600">${e.materia_codigo?e.materia_codigo+' · ':''}Acta ${e.acta_nro}</div>`:''}</td>
     <td style="${td};text-align:left;font-size:11px;color:#374151">${e.carrera_nombre||'—'}${e.curso_anio?' <span style="color:#94a3b8">'+e.curso_anio+'°</span>':''}</td>
     <td style="${td};text-align:left;font-size:11px;color:#374151">${(e.docente_apellido||'')+(e.docente_nombre?' '+e.docente_nombre:'')}</td>
     <td style="${td}">${btnNotas}</td>
@@ -10691,7 +10691,7 @@ async function verSolicitudesAlumno(){
       <th style="padding:6px 10px;border:1px solid var(--bdr)">Materia</th><th style="padding:6px 10px;border:1px solid var(--bdr)">Docente</th><th></th>
     </tr></thead><tbody>
     ${pend.map(s=>`<tr>
-      <td style="padding:5px 10px;border:1px solid var(--bdr)"><strong>${s.apellido?s.apellido+', ':''} ${s.nombre}</strong></td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)"><strong>${s.apellido?s.apellido+', ':''} ${s.nombre}</strong>${s.nro_seguimiento?`<div style="font-size:10px;color:#64748b;font-weight:700">${s.nro_seguimiento}</div>`:''}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.materia||''}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
@@ -16558,7 +16558,7 @@ async function selAlumnoPago(alId){
                   ${rDeuda.exoneraciones.map(e=>`
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:#fff;border-radius:6px;margin-bottom:4px;font-size:11px">
                       <span style="color:#16a34a;font-weight:700">✓ Gs. ${Number(e.monto).toLocaleString()}</span>
-                      <span style="color:#64748b;flex:1;padding:0 6px">${e.motivo||'Sin motivo'} · ${(e.fecha||'').slice(0,10)}</span>
+                      <span style="color:#64748b;flex:1;padding:0 6px">${e.numero?`<strong style="color:#78350f">${e.numero}</strong> · `:''}${e.motivo||'Sin motivo'} · ${(e.fecha||'').slice(0,10)}</span>
                       ${me.rol==='director'?`<button onclick="eliminarExoneracion('${e.id}','${alId}')" title="Eliminar exoneración" style="background:#fee2e2;border:none;border-radius:5px;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;padding:2px 8px">✕</button>`:''}
                     </div>`).join('')}
                 </div>`:'';
@@ -18208,7 +18208,7 @@ function renderTbBecas(becas,als){
     return`<tr>
       <td><strong>${b.alumno_apellido||''}, ${b.alumno_nombre||''}</strong><br><span style="font-size:10px;color:var(--t3)">${al?.display_ci||b.alumno_ci||''}</span></td>
       <td style="font-size:12px">${b.carrera_nombre||''}<br>${al?.curso_anio?`<span style="font-size:10px;color:var(--t2)">${al.curso_anio}° año</span>`:''}</td>
-      <td><span class="bx ${b.tipo==='Beca Total'?'bg':b.tipo==='Beca Parcial'?'bb':'ba'}">${b.tipo}</span></td>
+      <td><span class="bx ${b.tipo==='Beca Total'?'bg':b.tipo==='Beca Parcial'?'bb':'ba'}">${b.tipo}</span>${b.numero?`<div style="font-size:10px;color:#64748b;font-weight:700;margin-top:3px">${b.numero}</div>`:''}${b.autorizado_por_nombre?`<div style="font-size:10px;color:var(--t3)">Autorizó: ${b.autorizado_por_nombre}</div>`:''}</td>
       <td style="font-weight:700">${b.porcentaje?b.porcentaje+'%':b.monto_fijo?'Gs. '+Number(b.monto_fijo).toLocaleString():'-'}</td>
       <td style="font-size:12px">${b.descripcion||'-'}</td>
       <td>${fmtFecha(b.fecha_inicio)}</td>
@@ -21094,7 +21094,7 @@ async function registrarPagoConstancia(alId,arancel){
 async function generarConstanciaImpresion(alId,dirigido,cuerpo){
   cm();
   try{
-    const {alumno,institucion:inst,constancia_id,fecha}=await api('GET','/api/alumnos/'+alId+'/constancia');
+    const {alumno,institucion:inst,constancia_id,numero,fecha}=await api('GET','/api/alumnos/'+alId+'/constancia');
     const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     const d=new Date(fecha+'T12:00:00');
     const ven=window.open('','_blank','width=720,height:700');
@@ -21122,6 +21122,7 @@ async function generarConstanciaImpresion(alId,dirigido,cuerpo){
       <p class="res">RESOLUCIÓN DGUISITS N°452/2024</p>
     </div>
     <div class="titulo">CONSTANCIA DE ESTUDIOS</div>
+    ${numero?`<p style="text-align:right;font-family:Arial,sans-serif;font-size:11px;margin:-14px 0 10px">Constancia N° <strong>${numero}</strong></p>`:''}
     ${dirigido?`<p class="dirigido"><strong>${dirigido}</strong><br><em style="font-size:12px">Presente.-</em></p>`:'<p class="dirigido"><strong>A quien corresponda:</strong><br><em style="font-size:12px">Presente.-</em></p>'}
     <div class="cuerpo">
       <p>El Director General del <strong>Instituto Técnico Superior Santísima Trinidad</strong>, <strong>Abg. Gustavo Armando Echeverría</strong>, hace constar por medio de la presente que:</p>

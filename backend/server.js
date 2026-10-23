@@ -14,6 +14,7 @@ const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 const { geminiChat, geminiLeerComprobante } = require('./gemini');
+const { prepararCodigos } = require('./codigos');
 const { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados, datosConstancia } = require('./pagos_recibos');
 // La imagen de la constancia usa librerías con binarios nativos (qrcode + resvg): se cargan recién al usarlas y, si fallan, el sistema sigue mandando el texto
 let _constanciaImg = null;
@@ -106,6 +107,7 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 prepararPagos(db); // número de recibo, historial, anulación (ver pagos_recibos.js)
+prepararCodigos(db); // matrícula automática, nº de constancia/acta/solicitud/beca/exoneración, código de docente y de materia (ver codigos.js)
 
 // ── MIGRACIÓN: tabla interesados_bot ─────────────────────────────────────────
 try {
@@ -3353,7 +3355,7 @@ app.post('/api/materias/importar-confirmar', auth(ADM), (req, res) => {
 app.get('/api/docentes', auth(), (req, res) => {
   const sede = req.user.sede || 'pjc';
   res.json(db.prepare(`SELECT u.id,u.nombre,u.apellido,u.ci,u.email,u.activo,
-    d.id as docente_id,d.especialidad,d.titulo,d.telefono,d.sede_id,
+    d.id as docente_id,d.codigo,d.especialidad,d.titulo,d.telefono,d.sede_id,
     COALESCE(d.wa_recordatorios_activo,1) as wa_recordatorios_activo
     FROM usuarios u JOIN docentes d ON u.id=d.usuario_id WHERE u.rol='docente' AND d.sede_id=? ORDER BY u.apellido`).all(sede));
 });
@@ -5215,7 +5217,7 @@ app.get('/api/examenes', auth(), (req, res) => {
   where = filtroExamenesSuspendidos(req, where, params);
   try {
     res.json(db.prepare(`
-      SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id,
+      SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id, e.acta_nro,
         e.observacion, e.puntos_max, e.archivo_nombre, e.archivo_tipo,
         (e.archivo_data IS NOT NULL) as tiene_archivo,
         m.nombre as materia_nombre, m.codigo as materia_codigo,
@@ -6572,7 +6574,7 @@ app.get('/api/becas', auth(['director','docente']), (req, res) => {
   let where = ''; const params = [];
   if (alumno_id) { where = ' WHERE b.alumno_id=?'; params.push(alumno_id); }
   res.json(db.prepare(`
-    SELECT b.*,COALESCE(al.nombre,u.nombre) as alumno_nombre,COALESCE(al.apellido,u.apellido) as alumno_apellido,
+    SELECT b.*,(SELECT TRIM(COALESCE(x.nombre,'')||' '||COALESCE(x.apellido,'')) FROM usuarios x WHERE x.id=b.autorizado_por) as autorizado_por_nombre,COALESCE(al.nombre,u.nombre) as alumno_nombre,COALESCE(al.apellido,u.apellido) as alumno_apellido,
       COALESCE(al.ci,u.ci) as alumno_ci,
       c.nombre as carrera_nombre, cu.anio as curso_anio
     FROM becas b
@@ -6586,14 +6588,23 @@ app.post('/api/becas', auth(ADM), (req, res) => {
   const { alumno_id, tipo, porcentaje, monto_fijo, descripcion, fecha_inicio, fecha_fin } = req.body;
   const id = 'bc_' + Date.now();
   db.prepare('INSERT INTO becas (id,alumno_id,tipo,porcentaje,monto_fijo,descripcion,fecha_inicio,fecha_fin,activa) VALUES (?,?,?,?,?,?,?,?,1)').run(id,alumno_id,tipo,porcentaje||null,monto_fijo||null,descripcion,fecha_inicio,fecha_fin||null);
-  res.json({ id });
+  // El número de beca (BEC-2026-0001) lo asigna la base; acá se anota quién la autorizó y cuándo
+  db.prepare('UPDATE becas SET autorizado_por=?, autorizado_en=? WHERE id=?').run(req.user.id, horaPY(), id);
+  const numeroBeca = db.prepare('SELECT numero FROM becas WHERE id=?').get(id)?.numero || null;
+  audit(req.user.id, 'BECA', 'becas', id, { numero: numeroBeca, alumno_id, tipo, porcentaje: porcentaje || null, monto_fijo: monto_fijo || null });
+  res.json({ id, numero: numeroBeca });
 });
 app.put('/api/becas/:id', auth(ADM), (req, res) => {
   const { tipo, porcentaje, monto_fijo, descripcion, fecha_inicio, fecha_fin, activa } = req.body;
   db.prepare('UPDATE becas SET tipo=?,porcentaje=?,monto_fijo=?,descripcion=?,fecha_inicio=?,fecha_fin=?,activa=? WHERE id=?').run(tipo,porcentaje||null,monto_fijo||null,descripcion,fecha_inicio,fecha_fin||null,activa?1:0,req.params.id);
   res.json({ ok: true });
 });
-app.delete('/api/becas/:id', auth(ADM), (req, res) => { db.prepare('DELETE FROM becas WHERE id=?').run(req.params.id); res.json({ ok: true }); });
+app.delete('/api/becas/:id', auth(ADM), (req, res) => {
+  const b = db.prepare('SELECT * FROM becas WHERE id=?').get(req.params.id);
+  db.prepare('DELETE FROM becas WHERE id=?').run(req.params.id);
+  if (b) audit(req.user.id, 'BECA_ELIMINADA', 'becas', b.id, { numero: b.numero, alumno_id: b.alumno_id, tipo: b.tipo, porcentaje: b.porcentaje, monto_fijo: b.monto_fijo }); // queda la huella de qué beca se quitó y quién
+  res.json({ ok: true });
+});
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', auth(), (req, res) => {
@@ -6706,7 +6717,7 @@ app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
 app.get('/api/examenes/:id', auth(), (req, res) => {
   try {
     const e = db.prepare(`
-      SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id,
+      SELECT e.id, e.asignacion_id, e.tipo, e.fecha, e.hora, e.aula, e.periodo_id, e.acta_nro,
         e.observacion, e.puntos_max, e.archivo_nombre, e.archivo_tipo,
         (e.archivo_data IS NOT NULL) as tiene_archivo,
         m.nombre as materia_nombre, m.codigo as materia_codigo,
@@ -11330,8 +11341,9 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
   const cid = 'const_'+Date.now();
   const fechaHoy = nowDate();
   db.prepare('INSERT INTO constancias (id,alumno_id,tipo,fecha,emitido_por) VALUES (?,?,?,?,?)').run(cid, req.params.id, 'estudios', fechaHoy, req.user.id);
-  audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id});
-  res.json({ alumno: al, institucion: inst, constancia_id: cid, fecha: fechaHoy });
+  const numeroConst = db.prepare('SELECT numero FROM constancias WHERE id=?').get(cid)?.numero || null; // N° correlativo asignado por la base (CE-2026-0001)
+  audit(req.user.id,'CONSTANCIA','constancias',cid,{alumno_id:req.params.id, numero:numeroConst});
+  res.json({ alumno: al, institucion: inst, constancia_id: cid, numero: numeroConst, fecha: fechaHoy });
 });
 
 // ── HELPERS DE CUOTAS ────────────────────────────────────────────────────────
