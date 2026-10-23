@@ -68,8 +68,7 @@ function prepararPagos(db, log = console.log) {
   }
   // 4) la secuencia nunca queda por debajo del mayor número existente
   db.prepare("UPDATE pagos_secuencia SET ultimo=MAX(ultimo,(SELECT COALESCE(MAX(nro_recibo_num),0) FROM pagos)) WHERE id=1").run();
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_pagos_nro_recibo ON pagos(nro_recibo) WHERE nro_recibo IS NOT NULL");
-  // 5) triggers: número automático para todo pago nuevo + huella de cualquier borrado
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_pagos_nro_recibo ON pagos(nro_recibo) WHERE nro_recibo IS NOT NULL");  // 5) triggers: número automático para todo pago nuevo + huella de cualquier borrado
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS trg_pagos_recibo AFTER INSERT ON pagos WHEN NEW.nro_recibo IS NULL
     BEGIN
@@ -131,4 +130,36 @@ function listarDuplicados(db) {
   }
   return out.sort((a, b) => (b.probable - a.probable) || a.alumno.localeCompare(b.alumno));
 }
-module.exports = { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados };
+
+// ── CONSTANCIA COMO IMAGEN ───────────────────────────────────────────────────────────────────────────────────────
+const MESES_CUOTA = ['', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const conceptoLindo = c => String(c || '').replace(/^Cuota (\d+)$/i, (_, n) => MESES_CUOTA[parseInt(n)] ? `Cuota ${n} — ${MESES_CUOTA[parseInt(n)]}` : c);
+const cap = s => String(s || '').toLowerCase().replace(/(^|\s)(\S)/g, (_, a, b) => a + b.toUpperCase());
+const SQL_PAGO_ALUMNO = `
+  SELECT p.*, COALESCE(a.nombre,u.nombre) AS al_nombre, COALESCE(a.apellido,u.apellido) AS al_apellido, COALESCE(a.ci,u.ci) AS al_ci,
+         c.nombre AS carrera_nombre, cu.anio AS curso_anio, cu.division AS curso_division, m.nombre AS materia_nombre
+  FROM pagos p JOIN alumnos a ON a.id=p.alumno_id LEFT JOIN usuarios u ON u.id=a.usuario_id
+  LEFT JOIN carreras c ON c.id=a.carrera_id LEFT JOIN cursos cu ON cu.id=a.curso_id
+  LEFT JOIN asignaciones s ON s.id=p.asignacion_id LEFT JOIN materias m ON m.id=s.materia_id`;
+
+// Datos para dibujar la imagen de la constancia (uno o varios pagos del mismo alumno, p. ej. un lote)
+function datosConstancia(db, ids) {
+  const lista = [].concat(ids).filter(Boolean);
+  const ph = lista.map(() => '?').join(',');
+  const rows = db.prepare(`${SQL_PAGO_ALUMNO} WHERE p.id IN (${ph}) ORDER BY p.nro_recibo_num, p.rowid`).all(...lista);
+  if (!rows.length) return null;
+  const r0 = rows[0];
+  const hora = horaPY(); // 2026-10-23 18:40:12
+  const emitido = `${hora.slice(8, 10)}/${hora.slice(5, 7)}/${hora.slice(0, 4)} ${hora.slice(11, 16)}`;
+  return {
+    recibo: r0.nro_recibo, recibos: rows.map(r => r.nro_recibo),
+    estado: rows.every(r => r.estado === 'Anulado') ? 'Anulado' : 'Pagado',
+    alumno: `${cap(r0.al_apellido)}, ${cap(r0.al_nombre)}`.replace(/^, |, $/g, ''), ci: r0.al_ci || '',
+    carrera: r0.carrera_nombre || '', curso: r0.curso_anio ? `${r0.curso_anio}°${r0.curso_division ? ' ' + r0.curso_division : ''}` : '',
+    concepto: conceptoLindo(r0.concepto), medio: r0.medio_pago || '', fecha: r0.fecha_pago,
+    monto: rows.reduce((s, r) => s + (r.estado === 'Anulado' ? 0 : r.monto), 0) || rows.reduce((s, r) => s + r.monto, 0),
+    items: rows.filter(r => r.materia_nombre).map(r => ({ materia: r.materia_nombre, recibo: r.nro_recibo, monto: r.monto })),
+    emitido
+  };
+}
+module.exports = { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados, datosConstancia, conceptoLindo };

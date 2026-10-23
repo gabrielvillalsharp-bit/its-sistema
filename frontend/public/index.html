@@ -1676,7 +1676,24 @@ function modalRecibo(r){
     </table>`}
     <div style="font-size:11px;font-weight:800;color:#475569;margin:8px 0 4px">HISTORIAL DE CAMBIOS</div>
     <div style="max-height:220px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px"><table style="width:100%;border-collapse:collapse">${hist||'<tr><td style="padding:10px;color:#94a3b8;font-size:12px">Sin cambios registrados (pago anterior a este sistema de registro).</td></tr>'}</table></div>
-    <div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`,true);
+    <div class="mf">${(!r.eliminado&&p.id&&p.estado!=='Anulado')?`<button class="bs" onclick="verConstanciaImg('${esc(p.id)}')">🖼 Ver constancia</button><button class="bs" onclick="reenviarConstancia('${esc(p.id)}')">📲 Reenviar por WhatsApp</button>`:''}<button class="bs" onclick="cm()">Cerrar</button></div>`,true);
+}
+// Constancia de pago como imagen: vista previa y reenvío por WhatsApp (solo director)
+async function verConstanciaImg(pagoId){
+  try{
+    const r=await fetch('/api/pagos/'+encodeURIComponent(pagoId)+'/constancia.png',{headers:{Authorization:'Bearer '+tok}});
+    if(!r.ok){ let m='No se pudo generar la imagen'; try{ m=(await r.json()).error||m; }catch{} throw new Error(m); }
+    const url=URL.createObjectURL(await r.blob());
+    modal('<div style="text-align:center"><img src="'+url+'" style="max-width:100%;max-height:75vh;border-radius:12px" alt="Constancia de pago"/></div><div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>',true);
+  }catch(e){ toast(e.message,'err'); }
+}
+async function reenviarConstancia(pagoId){
+  if(!confirm('¿Reenviar la constancia de este pago por WhatsApp al alumno?')) return;
+  try{
+    const r=await api('POST','/api/pagos/'+encodeURIComponent(pagoId)+'/reenviar-constancia');
+    if(r.ok) toast('✓ Constancia enviada ('+(r.modo==='imagen'?'imagen':'texto')+')','ok');
+    else toast('⚠ '+(r.estado==='sin_confirmar'?'Sin confirmar: revisá el chat antes de reenviar':(r.error||'No se pudo enviar')),'err');
+  }catch(e){ toast(e.message,'err'); }
 }
 async function pagosCargarBadgeDuplicados(){
   try{

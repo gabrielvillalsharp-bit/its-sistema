@@ -14,7 +14,13 @@ const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 const { geminiChat, geminiLeerComprobante } = require('./gemini');
-const { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados } = require('./pagos_recibos');
+const { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados, datosConstancia } = require('./pagos_recibos');
+// La imagen de la constancia usa librerías con binarios nativos (qrcode + resvg): se cargan recién al usarlas y, si fallan, el sistema sigue mandando el texto
+let _constanciaImg = null;
+function constanciaImg() {
+  if (_constanciaImg === null) { try { _constanciaImg = require('./constancia_imagen'); } catch (e) { console.warn('[Constancia imagen] no disponible:', e.message); _constanciaImg = false; } }
+  return _constanciaImg;
+}
 
 // ── CACHE EN MEMORIA para datos estáticos (TTL 60s) ──────────────────────────
 const _cache = {};
@@ -5994,6 +6000,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
     let registros = 0;
     const idsHabilitados = [];
     const recibosLote = [];
+    const pagosLoteIds = [];
     const insertLote = db.transaction(() => {
       asignacion_ids.forEach((asig_id, i) => {
         const dup = db.prepare('SELECT id FROM habilitaciones_examen WHERE alumno_id=? AND asignacion_id=? AND tipo_examen=?').get(alumno_id, asig_id, tipoExamen);
@@ -6003,6 +6010,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .run(pid, alumno_id, periodo_id, concepto, montoUnit, fecha_pago || fechaHoy, 'Pagado', comprobante || null, medio_pago || 'Efectivo', asig_id);
         db.prepare('UPDATE pagos SET registrado_por=? WHERE id=?').run(req.user.id, pid);
         recibosLote.push(db.prepare('SELECT nro_recibo FROM pagos WHERE id=?').get(pid)?.nro_recibo);
+        pagosLoteIds.push(pid);
         const habId = 'hab_' + (Date.now() + i) + '_' + i;
         db.prepare('INSERT OR IGNORE INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado,habilitado_por,fecha,motivo,habilitado_recuperatorio) VALUES (?,?,?,?,1,?,?,?,?)')
           .run(habId, alumno_id, asig_id, tipoExamen, req.user.id, fechaHoy, `Habilitado por pago de ${concepto} (lote)`, esRecup);
@@ -6036,7 +6044,7 @@ app.post('/api/pagos/lote', auth(ADM), (req, res) => {
           .replace(/\{url\}/g, APP_URL);
         const loteTpl = getWASistemaTpl('constancia_pago');
         const waMsgLote = reciboEnConstancia(waMsg, loteTpl, recibosLote.join(', '), recibosLote.length > 1);
-        if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgLote, { motivo: 'constancia_pago' }).catch(() => {});
+        if (WA_CONSTANCIA_PAGO_ACTIVO) enviarConstanciaPago(alFull.telefono, pagosLoteIds, waMsgLote, { motivo: 'constancia_pago' }).catch(() => {});
       }
     }
 
@@ -6169,7 +6177,7 @@ function registrarPagoConHabilitacion(usuarioId, datos) {
       .replace(/\{url\}/g, APP_URL);
     // La constancia siempre lleva el N° de recibo (si la plantilla no tiene {recibo}, se agrega al final)
     const waMsgFinal = reciboEnConstancia(waMsg, pagoTpl, nroRecibo);
-    if (WA_CONSTANCIA_PAGO_ACTIVO) sendWhatsApp(alFull.telefono, waMsgFinal, { motivo: 'constancia_pago' }).catch(()=>{});
+    if (WA_CONSTANCIA_PAGO_ACTIVO) enviarConstanciaPago(alFull.telefono, [id], waMsgFinal, { motivo: 'constancia_pago' }).catch(()=>{});
   }
 
   return { ok: true, id, nro_recibo: nroRecibo, advertencia_duplicado: similaresPrevios.length ? { mensaje: `Ya existe un pago de "${concepto}" para este alumno (${similaresPrevios.map(x => x.nro_recibo || x.id).join(', ')}). Revisá si es un duplicado.`, pagos: similaresPrevios } : null, monto_esperado: montoEsperado, monto_pagado: montoPagado, monto_pendiente: montoPendiente, habilitado_examen: habilitadoExamen, tipo_examen: tipoExamen };
@@ -6306,11 +6314,24 @@ app.post('/api/pagos/:id/reenviar-constancia', auth(ADM), async (req, res) => {
       .replace(/\{recibo\}/g, p.nro_recibo || '')
       .replace(/\{url\}/g, APP_URL);
     const waMsgFinal = reciboEnConstancia(waMsg, pagoTpl, p.nro_recibo);
-    const r = await sendWhatsApp(al.telefono, waMsgFinal, { motivo: 'constancia_pago_reenvio', por: req.user.id });
-    audit(req.user.id, 'REENVIAR_CONSTANCIA', 'pagos', p.id, { recibo: p.nro_recibo, enviado: !!r.ok });
-    res.json({ ok: !!r.ok, nro_recibo: p.nro_recibo, estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'), error: r.ok ? undefined : r.error });
+    const r = await enviarConstanciaPago(al.telefono, [p.id], waMsgFinal, { motivo: 'constancia_pago_reenvio', por: req.user.id });
+    audit(req.user.id, 'REENVIAR_CONSTANCIA', 'pagos', p.id, { recibo: p.nro_recibo, enviado: !!r.ok, modo: r.modo });
+    res.json({ ok: !!r.ok, nro_recibo: p.nro_recibo, modo: r.modo, estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'), error: r.ok ? undefined : r.error });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// Vista previa de la constancia (imagen PNG) de un pago, para el director
+app.get('/api/pagos/:id/constancia.png', auth(ADM), (req, res) => {
+  try {
+    const lib = constanciaImg();
+    if (!lib) return res.status(503).json({ error: 'La imagen de constancia no está disponible en este servidor' });
+    const p = db.prepare('SELECT id FROM pagos WHERE id=?').get(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
+    const d = datosConstancia(db, [p.id]);
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'no-store' }).send(Buffer.from(lib.generarConstanciaPNG(d)));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 
 // Buscar un pago por su N° de recibo (acepta "R-000123", "R123" o "123"): datos, quién lo registró y todo su historial
 app.get('/api/pagos/recibo/:nro', auth(ADM), (req, res) => {
@@ -9495,6 +9516,68 @@ async function sendWhatsApp(phone, message, meta = {}) {
     detalle: r.ok ? null : r.error, motivo: meta.motivo, por: meta.por, canal: r._canal
   });
   return r;
+}
+// Envía una IMAGEN (PNG) con texto al pie por Evolution API. Misma regla que el texto: solo un error de formato (400/422)
+// justifica probar el otro formato; un tiempo agotado queda "sin confirmar" (la imagen pudo salir igual).
+async function _enviarImagenWhatsApp(phone, png, caption, nombreArchivo) {
+  const numero = normalizarTelefono(phone);
+  if (!numero) return { ok: false, error: `Teléfono inválido: "${phone}"` };
+  const enviados = waMensajesHoy();
+  if (enviados >= WA_LIMITE_DIARIO) return { ok: false, error: `Límite diario de ${WA_LIMITE_DIARIO} mensajes alcanzado` };
+  const textoPie = waVariarTexto(caption);
+  const EVO_URL = process.env.EVOLUTION_URL, EVO_KEY = process.env.EVOLUTION_KEY, EVO_INSTANCE = process.env.EVOLUTION_INSTANCE;
+  const usaTwilio = (process.env.WA_PROVIDER || '').toLowerCase() !== 'evolution' && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM;
+  if (usaTwilio || !EVO_URL || !EVO_KEY || !EVO_INSTANCE) return { ok: false, error: 'Envío de imágenes disponible solo con Evolution API', numero, _texto: textoPie, _canal: 'evolution' };
+  const url = `${EVO_URL.replace(/\/+$/, '')}/message/sendMedia/${EVO_INSTANCE}`;
+  const headers = { 'Content-Type': 'application/json', 'apikey': EVO_KEY };
+  const media = png.toString('base64');
+  const payloads = [
+    { number: numero, mediaMessage: { mediatype: 'image', fileName: nombreArchivo, caption: textoPie, media } },
+    { number: numero, mediatype: 'image', mimetype: 'image/png', fileName: nombreArchivo, caption: textoPie, media },
+  ];
+  let lastErr = '';
+  console.log(`[WA] Enviando imagen a ${numero} (${enviados + 1}/${WA_LIMITE_DIARIO} hoy)`);
+  for (const body of payloads) {
+    try {
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(45000) });
+      const rawText = await resp.text();
+      if (resp.ok) { console.log(`[WA] ✅ Imagen enviada a ${numero}`); return { ok: true, numero, _texto: textoPie, _canal: 'evolution' }; }
+      lastErr = `HTTP ${resp.status}: ${rawText.slice(0, 250)}`;
+      console.warn(`[WA] Falló envío de imagen (${Object.keys(body).join(',')}): ${resp.status} → ${rawText.slice(0, 300)}`);
+      if (resp.status !== 400 && resp.status !== 422) break;
+    } catch (e) {
+      const agotado = e.name === 'TimeoutError' || e.name === 'AbortError';
+      return { ok: false, error: agotado ? 'Tiempo de espera agotado: la imagen pudo haberse enviado igual (revisar el chat)' : `Evolution API: ${e.message}`, numero, sinConfirmar: agotado, _texto: textoPie, _canal: 'evolution' };
+    }
+  }
+  return { ok: false, error: `Evolution API: ${lastErr}`, numero, _texto: textoPie, _canal: 'evolution' };
+}
+async function sendWhatsAppImagen(phone, png, caption, meta = {}) {
+  const r = await _enviarImagenWhatsApp(phone, png, caption, meta.archivo || 'constancia.png');
+  waRegistrarEnvio({
+    telefono: r.numero || phone, mensaje: `[Imagen: ${meta.archivo || 'constancia.png'}] ${r._texto || caption}`,
+    estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'),
+    detalle: r.ok ? null : r.error, motivo: meta.motivo, por: meta.por, canal: r._canal
+  });
+  return r;
+}
+// Constancia de pago: imagen prolija con todos los datos y un QR de verificación. Si no se puede dibujar o Evolution la rechaza
+// (error definitivo), se manda el texto de siempre; si el envío quedó "sin confirmar" NO se manda el texto, para no duplicar.
+async function enviarConstanciaPago(telefono, pagoIds, textoRespaldo, meta = {}) {
+  let png = null, d = null;
+  try {
+    const lib = constanciaImg();
+    if (lib) { d = datosConstancia(db, pagoIds); if (d) png = lib.generarConstanciaPNG(d); }
+  } catch (e) { console.error('[Constancia imagen] error al dibujar:', e.message); png = null; }
+  if (png) {
+    const nombre = (d.alumno.split(', ')[1] || d.alumno).split(' ')[0];
+    const multiple = d.recibos.length > 1;
+    const caption = `*Constancia de pago* — Recibo${multiple ? 's' : ''} N° ${multiple ? d.recibos.join(', ') : d.recibo}\n\nHola, *${nombre}*. Te confirmamos que recibimos tu pago de *${d.concepto}* por *Gs. ${Math.round(d.monto).toLocaleString('es-PY')}*.\n\n🧾 Conservá este comprobante: con el N° de recibo podés verificar tu pago en la administración del instituto.\n\n— *Administración · ITS Santísima Trinidad*`;
+    const r = await sendWhatsAppImagen(telefono, png, caption, { ...meta, archivo: `Constancia-${d.recibos[0]}.png` });
+    if (r.ok || r.sinConfirmar) return { ...r, modo: 'imagen' };
+    console.warn('[Constancia imagen] no se pudo enviar la imagen; se manda el texto:', r.error);
+  }
+  return { ...(await sendWhatsApp(telefono, textoRespaldo, meta)), modo: 'texto' };
 }
 // ── HELPER: mensaje de bienvenida QR ──────────────────────────────────────────
 async function enviarBienvenidaQR(telefono, nombre, email, ci) {
