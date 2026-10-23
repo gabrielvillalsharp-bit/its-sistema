@@ -6295,7 +6295,9 @@ app.post('/api/pagos/:id/reenviar-constancia', auth(ADM), async (req, res) => {
     if (!p) return res.status(404).json({ error: 'Pago no encontrado' });
     if (p.estado === 'Anulado') return res.status(400).json({ error: `El recibo ${p.nro_recibo || ''} está anulado.` });
     const al = db.prepare('SELECT nombre, apellido, telefono FROM alumnos WHERE id=?').get(p.alumno_id);
-    if (!al?.telefono) return res.status(400).json({ error: 'El alumno no tiene teléfono registrado' });
+    const destino = String((req.body && req.body.telefono) || '').trim() || al?.telefono; // opcional: otro número (para que el director pruebe con el suyo)
+    const esPrueba = !!(req.body && String(req.body.telefono || '').trim());
+    if (!destino) return res.status(400).json({ error: 'El alumno no tiene teléfono registrado' });
     const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
     const MESES_CUOTA = ['','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre','Diciembre'];
     const conceptoDisplay = String(p.concepto || '').replace(/^Cuota (\d+)$/i, (_, n) => MESES_CUOTA[parseInt(n)] ? `Cuota ${n} — ${MESES_CUOTA[parseInt(n)]}` : p.concepto);
@@ -6314,8 +6316,8 @@ app.post('/api/pagos/:id/reenviar-constancia', auth(ADM), async (req, res) => {
       .replace(/\{recibo\}/g, p.nro_recibo || '')
       .replace(/\{url\}/g, APP_URL);
     const waMsgFinal = reciboEnConstancia(waMsg, pagoTpl, p.nro_recibo);
-    const r = await enviarConstanciaPago(al.telefono, [p.id], waMsgFinal, { motivo: 'constancia_pago_reenvio', por: req.user.id });
-    audit(req.user.id, 'REENVIAR_CONSTANCIA', 'pagos', p.id, { recibo: p.nro_recibo, enviado: !!r.ok, modo: r.modo });
+    const r = await enviarConstanciaPago(destino, [p.id], waMsgFinal, { motivo: esPrueba ? 'constancia_pago_prueba' : 'constancia_pago_reenvio', por: req.user.id });
+    audit(req.user.id, 'REENVIAR_CONSTANCIA', 'pagos', p.id, { recibo: p.nro_recibo, enviado: !!r.ok, modo: r.modo, prueba: esPrueba });
     res.json({ ok: !!r.ok, nro_recibo: p.nro_recibo, modo: r.modo, estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'), error: r.ok ? undefined : r.error });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
