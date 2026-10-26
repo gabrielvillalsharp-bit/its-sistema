@@ -3600,6 +3600,58 @@ app.delete('/api/alumnos-faltantes/:id', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
+// Si la matrícula del alumno es de OTRA carrera (p. ej. AGR-2026-049 en alguien que pasó a Cosmiatría), se reemplaza por la
+// siguiente de su carrera actual (COS-2026-…). La matrícula anterior queda en la auditoría. Se apoya en el trigger de codigos.js,
+// que asigna la matrícula cuando está vacía. Devuelve { anterior, nueva } o null si no correspondía cambiarla.
+function reasignarMatriculaPorCarrera(alumnoId, usuarioId, motivo) {
+  const al = db.prepare('SELECT id, matricula, carrera_id FROM alumnos WHERE id=?').get(alumnoId);
+  if (!al || !al.carrera_id || !al.matricula || !String(al.matricula).trim()) return null;
+  const cod = db.prepare('SELECT codigo FROM carreras WHERE id=?').get(al.carrera_id)?.codigo;
+  if (!cod || String(al.matricula).split('-')[0] === cod) return null;   // ya corresponde a su carrera
+  db.transaction(() => {
+    db.prepare('UPDATE alumnos SET matricula=NULL WHERE id=?').run(alumnoId);
+    db.prepare('UPDATE alumnos SET carrera_id=carrera_id WHERE id=?').run(alumnoId);   // dispara el trigger que asigna la siguiente matrícula de la carrera
+    const nueva = db.prepare('SELECT matricula FROM alumnos WHERE id=?').get(alumnoId)?.matricula;
+    if (!nueva) db.prepare('UPDATE alumnos SET matricula=? WHERE id=?').run(al.matricula, alumnoId);   // por las dudas: nunca dejar al alumno sin matrícula
+  })();
+  const nueva = db.prepare('SELECT matricula FROM alumnos WHERE id=?').get(alumnoId)?.matricula || null;
+  if (!nueva || nueva === al.matricula) return null;
+  audit(usuarioId, 'MATRICULA_CAMBIADA', 'alumnos', alumnoId, { antes: al.matricula, despues: nueva, motivo });
+  return { anterior: al.matricula, nueva };
+}
+// Cuando un alumno pasa a OTRA carrera se actualiza todo lo que depende de la carrera (2026-10-26):
+//  · el curso/sección tiene que ser de la carrera nueva (si no lo es, se deja sin curso hasta asignarle uno)
+//  · la matrícula pasa a ser la de la carrera nueva (la anterior queda en la auditoría)
+//  · se quitan las planillas de notas VACÍAS de la carrera anterior y se crean las de la nueva
+//  · lo que ya tiene datos (notas cargadas, asistencia, habilitaciones, pagos) se conserva como historial
+//  · se avisa si figura en una carpeta de Nautilus de la carrera anterior (son documentos subidos a mano: no se mueven solos)
+// `antes` = { carrera_id, curso_id } que tenía antes del cambio. Devuelve el resumen o null si no cambió de carrera.
+function aplicarCambioDeCarrera(alumnoId, usuarioId, antes) {
+  const al = db.prepare('SELECT id, ci, matricula, carrera_id, curso_id FROM alumnos WHERE id=?').get(alumnoId);
+  if (!al || !al.carrera_id || al.carrera_id === (antes && antes.carrera_id)) return null;
+  const resumen = { carrera_anterior: antes.carrera_id || null, carrera_nueva: al.carrera_id };
+  if (al.curso_id) {
+    const cu = db.prepare('SELECT carrera_id FROM cursos WHERE id=?').get(al.curso_id);
+    if (!cu || cu.carrera_id !== al.carrera_id) {
+      db.prepare('UPDATE alumnos SET curso_id=NULL WHERE id=?').run(alumnoId);
+      resumen.curso_quitado = al.curso_id; al.curso_id = null;
+    }
+  }
+  resumen.matricula = reasignarMatriculaPorCarrera(alumnoId, usuarioId, 'cambio de carrera');
+  const cols = db.prepare("SELECT name FROM pragma_table_info('notas')").all().map(c => c.name);
+  const vacias = ['tp1', 'tp2', 'tp3', 'tp4', 'tp5', 'tp_total', 'parcial', 'parcial_recuperatorio', 'final_ord', 'final_recuperatorio', 'complementario', 'extraordinario', 'puntaje_total', 'nota_final'].filter(c => cols.includes(c)).map(c => `${c} IS NULL`);
+  if (cols.includes('director_pts')) vacias.push('(director_pts IS NULL OR director_pts=0)');
+  resumen.notas_vacias_quitadas = db.prepare(`DELETE FROM notas WHERE alumno_id=? AND estado='Pendiente' AND ${vacias.join(' AND ')}
+    AND asignacion_id IN (SELECT id FROM asignaciones WHERE COALESCE(curso_id,'') != ?)`).run(alumnoId, al.curso_id || '').changes;
+  resumen.notas_creadas = al.curso_id ? crearNotasPendientes(alumnoId, al.curso_id) : 0;
+  try {
+    const ced = String(al.ci || '').replace(/\D/g, '');
+    if (ced) resumen.nautilus_en_carrera_anterior = db.prepare(`SELECT COUNT(*) n FROM nautilus_alumnos na JOIN nautilus_carpetas nc ON nc.id=na.carpeta_id
+      WHERE REPLACE(REPLACE(na.cedula,'.',''),' ','')=? AND nc.carrera_id=?`).get(ced, antes.carrera_id).n;
+  } catch {}
+  audit(usuarioId, 'CAMBIO_CARRERA', 'alumnos', alumnoId, resumen);
+  return resumen;
+}
 app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
   const { nombre, apellido, ci, telefono, direccion, estado, carrera_id, curso_id, usuario_id } = req.body;
   if (usuario_id !== undefined) {
@@ -3621,9 +3673,11 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     curso_id   !== undefined ? (curso_id||null) : actual.curso_id,
     req.params.id
   );
+  // Si pasó a otra carrera: matrícula, curso y planillas de la carrera nueva (ver aplicarCambioDeCarrera)
+  const cambioCarrera = (carrera_id && carrera_id !== actual.carrera_id) ? aplicarCambioDeCarrera(req.params.id, req.user.id, { carrera_id: actual.carrera_id, curso_id: actual.curso_id }) : null;
   // Al asignar o cambiar el curso, crear las planillas de notas que falten (período activo y semestre en curso).
   // Antes no se creaban: el alumno quedaba con materias sin planilla y con notas/asistencia en blanco.
-  const cursoFinalAl = curso_id !== undefined ? (curso_id||null) : actual.curso_id;
+  const cursoFinalAl = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(req.params.id)?.curso_id || null;
   if (cursoFinalAl) crearNotasPendientes(req.params.id, cursoFinalAl);
   // Si cambió nombre o apellido, sincronizar en usuarios (nombre, apellido y email)
   if (actual.usuario_id && (nombre !== undefined || apellido !== undefined)) {
@@ -3638,7 +3692,7 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     if (conflicto) nuevoEmail = norm(nuevoNombre).slice(0,1) + norm(nuevoApellido) + '.' + (ciRaw.slice(-3) || String(Date.now()%1000)) + '@its.edu.py';
     db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, actual.usuario_id);
   }
-  res.json({ ok: true });
+  res.json({ ok: true, cambio_carrera: cambioCarrera, matricula_cambio: cambioCarrera ? cambioCarrera.matricula : null });
 });
 // ── CREAR/ACTUALIZAR ACCESOS MASIVOS ─────────────────────────────────────────
 app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
@@ -7349,6 +7403,7 @@ app.put('/api/alumnos/:id/asignar', auth(ADM), (req, res) => {
       });
     }
   }
+  const cambioCarrera = (carrera_id && carrera_id !== anterior.carrera_id) ? aplicarCambioDeCarrera(al.id, req.user.id, anterior) : null;
   const nuevaCarr = carrera_id ? db.prepare('SELECT nombre FROM carreras WHERE id=?').get(carrera_id) : null;
   const nuevoCurso = curso_id ? db.prepare('SELECT anio,division FROM cursos WHERE id=?').get(curso_id) : null;
   audit(req.user.id, 'ASIGNAR', 'alumnos', req.params.id, {
@@ -7357,7 +7412,17 @@ app.put('/api/alumnos/:id/asignar', auth(ADM), (req, res) => {
     carrera_nombre: nuevaCarr?.nombre || null,
     curso_desc: nuevoCurso ? `${nuevoCurso.anio}°${nuevoCurso.division && nuevoCurso.division!=='U'?' '+nuevoCurso.division:''}` : null
   });
-  res.json({ ok: true });
+  res.json({ ok: true, cambio_carrera: cambioCarrera, matricula_cambio: cambioCarrera ? cambioCarrera.matricula : null });
+});
+// Para un alumno que YA fue pasado de carrera antes de existir esta regla: aplica lo que dependía de la carrera (matrícula, planillas vacías).
+// Body: { carrera_anterior_id }. Solo director.
+app.post('/api/alumnos/:id/aplicar-cambio-carrera', auth(ADM), (req, res) => {
+  const ant = String((req.body && req.body.carrera_anterior_id) || '').trim();
+  if (!ant || !db.prepare('SELECT 1 FROM carreras WHERE id=?').get(ant)) return res.status(400).json({ error: 'carrera_anterior_id inválido' });
+  if (!db.prepare('SELECT 1 FROM alumnos WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Alumno no encontrado' });
+  const r = aplicarCambioDeCarrera(req.params.id, req.user.id, { carrera_id: ant, curso_id: null });
+  if (!r) return res.status(400).json({ error: 'El alumno ya está en esa carrera (o no tiene carrera)' });
+  res.json({ ok: true, cambio_carrera: r });
 });
 
 // ── PREVISUALIZAR SIN ASIGNAR ─────────────────────────────────────────────────
