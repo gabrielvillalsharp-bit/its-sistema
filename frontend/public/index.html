@@ -12457,7 +12457,7 @@ async function ppwConceptoChange(id){
   matSel.innerHTML='<option value="">Cargando materias...</option>';
   try{
     const asigs=await api('GET','/api/alumnos/'+alId+'/asignaciones-activas');
-    matSel.innerHTML='<option value="">-- Seleccionar materia --</option>'+(asigs||[]).map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('');
+    matSel.innerHTML='<option value="">-- Seleccionar materia --</option>'+pgOptsPorSemestre(asigs);
   }catch(e){ matSel.innerHTML='<option value="">Error al cargar materias</option>'; }
 }
 function _ppwConceptoValor(id){
@@ -16306,9 +16306,14 @@ async function selAlumnoPago(alId){
       {concepto:'Examen Final Complementario',   lbl:'Final\nComplement.',  icon:'📋'},
       {concepto:'Examen Final Extraordinario',   lbl:'Extraord.\n⚡',       icon:'⚡'},
     ];
-    // Tope real = cantidad de materias asignadas al curso del alumno (antes era un 5 fijo que
-    // ocultaba el botón de pago cuando una carrera/año tenía más de 5 materias, ej. Cosmiatría 1°)
-    const ARANCEL_MAX=(rAsigsActivas&&rAsigsActivas.length)?rAsigsActivas.length:5;
+    // Tope real = cantidad de materias del curso del alumno en el 1.er Y el 2.º semestre (antes era un 5 fijo que
+    // ocultaba el botón de pago cuando una carrera/año tenía más de 5 materias, ej. Cosmiatría 1°).
+    // Cada tarjeta desglosa lo pagado por semestre; al registrar, la lista de materias viene agrupada por semestre.
+    const asigsExam=rAsigsActivas||[];
+    const semOrden=[];
+    asigsExam.forEach(a=>{let s=semOrden.find(x=>x.pid===a.periodo_id);if(!s){s={pid:a.periodo_id,sem:a.semestre,total:0};semOrden.push(s);}s.total++;});
+    const semDeAsig={};asigsExam.forEach(a=>{semDeAsig[a.id]=a.periodo_id;});
+    const ARANCEL_MAX=asigsExam.length||5;
     const examenesGrid=examenesArancel.map(({concepto,lbl,icon})=>{
       const pagosEx=(pagos||[]).filter(p=>(p.concepto||'').toLowerCase()===concepto.toLowerCase());
       const pagosConAsig=pagosEx.filter(p=>p.asignacion_id);
@@ -16317,14 +16322,20 @@ async function selAlumnoPago(alId){
       const excludeIds=pagosConAsig.map(p=>p.asignacion_id);
       const lblShort=lbl.replace('\n',' ');
       const lleno=count>=ARANCEL_MAX;
+      // Desglose por semestre: "2.º sem. 1/6 · 1.er sem. 0/6"
+      const resumenSem=semOrden.length>1?semOrden.map(s=>{
+        const n=pagosConAsig.filter(p=>semDeAsig[p.asignacion_id]===s.pid).length;
+        return `<span style="white-space:nowrap">${pgSemCorto(s.sem)} <strong style="color:${n>=s.total?'#166534':'#475569'}">${n}/${s.total}</strong></span>`;
+      }).join(' · '):'';
       // Filas de materias pagadas dentro de la tarjeta
       let filasMateria='';
       pagosConAsig.forEach(p=>{
         const mat=p.materia_nombre||'Materia';
-        filasMateria+=`<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #dcfce7">
-          <span style="font-size:10px">✅</span>
-          <span style="font-size:10px;color:#166534;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${mat}">${mat}</span>
-          <span style="font-size:9px;color:#64748b;white-space:nowrap">${fmtFecha(p.fecha_pago)}</span>
+        const sInfo=semOrden.length>1?semOrden.find(x=>x.pid===semDeAsig[p.asignacion_id]):null;
+        const tag=sInfo?`<span style="font-size:8px;font-weight:800;color:#475569;background:#e2e8f0;border-radius:4px;padding:1px 4px;white-space:nowrap">${pgSemCorto(sInfo.sem)}</span>`:'';
+        filasMateria+=`<div style="padding:4px 0;border-bottom:1px solid #dcfce7">
+          <div style="display:flex;align-items:flex-start;gap:5px"><span style="font-size:10px;line-height:1.3">✅</span><span style="font-size:10px;color:#166534;font-weight:600;flex:1;line-height:1.3" title="${mat}">${mat}</span></div>
+          <div style="display:flex;align-items:center;gap:5px;padding-left:15px;margin-top:1px">${tag}<span style="font-size:9px;color:#64748b;white-space:nowrap">${fmtFecha(p.fecha_pago)}</span></div>
         </div>`;
       });
       pagosLegacy.forEach(p=>{
@@ -16346,17 +16357,18 @@ async function selAlumnoPago(alId){
           title="Registrar pago de ${lblShort}">+ Registrar materia ${count>0?'('+count+'/'+ARANCEL_MAX+')':''}</button>`;
       const borderCol=lleno?'#4ade80':count>0?'#86efac':'#e2e8f0';
       const bgCol=lleno?'#f0fdf4':count>0?'#f7fef9':'#fff';
-      return `<div style="border:2px solid ${borderCol};border-radius:12px;background:${bgCol};padding:10px 12px;min-width:130px;max-width:200px;flex:1">
+      return `<div style="display:flex;flex-direction:column;border:2px solid ${borderCol};border-radius:12px;background:${bgCol};padding:10px 12px;min-width:130px;max-width:200px;flex:1">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:${count?'8px':'4px'}">
           <span style="font-size:16px">${icon}</span>
           <div style="flex:1">
             <div style="font-size:10px;font-weight:800;color:${count>0?'#166534':'#475569'};line-height:1.2;white-space:pre-line">${lbl}</div>
             ${count>0?`<div style="font-size:9px;color:#64748b;margin-top:1px">${count}/${ARANCEL_MAX} materias</div>`:''}
+            ${resumenSem?`<div style="font-size:9px;color:#64748b;margin-top:2px;line-height:1.4">${resumenSem}</div>`:''}
           </div>
           ${lleno?'<span style="font-size:11px;font-weight:800;color:#166534">✓</span>':''}
         </div>
         ${filasMateria?`<div style="display:flex;flex-direction:column;gap:0">${filasMateria}</div>`:''}
-        ${btnRegistrar}
+        <div style="margin-top:auto">${btnRegistrar}</div>
       </div>`;
     }).join('');
 
@@ -16632,7 +16644,7 @@ async function selAlumnoPago(alId){
           <div style="display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;align-items:stretch">${cuotasGrid}</div>
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📝 Exámenes con arancel</div>
-          <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:flex-start">${examenesGrid}</div>
+          <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:10px;align-items:stretch">${examenesGrid}</div>
           <div style="border-top:1px solid #e2e8f0;margin:14px 0 10px"></div>
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🎓 Monografía final de grado</div>
           ${(()=>{
@@ -16872,8 +16884,8 @@ async function habilitarDesdeHistorial(alId){
   ];
   function montoAr(tipo){const ar=aranceles.find(a=>a.tipo===tipo);return ar?` — Gs. ${Number(ar.monto).toLocaleString()}`:''}
   const materiasOpts=asigs.length
-    ?asigs.map(a=>`<option value="${a.id}">${a.materia_nombre}</option>`).join('')
-    :'<option value="">Sin materias en período activo</option>';
+    ?pgOptsPorSemestre(asigs)
+    :'<option value="">Sin materias cargadas para este curso</option>';
   modal(`<h4>🔓 Habilitar examen sin pago</h4>
   <div style="font-size:12px;padding:8px 10px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;color:#e65100;margin-bottom:12px">
     ⚠ Esta habilitación es <strong>sin pago</strong> — el alumno quedará habilitado pero con la deuda pendiente. Usá esta opción para excepciones o acuerdos de pago.<br>
@@ -16961,19 +16973,7 @@ function mPagoDirecto(alId, conceptoFijo){
   <input type="hidden" id="pgpe" value="${periodoActivo.id}"/>
   <div class="fg">
     ${concepto_select_html}
-    <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <label style="font-size:11px;font-weight:700;color:#1d4ed8">📚 Materias a habilitar <span style="color:var(--red)">*</span></label>
-        <div style="display:flex;gap:4px">
-          <button type="button" onclick="pgSelTodasMaterias(true)" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#eff6ff;color:#1d4ed8;cursor:pointer">Todas</button>
-          <button type="button" onclick="pgSelTodasMaterias(false)" style="font-size:10px;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#64748b;cursor:pointer">Ninguna</button>
-        </div>
-      </div>
-      <div id="pgco-asig-checks" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:2px">
-        <div style="color:#94a3b8;font-size:12px">Cargando materias...</div>
-      </div>
-      <div id="pgco-total-info" style="margin-top:8px;font-size:12px;font-weight:700;color:#1d4ed8;min-height:18px"></div>
-    </div>
+    ${pgMateriaSelHtml()}
     <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
       🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
     </div>
@@ -17212,19 +17212,7 @@ function mPago(){
         </optgroup>
         <optgroup label="Otros"><option>Certificado</option><option>Otro</option></optgroup>
       </select>
-      <div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <label style="font-size:11px;font-weight:700;color:#1d4ed8">📚 Materias a habilitar <span style="color:var(--red)">*</span></label>
-          <div style="display:flex;gap:4px">
-            <button type="button" onclick="pgSelTodasMaterias(true)" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#eff6ff;color:#1d4ed8;cursor:pointer">Todas</button>
-            <button type="button" onclick="pgSelTodasMaterias(false)" style="font-size:10px;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#64748b;cursor:pointer">Ninguna</button>
-          </div>
-        </div>
-        <div id="pgco-asig-checks" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:2px">
-          <div style="color:#94a3b8;font-size:12px">Cargando materias...</div>
-        </div>
-        <div id="pgco-total-info" style="margin-top:8px;font-size:12px;font-weight:700;color:#1d4ed8;min-height:18px"></div>
-      </div>
+      ${pgMateriaSelHtml()}
       <div id="pgco-recup-aviso" style="display:none;font-size:11px;padding:6px 10px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:5px;color:#2e7d32;margin-top:4px">
         🔓 <strong>Habilitación automática:</strong> al registrar este pago, el alumno quedará habilitado para Parcial Recuperatorio en la materia seleccionada.
       </div>
@@ -17303,11 +17291,54 @@ function pgActualizarMora(){
   }
 }
 const ARANCEL_CONCEPTOS=['Examen Parcial Recuperatorio','Examen Final Ordinario','Examen Final Recuperatorio','Examen Final Complementario','Examen Final Extraordinario'];
+// Semestre: 1 → "1.er semestre", 2 → "2.º semestre" (el campo `semestre` del período)
+function pgSemLabel(n){ return n==1?'1.er semestre':(n?n+'.º semestre':'Semestre'); }
+function pgSemCorto(n){ return n==1?'1.er sem.':(n?n+'.º sem.':'Sem.'); }
+// Agrupa las materias que devuelve /asignaciones-activas por semestre (el semestre en curso viene primero)
+function pgAgruparSemestres(asigs){
+  const gs=[];
+  (asigs||[]).forEach(a=>{let g=gs.find(x=>x.pid===a.periodo_id);if(!g){g={pid:a.periodo_id,sem:a.semestre,actual:!!a.es_actual,items:[]};gs.push(g);}g.items.push(a);});
+  return gs;
+}
+// Opciones de un <select> de materias, con un grupo por semestre cuando hay más de uno
+function pgOptsPorSemestre(asigs){
+  const gs=pgAgruparSemestres(asigs);
+  const opt=a=>`<option value="${a.id}">${a.materia_nombre}</option>`;
+  if(gs.length<2) return gs.map(g=>g.items.map(opt).join('')).join('');
+  return gs.map(g=>`<optgroup label="${pgSemLabel(g.sem)}${g.actual?' · en curso':''}">${g.items.map(opt).join('')}</optgroup>`).join('');
+}
+// Bloque "Materias a habilitar" de los modales de pago (mismo markup en "Registrar pago" general y directo)
+function pgMateriaSelHtml(){
+  return `<div id="pgco-materia-sel" style="display:none;margin-top:8px;padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:#1d4ed8">📚 Materias a habilitar <span style="color:var(--red)">*</span></label>
+        <div style="display:flex;gap:4px">
+          <button type="button" onclick="pgSelTodasMaterias(true)" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#eff6ff;color:#1d4ed8;cursor:pointer">Todas</button>
+          <button type="button" onclick="pgSelTodasMaterias(false)" style="font-size:10px;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#64748b;cursor:pointer">Ninguna</button>
+        </div>
+      </div>
+      <div id="pgco-asig-checks" style="max-height:min(58vh,520px);overflow-y:auto;padding:2px">
+        <div style="color:#94a3b8;font-size:12px">Cargando materias...</div>
+      </div>
+      <div id="pgco-total-info" style="margin-top:10px;font-size:12px;font-weight:700;color:#1d4ed8;min-height:18px"></div>
+    </div>`;
+}
 function pgSelTodasMaterias(sel){
   document.querySelectorAll('input[name="pgMateria"]').forEach(c=>{c.checked=sel;});
   pgActualizarTotalMaterias();
 }
+// "Todas" de un semestre: marca las de ese grupo (o las desmarca si ya estaban todas marcadas)
+function pgSelGrupoMaterias(pid){
+  const cs=[...document.querySelectorAll('#pgco-asig-checks label[data-g="'+pid+'"] input[name="pgMateria"]')];
+  const todas=cs.length>0&&cs.every(c=>c.checked);
+  cs.forEach(c=>{c.checked=!todas;});
+  pgActualizarTotalMaterias();
+}
 function pgActualizarTotalMaterias(){
+  document.querySelectorAll('#pgco-asig-checks label').forEach(l=>{
+    const on=!!l.querySelector('input')?.checked;
+    l.style.borderColor=on?'#1d4ed8':'#dbeafe'; l.style.background=on?'#dbeafe':'#fff';
+  });
   const count=document.querySelectorAll('input[name="pgMateria"]:checked').length;
   const concepto=v('pgco')||'';
   const aranceles=W._pdata?.aranceles||[];
@@ -17341,13 +17372,24 @@ function pgcoChangeHandler(){
           W._arancelExclude=null;
           const disponibles=(asigs||[]).filter(a=>!exclude.has(a.id));
           if(!disponibles.length){
-            box.innerHTML=`<div style="color:#94a3b8;font-size:12px;padding:6px">${exclude.size?'Todas las materias ya tienen este examen habilitado':'Sin materias en período activo'}</div>`;
+            box.innerHTML=`<div style="color:#94a3b8;font-size:12px;padding:6px">${exclude.size?'Todas las materias ya tienen este examen habilitado':'Sin materias cargadas para este curso'}</div>`;
           } else {
-            box.innerHTML=disponibles.map(a=>`
-              <label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;background:#fff;border:1px solid #e0e7ff">
-                <input type="checkbox" value="${a.id}" name="pgMateria" onchange="pgActualizarTotalMaterias()" style="accent-color:#1D9E75;width:14px;height:14px;flex-shrink:0">
-                <span style="font-size:12px;color:#1e293b">${a.materia_nombre}</span>
-              </label>`).join('');
+            // Fecha ya programada junto a cada materia: recuperatorio de parcial o final ordinario
+            const fechaTxt=a=>concepto==='Examen Parcial Recuperatorio'?(a.rec_fecha?'Recuperatorio: '+fmtFecha(a.rec_fecha):'Sin fecha de recuperatorio')
+              :concepto==='Examen Final Ordinario'&&a.final_fecha?'Final: '+fmtFecha(a.final_fecha):'';
+            const grupos=pgAgruparSemestres(disponibles);
+            box.innerHTML=grupos.map(g=>`<div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px;padding:0 2px">
+                <span style="font-size:11px;font-weight:800;color:${g.actual?'#1e3a8a':'#64748b'}">${pgSemLabel(g.sem)}${g.actual?' · en curso':''} <span style="font-weight:600;color:#94a3b8">(${g.items.length} materia${g.items.length>1?'s':''})</span></span>
+                <button type="button" onclick="pgSelGrupoMaterias('${g.pid}')" style="font-size:10px;padding:2px 8px;border:1px solid #bfdbfe;border-radius:4px;background:#fff;color:#1d4ed8;cursor:pointer">Todas del semestre</button>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px">
+                ${g.items.map(a=>`<label data-g="${g.pid}" style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;background:#fff;border:1px solid #dbeafe">
+                  <input type="checkbox" value="${a.id}" name="pgMateria" onchange="pgActualizarTotalMaterias()" style="accent-color:#1D9E75;width:14px;height:14px;flex-shrink:0;margin-top:2px">
+                  <span style="min-width:0"><span style="display:block;font-size:12px;font-weight:600;color:#1e293b;line-height:1.3">${a.materia_nombre}</span>${fechaTxt(a)?`<span style="display:block;font-size:10px;color:#64748b;margin-top:2px">${fechaTxt(a)}</span>`:''}</span>
+                </label>`).join('')}
+              </div>
+            </div>`).join('');
           }
           pgActualizarTotalMaterias();
         }).catch(()=>{

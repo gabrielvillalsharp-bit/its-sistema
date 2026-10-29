@@ -8834,21 +8834,35 @@ app.get('/api/docente/habilitados', auth(['docente']), (req, res) => {
 });
 
 // ── ASIGNACIONES ACTIVAS DEL ALUMNO (para selector de materia en pagos/habilitaciones) ──
+// Materias del alumno sobre las que se cobra un examen con arancel (parcial recuperatorio, finales, extraordinario):
+// las del semestre en curso (hoy el 2.º) Y las del período activo (1.er semestre), cada una con su semestre.
+// Antes solo se miraba el período "activo" (Año Lectivo): los recuperatorios del 2.º semestre cuelgan de materias de OTRO
+// período y no aparecían para pagar. Orden: semestre en curso primero. Trae también la fecha de recuperatorio / final ya
+// programada para mostrarla junto a la materia.
 app.get('/api/alumnos/:id/asignaciones-activas', auth(ADM), (req, res) => {
   try {
     const al = db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(req.params.id);
     if (!al?.curso_id) return res.json([]);
-    const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
-    if (!periodo) return res.json([]);
+    const act = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
+    const vigId = periodoVigenteId();
+    const ids = [...new Set([vigId, act && act.id].filter(Boolean))];
+    if (!ids.length) return res.json([]);
+    const tieneVig = !!vigId && !!db.prepare('SELECT 1 FROM asignaciones WHERE curso_id=? AND periodo_id=? LIMIT 1').get(al.curso_id, vigId);
+    const actualId = tieneVig ? vigId : (act ? act.id : ids[0]);
     const asigs = db.prepare(`
       SELECT a.id, m.nombre as materia_nombre, cu.anio, cu.division,
-        u.nombre as docente_nombre, u.apellido as docente_apellido
+        u.nombre as docente_nombre, u.apellido as docente_apellido,
+        a.periodo_id, pe.nombre as periodo_nombre, pe.semestre, pe.fecha_inicio as periodo_inicio,
+        (a.periodo_id=?) as es_actual,
+        (SELECT MIN(e.fecha) FROM examenes e WHERE e.asignacion_id=a.id AND e.tipo='Recuperatorio') as rec_fecha,
+        (SELECT MIN(e.fecha) FROM examenes e WHERE e.asignacion_id=a.id AND e.tipo IN ('Final','final_ord')) as final_fecha
       FROM asignaciones a
       JOIN materias m ON a.materia_id = m.id
       JOIN cursos cu ON a.curso_id = cu.id
+      JOIN periodos pe ON a.periodo_id = pe.id
       LEFT JOIN usuarios u ON a.docente_id = u.id
-      WHERE a.curso_id = ? AND a.periodo_id = ?
-      ORDER BY m.nombre`).all(al.curso_id, periodo.id);
+      WHERE a.curso_id = ? AND a.periodo_id IN (${ids.map(() => '?').join(',')})
+      ORDER BY es_actual DESC, m.nombre`).all(actualId, al.curso_id, ...ids);
     res.json(asigs);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
