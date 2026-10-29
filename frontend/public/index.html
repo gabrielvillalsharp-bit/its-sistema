@@ -5139,7 +5139,7 @@ async function crearAccesosMasivos(){
     <ul style="font-size:12px;margin:8px 0;padding-left:18px;line-height:1.8">
       <li>Crea usuarios para alumnos que aún no tienen acceso</li>
       <li>Actualiza la contraseña al número de CI actual</li>
-      <li>Email: <code>nombre.apellido@its.edu.py</code></li>
+      <li>Usuario: <code>nombreapellido@its.edu.py</code> (primer nombre + apellido)</li>
       <li>Contraseña: número de cédula</li>
     </ul>`,
     async function(){
@@ -21682,7 +21682,7 @@ function renderTbUsuarios(lista){
   </tbody></table></div></div>`;
 }
 async function crearAccesosAlumnos(){
-  if(!confirm('¿Crear/actualizar accesos para todos los alumnos sin usuario?\n\n✓ Usuario: nombre.apellido@its.edu.py\n✓ Contraseña: número de cédula (CI)\n\nLos alumnos que ya tienen acceso no serán modificados.'))return;
+  if(!confirm('¿Crear/actualizar accesos para todos los alumnos sin usuario?\n\n✓ Usuario: primer nombre + apellido (ej.: nestorbarriosferreira@its.edu.py)\n✓ Contraseña: número de cédula (CI)\n\nLos alumnos que ya tienen acceso no serán modificados.'))return;
   try{
     const r=await api('POST','/api/alumnos/crear-accesos',{});
     toast(`✓ ${r.creados} accesos creados/actualizados${r.errores?.length?' · '+r.errores.length+' errores':''}`, r.creados?'ok':'warn', 6000);
@@ -21726,12 +21726,14 @@ function mUsuario(u){const e=!!u;modal(`<h4>${e?'Editar':'Nuevo'} usuario</h4><d
 }
 function autoEmailUsuario(){
   const ci=(v('uci2')||'').replace(/[^0-9]/g,'');
-  const nom=(v('un2')||'').toLowerCase().replace(/\s+/g,'');
-  const ape=(v('uap')||'').toLowerCase().replace(/\s+/g,'');
+  // Usuario fácil de recordar: primer nombre + apellido, sin tildes ni espacios (ej.: nestorbarriosferreira)
+  const sinTildes=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const nom=sinTildes((v('un2')||'').trim().split(/\s+/)[0]);
+  const ape=sinTildes(v('uap'));
   const em=document.getElementById('uem');
   const pw=document.getElementById('ups');
   if(em&&!em.dataset.manual){
-    em.value=ci?`${ci}@its.edu.py`:(nom&&ape?`${nom}.${ape}@its.edu.py`:'');
+    em.value=nom&&ape?`${nom}${ape}@its.edu.py`:(ci?`${ci}@its.edu.py`:'');
   }
   if(pw&&ci) pw.value=ci;
 }

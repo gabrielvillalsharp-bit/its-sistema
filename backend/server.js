@@ -3368,6 +3368,37 @@ app.put('/api/docentes/:docente_id/wa-recordatorios', auth(ADM), (req, res) => {
 });
 // Usuario institucional de un docente: nombre + apellido (sin tildes ni espacios) + @its.edu.py. Si ya existe, se
 // le agregan los últimos 3 dígitos de la cédula. Pedido del director (2026-10-16): no se necesita un correo personal.
+// Usuario institucional de un ALUMNO (pedido del director, 2026-10-29): primer nombre + apellido(s), sin tildes ni espacios, para
+// que sea fácil de recordar: "Nestor Alejandro" + "Barrios Ferreira" → nestorbarriosferreira@its.edu.py (antes era la inicial +
+// apellido: nbarriosferreira). Si otra persona ya tiene ese correo se agregan los últimos 3 dígitos de la CI
+// (nestorbarriosferreira.337@its.edu.py). Es para usuarios NUEVOS: los que ya existen conservan el suyo.
+// formato 'inicial' = el criterio anterior, solo para los lugares que regeneran el correo de un usuario que ya tenía.
+function baseEmailAlumno(nombre, apellido, formato) {
+  const n = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const primero = n(String(nombre || '').trim().split(/\s+/)[0]);
+  return (formato === 'inicial' ? primero.slice(0, 1) : primero) + n(apellido);
+}
+function emailAlumnoGenerado(nombre, apellido, ci, excluirUid, formato) {
+  const ciD = String(ci || '').replace(/\D/g, '');
+  const base = baseEmailAlumno(nombre, apellido, formato) || ('alumno' + (ciD.slice(-4) || (Date.now() % 10000)));
+  const ocupado = e => !!(ciD
+    ? db.prepare("SELECT 1 FROM usuarios WHERE email=? AND id!=? AND COALESCE(ci,'')!=?").get(e, excluirUid || '', ciD)
+    : db.prepare('SELECT 1 FROM usuarios WHERE email=? AND id!=?').get(e, excluirUid || ''));
+  let email = base + '@its.edu.py';
+  if (ocupado(email)) email = base + '.' + (ciD.slice(-3) || String(Date.now() % 1000)) + '@its.edu.py';
+  return email;
+}
+// Al cambiar el nombre de un alumno el usuario conserva SU formato: el nuevo (nombre+apellido) o el de antes (inicial+apellido).
+// Devuelve el correo que le corresponde, o null si el nombre no cambió (no se toca nada).
+function emailTrasRenombrar(uid, viejoNombre, viejoApellido, nuevoNombre, nuevoApellido, ci) {
+  const mismo = (a, b) => String(a || '').trim() === String(b || '').trim();
+  if (mismo(viejoNombre, nuevoNombre) && mismo(viejoApellido, nuevoApellido)) return null;
+  const actual = db.prepare('SELECT email FROM usuarios WHERE id=?').get(uid)?.email || '';
+  const baseNueva = baseEmailAlumno(viejoNombre, viejoApellido, 'nombre');
+  const formato = baseNueva && actual.split('@')[0].startsWith(baseNueva) ? 'nombre' : 'inicial';
+  return emailAlumnoGenerado(nuevoNombre, nuevoApellido, ci, uid, formato);
+}
+
 function emailDocenteGenerado(nombre, apellido, ci, excluirUid) {
   const norm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
   const base = norm(nombre) + norm(apellido);
@@ -3532,9 +3563,7 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     : db.prepare('SELECT matricula FROM alumnos WHERE carrera_id IS NULL AND matricula LIKE ?').all(prefix+'%');
   const maxNum = existingMats.reduce((mx, r) => { const n = parseInt((r.matricula||'').slice(prefix.length))||0; return Math.max(mx,n); }, 0);
   const matricula = `${prefix}${String(maxNum+1).padStart(3,'0')}`;
-  let emailAuto = email || (norm(nombre).slice(0,1)+norm(apellido)+'@its.edu.py');
-  if (!email && db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailAuto))
-    emailAuto = norm(nombre).slice(0,1)+norm(apellido)+'.'+(ciRaw.slice(-3)||Date.now()%1000)+'@its.edu.py';
+  let emailAuto = email || emailAlumnoGenerado(nombre, apellido, ciRaw, 'u_' + id);
   const uid = 'u_'+id;
   try {
     db.transaction(() => {
@@ -3687,10 +3716,8 @@ app.put('/api/alumnos/:id', auth(ADM), (req, res) => {
     if (nombre   !== undefined) db.prepare('UPDATE usuarios SET nombre=?   WHERE id=?').run(nombre,   actual.usuario_id);
     if (apellido !== undefined) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido, actual.usuario_id);
     const ciRaw = String(ci !== undefined ? ci : actual.ci || '').replace(/[^0-9]/g,'');
-    let nuevoEmail = norm(nuevoNombre).slice(0,1) + norm(nuevoApellido) + '@its.edu.py';
-    const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(nuevoEmail, actual.usuario_id);
-    if (conflicto) nuevoEmail = norm(nuevoNombre).slice(0,1) + norm(nuevoApellido) + '.' + (ciRaw.slice(-3) || String(Date.now()%1000)) + '@its.edu.py';
-    db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, actual.usuario_id);
+    const nuevoEmail = emailTrasRenombrar(actual.usuario_id, actual.nombre, actual.apellido, nuevoNombre, nuevoApellido, ciRaw);
+    if (nuevoEmail) db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, actual.usuario_id);
   }
   res.json({ ok: true, cambio_carrera: cambioCarrera, matricula_cambio: cambioCarrera ? cambioCarrera.matricula : null });
 });
@@ -3709,9 +3736,15 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
     const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
     if (!ciRaw) return;
     try {
-      let emailFinal = norm(al.nombre).slice(0,1)+norm(al.apellido)+'@its.edu.py';
-      const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(emailFinal, al.usuario_id||'');
-      if (conflicto) emailFinal = norm(al.nombre).slice(0,1)+norm(al.apellido)+'.'+ciRaw.slice(-3)+'@its.edu.py';
+      // Usuario nuevo: formato fácil. Usuario existente: si ya sigue el formato nuevo o el anterior se respeta (no se cambia nadie de usuario
+      // por correr esto); solo los que tienen un correo raro se pasan al formato fácil.
+      let emailFinal;
+      if (al.usuario_id) {
+        const act = db.prepare('SELECT email FROM usuarios WHERE id=?').get(al.usuario_id)?.email || '';
+        const loc = act.split('@')[0];
+        const sigue = [baseEmailAlumno(al.nombre, al.apellido, 'nombre'), baseEmailAlumno(al.nombre, al.apellido, 'inicial')].some(b => b && loc.startsWith(b));
+        emailFinal = sigue ? act : emailAlumnoGenerado(al.nombre, al.apellido, ciRaw, al.usuario_id);
+      } else emailFinal = emailAlumnoGenerado(al.nombre, al.apellido, ciRaw, '');
       if (!al.usuario_id) {
         // Crear usuario nuevo
         const uid = 'u_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
@@ -3789,9 +3822,7 @@ app.post('/api/alumnos/:id/crear-acceso', auth(ADM), (req, res) => {
   const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
   if (!ciRaw) return res.status(400).json({ error: 'El alumno no tiene CI cargado — no se puede crear la contraseña inicial' });
   const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-  let email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'@its.edu.py';
-  if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(email))
-    email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'.'+ciRaw.slice(-3)+'@its.edu.py';
+  let email = emailAlumnoGenerado(al.nombre, al.apellido, ciRaw, '');
   const uid = 'u_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
   try {
     db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
@@ -3801,6 +3832,20 @@ app.post('/api/alumnos/:id/crear-acceso', auth(ADM), (req, res) => {
     if (al.telefono) enviarBienvenidaQR(al.telefono, (al.nombre+' '+al.apellido).trim(), email, ciRaw);
     res.json({ ok: true, email, ci: ciRaw, wa_enviado: !!al.telefono });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Pasa el usuario de UN alumno ya existente al formato fácil (primer nombre + apellido). El usuario anterior deja de servir:
+// la respuesta lo trae para avisarle al alumno. Queda en la auditoría.
+app.post('/api/alumnos/:id/usuario-facil', auth(ADM), (req, res) => {
+  const al = db.prepare('SELECT id, nombre, apellido, ci, usuario_id FROM alumnos WHERE id=?').get(req.params.id);
+  if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
+  if (!al.usuario_id) return res.status(400).json({ error: 'El alumno no tiene usuario' });
+  const u = db.prepare('SELECT email FROM usuarios WHERE id=?').get(al.usuario_id);
+  const nuevo = emailAlumnoGenerado(al.nombre, al.apellido, al.ci, al.usuario_id);
+  if (u && u.email === nuevo) return res.json({ ok: true, sin_cambios: true, usuario: nuevo });
+  db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevo, al.usuario_id);
+  audit(req.user.id, 'USUARIO_FACIL', 'usuarios', al.usuario_id, { alumno_id: al.id, anterior: u ? u.email : null, nuevo });
+  res.json({ ok: true, anterior: u ? u.email : null, usuario: nuevo });
 });
 
 // ── PREVISUALIZAR cuántos alumnos tiene un grupo (ANTES de :id para evitar conflicto de rutas) ──
@@ -4020,9 +4065,7 @@ app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res
         try {
           const existente = db.prepare('SELECT id,carrera_id,curso_id,usuario_id FROM alumnos WHERE ci=?').get(ciRaw);
           const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-          let emailAuto = norm(nombre).slice(0,1)+norm(apellido)+'@its.edu.py';
-          if (db.prepare('SELECT id FROM usuarios WHERE email=? AND ci!=?').get(emailAuto, ciRaw))
-            emailAuto = norm(nombre).slice(0,1)+norm(apellido)+'.'+ciRaw.slice(-3)+'@its.edu.py';
+          let emailAuto = emailAlumnoGenerado(nombre, apellido, ciRaw, '');
 
           if (existente) {
             db.prepare('UPDATE alumnos SET carrera_id=?,curso_id=?,nombre=?,apellido=? WHERE ci=?').run(carrera_id, curso_id||null, nombre, apellido, ciRaw);
@@ -4087,9 +4130,7 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
   alSinUsuario.forEach(al => {
     const ciRaw = String(al.ci||'').replace(/[^0-9]/g,'');
     if(!ciRaw) return;
-    let email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'@its.edu.py';
-    if(db.prepare('SELECT id FROM usuarios WHERE email=?').get(email))
-      email = norm(al.nombre).slice(0,1)+norm(al.apellido)+'.'+ciRaw.slice(-3)+'@its.edu.py';
+    let email = emailAlumnoGenerado(al.nombre, al.apellido, ciRaw, '');
     const uid='u_acc_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
     try{
       db.prepare('INSERT OR IGNORE INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
@@ -7573,11 +7614,7 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
           let al = stmtBuscarCI.get(ci);
           if (!al) {
             // Crear alumno NUEVO sin carrera ni curso
-            const nPart = normId(nombre.split(' ')[0]);
-            const aPart = normId(apellido.split(' ').pop()).slice(0,4);
-            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
-            let emailAuto = `${emailBase}@its.edu.py`;
-            if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+            let emailAuto = emailAlumnoGenerado(nombre, apellido, ci, '');
             const aid = `a_imp_${seq++}_${Math.random().toString(36).slice(2,6)}`;
             let uid = null;
             const usuExiste = stmtUsuExiste.get(ci);
@@ -7859,11 +7896,7 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
             let uid = null;
             if (ciValida) {
               // Con CI: crear cuenta de usuario
-              const nPart = normId((nombre||'').split(' ')[0]);
-              const aPart = normId((apellido||'').split(' ').pop()).slice(0,4);
-              let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
-              let emailAuto = `${emailBase}@its.edu.py`;
-              if (stmtChkMail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+              let emailAuto = emailAlumnoGenerado(nombre, apellido, ci, '');
               const usuEx = stmtUsuEx.get(ci);
               if (!usuEx) {
                 uid = 'u_e_'+Date.now()+'_'+Math.random().toString(36).slice(2,4);
@@ -7999,11 +8032,7 @@ app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (r
           if (!al && carrera_id) {
             // ── CREAR alumno nuevo ──
             // Usuario: nombre + primeras 3 letras del apellido (ej: alexandro.fig)
-            const nPart = normId(nombre.split(' ')[0]);  // solo primer nombre
-            const aPart = normId(apellido.split(' ').pop()).slice(0,4); // primeras 4 del último apellido
-            let emailBase = nPart && aPart ? `${nPart}.${aPart}` : (nPart || `alumno.${ci}`);
-            let emailAuto = `${emailBase}@its.edu.py`;
-            if (stmtCheckEmail.get(emailAuto, ci)) emailAuto = `${emailBase}.${ci.slice(-3)}@its.edu.py`;
+            let emailAuto = emailAlumnoGenerado(nombre, apellido, ci, '');
 
             const _yrI2 = nowSys().getFullYear(); const _pfxI2 = carr ? `${carr.codigo}-${_yrI2}-` : null;
             const _matsI2 = _pfxI2 ? db.prepare('SELECT matricula FROM alumnos WHERE carrera_id=? AND matricula LIKE ?').all(carrera_id, _pfxI2+'%') : [];
@@ -9229,10 +9258,7 @@ app.post('/api/admin/reparar-alumno', auth(ADM), (req, res) => {
     }
     if (!finalUid) {
       // Crear nuevo usuario
-      let emailBase = (nNorm||'alumno')+'.'+(aNorm||alumno_id.slice(-4))+'@its.edu.py';
-      if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailBase)) {
-        emailBase = (nNorm||'alumno')+'.'+(aNorm||alumno_id.slice(-4))+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
-      }
+      let emailBase = emailAlumnoGenerado(alumno.nombre, alumno.apellido, ciRaw, '');
       const bcrypt = require('bcryptjs');
       const pwHash = bcrypt.hashSync('alumno123', 10);
       finalUid = 'u_a_rep_'+Date.now();
@@ -11827,9 +11853,7 @@ app.put('/api/solicitudes-alumno/:id/resolver', auth(ADM), (req, res) => {
         } else if (existPorNombre) {
           finalUid = existPorNombre.id;
         } else {
-          let emailFinal = normNombre+'.'+normApellido+'@its.edu.py';
-          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-            emailFinal = normNombre+'.'+normApellido+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+          let emailFinal = emailAlumnoGenerado(sol.nombre, sol.apellido, ciRaw, '');
           finalUid = 'u_a_'+Date.now();
           db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)').run(finalUid,sol.nombre,sol.apellido,ciRaw,emailFinal,require('bcryptjs').hashSync(ciRaw||'123456',10),'alumno');
         }
@@ -12860,9 +12884,7 @@ app.post('/pub/registro-directo', async (req, res) => {
       : db.prepare('SELECT id FROM cursos WHERE carrera_id=? AND anio=? AND activo=1 ORDER BY division LIMIT 1').get(carrera_id, parseInt(anio));
     // Generar email/usuario
     const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
-    let email = norm(nombre.trim()).slice(0,1) + norm(apellido.trim()) + '@its.edu.py';
-    const conflict = db.prepare('SELECT id FROM usuarios WHERE email=?').get(email);
-    if (conflict) email = norm(nombre.trim()).slice(0,1) + norm(apellido.trim()) + '.' + ciNorm.slice(-3) + '@its.edu.py';
+    let email = emailAlumnoGenerado(nombre.trim(), apellido.trim(), ciNorm, '');
     const uid2 = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
     const aid  = 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
     const fechaHoy = new Date().toISOString().slice(0,10);
@@ -12976,11 +12998,9 @@ app.post('/pub/alumno/completar', (req, res) => {
       const nuevoNombre = (nombre && nombre.trim()) ? nombre.trim() : (alumno.nombre||'');
       const nuevoApellido = (apellido && apellido.trim()) ? apellido.trim() : (alumno.apellido||'');
       const ciNum = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
-      let nuevoEmail = norm(nuevoNombre).slice(0,1)+norm(nuevoApellido)+"@its.edu.py";
-      const conflicto = db.prepare('SELECT id FROM usuarios WHERE email=? AND id!=?').get(nuevoEmail, alumno.usuario_id);
-      if (conflicto) nuevoEmail = norm(nuevoNombre).slice(0,1)+norm(nuevoApellido)+'.'+(ciNum.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
       const emailActual = db.prepare('SELECT email FROM usuarios WHERE id=?').get(alumno.usuario_id)?.email||'';
-      if (nuevoEmail !== emailActual) {
+      const nuevoEmail = emailTrasRenombrar(alumno.usuario_id, alumno.nombre, alumno.apellido, nuevoNombre, nuevoApellido, ciNum);
+      if (nuevoEmail && nuevoEmail !== emailActual) {
         db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, alumno.usuario_id);
         logQR('email', emailActual, nuevoEmail);
       }
@@ -13631,9 +13651,7 @@ function aprobarRegistroNuevo(sol, actorId, opts = {}) {
           finalUid = existPorNombre.id;
           if (existPorNombre.rol === 'alumno') db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
         } else {
-          let emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'@its.edu.py';
-          if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-            emailFinal = norm(sol.nombre).slice(0,1)+norm(sol.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+          let emailFinal = emailAlumnoGenerado(sol.nombre, sol.apellido, ciRaw, '');
           finalUid = 'u_a_'+Date.now();
           db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
             .run(finalUid, sol.nombre, sol.apellido, ciRaw, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
@@ -13713,9 +13731,7 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
               finalUid = existPorCi.id;
               db.prepare('UPDATE usuarios SET activo=1 WHERE id=?').run(finalUid);
             } else {
-              let emailFinal = norm(alumno.nombre).slice(0,1)+norm(alumno.apellido)+'@its.edu.py';
-              if (db.prepare('SELECT id FROM usuarios WHERE email=?').get(emailFinal))
-                emailFinal = norm(alumno.nombre).slice(0,1)+norm(alumno.apellido)+'.'+(ciRaw.slice(-3)||String(Date.now()%1000))+'@its.edu.py';
+              let emailFinal = emailAlumnoGenerado(alumno.nombre, alumno.apellido, ciRaw, '');
               finalUid = 'u_a_'+Date.now();
               db.prepare('INSERT INTO usuarios (id,nombre,apellido,ci,email,password_hash,rol,activo) VALUES (?,?,?,?,?,?,?,1)')
                 .run(finalUid, alumno.nombre, alumno.apellido, ciRaw||null, emailFinal, require('bcryptjs').hashSync(ciRaw||'123456',10), 'alumno');
