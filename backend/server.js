@@ -7055,6 +7055,115 @@ app.get('/api/notas/carrera/:carrera_id/curso/:curso_id', auth(), (req, res) => 
   res.json({ asignaciones: asigs, alumnos, notas: notasMap });
 });
 
+// ── REPORTE: alumnos que PAGARON el arancel del final y NO tienen nota (pedido del director, 2026-10-29) ──
+// Para rendir el final ordinario o el recuperatorio hay que abonar su arancel (queda un pago con la materia). Este reporte
+// lista, por carrera / semestre (período) / año, a quienes pagaron ese examen en esa materia y todavía no tienen la nota:
+// final ordinario pagado sin nota de final ordinario, y/o recuperatorio pagado sin nota de recuperatorio. Quien no pagó no
+// aparece (simplemente no rindió). Si en una materia TODOS los que pagaron están sin nota, se marca: el final no se cargó.
+function datosSinFinal({ carrera_id, periodo_id, anio, examen }) {
+  const per = db.prepare('SELECT * FROM periodos WHERE id=?').get(periodo_id);
+  if (!per) return null;
+  const quiere = examen === 'ord' ? { ord: true, rec: false } : examen === 'rec' ? { ord: false, rec: true } : { ord: true, rec: true };
+  let where = 'WHERE a.periodo_id=?'; const params = [per.id];
+  if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
+  if (anio) { where += ' AND cu.anio=?'; params.push(parseInt(anio)); }
+  const asigs = db.prepare(`
+    SELECT a.id, a.curso_id, ca.id as carrera_id, ca.nombre as carrera, cu.anio, cu.division, m.nombre as materia,
+      u.nombre as docente_nombre, u.apellido as docente_apellido
+    FROM asignaciones a
+    JOIN materias m ON a.materia_id=m.id
+    JOIN cursos cu ON a.curso_id=cu.id
+    JOIN carreras ca ON cu.carrera_id=ca.id
+    LEFT JOIN docentes d ON a.docente_id=d.id
+    LEFT JOIN usuarios u ON d.usuario_id=u.id
+    ${where} ORDER BY ca.nombre, cu.anio, cu.division, m.nombre`).all(...params);
+  const pagosDe = db.prepare(`SELECT p.alumno_id, p.concepto, p.fecha_pago, p.nro_recibo FROM pagos p
+    WHERE p.asignacion_id=? AND COALESCE(p.estado,'')!='Anulado'
+      AND (lower(p.concepto) LIKE '%final ordinario%' OR lower(p.concepto) LIKE '%final recuperatorio%')
+    ORDER BY p.fecha_pago, p.rowid`);
+  const notasDe = db.prepare('SELECT alumno_id, parcial, parcial_recuperatorio, puntaje_total, final_ord, final_recuperatorio, ausente, estado FROM notas WHERE asignacion_id=?');
+  const alumnoDe = db.prepare(`SELECT al.id, COALESCE(al.apellido,u.apellido) as apellido, COALESCE(al.nombre,u.nombre) as nombre,
+    COALESCE(al.ci,u.ci) as ci, al.matricula, al.telefono FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.id=? AND al.estado='Activo'`);
+  const grupos = []; const unicos = new Set(); let registros = 0;
+  for (const a of asigs) {
+    const mapa = {}; notasDe.all(a.id).forEach(n => { mapa[n.alumno_id] = n; });
+    const pagaron = {};
+    pagosDe.all(a.id).forEach(p => {
+      const k = String(p.concepto || '').toLowerCase().includes('recuperatorio') ? 'rec' : 'ord';
+      (pagaron[p.alumno_id] = pagaron[p.alumno_id] || {})[k] = { fecha: p.fecha_pago, recibo: p.nro_recibo || null };
+    });
+    let pagadores = 0; const sin = [];
+    for (const alumnoId of Object.keys(pagaron)) {
+      const al = alumnoDe.get(alumnoId); if (!al) continue;
+      pagadores++;
+      const pg = pagaron[alumnoId], n = mapa[alumnoId] || null;
+      const faltaOrd = !!pg.ord && (!n || n.final_ord === null), faltaRec = !!pg.rec && (!n || n.final_recuperatorio === null);
+      if (!((quiere.ord && faltaOrd) || (quiere.rec && faltaRec))) continue;
+      sin.push({ id: al.id, apellido: al.apellido, nombre: al.nombre, ci: al.ci, matricula: al.matricula, telefono: al.telefono,
+        ord: pg.ord ? { pagado: true, fecha: pg.ord.fecha, recibo: pg.ord.recibo, nota: n ? n.final_ord : null } : { pagado: false },
+        rec: pg.rec ? { pagado: true, fecha: pg.rec.fecha, recibo: pg.rec.recibo, nota: n ? n.final_recuperatorio : null } : { pagado: false },
+        falta_ord: faltaOrd, falta_rec: faltaRec,
+        parcial: n ? n.parcial : null, parcial_recuperatorio: n ? n.parcial_recuperatorio : null, puntaje_total: n ? n.puntaje_total : null,
+        ausente: n ? n.ausente : null, estado: n ? n.estado : 'Sin planilla' });
+      unicos.add(al.id);
+    }
+    sin.sort((x, y) => String(x.apellido || '').localeCompare(String(y.apellido || ''), 'es') || String(x.nombre || '').localeCompare(String(y.nombre || ''), 'es'));
+    registros += sin.length;
+    grupos.push({ asignacion_id: a.id, carrera_id: a.carrera_id, carrera: a.carrera, anio: a.anio, seccion: a.division, materia: a.materia,
+      docente: `${a.docente_nombre || ''} ${a.docente_apellido || ''}`.trim(), pagaron: pagadores, sin_nota: sin.length, con_nota: pagadores - sin.length,
+      nadie_con_nota: pagadores > 0 && sin.length === pagadores, alumnos: sin });
+  }
+  return {
+    periodo: { id: per.id, nombre: per.nombre, semestre: per.semestre, anio: per.anio, inicio: per.fecha_inicio, en_curso: periodoVigenteId() === per.id },
+    filtro: { examen: examen === 'ord' || examen === 'rec' ? examen : 'ambos' },
+    totales: { materias: grupos.length, materias_con_pendientes: grupos.filter(g => g.sin_nota > 0).length, registros, alumnos: unicos.size,
+      pagaron: grupos.reduce((t, g) => t + g.pagaron, 0) },
+    grupos
+  };
+}
+function periodoSinFinalPorDefecto() {
+  // por defecto, el semestre anterior al que está en curso (ya terminó); si no hay anterior, el vigente
+  const vig = periodoVigenteId();
+  const ant = vig ? db.prepare('SELECT id FROM periodos WHERE fecha_inicio < (SELECT fecha_inicio FROM periodos WHERE id=?) ORDER BY fecha_inicio DESC LIMIT 1').get(vig) : null;
+  return (ant && ant.id) || vig;
+}
+const _sinFinalParams = q => ({ carrera_id: q.carrera_id || '', periodo_id: q.periodo_id || periodoSinFinalPorDefecto(), anio: q.anio || '', examen: q.examen || '' });
+app.get('/api/reportes/sin-final', auth(ADM), (req, res) => {
+  try {
+    const d = datosSinFinal(_sinFinalParams(req.query));
+    if (!d) return res.status(404).json({ error: 'Período no encontrado' });
+    res.json(d);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/reportes/sin-final.xlsx', auth(ADM), (req, res) => {
+  try {
+    const d = datosSinFinal(_sinFinalParams(req.query));
+    if (!d) return res.status(404).json({ error: 'Período no encontrado' });
+    const secc = x => (x && x !== 'U') ? x : 'Única';
+    const fmt = f => f ? String(f).split('-').reverse().join('/') : '';
+    const est = e => !e.pagado ? 'No pagó' : (e.nota === null || e.nota === undefined) ? 'Pagó · SIN NOTA' : 'Nota: ' + e.nota;
+    const resumen = d.grupos.map(g => ({ Carrera: g.carrera, 'Año': g.anio + '°', 'Sección': secc(g.seccion), Materia: g.materia, Docente: g.docente,
+      'Pagaron el final': g.pagaron, 'Con nota': g.con_nota, 'Pagaron y SIN nota': g.sin_nota, 'Observación': g.nadie_con_nota ? 'Nadie tiene nota: el final no se cargó' : '' }));
+    const filas = [];
+    d.grupos.forEach(g => g.alumnos.forEach(al => filas.push({ Carrera: g.carrera, 'Año': g.anio + '°', 'Sección': secc(g.seccion), Materia: g.materia, Docente: g.docente,
+      Apellido: al.apellido, Nombre: al.nombre, 'C.I.': al.ci, 'Matrícula': al.matricula, 'Teléfono': al.telefono || '',
+      'Final ordinario': est(al.ord), 'Pago ordinario': al.ord.pagado ? fmt(al.ord.fecha) : '', 'Recibo ordinario': al.ord.recibo || '',
+      'Final recuperatorio': est(al.rec), 'Pago recuperatorio': al.rec.pagado ? fmt(al.rec.fecha) : '', 'Recibo recuperatorio': al.rec.recibo || '',
+      Parcial: al.parcial, 'Puntaje total': al.puntaje_total, Ausente: al.ausente ? 'Sí' : '' })));
+    const wb = XLSX.utils.book_new();
+    const hojaAl = XLSX.utils.json_to_sheet(filas);
+    hojaAl['!cols'] = [26, 7, 9, 38, 28, 22, 24, 11, 14, 14, 18, 12, 14, 18, 12, 14, 8, 10, 8].map(w => ({ wch: w }));
+    const hojaRes = XLSX.utils.json_to_sheet(resumen);
+    hojaRes['!cols'] = [26, 7, 9, 38, 28, 12, 10, 14, 34].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, hojaAl, 'Pagaron y sin nota');
+    XLSX.utils.book_append_sheet(wb, hojaRes, 'Resumen por materia');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="pagaron_final_sin_nota_${d.periodo.semestre || ''}sem_${d.periodo.anio || ''}.xlsx"`);
+    res.send(buf);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── CIERRE Y PROMOCIÓN SEMESTRAL ──────────────────────────────────────────────
 // Regla: nota_final >= 2 → aprobada. nota_final === 1 → reprobada pero NO bloquea
 // la promoción (queda pendiente de extraordinario en diciembre). nota_final === null
