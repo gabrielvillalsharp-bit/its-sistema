@@ -7055,15 +7055,25 @@ app.get('/api/notas/carrera/:carrera_id/curso/:curso_id', auth(), (req, res) => 
   res.json({ asignaciones: asigs, alumnos, notas: notasMap });
 });
 
-// ── REPORTE: alumnos que PAGARON el arancel del final y NO tienen nota (pedido del director, 2026-10-29) ──
-// Para rendir el final ordinario o el recuperatorio hay que abonar su arancel (queda un pago con la materia). Este reporte
-// lista, por carrera / semestre (período) / año, a quienes pagaron ese examen en esa materia y todavía no tienen la nota:
-// final ordinario pagado sin nota de final ordinario, y/o recuperatorio pagado sin nota de recuperatorio. Quien no pagó no
-// aparece (simplemente no rindió). Si en una materia TODOS los que pagaron están sin nota, se marca: el final no se cargó.
+// ── REPORTE: finales habilitados (por pago o por la Dirección) SIN nota (pedido del director, 2026-10-29) ──
+// Para rendir un final hay que abonar su arancel o que la Dirección habilite al alumno. Este reporte lista, por carrera /
+// semestre (período) / año, a los alumnos que están habilitados en una materia para CUALQUIER final (ordinario, recuperatorio,
+// complementario o extraordinario) y no tienen nota en NINGÚN final de ella. Quien ya tiene nota en algún final no aparece;
+// quien no pagó ni fue habilitado tampoco (no rindió). Si en una materia TODOS los habilitados están sin nota, se marca:
+// el final no se cargó.
+const _FINALES = { ord: 'Final ordinario', rec: 'Final recuperatorio', comp: 'Final complementario', ext: 'Final extraordinario' };
+function _tipoFinal(texto) {
+  const t = String(texto || '').toLowerCase();
+  if (t.includes('recuperatorio')) return t.includes('parcial') ? null : 'rec';
+  if (t.includes('complementario')) return 'comp';
+  if (t.includes('extraordinario')) return 'ext';
+  if (t.includes('final')) return 'ord';
+  return null;
+}
 function datosSinFinal({ carrera_id, periodo_id, anio, examen }) {
   const per = db.prepare('SELECT * FROM periodos WHERE id=?').get(periodo_id);
   if (!per) return null;
-  const quiere = examen === 'ord' ? { ord: true, rec: false } : examen === 'rec' ? { ord: false, rec: true } : { ord: true, rec: true };
+  const solo = ['ord', 'rec', 'comp', 'ext'].includes(examen) ? examen : '';
   let where = 'WHERE a.periodo_id=?'; const params = [per.id];
   if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
   if (anio) { where += ' AND cu.anio=?'; params.push(parseInt(anio)); }
@@ -7078,31 +7088,40 @@ function datosSinFinal({ carrera_id, periodo_id, anio, examen }) {
     LEFT JOIN usuarios u ON d.usuario_id=u.id
     ${where} ORDER BY ca.nombre, cu.anio, cu.division, m.nombre`).all(...params);
   const pagosDe = db.prepare(`SELECT p.alumno_id, p.concepto, p.fecha_pago, p.nro_recibo FROM pagos p
-    WHERE p.asignacion_id=? AND COALESCE(p.estado,'')!='Anulado'
-      AND (lower(p.concepto) LIKE '%final ordinario%' OR lower(p.concepto) LIKE '%final recuperatorio%')
+    WHERE p.asignacion_id=? AND COALESCE(p.estado,'')!='Anulado' AND lower(p.concepto) LIKE '%final%'
     ORDER BY p.fecha_pago, p.rowid`);
-  const notasDe = db.prepare('SELECT alumno_id, parcial, parcial_recuperatorio, puntaje_total, final_ord, final_recuperatorio, ausente, estado FROM notas WHERE asignacion_id=?');
+  const habsDe = db.prepare(`SELECT alumno_id, tipo_examen, motivo, fecha FROM habilitaciones_examen
+    WHERE asignacion_id=? AND habilitado=1 AND tipo_examen IN ('final','final_ord','final_ordinario','final_recuperatorio','complementario','extraordinario')
+    ORDER BY fecha, rowid`);
+  const notasDe = db.prepare('SELECT alumno_id, parcial, parcial_recuperatorio, puntaje_total, final_ord, final_recuperatorio, complementario, extraordinario, ausente, estado FROM notas WHERE asignacion_id=?');
   const alumnoDe = db.prepare(`SELECT al.id, COALESCE(al.apellido,u.apellido) as apellido, COALESCE(al.nombre,u.nombre) as nombre,
     COALESCE(al.ci,u.ci) as ci, al.matricula, al.telefono FROM alumnos al LEFT JOIN usuarios u ON al.usuario_id=u.id WHERE al.id=? AND al.estado='Activo'`);
+  const campoNota = { ord: 'final_ord', rec: 'final_recuperatorio', comp: 'complementario', ext: 'extraordinario' };
   const grupos = []; const unicos = new Set(); let registros = 0;
   for (const a of asigs) {
     const mapa = {}; notasDe.all(a.id).forEach(n => { mapa[n.alumno_id] = n; });
-    const pagaron = {};
-    pagosDe.all(a.id).forEach(p => {
-      const k = String(p.concepto || '').toLowerCase().includes('recuperatorio') ? 'rec' : 'ord';
-      (pagaron[p.alumno_id] = pagaron[p.alumno_id] || {})[k] = { fecha: p.fecha_pago, recibo: p.nro_recibo || null };
+    const hab = {};   // alumno -> { ord|rec|comp|ext: { via:'pago'|'direccion', fecha, recibo } }
+    pagosDe.all(a.id).forEach(p => {   // 1.º los pagos (traen fecha y N.º de recibo)
+      const k = _tipoFinal(p.concepto); if (!k) return;
+      const x = hab[p.alumno_id] = hab[p.alumno_id] || {};
+      if (!x[k] || x[k].via !== 'pago') x[k] = { via: 'pago', fecha: p.fecha_pago, recibo: p.nro_recibo || null };
     });
-    let pagadores = 0; const sin = [];
-    for (const alumnoId of Object.keys(pagaron)) {
+    habsDe.all(a.id).forEach(h => {    // 2.º las habilitaciones: "por pago de..." o por la Dirección (sin pago)
+      const k = _tipoFinal(h.tipo_examen === 'final' ? 'final ordinario' : String(h.tipo_examen).replace(/_/g, ' ')); if (!k) return;
+      const x = hab[h.alumno_id] = hab[h.alumno_id] || {};
+      if (!x[k]) x[k] = { via: /pago de/i.test(h.motivo || '') ? 'pago' : 'direccion', fecha: h.fecha, recibo: null };
+    });
+    let habilitados = 0; const sin = [];
+    for (const alumnoId of Object.keys(hab)) {
       const al = alumnoDe.get(alumnoId); if (!al) continue;
-      pagadores++;
-      const pg = pagaron[alumnoId], n = mapa[alumnoId] || null;
-      const faltaOrd = !!pg.ord && (!n || n.final_ord === null), faltaRec = !!pg.rec && (!n || n.final_recuperatorio === null);
-      if (!((quiere.ord && faltaOrd) || (quiere.rec && faltaRec))) continue;
+      habilitados++;
+      const n = mapa[alumnoId] || null, hb = hab[alumnoId];
+      // quien tiene nota en CUALQUIER final no aparece
+      if (n && (n.final_ord !== null || n.final_recuperatorio !== null || n.complementario !== null || n.extraordinario !== null)) continue;
+      if (!(solo ? hb[solo] : Object.keys(hb).length)) continue;
+      const ex = k => hb[k] ? { habilitado: true, via: hb[k].via, fecha: hb[k].fecha, recibo: hb[k].recibo, nota: n ? n[campoNota[k]] : null } : { habilitado: false };
       sin.push({ id: al.id, apellido: al.apellido, nombre: al.nombre, ci: al.ci, matricula: al.matricula, telefono: al.telefono,
-        ord: pg.ord ? { pagado: true, fecha: pg.ord.fecha, recibo: pg.ord.recibo, nota: n ? n.final_ord : null } : { pagado: false },
-        rec: pg.rec ? { pagado: true, fecha: pg.rec.fecha, recibo: pg.rec.recibo, nota: n ? n.final_recuperatorio : null } : { pagado: false },
-        falta_ord: faltaOrd, falta_rec: faltaRec,
+        ord: ex('ord'), rec: ex('rec'), comp: ex('comp'), ext: ex('ext'),
         parcial: n ? n.parcial : null, parcial_recuperatorio: n ? n.parcial_recuperatorio : null, puntaje_total: n ? n.puntaje_total : null,
         ausente: n ? n.ausente : null, estado: n ? n.estado : 'Sin planilla' });
       unicos.add(al.id);
@@ -7110,14 +7129,14 @@ function datosSinFinal({ carrera_id, periodo_id, anio, examen }) {
     sin.sort((x, y) => String(x.apellido || '').localeCompare(String(y.apellido || ''), 'es') || String(x.nombre || '').localeCompare(String(y.nombre || ''), 'es'));
     registros += sin.length;
     grupos.push({ asignacion_id: a.id, carrera_id: a.carrera_id, carrera: a.carrera, anio: a.anio, seccion: a.division, materia: a.materia,
-      docente: `${a.docente_nombre || ''} ${a.docente_apellido || ''}`.trim(), pagaron: pagadores, sin_nota: sin.length, con_nota: pagadores - sin.length,
-      nadie_con_nota: pagadores > 0 && sin.length === pagadores, alumnos: sin });
+      docente: `${a.docente_nombre || ''} ${a.docente_apellido || ''}`.trim(), habilitados, sin_nota: sin.length, con_nota: habilitados - sin.length,
+      nadie_con_nota: habilitados > 0 && sin.length === habilitados, alumnos: sin });
   }
   return {
     periodo: { id: per.id, nombre: per.nombre, semestre: per.semestre, anio: per.anio, inicio: per.fecha_inicio, en_curso: periodoVigenteId() === per.id },
-    filtro: { examen: examen === 'ord' || examen === 'rec' ? examen : 'ambos' },
+    filtro: { examen: solo || 'todos' },
     totales: { materias: grupos.length, materias_con_pendientes: grupos.filter(g => g.sin_nota > 0).length, registros, alumnos: unicos.size,
-      pagaron: grupos.reduce((t, g) => t + g.pagaron, 0) },
+      habilitados: grupos.reduce((t, g) => t + g.habilitados, 0) },
     grupos
   };
 }
@@ -7141,25 +7160,26 @@ app.get('/api/reportes/sin-final.xlsx', auth(ADM), (req, res) => {
     if (!d) return res.status(404).json({ error: 'Período no encontrado' });
     const secc = x => (x && x !== 'U') ? x : 'Única';
     const fmt = f => f ? String(f).split('-').reverse().join('/') : '';
-    const est = e => !e.pagado ? 'No pagó' : (e.nota === null || e.nota === undefined) ? 'Pagó · SIN NOTA' : 'Nota: ' + e.nota;
+    const est = e => !e.habilitado ? '—' : (e.nota === null || e.nota === undefined) ? (e.via === 'pago' ? 'Pagó · SIN NOTA' : 'Habilitado por Dirección · SIN NOTA') : 'Nota: ' + e.nota;
     const resumen = d.grupos.map(g => ({ Carrera: g.carrera, 'Año': g.anio + '°', 'Sección': secc(g.seccion), Materia: g.materia, Docente: g.docente,
-      'Pagaron el final': g.pagaron, 'Con nota': g.con_nota, 'Pagaron y SIN nota': g.sin_nota, 'Observación': g.nadie_con_nota ? 'Nadie tiene nota: el final no se cargó' : '' }));
+      'Habilitados para un final': g.habilitados, 'Con nota': g.con_nota, 'Habilitados y SIN nota': g.sin_nota, 'Observación': g.nadie_con_nota ? 'Nadie tiene nota: el final no se cargó' : '' }));
     const filas = [];
     d.grupos.forEach(g => g.alumnos.forEach(al => filas.push({ Carrera: g.carrera, 'Año': g.anio + '°', 'Sección': secc(g.seccion), Materia: g.materia, Docente: g.docente,
       Apellido: al.apellido, Nombre: al.nombre, 'C.I.': al.ci, 'Matrícula': al.matricula, 'Teléfono': al.telefono || '',
-      'Final ordinario': est(al.ord), 'Pago ordinario': al.ord.pagado ? fmt(al.ord.fecha) : '', 'Recibo ordinario': al.ord.recibo || '',
-      'Final recuperatorio': est(al.rec), 'Pago recuperatorio': al.rec.pagado ? fmt(al.rec.fecha) : '', 'Recibo recuperatorio': al.rec.recibo || '',
+      'Final ordinario': est(al.ord), 'Fecha ordinario': al.ord.habilitado ? fmt(al.ord.fecha) : '', 'Recibo ordinario': al.ord.recibo || '',
+      'Final recuperatorio': est(al.rec), 'Fecha recuperatorio': al.rec.habilitado ? fmt(al.rec.fecha) : '', 'Recibo recuperatorio': al.rec.recibo || '',
+      'Complementario': est(al.comp), 'Extraordinario': est(al.ext),
       Parcial: al.parcial, 'Puntaje total': al.puntaje_total, Ausente: al.ausente ? 'Sí' : '' })));
     const wb = XLSX.utils.book_new();
     const hojaAl = XLSX.utils.json_to_sheet(filas);
-    hojaAl['!cols'] = [26, 7, 9, 38, 28, 22, 24, 11, 14, 14, 18, 12, 14, 18, 12, 14, 8, 10, 8].map(w => ({ wch: w }));
+    hojaAl['!cols'] = [26, 7, 9, 38, 28, 22, 24, 11, 14, 14, 26, 12, 14, 26, 12, 14, 16, 16, 8, 10, 8].map(w => ({ wch: w }));
     const hojaRes = XLSX.utils.json_to_sheet(resumen);
-    hojaRes['!cols'] = [26, 7, 9, 38, 28, 12, 10, 14, 34].map(w => ({ wch: w }));
-    XLSX.utils.book_append_sheet(wb, hojaAl, 'Pagaron y sin nota');
+    hojaRes['!cols'] = [26, 7, 9, 38, 28, 14, 10, 14, 34].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, hojaAl, 'Habilitados y sin nota');
     XLSX.utils.book_append_sheet(wb, hojaRes, 'Resumen por materia');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="pagaron_final_sin_nota_${d.periodo.semestre || ''}sem_${d.periodo.anio || ''}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="finales_sin_nota_${d.periodo.semestre || ''}sem_${d.periodo.anio || ''}.xlsx"`);
     res.send(buf);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

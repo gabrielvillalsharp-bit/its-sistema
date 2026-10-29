@@ -10955,7 +10955,7 @@ function pgHubPrincipal(el){
     ${esDirec?_mCardSm('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
     ${esDirec?_mCardSm('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
     ${esDirec?_mCardSm('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
-    ${esDirec?_mCardSm('sin-final','📝','Pagaron y sin nota','Finales por carrera, semestre y año','#dc2626','#fef2f2'):''}
+    ${esDirec?_mCardSm('sin-final','📝','Finales sin nota','Pagaron o habilitados','#dc2626','#fef2f2'):''}
     ${me.rol==='docente'?_mCardSm('mis-honorarios','💵','Mis honorarios','Ver mis pagos','#d97706','#fffbeb'):''}
     ${_mCardSm('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
   </div>
@@ -10967,10 +10967,10 @@ function pgHubPrincipal(el){
     ${_mCardSm('auditoria','🔍','Auditoría','Registro de acciones','#6d28d9','#f5f3ff')}
   </div>`:''}`;
 }
-// ── ALUMNOS QUE PAGARON EL FINAL Y NO TIENEN NOTA — por carrera, semestre y año ──────────────────────────────────────
-// Tarjeta en Gestión Institucional → Académico. Para rendir el final ordinario o el recuperatorio hay que abonar su
-// arancel: acá figuran, por materia, quienes ya pagaron y todavía no tienen la nota. Por defecto abre en el semestre
-// anterior (ya terminó).
+// ── FINALES SIN NOTA (habilitados por pago o por la Dirección) — por carrera, semestre y año ─────────────────────────
+// Tarjeta en Gestión Institucional → Académico. Para rendir un final (ordinario, recuperatorio, complementario o
+// extraordinario) hay que abonar su arancel o que la Dirección habilite al alumno: acá figuran, por materia, quienes
+// están habilitados y no tienen nota en ningún final. Por defecto abre en el semestre anterior (ya terminó).
 const _sfSemLbl=p=>p?`${p.semestre==1?'1.er':p.semestre+'.º'} semestre ${p.anio}`:'';
 const _sfFecha=f=>f?String(f).split('-').reverse().join('/'):'';
 async function pgSinFinal(el){
@@ -10985,13 +10985,13 @@ async function pgSinFinal(el){
   const sel='padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;min-width:160px';
   const lab='font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px';
   el.innerHTML=`<div class="ph" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <h3 style="margin:0">📝 Pagaron el final y no tienen nota</h3>
+      <h3 style="margin:0">📝 Finales sin nota</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="bs" onclick="sinFinalImprimir()">🖨 Imprimir / PDF</button>
         <button class="bn" onclick="sinFinalExcel()">⬇ Descargar Excel</button>
       </div>
     </div>
-    <p style="font-size:12.5px;color:#64748b;margin:2px 0 14px;line-height:1.5">Alumnos que <strong>abonaron el arancel</strong> del final ordinario o del recuperatorio de una materia y <strong>todavía no tienen la nota</strong> de ese examen. Quien no pagó no aparece (no rindió).</p>
+    <p style="font-size:12.5px;color:#64748b;margin:2px 0 14px;line-height:1.5">Alumnos que <strong>pagaron el arancel o fueron habilitados por la Dirección</strong> para rendir un final de la materia y <strong>no tienen nota en ningún final</strong> de ella. Quien ya tiene nota en cualquier final no aparece, ni quien no pagó ni fue habilitado (no rindió).</p>
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:16px">
       <div><div style="${lab}">CARRERA</div>
         <select id="sfCarrera" style="${sel}" onchange="sinFinalCargar()"><option value="">Todas las carreras</option>${(carrs||[]).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select></div>
@@ -10999,8 +10999,8 @@ async function pgSinFinal(el){
         <select id="sfPeriodo" style="${sel}" onchange="sinFinalCargar()">${perOrd.map(p=>`<option value="${p.id}">${_sfSemLbl(p)}</option>`).join('')}</select></div>
       <div><div style="${lab}">AÑO</div>
         <select id="sfAnio" style="${sel};min-width:130px" onchange="sinFinalCargar()"><option value="">Todos los años</option>${anios.map(a=>`<option value="${a}">${a}.º año</option>`).join('')}</select></div>
-      <div><div style="${lab}">EXAMEN</div>
-        <select id="sfExamen" style="${sel}" onchange="sinFinalCargar()"><option value="">Ordinario y recuperatorio</option><option value="ord">Solo final ordinario</option><option value="rec">Solo final recuperatorio</option></select></div>
+      <div><div style="${lab}">HABILITADO PARA</div>
+        <select id="sfExamen" style="${sel}" onchange="sinFinalCargar()"><option value="">Cualquier final</option><option value="ord">Final ordinario</option><option value="rec">Final recuperatorio</option><option value="comp">Final complementario</option><option value="ext">Final extraordinario</option></select></div>
     </div>
     <div id="sfRes"><div class="es">Cargando...</div></div>`;
   sinFinalCargar(true);
@@ -11017,11 +11017,16 @@ async function sinFinalCargar(primera){
     sinFinalPintar(d);
   }catch(e){ box.innerHTML=`<div class="es" style="color:#dc2626">No se pudo cargar: ${e.message}</div>`; }
 }
-// Estado de un examen de un alumno: "No pagó" / "Pagó · sin nota" / "Nota 3"
+// Estado de un examen de un alumno: "—" / "Pagó · sin nota" / "Habilitado por Dirección · sin nota" / "Nota 3"
 function _sfEstado(e){
-  if(!e||!e.pagado) return '<span style="font-size:11px;color:#94a3b8">No pagó</span>';
-  if(e.nota===null||e.nota===undefined) return `<span style="font-size:10.5px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:6px;padding:2px 8px;white-space:nowrap">Pagó · SIN NOTA</span><div style="font-size:10px;color:#94a3b8;margin-top:2px">${_sfFecha(e.fecha)}${e.recibo?' · '+e.recibo:''}</div>`;
-  return `<span style="font-size:10.5px;font-weight:800;color:#166534;background:#dcfce7;border-radius:6px;padding:2px 8px;white-space:nowrap">Nota ${e.nota}</span><div style="font-size:10px;color:#94a3b8;margin-top:2px">${_sfFecha(e.fecha)}${e.recibo?' · '+e.recibo:''}</div>`;
+  if(!e||!e.habilitado) return '<span style="font-size:11px;color:#cbd5e1">—</span>';
+  const pie=`<div style="font-size:10px;color:#94a3b8;margin-top:2px">${_sfFecha(e.fecha)}${e.recibo?' · '+e.recibo:''}</div>`;
+  if(e.nota===null||e.nota===undefined){
+    return e.via==='pago'
+      ?`<span style="font-size:10.5px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:6px;padding:2px 8px;white-space:nowrap">Pagó · SIN NOTA</span>${pie}`
+      :`<span style="font-size:10.5px;font-weight:800;color:#9a3412;background:#ffedd5;border-radius:6px;padding:2px 8px;white-space:nowrap">Habilitado por Dirección · SIN NOTA</span>${pie}`;
+  }
+  return `<span style="font-size:10.5px;font-weight:800;color:#166534;background:#dcfce7;border-radius:6px;padding:2px 8px;white-space:nowrap">Nota ${e.nota}</span>${pie}`;
 }
 function sinFinalPintar(d){
   const box=document.getElementById('sfRes'); if(!box) return;
@@ -11032,10 +11037,10 @@ function sinFinalPintar(d){
       ${chip(t.alumnos,'alumnos distintos','#b91c1c','#fef2f2')}
       ${chip(t.registros,'casos (alumno · materia)','#c2410c','#fff7ed')}
       ${chip(t.materias_con_pendientes+' / '+t.materias,'materias con pendientes','#1d4ed8','#eff6ff')}
-      ${chip(t.pagaron,'pagaron un final (total)','#166534','#f0fdf4')}
+      ${chip(t.habilitados,'habilitados para un final (total)','#166534','#f0fdf4')}
     </div>`;
-  if(d.periodo.en_curso) html+=`<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#92400e">⚠ Este es el semestre en curso: los finales todavía no se rindieron, por eso quienes ya pagaron figuran sin nota.</div>`;
-  if(!conPend.length){ box.innerHTML=html+'<div class="es" style="padding:30px">✓ No hay alumnos que hayan pagado el final y estén sin nota con estos filtros.</div>'; return; }
+  if(d.periodo.en_curso) html+=`<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#92400e">⚠ Este es el semestre en curso: los finales todavía no se rindieron, por eso quienes ya están habilitados figuran sin nota.</div>`;
+  if(!conPend.length){ box.innerHTML=html+'<div class="es" style="padding:30px">✓ No hay alumnos habilitados para un final y sin nota con estos filtros.</div>'; return; }
   const porCarrera={};
   conPend.forEach(g=>{ (porCarrera[g.carrera]=porCarrera[g.carrera]||[]).push(g); });
   Object.keys(porCarrera).forEach(car=>{
@@ -11048,19 +11053,22 @@ function sinFinalPintar(d){
       const arr=porAnio[k], a=arr[0];
       html+=`<div style="padding:8px 16px;background:#f1f5f9;font-size:11px;font-weight:800;color:#475569;letter-spacing:.05em;text-transform:uppercase;border-top:1px solid #e2e8f0">${a.anio}.º año${secc(a.seccion)}</div>`;
       arr.forEach(g=>{
+        const otros=g.alumnos.some(al=>(al.comp&&al.comp.habilitado)||(al.ext&&al.ext.habilitado));
+        const th='text-align:left;padding:6px 8px;font-weight:700';
         html+=`<div style="border-top:1px solid #f1f5f9">
           <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:#fafafa">
             <div><span style="font-weight:700;font-size:13px;color:#1e293b">📖 ${g.materia}</span>
               ${g.docente?`<span style="font-size:11px;color:#94a3b8;margin-left:8px">${g.docente}</span>`:''}
-              ${g.nadie_con_nota?`<span style="font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:6px;padding:2px 7px;margin-left:8px" title="Todos los que pagaron están sin nota: el final no se cargó">Nadie tiene nota</span>`:''}</div>
-            <span style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:8px;padding:3px 10px">${g.sin_nota} de ${g.pagaron} que pagaron, sin nota</span></div>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px">
+              ${g.nadie_con_nota?`<span style="font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:6px;padding:2px 7px;margin-left:8px" title="Todos los habilitados están sin nota: el final no se cargó">Nadie tiene nota</span>`:''}</div>
+            <span style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:8px;padding:3px 10px">${g.sin_nota} de ${g.habilitados} habilitados, sin nota</span></div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:${otros?820:640}px">
             <thead><tr style="background:#fff;color:#94a3b8;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">
-              <th style="text-align:left;padding:6px 16px;font-weight:700">Alumno</th><th style="text-align:left;padding:6px 8px;font-weight:700">C.I.</th><th style="text-align:left;padding:6px 8px;font-weight:700">Teléfono</th><th style="text-align:left;padding:6px 8px;font-weight:700">Final ordinario</th><th style="text-align:left;padding:6px 8px;font-weight:700">Final recuperatorio</th><th style="text-align:center;padding:6px 8px;font-weight:700">Parcial</th></tr></thead>
+              <th style="${th};padding-left:16px">Alumno</th><th style="${th}">C.I.</th><th style="${th}">Teléfono</th><th style="${th}">Final ordinario</th><th style="${th}">Final recuperatorio</th>${otros?`<th style="${th}">Complementario / Extraord.</th>`:''}<th style="text-align:center;padding:6px 8px;font-weight:700">Parcial</th></tr></thead>
             <tbody>${g.alumnos.map((al,i)=>`<tr style="border-top:1px solid #f1f5f9;${i%2?'background:#fafafa':''}">
               <td style="padding:7px 16px;font-weight:600;color:#1e293b">${al.apellido||''}, ${al.nombre||''}${al.ausente?' <span style="font-size:9px;font-weight:800;color:#b91c1c;background:#fee2e2;border-radius:4px;padding:1px 5px">AUSENTE</span>':''}<div style="font-size:10px;font-weight:400;color:#94a3b8">${al.matricula||''}</div></td>
               <td style="padding:7px 8px;color:#475569">${al.ci||'—'}</td><td style="padding:7px 8px;color:#475569">${al.telefono||'—'}</td>
               <td style="padding:7px 8px">${_sfEstado(al.ord)}</td><td style="padding:7px 8px">${_sfEstado(al.rec)}</td>
+              ${otros?`<td style="padding:7px 8px">${al.comp&&al.comp.habilitado?'<div style="font-size:9.5px;color:#64748b;font-weight:700">Complementario</div>'+_sfEstado(al.comp):''}${al.ext&&al.ext.habilitado?'<div style="font-size:9.5px;color:#64748b;font-weight:700;margin-top:3px">Extraordinario</div>'+_sfEstado(al.ext):''}${!(al.comp&&al.comp.habilitado)&&!(al.ext&&al.ext.habilitado)?'<span style="font-size:11px;color:#cbd5e1">—</span>':''}</td>`:''}
               <td style="padding:7px 8px;text-align:center;color:#475569">${al.parcial==null?'—':al.parcial}</td></tr>`).join('')}</tbody>
           </table></div></div>`;
       });
@@ -11075,7 +11083,7 @@ async function sinFinalExcel(){
     const r=await fetch('/api/reportes/sin-final.xlsx?'+q.toString(),{headers:{'Authorization':'Bearer '+tok}});
     if(!r.ok) throw new Error('No se pudo generar el Excel');
     const blob=await r.blob(); const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='pagaron_final_sin_nota.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const a=document.createElement('a'); a.href=url; a.download='finales_sin_nota.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),4000);
   }catch(e){ toast(e.message,'err'); }
 }
@@ -11085,12 +11093,13 @@ async function sinFinalImprimir(){
   let logoSrc=''; try{const lr=await api('GET','/api/logo');if(lr&&lr.logo)logoSrc=lr.logo;}catch(e){}
   const inst=me.institucion_nombre||'Instituto Técnico Superior';
   const secc=x=>(x&&x!=='U')?' '+x:'';
-  const ex=W._sf.examen==='ord'?'Final ordinario':W._sf.examen==='rec'?'Final recuperatorio':'Final ordinario y recuperatorio';
-  const filtro=[(W._sf.carrera?(gs[0]&&gs[0].carrera):'Todas las carreras'),_sfSemLbl(d.periodo),(W._sf.anio?W._sf.anio+'.º año':'Todos los años'),ex].join(' · ');
-  const txt=e=>!e||!e.pagado?'No pagó':(e.nota==null?'Pagó · SIN NOTA ('+_sfFecha(e.fecha)+')':'Nota '+e.nota);
-  const cuerpo=gs.map(g=>`<div class="mat"><div class="mh"><strong>${g.carrera}</strong> · ${g.anio}.º año${secc(g.seccion)} · <strong>${g.materia}</strong>${g.docente?' · '+g.docente:''} <span class="n">${g.sin_nota} de ${g.pagaron} que pagaron, sin nota</span></div>
-    <table><thead><tr><th>#</th><th>Alumno</th><th>C.I.</th><th>Teléfono</th><th>Final ordinario</th><th>Final recuperatorio</th></tr></thead><tbody>${g.alumnos.map((al,i)=>`<tr><td>${i+1}</td><td>${al.apellido||''}, ${al.nombre||''}</td><td>${al.ci||''}</td><td>${al.telefono||''}</td><td>${txt(al.ord)}</td><td>${txt(al.rec)}</td></tr>`).join('')}</tbody></table></div>`).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pagaron el final y no tienen nota — ${inst}</title><style>
+  const ex={ord:'Final ordinario',rec:'Final recuperatorio',comp:'Final complementario',ext:'Final extraordinario'}[W._sf.examen]||'Cualquier final';
+  const filtro=[(W._sf.carrera?(gs[0]&&gs[0].carrera):'Todas las carreras'),_sfSemLbl(d.periodo),(W._sf.anio?W._sf.anio+'.º año':'Todos los años'),'Habilitados para: '+ex].join(' · ');
+  const un=(e,n)=>e&&e.habilitado?(e.nota==null?(e.via==='pago'?'Pagó · SIN NOTA':'Hab. por Dirección · SIN NOTA')+' ('+_sfFecha(e.fecha)+')':n+' '+e.nota):'';
+  const txt=al=>[['Ord.',al.ord],['Rec.',al.rec],['Compl.',al.comp],['Extra.',al.ext]].map(([n,e])=>e&&e.habilitado?`<div><strong>${n}</strong> ${un(e,'Nota')}</div>`:'').join('');
+  const cuerpo=gs.map(g=>`<div class="mat"><div class="mh"><strong>${g.carrera}</strong> · ${g.anio}.º año${secc(g.seccion)} · <strong>${g.materia}</strong>${g.docente?' · '+g.docente:''} <span class="n">${g.sin_nota} de ${g.habilitados} habilitados, sin nota</span></div>
+    <table><thead><tr><th>#</th><th>Alumno</th><th>C.I.</th><th>Teléfono</th><th>Habilitado para (estado)</th></tr></thead><tbody>${g.alumnos.map((al,i)=>`<tr><td>${i+1}</td><td>${al.apellido||''}, ${al.nombre||''}</td><td>${al.ci||''}</td><td>${al.telefono||''}</td><td>${txt(al)}</td></tr>`).join('')}</tbody></table></div>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Finales sin nota — ${inst}</title><style>
     @page{size:A4;margin:14mm 12mm}@media print{.np{display:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0;padding:18px}
     .h{display:flex;align-items:center;gap:16px;border-bottom:3px solid #166534;padding-bottom:10px;margin-bottom:12px}.h h1{margin:0;font-size:16px;color:#14532d}.h p{margin:2px 0 0;font-size:10px;color:#6b7280}
@@ -11099,7 +11108,7 @@ async function sinFinalImprimir(){
     table{width:100%;border-collapse:collapse}th{background:#166534;color:#fff;padding:4px 7px;text-align:left;font-size:10px}td{padding:3px 7px;border-bottom:1px solid #e5e7eb;font-size:10.5px}tr:nth-child(even) td{background:#f9fafb}
     .f{margin-top:14px;text-align:center;font-size:9.5px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:6px}</style></head><body>
     <div class="h">${logoSrc?`<img src="${logoSrc}" style="height:60px;width:auto;object-fit:contain" alt="Logo">`:''}<div><h1>${inst}</h1><p>Dirección Académica · Sistema de Gestión Institucional</p></div></div>
-    <div class="sub"><strong>Alumnos que pagaron el arancel del final y no tienen nota</strong> · ${filtro}<br>${d.totales.alumnos} alumnos distintos · ${d.totales.registros} casos · Generado: ${new Date().toLocaleDateString('es-PY')}</div>
+    <div class="sub"><strong>Alumnos habilitados para un final (por pago o por la Dirección) y sin nota en ningún final</strong> · ${filtro}<br>${d.totales.alumnos} alumnos distintos · ${d.totales.registros} casos · Generado: ${new Date().toLocaleDateString('es-PY')}</div>
     ${cuerpo}<div class="f">${inst} — Documento generado por el sistema académico</div>
     <div class="np" style="text-align:center;margin-top:12px"><button onclick="window.print()" style="padding:8px 22px;background:#166534;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button></div>
     <script>setTimeout(()=>window.print(),600)<${'/'}script></body></html>`;
@@ -11144,7 +11153,7 @@ function pgHubAcademico(el){
     ${esDirec?_mCard('asignaciones','🔗','Asignaciones','Docente-materia','#7c3aed','#f5f3ff'):''}
     ${esDirec?_mCard('reemplazos','🔄','Reemplazos','Sustituciones','#4f46e5','#eef2ff'):''}
     ${esDirec?_mCard('escala','📊','Escala de notas','Configurar','#0d9488','#f0fdfa'):''}
-    ${esDirec?_mCard('sin-final','📝','Pagaron y sin nota','Finales por carrera, semestre y año','#dc2626','#fef2f2'):''}
+    ${esDirec?_mCard('sin-final','📝','Finales sin nota','Pagaron o habilitados, por carrera, semestre y año','#dc2626','#fef2f2'):''}
     ${esDirec?_mCard('feriados','📅','Feriados','Calendario','#d97706','#fffbeb'):''}
     ${_mCard('repositorio','📁','Repositorio','Programas y contenidos','#0d9488','#f0fdfa')}
     ${_mCard('actas','📋','Actas','Actas de examen cerradas','#1e3a5f','#eff6ff')}
