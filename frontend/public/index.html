@@ -21244,6 +21244,7 @@ async function cargarConstancias(){
     const qs=new URLSearchParams();
     if(bus.length>=2) qs.set('busqueda',bus);
     if(carrId) qs.set('carrera_id',carrId);
+    qs.set('estado','todos');   // esta pantalla sí muestra inactivos y retirados (chips Activos / Inactivos...)
     // anio: filtrar client-side sobre los resultados
     let als=await api('GET','/api/alumnos?'+qs.toString());
 
@@ -21528,7 +21529,7 @@ async function pgUsuarios(el,initialTab){
   initialTab=initialTab||'staff';
   const [data,als,carrs,cursos]=await Promise.all([
     api('GET','/api/usuarios/directores'),
-    api('GET','/api/alumnos'),
+    api('GET','/api/alumnos?estado=todos'),
     api('GET','/api/carreras'),
     api('GET','/api/cursos')
   ]);

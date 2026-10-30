@@ -3479,8 +3479,11 @@ app.get('/api/alumnos', auth(), (req, res) => {
   const { ci, carrera_id, curso_id, busqueda } = req.query;
   const sede = req.user.sede || 'pjc';
   if (req.user.rol === 'alumno' && !ci) return res.status(403).json({ error: 'Sin acceso' });
-  let where = req.user.rol==='director' ? 'WHERE (c.sede_id=? OR al.carrera_id IS NULL)' : "WHERE al.estado NOT IN ('Inactivo','Retirado') AND (c.sede_id=? OR al.carrera_id IS NULL)";
+  // Los alumnos Inactivos/Retirados no salen en las listas (tampoco para el director) salvo que se pidan: ?estado=todos o ?estado=Inactivo
+  const estadoPedido = req.user.rol==='director' ? String(req.query.estado||'') : '';
+  let where = (req.user.rol==='director' && estadoPedido==='todos') ? 'WHERE (c.sede_id=? OR al.carrera_id IS NULL)' : "WHERE al.estado NOT IN ('Inactivo','Retirado') AND (c.sede_id=? OR al.carrera_id IS NULL)";
   const params = [sede];
+  if (estadoPedido && estadoPedido!=='todos') { where = 'WHERE al.estado=? AND (c.sede_id=? OR al.carrera_id IS NULL)'; params.unshift(estadoPedido); }
   if (ci)         { where += ' AND (al.ci LIKE ? OR u.ci LIKE ?)'; params.push('%'+ci+'%','%'+ci+'%'); }
   if (carrera_id === 'SIN_ASIGNAR') { where += ' AND al.carrera_id IS NULL'; }
   else if (carrera_id) { where += ' AND al.carrera_id=?'; params.push(carrera_id); }
@@ -3605,6 +3608,29 @@ app.post('/api/alumnos', auth(ADM), (req, res) => {
     const credencial = { email: emailAuto, password: ciRaw || '123456' };
     res.json({ id, matricula, credencial });
   } catch(e) { res.status(500).json({ error: 'Error al crear alumno: '+e.message }); }
+});
+// Cambia el estado de VARIOS alumnos a la vez (Activo ⇄ Inactivo). Cada cambio queda en la auditoría con el estado anterior y el
+// motivo, para poder revertirlo. Solo toca a los que están en el estado contrario; no toca usuarios, notas ni pagos.
+app.post('/api/alumnos/estado-lote', auth(ADM), (req, res) => {
+  try {
+    const { ids, estado, motivo } = req.body || {};
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids requeridos' });
+    if (!['Activo', 'Inactivo'].includes(estado)) return res.status(400).json({ error: 'estado debe ser Activo o Inactivo' });
+    const previo = estado === 'Inactivo' ? 'Activo' : 'Inactivo';
+    const sel = db.prepare('SELECT id, nombre, apellido, ci, estado FROM alumnos WHERE id=?');
+    const upd = db.prepare('UPDATE alumnos SET estado=? WHERE id=?');
+    let cambiados = 0; const omitidos = [];
+    db.transaction(() => {
+      for (const id of ids) {
+        const al = sel.get(id);
+        if (!al) { omitidos.push({ id, motivo: 'no existe' }); continue; }
+        if (al.estado !== previo) { omitidos.push({ id, motivo: 'estaba ' + al.estado }); continue; }
+        upd.run(estado, id); cambiados++;
+        audit(req.user.id, 'ESTADO_ALUMNO_LOTE', 'alumnos', id, { alumno: `${al.apellido || ''}, ${al.nombre || ''}`, ci: al.ci, anterior: al.estado, nuevo: estado, motivo: String(motivo || '').slice(0, 200) });
+      }
+    })();
+    res.json({ ok: true, cambiados, omitidos: omitidos.length, detalle_omitidos: omitidos.slice(0, 10) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 // ── ALUMNOS FALTANTES ────────────────────────────────────────────────────────
 app.get('/api/alumnos-faltantes', auth(ADM), (req, res) => {
