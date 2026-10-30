@@ -82,6 +82,24 @@ function prepararPagos(db, log = console.log) {
         VALUES ('ph_' || hex(randomblob(6)), NEW.id, (SELECT nro_recibo FROM pagos WHERE id = NEW.id), strftime('%Y-%m-%d %H:%M:%S','now','-3 hours'), 'Sistema', 'creado',
           json_object('alumno_id', NEW.alumno_id, 'concepto', NEW.concepto, 'monto', NEW.monto, 'fecha_pago', NEW.fecha_pago, 'medio_pago', NEW.medio_pago));
     END;
+    -- Un alumno INACTIVO vuelve a ACTIVO cuando se le registra un pago de cuota, matrícula o arancel de examen (pedido del
+    -- director, 2026-10-29): solo así reaparece en las listas y en las planillas de notas de los docentes. Constancias, certificados
+    -- y "Otro" no lo reactivan; tampoco una carga de pagos viejos (fecha de pago de hace más de 31 días) ni un duplicado desactivado.
+    -- Vale para TODOS los caminos que insertan pagos (manual, lote, WhatsApp, importaciones) y queda en la auditoría.
+    CREATE TRIGGER IF NOT EXISTS trg_pagos_reactiva_alumno AFTER INSERT ON pagos
+    WHEN COALESCE(NEW.estado,'') != 'Anulado'
+      AND (lower(NEW.concepto) LIKE 'cuota%' OR lower(NEW.concepto) LIKE 'matr%' OR lower(NEW.concepto) LIKE 'examen %'
+           OR lower(NEW.concepto) LIKE 'parcial %' OR lower(NEW.concepto) LIKE 'final %')
+      AND COALESCE(NEW.fecha_pago, date('now')) >= date('now','-31 days')
+      AND EXISTS (SELECT 1 FROM alumnos WHERE id = NEW.alumno_id AND estado = 'Inactivo')
+      AND NOT EXISTS (SELECT 1 FROM auditoria WHERE registro_id = NEW.alumno_id AND accion = 'REPARAR')
+    BEGIN
+      UPDATE alumnos SET estado = 'Activo' WHERE id = NEW.alumno_id;
+      INSERT INTO auditoria (id, usuario_id, accion, tabla, registro_id, detalle, fecha, origen)
+        VALUES ('aud_' || hex(randomblob(6)), COALESCE(NEW.registrado_por, 'sistema'), 'ESTADO_ALUMNO_AUTO', 'alumnos', NEW.alumno_id,
+          json_object('anterior', 'Inactivo', 'nuevo', 'Activo', 'motivo', 'Se registró un pago: ' || NEW.concepto, 'pago_id', NEW.id, 'monto', NEW.monto),
+          strftime('%Y-%m-%d %H:%M:%S','now','-3 hours'), 'automatico');
+    END;
     CREATE TRIGGER IF NOT EXISTS trg_pagos_eliminado AFTER DELETE ON pagos
     BEGIN
       INSERT INTO pagos_historial (id,pago_id,nro_recibo,fecha,usuario_nombre,accion,antes)
