@@ -1810,6 +1810,36 @@ function _dashHero(saludo,nombre,fecha,periodo,qa){
     </div>
   </div></div>`;
 }
+// Tarjeta del inicio del docente: todos sus parciales recuperatorios que vienen, agrupados por fecha (con día, hora, curso y alumnos)
+function _dashDocRecup(recups){
+  const lista=(recups||[]).slice().sort((a,b)=>(a.fecha+(a.hora||'')).localeCompare(b.fecha+(b.hora||'')));
+  const hoy=_meHoyISO();
+  if(!lista.length) return `<div class="card card-p" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center"><p style="font-size:14px;font-weight:700">🔁 Mis parciales recuperatorios</p><button class="bs" style="font-size:11px" onclick="go('agenda')">Calendario →</button></div><div class="es" style="padding:16px">Todavía no tenés parciales recuperatorios programados.</div></div>`;
+  const porFecha={}; lista.forEach(e=>{(porFecha[e.fecha]=porFecha[e.fecha]||[]).push(e);});
+  const DIAS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const curso=e=>`${e.carrera_nombre||''} ${e.curso_anio?e.curso_anio+'°':''}${e.curso_division&&e.curso_division!=='U'?' '+e.curso_division:''}`.trim();
+  return `<div class="card card-p" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <p style="font-size:14px;font-weight:700">🔁 Mis parciales recuperatorios <span style="font-size:11px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:10px;padding:2px 9px;margin-left:6px">${lista.length}</span></p>
+      <button class="bs" style="font-size:11px" onclick="go('agenda')">Calendario →</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--t3);margin:0 0 12px">Se rinden el mismo día de la semana y en el mismo horario de tu clase. Podés cargar los puntajes desde <strong>Notas</strong> una vez rendidos.</p>
+    ${Object.keys(porFecha).sort().map(f=>{
+      const d=new Date(f+'T12:00:00'), n=Math.round((d-new Date(hoy+'T12:00:00'))/86400000);
+      const chip=n===0?'<span class="bx br" style="font-size:10px">¡Hoy!</span>':n===1?'<span class="bx ba" style="font-size:10px">Mañana</span>':`<span class="bx bb" style="font-size:10px">En ${n} días</span>`;
+      return `<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--bdr)">
+        <div style="text-align:center;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:4px 10px;min-width:56px;flex-shrink:0">
+          <div style="font-size:18px;font-weight:900;color:#92400e;line-height:1">${d.getDate()}</div>
+          <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase">${d.toLocaleString('es',{month:'short'})}</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><strong style="font-size:12px;color:#1e293b">${DIAS[d.getDay()]}</strong>${chip}</div>
+          ${porFecha[f].map(e=>`<div style="font-size:12px;color:#334155;margin-bottom:3px">🕐 <strong>${e.hora||'—'}</strong> · ${e.materia_nombre} <span style="color:var(--t3)">· ${curso(e)}${e.total_alumnos?' · '+e.total_alumnos+' alumnos':''}${e.aula?' · 📍 '+e.aula:''}</span></div>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
 async function pgDash(el){
   const ahora=new Date();
   const hora=ahora.getHours();
@@ -1820,9 +1850,9 @@ async function pgDash(el){
   // ── ALUMNO ────────────────────────────────────────────────────────────────────
   if(me.rol==='alumno'){
     if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno vinculado</div>';return;}
-    const hoy=new Date().toISOString().split('T')[0];
+    const hoy=_meHoyISO();
     const lim=new Date();lim.setDate(lim.getDate()+120); // todo el semestre: antes solo 30 días y los parciales de más adelante no aparecían
-    const limStr=lim.toISOString().split('T')[0];
+    const limStr=_isoLocal(lim);
     const [notas,asist,pagosData,exams,avs,extrasPend]=await Promise.all([
       api('GET','/api/notas/alumno/'+me.alumnoId).catch(()=>[]),
       api('GET','/api/asistencia/resumen-alumno/'+me.alumnoId).catch(()=>[]),
@@ -1927,15 +1957,16 @@ async function pgDash(el){
 
   // ── DOCENTE ───────────────────────────────────────────────────────────────────
   if(me.rol==='docente'){
-    const hoy=new Date().toISOString().split('T')[0];
+    const hoy=_meHoyISO();
     const lim=new Date();lim.setDate(lim.getDate()+30);
-    const limStr=lim.toISOString().split('T')[0];
-    const [dash,asigs,exams,avs,exPendNotas]=await Promise.all([
+    const limStr=_isoLocal(lim);
+    const [dash,asigs,exams,avs,exPendNotas,recups]=await Promise.all([
       api('GET','/api/dashboard').catch(()=>({})),
       me.docenteId?api('GET','/api/asignaciones?docente_id='+me.docenteId).catch(()=>[]):Promise.resolve([]),
       api('GET',`/api/examenes?desde=${hoy}&hasta=${limStr}`).catch(()=>[]),
       api('GET','/api/avisos').catch(()=>[]),
       api('GET','/api/examenes/pendientes-notas').catch(()=>[]),
+      api('GET',`/api/examenes?tipo=Recuperatorio&desde=${hoy}`).catch(()=>[]),   // todos sus parciales recuperatorios que vienen
     ]);
     const vistos=new Set(JSON.parse(localStorage.getItem('its_avisos_vistos')||'[]'));
     const avisosAlert=(avs||[]).filter(a=>!vistos.has(a.id)&&(a.fijado||a.tipo==='urgente')&&a.destinatario!=='director'&&a.categoria!=='sistema');
@@ -2002,6 +2033,7 @@ async function pgDash(el){
           </div>`).join(''):`<div class="es" style="padding:20px">Sin exámenes programados</div>`}
       </div>
     </div>
+    ${_dashDocRecup(recups)}
     `;
     return;
   }
@@ -9899,7 +9931,8 @@ async function pgMiPasantia(el){
 
 // ── MIS EXÁMENES (alumno): parciales ordinarios y recuperatorios del semestre en curso ──────────────────────────
 const _ME_DIAS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-function _meHoyISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _isoLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _meHoyISO(){return _isoLocal(new Date());}
 async function pgMisExamenes(el){
   if(!me.alumnoId){el.innerHTML='<div class="es">Sin datos de alumno vinculado</div>';return;}
   el.innerHTML='<div class="ph"><h3>📋 Mis exámenes</h3></div>'+skeletonTable(6,5);
@@ -9912,18 +9945,26 @@ async function pgMisExamenes(el){
   const ord=(exs||[]).filter(e=>e.tipo==='Parcial').sort(porFecha);
   const rec=(exs||[]).filter(e=>e.tipo==='Recuperatorio').sort(porFecha);
   W._misExs={ord,rec,sel:'ord'};
+  const _hoyME=_meHoyISO();
+  const proxRec=rec.filter(e=>e.fecha>=_hoyME), proxOrd=ord.filter(e=>e.fecha>=_hoyME);
+  const pestInicial=(proxRec.length&&!proxOrd.length)?'rec':'ord';
   const ref=ord[0]||rec[0];
   const etq=per?((per.semestre===1?'1er':per.semestre+'do')+' Semestre '+(per.anio||'')):'';
   el.innerHTML=`<div class="ph"><h3>📋 Mis exámenes</h3>
     ${ref?`<span class="bx bb" style="font-size:12px">${ref.carrera_nombre||''} ${ref.curso_anio?ref.curso_anio+'° año':''}${ref.curso_division&&ref.curso_division!=='U'?' · Secc. '+ref.curso_division:''}</span>`:''}
     ${etq?`<span class="bx bgr" style="font-size:12px">${etq}</span>`:''}
   </div>
+  ${proxRec.length?`<div onclick="meTab('rec')" style="cursor:pointer;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:24px">🔁</span>
+      <div style="flex:1;min-width:200px"><div style="font-size:13px;font-weight:800;color:#92400e">Tus parciales recuperatorios: ${proxRec.length} por rendir</div>
+        <div style="font-size:12px;color:#92400e;margin-top:2px">Próximo: <strong>${_ME_DIAS[new Date(proxRec[0].fecha+'T12:00:00').getDay()]} ${new Date(proxRec[0].fecha+'T12:00:00').getDate()} de ${new Date(proxRec[0].fecha+'T12:00:00').toLocaleString('es',{month:'long'})}</strong>${proxRec[0].hora?' a las '+proxRec[0].hora:''} — ${proxRec[0].materia_nombre}</div></div>
+      <span style="font-size:11px;font-weight:700;color:#92400e">Ver todos →</span></div>`:''}
   <div class="fb" style="gap:0;margin-bottom:14px;border-bottom:2px solid var(--bdr);flex-wrap:wrap">
     <button id="meTab_ord" onclick="meTab('ord')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #1565c0;background:transparent;cursor:pointer;color:#1565c0">📝 Parciales ordinarios (${ord.length})</button>
     <button id="meTab_rec" onclick="meTab('rec')" style="padding:10px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid transparent;background:transparent;cursor:pointer;color:#64748b">🔁 Parciales recuperatorios (${rec.length})</button>
   </div>
   <div id="meLista"></div>`;
-  meTab('ord');
+  meTab(pestInicial);
 }
 function meTab(t){
   if(!W._misExs) return;
@@ -10070,7 +10111,7 @@ async function renderCalendario(el){
   W._calExs=exsAgrupados; W._calActs=acts||[];
 
   // Colores y helpers
-  const tipoColor=t=>t==='Extraordinario'||t==='extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'||t==='final_ord'||t==='final_recuperatorio'||t==='complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
+  const tipoColor=t=>t==='Recuperatorio'?{bg:'#fff7ed',bdr:'#f59e0b',txt:'#b45309'}:t==='Extraordinario'||t==='extraordinario'?{bg:'#f3e5f5',bdr:'#9c27b0',txt:'#6a1b9a'}:t?.startsWith('Final')||t==='Complementario'||t==='final_ord'||t==='final_recuperatorio'||t==='complementario'?{bg:'#fff0f0',bdr:'#e53935',txt:'#b71c1c'}:{bg:'#e8f0fe',bdr:'#1565c0',txt:'#0d47a1'};
   const turnoLabel=e=>e.asig_turno===2?{lbl:'T2 · 20:40',col:'#4a148c'}:{lbl:'T1 · 19:00',col:'#0d47a1'};
   const esAlumno=me.rol==='alumno';
   const esDir=me.rol==='director';
@@ -10222,6 +10263,7 @@ async function renderCalendario(el){
     <button class="bs" onclick="W._calFecha.mes++;if(W._calFecha.mes>11){W._calFecha.mes=0;W._calFecha.anio++;}renderCalendario(W._calEl)">▶</button>
     <div style="display:flex;gap:8px;margin-left:8px;flex-wrap:wrap">
       <span style="font-size:10px;background:#e8f0fe;color:#1565c0;border-left:3px solid #1565c0;padding:2px 7px;border-radius:4px;font-weight:700">■ Parcial</span>
+      <span style="font-size:10px;background:#fff7ed;color:#b45309;border-left:3px solid #f59e0b;padding:2px 7px;border-radius:4px;font-weight:700">■ Recup.</span>
       <span style="font-size:10px;background:#fff0f0;color:#b71c1c;border-left:3px solid #e53935;padding:2px 7px;border-radius:4px;font-weight:700">■ Final</span>
       <span style="font-size:10px;background:#f3e5f5;color:#6a1b9a;border-left:3px solid #9c27b0;padding:2px 7px;border-radius:4px;font-weight:700">■ Extra</span>
       ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length?`<span style="font-size:10px;color:#e65100">🏖 ${feriados.filter(f=>f.fecha>=desde&&f.fecha<=hasta).length} feriados</span>`:''}
