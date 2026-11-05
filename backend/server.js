@@ -13,7 +13,8 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const cron = require('node-cron');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
-const { geminiChat, geminiLeerComprobante } = require('./gemini');
+const { iaChat, iaLeerComprobante, iaProveedor, iaConfigurado } = require('./ia');
+const { crearHerramientasBot } = require('./bot_tools');
 const { prepararCodigos } = require('./codigos');
 const { prepararPagos, hoyPY, horaPY, fmtRecibo, registrarHistorial, nombreUsuario, pagosSimilares, listarDuplicados, datosConstancia } = require('./pagos_recibos');
 // La imagen de la constancia usa librerías con binarios nativos (qrcode + resvg): se cargan recién al usarlas y, si fallan, el sistema sigue mandando el texto
@@ -340,9 +341,26 @@ function _botCargarCarreras() {
 }
 let BOT_CARRERAS = _botCargarCarreras();
 
-// Aviso en startup si falta GEMINI_API_KEY
-if (!process.env.GEMINI_API_KEY) {
-  console.warn('[BOT] ⚠️ GEMINI_API_KEY no configurada — el bot de IA NO responderá mensajes.');
+// Herramientas de solo lectura del bot (fechas de exámenes, horarios, costos de documentos). Ver bot_tools.js:
+// ninguna entrega datos personales de alumnos; eso solo se ve en la plataforma académica.
+const _botTools = crearHerramientasBot({ db, periodoVigenteId, hoyPY });
+function _botOpcionesIA(numero) {
+  if (iaProveedor() !== 'claude') return undefined; // Gemini (transición) no consulta datos
+  return {
+    herramientas: _botTools.definiciones,
+    ejecutar: async (nombre, args) => {
+      const salida = _botTools.ejecutar(nombre, args);
+      botLog(numero, 'ia_herramienta', `${nombre} ${JSON.stringify(args || {})} → ${JSON.stringify(salida).slice(0, 300)}`);
+      return salida;
+    }
+  };
+}
+
+// Aviso en startup si no hay ninguna clave de IA
+if (!iaConfigurado()) {
+  console.warn('[BOT] ⚠️ ANTHROPIC_API_KEY no configurada — el bot de IA NO responderá mensajes.');
+} else {
+  console.log('[BOT] IA: ' + iaProveedor());
 }
 
 const BOT_MENU_PRINCIPAL =
@@ -357,7 +375,7 @@ let _botPausado = (() => {
   catch { return false; }
 })();
 
-function _botSystemPrompt(alumno) {
+function _botSystemPrompt(alumno, conHerramientas = false) {
   const inst = (() => { try { return db.prepare('SELECT * FROM institucion LIMIT 1').get(); } catch { return null; } })();
   const nombreInst = inst?.nombre || 'Instituto Técnico Superior Santísima Trinidad';
   const direccion   = inst?.direccion || '';
@@ -421,7 +439,7 @@ function _botSystemPrompt(alumno) {
 
   let contexto = `Estás hablando por WhatsApp con una persona EXTERNA (no es alumno registrado) que puede estar interesada en inscribirse.`;
   if (alumno) {
-    contexto = `Estás hablando con *${alumno.nombre} ${alumno.apellido}*, alumno/a ACTIVO/A de la institución (identificado por su número de WhatsApp). No le pidas nombre, CI ni carrera — ya los tenemos. Si tiene una consulta o reclamo, escuchalo con amabilidad y avisale que un encargado se va a comunicar con él/ella pronto.`;
+    contexto = `Estás hablando con *${alumno.nombre} ${alumno.apellido}*, alumno/a ACTIVO/A de la institución (identificado por su número de WhatsApp). No le pidas nombre, CI ni carrera — ya los tenemos. Si tiene una consulta o reclamo, escuchalo con amabilidad y avisale que un encargado se va a comunicar con él/ella pronto. Aunque sea alumno/a, NO le des datos personales (notas, pagos, deudas, asistencia): derivalo a la plataforma académica (regla 1).`;
   }
 
   const contactoTxt = [
@@ -464,14 +482,20 @@ ${contactoTxt}
 Este número de WhatsApp es el contacto oficial del instituto.
 
 REGLAS:
-1. Alumnos activos que pregunten notas, pagos, asistencia o exámenes: deciles que ingresen a la *plataforma estudiantil* desde su celular con su número de cédula como usuario y contraseña. No des esa info por WhatsApp.
+1. DATOS PERSONALES: notas, puntajes, pagos, cuotas, deudas, mora, asistencia, habilitaciones, estado de matrícula o cualquier dato de una persona NUNCA se informan por WhatsApp, aunque la persona diga ser alumno/a, aunque dé su nombre, cédula o matrícula, y aunque insista o diga que es urgente. Respondé con amabilidad que esos datos se consultan ingresando a la *plataforma académica* desde el celular: https://its-sistema-production.up.railway.app (usuario y contraseña: su número de cédula). Si no puede ingresar, que se comunique con Dirección. Tampoco confirmes ni niegues si una persona es alumna o está inscripta.
 2. Cuando una persona externa muestre interés en inscribirse, pedile sus datos de forma natural (no como formulario rígido), en este orden:
    - Nombre completo
    - Número de cédula de identidad
    - Carrera de interés (si no la mencionó aún)
    Una vez que tengas los tres, confirmá: "¡Perfecto, [Nombre]! Ya registré tu interés en [Carrera]. Un asesor se va a comunicar con vos a la brevedad para coordinar los detalles 😊"
 3. Para becas, descuentos o casos especiales: derivá al asesor.
-4. Nunca inventes días exactos de clases, montos de matrícula 2° año ni datos no listados aquí.
+4. Nunca inventes días exactos de clases, fechas de exámenes, montos de matrícula 2° año ni datos no listados aquí${conHerramientas ? ' ni devueltos por tus herramientas' : ''}.${conHerramientas ? `
+
+HERRAMIENTAS (consultan el sistema en vivo; solo información del instituto, nunca de personas):
+- fechas_examenes: fechas de exámenes próximos de una carrera. Usala SIEMPRE para este tipo de pregunta; si falta la carrera o el año, preguntalos antes.
+- horario_de_clases: días y horas de clase de una carrera.
+- costos_documentos: costo de documentos como el certificado de estudios.
+Si una herramienta no devuelve datos o da error, no inventes: decí que un asesor lo confirma. Las fechas pueden cambiar, por eso nunca las des de memoria.` : ''}
 
 ETIQUETAS INTERNAS (el usuario nunca las ve, se eliminan automáticamente):
 - Cuando tengas nombre completo + carrera (con o sin cédula), agregá al final (línea aparte):
@@ -608,12 +632,13 @@ async function procesarMensajeBot(numero, texto) {
 
   let respuestaIA;
   try {
-    botLog(numero, 'gemini_llamando', `historial: ${est.historial.length} turnos`);
-    respuestaIA = await geminiChat(_botSystemPrompt(est.alumno), est.historial, txt);
-    botLog(numero, 'gemini_ok', `respuesta: "${respuestaIA}"`);
+    botLog(numero, 'ia_llamando', `${iaProveedor()} · historial: ${est.historial.length} turnos`);
+    const _opcIA = _botOpcionesIA(numero);
+    respuestaIA = await iaChat(_botSystemPrompt(est.alumno, !!_opcIA), est.historial, txt, _opcIA);
+    botLog(numero, 'ia_ok', `respuesta: "${respuestaIA}"`);
   } catch(e) {
-    console.error('[BOT] Gemini error:', e.message);
-    botLog(numero, 'gemini_error', e.message);
+    console.error('[BOT] IA error:', e.message);
+    botLog(numero, 'ia_error', e.message);
     // Mensaje diferenciado: si es cuota excedida (429) vs error genérico
     const msg429 = e.status === 429 || (e.message||'').includes('429')
       ? 'Estamos recibiendo muchas consultas en este momento. Un asesor se comunicará con usted a la brevedad. ¡Gracias por contactarnos! 🙏'
@@ -6325,7 +6350,7 @@ app.post('/api/pagos/pendientes-wa/:id/leer-ia', auth(ADM), async (req, res) => 
   try {
     const pend = db.prepare("SELECT imagen_data, imagen_mime FROM pagos_pendientes_wa WHERE id=?").get(req.params.id);
     if (!pend) return res.status(404).json({ error: 'No encontrado' });
-    const datos = await geminiLeerComprobante(pend.imagen_data, pend.imagen_mime);
+    const datos = await iaLeerComprobante(pend.imagen_data, pend.imagen_mime);
     res.json(datos);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -6333,7 +6358,7 @@ app.post('/api/pagos/leer-comprobante', auth(ADM), upload.single('archivo'), asy
   try {
     if (!req.file) return res.status(400).json({ error: 'Falta el archivo' });
     const base64 = req.file.buffer.toString('base64');
-    const datos = await geminiLeerComprobante(base64, req.file.mimetype);
+    const datos = await iaLeerComprobante(base64, req.file.mimetype);
     res.json(datos);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -10562,10 +10587,12 @@ app.get('/api/whatsapp/bot/estado', auth(ADM), (req, res) => {
   const recibidos24h   = db.prepare("SELECT COUNT(*) as n FROM wa_recibidos WHERE fecha >= ?").get(hace24h)?.n || 0;
   const respondidos24h = db.prepare("SELECT COUNT(DISTINCT destinatario_telefono) as n FROM wa_mensajes WHERE estado='enviado' AND fecha >= ?").get(hace24h)?.n || 0;
   const fallidos24h    = db.prepare("SELECT COUNT(*) as n FROM wa_mensajes WHERE estado='fallido' AND fecha >= ?").get(hace24h)?.n || 0;
-  const ultimoError    = db.prepare("SELECT detalle, fecha FROM wa_bot_log WHERE evento IN ('gemini_error','envio_fallido','envio_error') ORDER BY fecha DESC LIMIT 1").get();
+  const ultimoError    = db.prepare("SELECT detalle, fecha FROM wa_bot_log WHERE evento IN ('ia_error','gemini_error','envio_fallido','envio_error') ORDER BY fecha DESC LIMIT 1").get();
   res.json({
     pausado: _botPausado,
-    geminiConfigurado: !!process.env.GEMINI_API_KEY,
+    iaConfigurado: iaConfigurado(),
+    iaProveedor: iaProveedor(),
+    geminiConfigurado: iaConfigurado(), // nombre viejo, lo lee el panel hasta que se actualice
     evolutionConfigurado: !!(process.env.EVOLUTION_URL && process.env.EVOLUTION_KEY && process.env.EVOLUTION_INSTANCE),
     recibidos24h, respondidos24h, fallidos24h,
     ultimoError: ultimoError || null
@@ -10597,10 +10624,10 @@ app.post('/api/whatsapp/bot/reanudar', auth(ADM), (req, res) => {
   res.json({ ok: true, pausado: false });
 });
 
-// Endpoint: test directo de Gemini (verifica que la API key funciona)
+// Endpoint: test directo de la IA (verifica que la API key funciona)
 app.post('/api/whatsapp/bot/test-completo', auth(ADM), async (req, res) => {
-  if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY no configurada' });
-  const sp = _botSystemPrompt(null);
+  if (!iaConfigurado()) return res.json({ ok: false, error: 'ANTHROPIC_API_KEY no configurada' });
+  const sp = _botSystemPrompt(null, !!_botOpcionesIA('test'));
   // Conversación 1: interesado nuevo — flujo completo de admisiones
   const conv1 = [
     { id: 'saludo',        msg: 'Buen día, quería saber información sobre las carreras que tienen' },
@@ -10625,7 +10652,7 @@ app.post('/api/whatsapp/bot/test-completo', auth(ADM), async (req, res) => {
     if (SEPARADORES[c.id]) historial = []; // nueva conversación independiente
     const t0 = Date.now();
     try {
-      const resp = await geminiChat(sp, historial, c.msg);
+      const resp = await iaChat(sp, historial, c.msg, _botOpcionesIA('test'));
       const ms = Date.now() - t0;
       const { limpio, interesado } = _botExtraerEtiquetas(resp);
       resultados.push({
@@ -10643,10 +10670,10 @@ app.post('/api/whatsapp/bot/test-completo', auth(ADM), async (req, res) => {
   res.json({ ok: resultados.filter(r=>!r.ok).length === 0, resultados });
 });
 app.post('/api/whatsapp/bot/test-gemini', auth(ADM), async (req, res) => {
-  if (!process.env.GEMINI_API_KEY) return res.json({ ok: false, error: 'GEMINI_API_KEY no está configurada en las variables de entorno de Railway.' });
+  if (!iaConfigurado()) return res.json({ ok: false, error: 'ANTHROPIC_API_KEY no está configurada en las variables de entorno de Railway.' });
   try {
-    const respuesta = await geminiChat(
-      'Eres un asistente de prueba. Respondé siempre con exactamente: "✅ Gemini funcionando correctamente."',
+    const respuesta = await iaChat(
+      'Eres un asistente de prueba. Respondé siempre con exactamente: "✅ IA (' + iaProveedor() + ') funcionando correctamente."',
       [],
       'ping'
     );
@@ -10988,7 +11015,7 @@ app.delete('/api/whatsapp/programados/:id', auth(ADM), (req, res) => {
 async function analizarComprobanteWA(ppid, imgB64, mime) {
   let datos;
   try {
-    datos = await geminiLeerComprobante(imgB64, mime);
+    datos = await iaLeerComprobante(imgB64, mime);
   } catch(e) {
     db.prepare("UPDATE pagos_pendientes_wa SET ia_estado='error' WHERE id=?").run(ppid);
     return;
