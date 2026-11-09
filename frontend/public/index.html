@@ -16729,6 +16729,7 @@ async function selAlumnoPago(alId){
             return `<button id="btnLiberarNotas-${alId}" data-liberado="${liberadoActivo?'1':'0'}" onclick="toggleLiberarNotas('${alId}')" style="background:${liberadoActivo?'rgba(34,197,94,.25)':'rgba(255,255,255,.15)'};color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600" title="${liberadoActivo?'Vence automáticamente el '+horaVence:'Libera el acceso por 48hs'}">${liberadoActivo?'🔓 Notas liberadas (vence '+horaVence+') — clic para bloquear':'🔒 Liberar acceso a notas (48hs)'}</button>`;
           })()}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${(al.nombre||'').replace(/'/g,"\\'")}','${(al.apellido||'').replace(/'/g,"\\'")}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
+          ${me.rol==='director'?`<button onclick="mMoverAlumno('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600" title="Pasa al alumno a otra carrera: actualiza matrícula, sección y planillas de notas">↕ Trasladar de carrera</button>`:''}
           ${me.rol==='director'?`<button onclick="eliminarAlumnoCompleto('${alId}','${(al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')}')" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;margin-left:auto">🗑 Eliminar alumno</button>`:''}
         </div>
       </div>
@@ -18025,10 +18026,14 @@ async function mMoverAlumno(alId){
       </select>
     </div>
   </div>
+  ${al.carrera_id?`<div style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.5">
+    Si elegís <strong>otra carrera</strong>: la matrícula pasa a la serie de la carrera nueva (la anterior queda en auditoría), se quitan las planillas de notas vacías de la carrera anterior y se crean las de la nueva. Los pagos y las notas ya cargadas se conservan.
+  </div>`:''}
   <div class="mf">
     <button class="bs" onclick="cm()">Cancelar</button>
     <button class="bn" onclick="ejecutarMoverAlumno('${alId}')">✅ Confirmar asignación</button>
   </div>`);
+  W._moverAntes={alId:String(alId),carrera_id:al.carrera_id||null,carrera_nombre:al.carrera_nombre||''};
 }
 function filtCursosMover(){
   const carrId=document.getElementById('moverCarr')?.value||'';
@@ -18041,10 +18046,17 @@ function filtCursosMover(){
 async function ejecutarMoverAlumno(alId){
   const carrId=document.getElementById('moverCarr')?.value||null;
   const cursoId=document.getElementById('moverCurso')?.value||null;
+  // Si cambia de carrera, confirmar antes (afecta matrícula y planillas de notas)
+  const antes=(W._moverAntes&&W._moverAntes.alId===String(alId))?W._moverAntes:null;
+  if(antes&&antes.carrera_id&&carrId&&String(carrId)!==String(antes.carrera_id)){
+    const nueva=(W._pagosCarrs||W._carrs||[]).find(c=>String(c.id)===String(carrId));
+    if(!confirm('¿Trasladar a este alumno de '+(antes.carrera_nombre||'su carrera actual')+' a '+(nueva?nueva.nombre:'la carrera elegida')+'?\n\nSe actualiza la matrícula, la sección y las planillas de notas. Los pagos y notas ya cargadas se conservan.'))return;
+  }
   try{
-    await api('PUT','/api/alumnos/'+alId+'/asignar',{carrera_id:carrId||null,curso_id:cursoId||null});
+    const r=await api('PUT','/api/alumnos/'+alId+'/asignar',{carrera_id:carrId||null,curso_id:cursoId||null});
     cm();
-    toast('✓ Alumno movido correctamente','ok',3000);
+    const mc=r&&r.matricula_cambio;
+    toast(mc&&mc.nueva?('✓ Alumno trasladado. Matrícula: '+(mc.anterior||'—')+' → '+mc.nueva):'✓ Alumno movido correctamente','ok',mc&&mc.nueva?6000:3000);
     // Recargar con filtros actuales
     if(W._pagoSel&&document.getElementById('vistaDetallePago')?.style.display!=='none'){
       await cargarAlumnosPagos();
