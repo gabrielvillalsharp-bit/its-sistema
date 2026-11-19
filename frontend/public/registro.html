@@ -189,9 +189,9 @@ async function init() {
 function renderBienvenida() {
   const app = document.getElementById('app');
   const instNombre = _instData?.nombre || 'ITS Santísima Trinidad';
-  const logoHtml = _instData?.logo_base64
-    ? `<img src="${_instData.logo_base64}" class="bv-logo-img" alt="Logo">`
-    : `<span style="font-size:32px">🎓</span>`;
+  // Logo cargado en el sistema; si no hay, el logo del instituto (/logo.png); si tampoco carga, el birrete
+  const logoSrc = _instData?.logo_base64 || '/logo.png';
+  const logoHtml = `<img src="${logoSrc}" class="bv-logo-img" alt="Logo" onerror="this.outerHTML='<span style=\\'font-size:32px\\'>🎓</span>'">`;
   app.innerHTML = `
     <div class="bv-hero">
       <div class="bv-inst">${instNombre}</div>

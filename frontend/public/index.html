@@ -1028,6 +1028,11 @@ body.mob-alumno .mi-asist-cards{display:block!important}
 
 <script>
 const API='';let tok=localStorage.getItem('its_tk3');let me=null;const W=window;
+// Escapa texto que viene de afuera (formularios públicos, mensajes de WhatsApp, lo que lee la IA de una foto) antes de ponerlo en el HTML
+// del panel. Usarlo en todo ${...} que muestre datos que no escribió la Dirección. Sirve para texto y para atributos entre comillas.
+function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// Para un dato que va dentro de un onclick='...': se deja solo lo seguro (letras, números y . _ : @ -)
+function idSeguro(s){return String(s==null?'':s).replace(/[^A-Za-z0-9_.:@-]/g,'');}
 
 // ── TOAST NOTIFICATIONS ───────────────────────────────────────────────────────
 function toast(msg, tipo='info', duracion=3500){
@@ -2126,10 +2131,10 @@ async function pgDash(el){
             html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#92400e;background:#fffbeb;border-bottom:1px solid #fde68a;letter-spacing:.05em">📱 REGISTRO QR — ${qr.length}</div>`;
             html+=qr.slice(0,4).map(s=>`
               <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #fef3c7;transition:background .12s" onmouseenter="this.style.background='#fffbeb'" onmouseleave="this.style.background=''">
-                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${escH((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''}${s.curso_anio?' · '+s.curso_anio+'°'+(s.curso_division&&s.curso_division!=='U'?' '+s.curso_division:''):''}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(s.apellido)}, ${escH(s.nombre)}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${escH(s.carrera_nombre)}${s.curso_anio?' · '+escH(s.curso_anio)+'°'+(s.curso_division&&s.curso_division!=='U'?' '+escH(s.curso_division):''):''}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${escH(s.nro_seguimiento)}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#fef3c7;color:#92400e;font-weight:800;white-space:nowrap;flex-shrink:0">NUEVO</span>
               </div>`).join('')+(qr.length>4?`<div style="padding:5px 14px;font-size:10px;color:#92400e;font-weight:600">+${qr.length-4} más</div>`:'');
@@ -2139,10 +2144,10 @@ async function pgDash(el){
             html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#6d28d9;background:#f5f3ff;border-top:1px solid #ede9fe;border-bottom:1px solid #ddd6fe;letter-spacing:.05em">🤖 BOT WHATSAPP — ${bot.length}</div>`;
             html+=bot.slice(0,4).map(s=>`
               <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #ede9fe;transition:background .12s" onmouseenter="this.style.background='#f5f3ff'" onmouseleave="this.style.background=''">
-                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${escH((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.carrera_nombre||''} · 📱 ${s.telefono||'—'}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(s.apellido)}, ${escH(s.nombre)}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${escH(s.carrera_nombre)} · 📱 ${escH(s.telefono)||'—'}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${escH(s.nro_seguimiento)}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#ede9fe;color:#6d28d9;font-weight:800;white-space:nowrap;flex-shrink:0">WA BOT</span>
               </div>`).join('')+(bot.length>4?`<div style="padding:5px 14px;font-size:10px;color:#6d28d9;font-weight:600">+${bot.length-4} más</div>`:'');
@@ -2151,10 +2156,10 @@ async function pgDash(el){
             html+=`<div style="padding:5px 14px 4px;font-size:10px;font-weight:800;color:#0369a1;background:#f0f9ff;border-top:1px solid #e0f2fe;border-bottom:1px solid #bae6fd;letter-spacing:.05em">👨‍🏫 SOLICITUD DOCENTE — ${doc.length}</div>`;
             html+=doc.slice(0,4).map(s=>`
               <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #e0f2fe;transition:background .12s" onmouseenter="this.style.background='#f0f9ff'" onmouseleave="this.style.background=''">
-                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0">${escH((s.apellido||s.nombre||'?')[0]).toUpperCase()}</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.apellido||''}, ${s.nombre||''}</div>
-                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${s.materia||s.carrera_nombre||''}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${s.nro_seguimiento}</span>`:''}</div>
+                  <div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(s.apellido)}, ${escH(s.nombre)}</div>
+                  <div style="font-size:10px;color:var(--t3);margin-top:1px">${escH(s.materia||s.carrera_nombre)}${s.nro_seguimiento?`<span style="margin-left:6px;font-weight:700;color:#64748b">${escH(s.nro_seguimiento)}</span>`:''}</div>
                 </div>
                 <span style="font-size:9px;padding:2px 7px;border-radius:8px;background:#dbeafe;color:#1e40af;font-weight:800;white-space:nowrap;flex-shrink:0">PENDIENTE</span>
               </div>`).join('')+(doc.length>4?`<div style="padding:5px 14px;font-size:10px;color:#0369a1;font-weight:600">+${doc.length-4} más</div>`:'');
@@ -2867,27 +2872,27 @@ async function waCargarBotLog(){
       const msgsHtml=mensajesRecibidos.map(l=>`
         <div style="background:#fff;border:1px solid #fecaca;border-radius:6px;padding:5px 9px;margin-top:4px;font-size:11px">
           <span style="color:#64748b">${(l.fecha||'').slice(5,16)}</span>
-          <span style="margin-left:6px;color:#1e293b">${(l.detalle||'').replace(/^"|"$/g,'')}</span>
+          <span style="margin-left:6px;color:#1e293b">${escH((l.detalle||'').replace(/^"|"$/g,''))}</span>
         </div>`).join('');
       const volvio=a.volvio_a_escribir;
       const postHtml=(a.mensajes_post_error||[]).map(l=>`
         <div style="background:#fff;border:1px solid #fbbf24;border-radius:6px;padding:5px 9px;margin-top:4px;font-size:11px">
           <span style="color:#64748b">${(l.fecha||'').slice(5,16)}</span>
-          <span style="margin-left:6px;color:#1e293b">${(l.detalle||'').replace(/^"|"$/g,'')}</span>
+          <span style="margin-left:6px;color:#1e293b">${escH((l.detalle||'').replace(/^"|"$/g,''))}</span>
         </div>`).join('');
       return `<div style="border:2px solid ${volvio?'#f59e0b':'#fecaca'};border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div>
-            <span style="font-weight:700;font-size:12px;color:#1e293b">${a.nombre||a.numero}</span>
-            <span style="font-size:10px;color:#6b7280;margin-left:6px">${a.numero}</span>
+            <span style="font-weight:700;font-size:12px;color:#1e293b">${escH(a.nombre||a.numero)}</span>
+            <span style="font-size:10px;color:#6b7280;margin-left:6px">${escH(a.numero)}</span>
             <span style="font-size:10px;background:#fef2f2;color:#991b1b;border-radius:8px;padding:1px 7px;margin-left:6px">${a.errores} error${a.errores!==1?'es':''}</span>
             ${volvio?`<span style="font-size:10px;background:#fffbeb;color:#92400e;border-radius:8px;padding:1px 7px;margin-left:6px;font-weight:700">⚠️ Volvió a escribir — posiblemente sin atender</span>`:`<span style="font-size:10px;background:#f0fdf4;color:#166534;border-radius:8px;padding:1px 7px;margin-left:6px">✓ No volvió a escribir</span>`}
           </div>
-          <button onclick="waConvIrA('${a.numero}')" style="font-size:11px;padding:4px 12px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;cursor:pointer;font-weight:600">Responder →</button>
+          <button onclick="waConvIrA('${idSeguro(a.numero)}')" style="font-size:11px;padding:4px 12px;border:1px solid #dc2626;background:#fff;color:#dc2626;border-radius:6px;cursor:pointer;font-weight:600">Responder →</button>
         </div>
         ${msgsHtml||'<div style="font-size:11px;color:#94a3b8;margin-top:4px;font-style:italic">Sin mensajes en el log</div>'}
         ${volvio?`<div style="margin-top:6px;font-size:11px;font-weight:600;color:#92400e">Mensajes enviados después del error:</div>${postHtml}`:''}
-        <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fffbeb;border-radius:4px;padding:4px 8px">⚠️ Causa: ${causa}</div>
+        <div style="margin-top:6px;font-size:10px;color:#92400e;background:#fffbeb;border-radius:4px;padding:4px 8px">⚠️ Causa: ${escH(causa)}</div>
       </div>`;
     }).join('');
     bannerErr=`<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:14px 16px;margin-bottom:16px">
@@ -2921,9 +2926,9 @@ async function waCargarBotLog(){
     return `<div style="background:${s.bg};border:1px solid ${s.bdr};border-radius:7px;padding:8px 12px;margin-bottom:5px;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start">
       <span style="font-size:15px">${s.ic}</span>
       <div>
-        <span style="font-size:12px;font-weight:700;color:${s.c}">${r.evento}</span>
-        ${mostrarNum?`<span style="font-size:10px;color:#64748b;margin-left:6px">de <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;cursor:pointer" onclick="document.getElementById('wa-botlog-num').value='${numDisp}';waCargarBotLog()">${numDisp}</code></span>`:''}
-        ${det?`<div style="font-size:11px;color:#374151;margin-top:2px;word-break:break-word">${det.replace(/</g,'&lt;')}</div>`:''}
+        <span style="font-size:12px;font-weight:700;color:${s.c}">${escH(r.evento)}</span>
+        ${mostrarNum?`<span style="font-size:10px;color:#64748b;margin-left:6px">de <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;cursor:pointer" onclick="document.getElementById('wa-botlog-num').value='${idSeguro(numDisp)}';waCargarBotLog()">${escH(numDisp)}</code></span>`:''}
+        ${det?`<div style="font-size:11px;color:#374151;margin-top:2px;word-break:break-word">${escH(det)}</div>`:''}
       </div>
       <span style="font-size:10px;color:#94a3b8;white-space:nowrap">${(r.fecha||'').slice(5,16)}</span>
     </div>`;
@@ -2954,13 +2959,13 @@ async function waCargarBotLog(){
     const hora=(g.lastFecha||'').replace('T',' ').slice(0,16);
     const hasErr=g.errores>0;
     const evHtml=g.evs.map(r=>_evRow(r,false)).join('');
-    const msgs=g.evs.filter(e=>e.evento==='recibido').map(e=>`<div style="font-size:11px;color:#374151;padding:4px 0;border-bottom:1px dashed #e5e7eb">"${(e.detalle||'').replace(/^"|"$/g,'').slice(0,80)}"</div>`).join('');
+    const msgs=g.evs.filter(e=>e.evento==='recibido').map(e=>`<div style="font-size:11px;color:#374151;padding:4px 0;border-bottom:1px dashed #e5e7eb">"${escH((e.detalle||'').replace(/^"|"$/g,'').slice(0,80))}"</div>`).join('');
     return `<div style="border:1.5px solid ${hasErr?'#fca5a5':'#e2e8f0'};border-radius:10px;margin-bottom:8px;overflow:hidden">
       <div onclick="(function(el){const b=document.getElementById('${id}');if(b){const open=b.style.display!=='none';b.style.display=open?'none':'block';el.querySelector('.wa-bl-chv').textContent=open?'▶':'▼'}})(this)" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${hasErr?'#fef2f2':'#f8fafc'};cursor:pointer;user-select:none">
         <span style="font-size:18px">${hasErr?'⚠️':'📱'}</span>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-weight:700;font-size:13px;color:#1e293b">${numDisp}</span>
+            <span style="font-weight:700;font-size:13px;color:#1e293b">${escH(numDisp)}</span>
             <span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:1px 7px;border-radius:10px">📩 ${g.recibidos} recibido${g.recibidos!==1?'s':''}</span>
             <span style="font-size:10px;background:#f0fdf4;color:#166534;padding:1px 7px;border-radius:10px">📤 ${g.enviados} enviado${g.enviados!==1?'s':''}</span>
             ${hasErr?`<span style="font-size:10px;background:#fef2f2;color:#991b1b;padding:1px 7px;border-radius:10px">❌ ${g.errores} error${g.errores!==1?'es':''}</span>`:''}
@@ -2969,7 +2974,7 @@ async function waCargarBotLog(){
           <div style="font-size:10px;color:#94a3b8;margin-top:3px">Último: ${hora} · ${g.evs.length} evento${g.evs.length!==1?'s':''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          <button onclick="event.stopPropagation();waConvIrA('${g.num}')" style="font-size:11px;padding:4px 10px;border:1px solid #128C7E;background:#128C7E;color:#fff;border-radius:6px;cursor:pointer;font-weight:600">💬 Chat</button>
+          <button onclick="event.stopPropagation();waConvIrA('${idSeguro(g.num)}')" style="font-size:11px;padding:4px 10px;border:1px solid #128C7E;background:#128C7E;color:#fff;border-radius:6px;cursor:pointer;font-weight:600">💬 Chat</button>
           <span class="wa-bl-chv" style="color:#64748b;font-size:13px">▶</span>
         </div>
       </div>
@@ -2991,7 +2996,7 @@ async function waConvIrA(numero){
   const chat=document.getElementById('waConvChat');
   const bar=document.getElementById('waConvInputBar');
   _waConvNumActivo=numero;
-  if(header) header.innerHTML=`<div style="font-weight:700">${numero}</div><div style="font-size:11px;color:#64748b;font-weight:400">Sin conversación registrada en wa_mensajes</div>`;
+  if(header) header.innerHTML=`<div style="font-weight:700">${escH(numero)}</div><div style="font-size:11px;color:#64748b;font-weight:400">Sin conversación registrada en wa_mensajes</div>`;
   if(bar) bar.style.display='block';
   if(chat) chat.innerHTML='<div style="text-align:center;color:#94a3b8;font-size:12px;padding:30px">No hay mensajes previos registrados para este número.<br>Podés escribirle directamente desde aquí.</div>';
 }
@@ -3078,12 +3083,12 @@ function waConvRenderLista(datos){
     const hora=esHoy?fecha.slice(11,16):fecha.slice(5,10).replace('-','/');
     const dir=ultimo?.direccion==='recibido'?'':'→ ';
     const badge=c.total>c.mensajes.length?`<span style="font-size:10px;color:#94a3b8;margin-left:4px">${c.total}</span>`:'';
-    return `<div onclick="waConvAbrirNum('${c.numero}')" style="padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+    return `<div onclick="waConvAbrirNum('${idSeguro(c.numero)}')" style="padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${nombre}</span>
+        <span style="font-weight:700;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${escH(nombre)}</span>
         <span style="font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:4px;display:flex;align-items:center;gap:3px">${badge}${hora}</span>
       </div>
-      <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dir}${preview||'—'}</div>
+      <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${dir}${escH(preview)||'—'}</div>
     </div>`;
   }).join('');
 }
@@ -3094,7 +3099,7 @@ function _waConvMsgHtml(mensajes){
     const hora=(m.fecha||'').replace('T',' ').slice(0,16);
     return `<div style="display:flex;justify-content:${enviado?'flex-end':'flex-start'}">
       <div style="max-width:72%;padding:9px 13px;border-radius:${enviado?'16px 4px 16px 16px':'4px 16px 16px 16px'};background:${enviado?'#dcf8c6':'#fff'};border:1px solid ${enviado?'#b7e4a0':'#e5e7eb'};font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
-        <div>${(m.mensaje||'').replace(/\n/g,'<br>')}</div>
+        <div>${escH(m.mensaje).replace(/\n/g,'<br>')}</div>
         <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${enviado?m.estado==='fallido'?' ❌':' ✓':''}</div>
       </div>
     </div>`;
@@ -3113,10 +3118,10 @@ function waConvAbrirNum(numero){
   if(header) header.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-weight:700">${conv.nombre||conv.numero}</div>
-        <div style="font-size:11px;color:#64748b;font-weight:400">${conv.numero} · ${hayMas?`últimos ${mostrados} de ${total} mensajes`:`${total} mensaje${total!==1?'s':''}`}</div>
+        <div style="font-weight:700">${escH(conv.nombre||conv.numero)}</div>
+        <div style="font-size:11px;color:#64748b;font-weight:400">${escH(conv.numero)} · ${hayMas?`últimos ${mostrados} de ${total} mensajes`:`${total} mensaje${total!==1?'s':''}`}</div>
       </div>
-      ${hayMas?`<button onclick="waConvVerTodos('${numero}')" style="font-size:11px;padding:4px 10px;border:1px solid #3b82f6;background:#eff6ff;color:#3b82f6;border-radius:6px;cursor:pointer;white-space:nowrap">Ver todo (${total})</button>`:''}
+      ${hayMas?`<button onclick="waConvVerTodos('${idSeguro(numero)}')" style="font-size:11px;padding:4px 10px;border:1px solid #3b82f6;background:#eff6ff;color:#3b82f6;border-radius:6px;cursor:pointer;white-space:nowrap">Ver todo (${total})</button>`:''}
     </div>`;
   if(bar) bar.style.display='block';
   if(chat){
@@ -3342,7 +3347,7 @@ async function waDiagWebhook(){
       <div style="margin-bottom:14px">
         <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">📥 Últimos mensajes recibidos (${data.totalRecibidos} total)</div>
         ${data.ultimosRecibidos?.length
-          ? data.ultimosRecibidos.map(m=>`<div style="font-size:11px;padding:5px 8px;background:#f8fafc;border-radius:6px;margin-bottom:3px"><strong>${m.numero}</strong> · ${m.nombre_contacto||'—'} · "${(m.mensaje||'').slice(0,40)}" · ${(m.fecha||'').slice(0,16)}</div>`).join('')
+          ? data.ultimosRecibidos.map(m=>`<div style="font-size:11px;padding:5px 8px;background:#f8fafc;border-radius:6px;margin-bottom:3px"><strong>${escH(m.numero)}</strong> · ${escH(m.nombre_contacto)||'—'} · "${escH((m.mensaje||'').slice(0,40))}" · ${(m.fecha||'').slice(0,16)}</div>`).join('')
           : '<div style="font-size:12px;color:#94a3b8;padding:8px">Sin mensajes recibidos todavía</div>'
         }
       </div>
@@ -8281,7 +8286,7 @@ async function verRespuestasFormulario(id){
   if(!data.respuestas.length){ modal('<h4>📊 Respuestas</h4><div class="es">Todavía no hay respuestas para este formulario.</div><div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>'); return; }
   const tabla=`<div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>Fecha</th>${data.preguntas.map(p=>`<th>${p.texto_pregunta}</th>`).join('')}</tr></thead>
-    <tbody>${data.respuestas.map(r=>`<tr><td style="font-size:11px;white-space:nowrap;color:#64748b">${(r.fecha||'').slice(0,16)}</td>${data.preguntas.map(p=>`<td style="font-size:12px">${r.valores[p.id]||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${data.respuestas.map(r=>`<tr><td style="font-size:11px;white-space:nowrap;color:#64748b">${(r.fecha||'').slice(0,16)}</td>${data.preguntas.map(p=>`<td style="font-size:12px">${escH(r.valores[p.id])||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></div>`;
   modal(`<h4>📊 Respuestas (${data.respuestas.length})</h4>${tabla}<div class="mf"><button class="bs" onclick="cm()">Cerrar</button></div>`, true);
 }
@@ -8311,7 +8316,7 @@ async function previewExcelFormulario(id, titulo){
   const thCols=pregs.map(p=>`<th style="background:#f0fdf4;color:#166534;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${p.texto_pregunta}">${p.texto_pregunta.length>28?p.texto_pregunta.slice(0,26)+'…':p.texto_pregunta}</th>`).join('');
   const trRows=resps.slice(0,PREVIEW).map((r,i)=>`<tr style="${i%2?'background:#f8fafc':''}">
     <td style="font-size:11px;color:var(--t3);white-space:nowrap">${(r.fecha||'').slice(0,16)}</td>
-    ${pregs.map(p=>`<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.valores[p.id]||'').replace(/"/g,'&quot;')}">${r.valores[p.id]||'—'}</td>`).join('')}
+    ${pregs.map(p=>`<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.valores[p.id])}">${escH(r.valores[p.id])||'—'}</td>`).join('')}
   </tr>`).join('');
   const masRows=resps.length>PREVIEW?`<tr><td colspan="${pregs.length+1}" style="text-align:center;font-size:12px;color:var(--t2);padding:10px;background:#fafaf8;font-style:italic">… y ${resps.length-PREVIEW} respuesta${resps.length-PREVIEW!==1?'s':''} más en el archivo</td></tr>`:'';
 
@@ -10688,14 +10693,14 @@ async function verSolicitudesAlumno(){
       <th style="padding:6px 10px;border:1px solid var(--bdr)">Materia</th><th style="padding:6px 10px;border:1px solid var(--bdr)">Docente</th><th></th>
     </tr></thead><tbody>
     ${pend.map(s=>`<tr>
-      <td style="padding:5px 10px;border:1px solid var(--bdr)"><strong>${s.apellido?s.apellido+', ':''} ${s.nombre}</strong>${s.nro_seguimiento?`<div style="font-size:10px;color:#64748b;font-weight:700">${s.nro_seguimiento}</div>`:''}</td>
-      <td style="padding:5px 10px;border:1px solid var(--bdr)">${s.ci||'—'}</td>
-      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.materia||''}</td>
-      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${s.docente_nombre||''} ${s.docente_apellido||''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)"><strong>${s.apellido?escH(s.apellido)+', ':''} ${escH(s.nombre)}</strong>${s.nro_seguimiento?`<div style="font-size:10px;color:#64748b;font-weight:700">${escH(s.nro_seguimiento)}</div>`:''}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr)">${escH(s.ci)||'—'}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${escH(s.materia)}</td>
+      <td style="padding:5px 10px;border:1px solid var(--bdr);font-size:11px">${escH(s.docente_nombre)} ${escH(s.docente_apellido)}</td>
       <td style="padding:5px 10px;border:1px solid var(--bdr)">
         <div style="display:flex;gap:4px">
-          <button class="bs i" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','aprobar','${encodeURIComponent(s.nombre||'')}','${encodeURIComponent(s.apellido||'')}','${s.ci||''}','${s.asignacion_id||''}')">✓</button>
-          <button class="bs d" style="font-size:10px" onclick="resolverSolicitudAlumno('${s.id}','rechazar')">✗</button>
+          <button class="bs i" style="font-size:10px" onclick="resolverSolicitudAlumno('${idSeguro(s.id)}','aprobar','${encodeURIComponent(s.nombre||'').replace(/'/g,'%27')}','${encodeURIComponent(s.apellido||'').replace(/'/g,'%27')}','${idSeguro(s.ci)}','${idSeguro(s.asignacion_id)}')">✓</button>
+          <button class="bs d" style="font-size:10px" onclick="resolverSolicitudAlumno('${idSeguro(s.id)}','rechazar')">✗</button>
         </div>
       </td>
     </tr>`).join('')}
@@ -10709,11 +10714,11 @@ async function resolverSolicitudAlumno(id,accion,nombreEnc,apellidoEnc,ci,asigId
       const v=await api('POST','/api/solicitudes-alumno/verificar',{nombre,apellido,ci:ci||'',asignacion_id:asigId||''}).catch(()=>null);
       if(v && (v.status==='existe_misma_carrera'||v.status==='existe_otra_carrera')){
         const a=v.alumno;
-        const warn=v.status==='existe_otra_carrera'?`<div style="background:#fff7ed;border:1.5px solid #fb923c;border-radius:8px;padding:10px;font-size:12px;margin-bottom:10px">⚠️ <strong>Este alumno está registrado en otra carrera:</strong> ${a.carrera_nombre||'—'}</div>`:'';
+        const warn=v.status==='existe_otra_carrera'?`<div style="background:#fff7ed;border:1.5px solid #fb923c;border-radius:8px;padding:10px;font-size:12px;margin-bottom:10px">⚠️ <strong>Este alumno está registrado en otra carrera:</strong> ${escH(a.carrera_nombre)||'—'}</div>`:'';
         const info=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px">
           ✅ <strong>Alumno encontrado en el sistema:</strong><br>
-          <span style="margin-top:4px;display:block">${a.apellido||''}, ${a.nombre||''} · CI: ${a.ci||'—'} · Matrícula: ${a.matricula||'—'}</span>
-          <span style="font-size:11px;color:#64748b">Carrera: ${a.carrera_nombre||'—'} · Estado: ${a.estado||'—'}</span>
+          <span style="margin-top:4px;display:block">${escH(a.apellido)}, ${escH(a.nombre)} · CI: ${escH(a.ci)||'—'} · Matrícula: ${escH(a.matricula)||'—'}</span>
+          <span style="font-size:11px;color:#64748b">Carrera: ${escH(a.carrera_nombre)||'—'} · Estado: ${escH(a.estado)||'—'}</span>
         </div>`;
         return modal(`<h4 style="margin-bottom:12px">Verificación antes de incorporar</h4>
           ${info}${warn}
@@ -11642,18 +11647,18 @@ async function pgInteresados(el){
             const tipoLabel=_CONS_TIPO[c.tipo]||c.tipo;
             const carreraInfo=[c.carrera_nombre,c.anio].filter(Boolean).join(' · ')||'—';
             return `<tr>
-              <td style="font-weight:700;white-space:nowrap">${c.nombre||'—'}</td>
-              <td style="font-size:11px;white-space:nowrap">${tipoLabel}</td>
-              <td style="font-size:12px">${carreraInfo}</td>
-              <td style="max-width:260px;font-size:13px">${(c.consulta||'').slice(0,120)}${(c.consulta||'').length>120?'…':''}</td>
-              <td><a href="https://wa.me/${c.numero}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${c.numero||'—'}</a></td>
+              <td style="font-weight:700;white-space:nowrap">${escH(c.nombre)||'—'}</td>
+              <td style="font-size:11px;white-space:nowrap">${escH(tipoLabel)}</td>
+              <td style="font-size:12px">${escH(carreraInfo)}</td>
+              <td style="max-width:260px;font-size:13px">${escH((c.consulta||'').slice(0,120))}${(c.consulta||'').length>120?'…':''}</td>
+              <td><a href="https://wa.me/${idSeguro(c.numero)}" target="_blank" style="color:#25D366;font-weight:700;font-size:12px">📱 ${escH(c.numero)||'—'}</a></td>
               <td style="font-size:11px;color:#6b7280;white-space:nowrap">${(c.fecha||'').slice(0,16)}</td>
               <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
               <td>
                 <div style="display:flex;gap:4px">
-                  ${c.estado!=='atendido'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="consCambiarEstado('${c.id}','atendido')">✅</button>`:''}
-                  ${c.estado!=='pendiente'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="consCambiarEstado('${c.id}','pendiente')">⏳</button>`:''}
-                  <button class="bs d" style="font-size:11px" onclick="consEliminar('${c.id}','${(c.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
+                  ${c.estado!=='atendido'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="consCambiarEstado('${idSeguro(c.id)}','atendido')">✅</button>`:''}
+                  ${c.estado!=='pendiente'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="consCambiarEstado('${idSeguro(c.id)}','pendiente')">⏳</button>`:''}
+                  <button class="bs d" style="font-size:11px" onclick="consEliminar(this.dataset.id,this.dataset.n)" data-id="${escH(c.id)}" data-n="${escH(c.nombre)}">🗑</button>
                 </div>
               </td>
             </tr>`;}).join('')}
@@ -11664,7 +11669,7 @@ async function pgInteresados(el){
     <div id="panel-interesados" style="display:none">
       ${carreras.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
         <button class="bs" style="font-size:12px;background:#0891b2;color:#fff" onclick="intFiltrar('')">Todas</button>
-        ${carreras.map(c=>`<button class="bs" style="font-size:12px" onclick="intFiltrar('${c.replace(/'/g,"\\'")}')">📚 ${c}</button>`).join('')}
+        ${carreras.map(c=>`<button class="bs" style="font-size:12px" onclick="intFiltrar(this.dataset.c)" data-c="${escH(c)}">📚 ${escH(c)}</button>`).join('')}
       </div>`:''}
       ${interesados.length===0
         ?'<div style="text-align:center;padding:40px;color:#6b7280;font-size:14px">📭 Aún no hay interesados registrados por el bot.</div>'
@@ -11672,19 +11677,19 @@ async function pgInteresados(el){
           <thead><tr><th>Nombre</th><th>CI</th><th>Teléfono</th><th>Carrera de interés</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead>
           <tbody>${interesados.map(d=>{
             const [bg,bgL,label]=_INT_BADGE[d.estado]||_INT_BADGE.nuevo;
-            return `<tr data-carrera="${d.carrera_nombre||''}">
-              <td style="font-weight:700">${d.nombre||'—'}</td>
-              <td style="font-size:12px;color:#374151">${d.ci||'—'}</td>
-              <td><a href="https://wa.me/${d.telefono}" target="_blank" style="color:#25D366;font-weight:700">📱 ${d.telefono||'—'}</a></td>
-              <td>${d.carrera_nombre||'—'}</td>
+            return `<tr data-carrera="${escH(d.carrera_nombre)}">
+              <td style="font-weight:700">${escH(d.nombre)||'—'}</td>
+              <td style="font-size:12px;color:#374151">${escH(d.ci)||'—'}</td>
+              <td><a href="https://wa.me/${idSeguro(d.telefono)}" target="_blank" style="color:#25D366;font-weight:700">📱 ${escH(d.telefono)||'—'}</a></td>
+              <td>${escH(d.carrera_nombre)||'—'}</td>
               <td style="font-size:12px;color:#6b7280">${(d.fecha||'').slice(0,16)}</td>
               <td><span style="background:${bgL};color:${bg};padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${label}</span></td>
               <td>
                 <div style="display:flex;gap:4px;flex-wrap:wrap">
-                  ${d.estado!=='contactado'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="intCambiarEstado('${d.id}','contactado')">📞</button>`:''}
-                  ${d.estado!=='inscripto'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="intCambiarEstado('${d.id}','inscripto')">✅</button>`:''}
-                  ${d.estado!=='descartado'?`<button class="bs" style="font-size:11px" onclick="intCambiarEstado('${d.id}','descartado')">🚫</button>`:''}
-                  <button class="bs d" style="font-size:11px" onclick="intEliminar('${d.id}','${(d.nombre||'').replace(/'/g,"\\'")}')">🗑</button>
+                  ${d.estado!=='contactado'?`<button class="bs" style="font-size:11px;background:#d97706;color:#fff" onclick="intCambiarEstado('${idSeguro(d.id)}','contactado')">📞</button>`:''}
+                  ${d.estado!=='inscripto'?`<button class="bs" style="font-size:11px;background:#059669;color:#fff" onclick="intCambiarEstado('${idSeguro(d.id)}','inscripto')">✅</button>`:''}
+                  ${d.estado!=='descartado'?`<button class="bs" style="font-size:11px" onclick="intCambiarEstado('${idSeguro(d.id)}','descartado')">🚫</button>`:''}
+                  <button class="bs d" style="font-size:11px" onclick="intEliminar(this.dataset.id,this.dataset.n)" data-id="${escH(d.id)}" data-n="${escH(d.nombre)}">🗑</button>
                 </div>
               </td>
             </tr>`;}).join('')}
@@ -11705,12 +11710,13 @@ async function pgInteresados(el){
               const ultimo=conv.mensajes[conv.mensajes.length-1];
               const preview=(ultimo?.mensaje||'').slice(0,42)+((ultimo?.mensaje||'').length>42?'…':'');
               const hora=(conv.ultimo||'').slice(11,16);
-              return `<div id="intci-${conv.numero}" onclick="intConvAbrir('${conv.numero}')" style="padding:11px 13px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;${sinResp?'border-left:3px solid #7c3aed;':''}" onmouseover="if(_intConvNumActivo!=='${conv.numero}')this.style.background='#f0f9ff'" onmouseout="if(_intConvNumActivo!=='${conv.numero}')this.style.background=''">
+              const numC=idSeguro(conv.numero); // dato de afuera dentro de un onclick: solo caracteres seguros
+              return `<div id="intci-${numC}" onclick="intConvAbrir('${numC}')" style="padding:11px 13px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;${sinResp?'border-left:3px solid #7c3aed;':''}" onmouseover="if(_intConvNumActivo!=='${numC}')this.style.background='#f0f9ff'" onmouseout="if(_intConvNumActivo!=='${numC}')this.style.background=''">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-                  <span style="font-weight:700;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${conv.nombre||conv.numero}</span>
+                  <span style="font-weight:700;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${escH(conv.nombre||conv.numero)}</span>
                   <span style="font-size:10px;color:#94a3b8;flex-shrink:0">${hora}</span>
                 </div>
-                <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${preview||'—'}</div>
+                <div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(preview)||'—'}</div>
                 ${sinResp?'<span style="font-size:10px;background:#fdf4ff;color:#7c3aed;border-radius:8px;padding:1px 6px;font-weight:700;display:inline-block;margin-top:2px">sin respuesta</span>':''}
               </div>`;
             }).join('')}
@@ -11728,7 +11734,7 @@ async function pgInteresados(el){
         </div>`}
     </div>`;
 
-  }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención</h3></div><div class="alert-err">❌ ${e.message}</div>`;}
+  }catch(e){el.innerHTML=`<div class="ph"><h3>📩 Bot de Atención</h3></div><div class="alert-err">❌ ${escH(e.message)}</div>`;}
 }
 function intTab(tab){
   ['consultas','interesados','conversaciones'].forEach(t=>{
@@ -11751,8 +11757,8 @@ function intConvAbrir(numero){
   const chat=document.getElementById('intConvChat');
   const bar=document.getElementById('intConvInputBar');
   const total=conv.total||conv.mensajes.length;
-  if(header) header.innerHTML=`<div style="font-weight:700;font-size:14px;color:#fff">${conv.nombre||conv.numero}</div>
-    <div style="font-size:11px;color:#a7f3d0">${conv.numero} · ${total} mensaje${total!==1?'s':''}</div>`;
+  if(header) header.innerHTML=`<div style="font-weight:700;font-size:14px;color:#fff">${escH(conv.nombre||conv.numero)}</div>
+    <div style="font-size:11px;color:#a7f3d0">${escH(conv.numero)} · ${total} mensaje${total!==1?'s':''}</div>`;
   if(chat){ chat.innerHTML=_waConvMsgHtml(conv.mensajes); chat.scrollTop=chat.scrollHeight; }
   if(bar){ bar.style.display='flex'; }
   document.querySelectorAll('[id^="intci-"]').forEach(el=>{ el.style.background=''; });
@@ -11772,7 +11778,7 @@ async function intConvEnviar(){
     const hora=new Date().toISOString().replace('T',' ').slice(0,16);
     if(chat){ chat.innerHTML+=`<div style="display:flex;justify-content:flex-end">
       <div style="max-width:72%;padding:9px 13px;border-radius:16px 4px 16px 16px;background:#dcf8c6;border:1px solid #b7e4a0;font-size:13px;color:#1e293b;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)">
-        <div>${msg.replace(/\n/g,'<br>')}</div>
+        <div>${escH(msg).replace(/\n/g,'<br>')}</div>
         <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora} ✓</div>
       </div></div>`; chat.scrollTop=chat.scrollHeight; }
     const conv=_intConvDatos.find(c=>c.numero===_intConvNumActivo);
@@ -11948,11 +11954,12 @@ function wacRenderLista(chats){
     const activo    = c.numero === _wacNumeroActivo;
     const hora      = c._ts ? new Date(c._ts*1000).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'}) : '';
     const unread    = activo ? 0 : (c.unread || 0);
-    return `<div onclick="wacSeleccionar('${c.numero}')"
+    const numA = idSeguro(c.numero); // dato de afuera dentro de un onclick: solo caracteres seguros
+    return `<div onclick="wacSeleccionar('${numA}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;gap:10px;align-items:flex-start;
              background:${activo?'#dcfce7':unread?'#f0fdf4':'#fff'};transition:background .15s"
-      onmouseover="if('${c.numero}'!==_wacNumeroActivo)this.style.background='#f8fafc'"
-      onmouseout="if('${c.numero}'!==_wacNumeroActivo)this.style.background='${unread?'#f0fdf4':'#fff'}'">
+      onmouseover="if('${numA}'!==_wacNumeroActivo)this.style.background='#f8fafc'"
+      onmouseout="if('${numA}'!==_wacNumeroActivo)this.style.background='${unread?'#f0fdf4':'#fff'}'">
       <!-- Avatar -->
       <div style="position:relative;flex-shrink:0">
         <div style="width:40px;height:40px;border-radius:50%;background:${esAlumno?'#dcfce7':'#e2e8f0'};
@@ -11967,14 +11974,14 @@ function wacRenderLista(chats){
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
           <span style="font-weight:${unread?800:700};font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;
-                       color:${unread?'#15803d':'#1e293b'}">${nombre}</span>
+                       color:${unread?'#15803d':'#1e293b'}">${escH(nombre)}</span>
           <span style="font-size:11px;color:${unread?'#16a34a':'#94a3b8'};white-space:nowrap;font-weight:${unread?700:400}">${hora}</span>
         </div>
         <div style="font-size:11px;color:${esAlumno?'#15803d':'#64748b'};margin-top:1px;font-weight:${esAlumno?700:400}">
-          ${esAlumno ? (c.alumno.carrera_nombre||'Alumno') : '📱 '+c.numero}
+          ${esAlumno ? escH(c.alumno.carrera_nombre||'Alumno') : '📱 '+escH(c.numero)}
         </div>
         <div style="font-size:12px;color:${unread?'#374151':'#94a3b8'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;margin-top:2px;font-weight:${unread?600:400}">
-          ${lastMsg || ''}
+          ${escH(lastMsg)}
         </div>
         ${pendiente?`<span style="background:#fef9c3;color:#92400e;font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px">⏳ consulta pendiente</span>`:''}
       </div>
@@ -12035,9 +12042,9 @@ async function wacCargarMensajes(numero, scrollBottom){
         <div style="width:38px;height:38px;border-radius:50%;background:${alumno?'#dcfce7':'#e2e8f0'};
                     display:flex;align-items:center;justify-content:center;font-size:20px">👤</div>
         <div>
-          <div style="font-weight:800;font-size:14px">${nombre}</div>
+          <div style="font-weight:800;font-size:14px">${escH(nombre)}</div>
           <div style="font-size:12px;color:${alumno?'#15803d':'#64748b'}">
-            ${alumno ? `✅ Alumno/a · ${alumno.carrera_nombre||''} · CI: ${alumno.ci||'—'}` : '📱 '+numero}
+            ${alumno ? `✅ Alumno/a · ${escH(alumno.carrera_nombre||'')} · CI: ${escH(alumno.ci||'—')}` : '📱 '+escH(numero)}
           </div>
         </div>
         ${consultas.length?`<div style="margin-left:auto"><span style="background:#fef9c3;color:#92400e;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700">⏳ ${consultas.filter(c=>c.estado==='pendiente').length} consulta(s) pendiente(s)</span></div>`:''}
@@ -12060,7 +12067,7 @@ async function wacCargarMensajes(numero, scrollBottom){
           return `<div style="display:flex;justify-content:${fromMe?'flex-end':'flex-start'}">
             <div style="max-width:70%;padding:9px 13px;border-radius:${fromMe?'16px 4px 16px 16px':'4px 16px 16px 16px'};
                         background:${fromMe?'#dcfce7':'#fff'};box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:14px;line-height:1.4">
-              ${texto}
+              ${escH(texto)}
               <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:right">${hora}${fromMe?' ✓✓':''}</div>
             </div>
           </div>`;
@@ -12077,15 +12084,15 @@ async function wacCargarMensajes(numero, scrollBottom){
         msgsEl.innerHTML += `<div style="margin-top:12px;padding:10px 14px;background:#fef9c3;border-radius:10px;border:1.5px solid #fde68a">
           <div style="font-weight:700;font-size:12px;color:#92400e;margin-bottom:6px">⏳ Consultas recibidas por el bot</div>
           ${pendientes.map(c=>`<div style="font-size:13px;margin-bottom:4px">
-            <span style="color:#64748b;font-size:11px">${(c.fecha||'').slice(0,16)}</span> — ${c.consulta}
-            <button onclick="consCambiarEstado('${c.id}','atendido')" style="margin-left:8px;font-size:10px;background:#059669;color:#fff;border:none;border-radius:6px;padding:2px 7px;cursor:pointer">✅ Marcar atendida</button>
+            <span style="color:#64748b;font-size:11px">${(c.fecha||'').slice(0,16)}</span> — ${escH(c.consulta)}
+            <button onclick="consCambiarEstado('${idSeguro(c.id)}','atendido')" style="margin-left:8px;font-size:10px;background:#059669;color:#fff;border:none;border-radius:6px;padding:2px 7px;cursor:pointer">✅ Marcar atendida</button>
           </div>`).join('')}
         </div>`;
       }
     }
   }catch(e){
     const msgsEl=document.getElementById('wac-mensajes');
-    if(msgsEl) msgsEl.innerHTML=`<div style="color:#dc2626;font-size:13px;padding:20px">❌ Error: ${e.message}</div>`;
+    if(msgsEl) msgsEl.innerHTML=`<div style="color:#dc2626;font-size:13px;padding:20px">❌ Error: ${escH(e.message)}</div>`;
   }
 }
 
@@ -12464,7 +12471,7 @@ function ppwFiltrar(){
     : filtrados.map(p=>_ppwCard(p)).join('');
 }
 function _ppwCard(p){
-  const sugerido = p.alumno_id ? `${p.alumno_apellido||''}, ${p.alumno_nombre||''}` : '';
+  const sugerido = p.alumno_id ? escH(`${p.alumno_apellido||''}, ${p.alumno_nombre||''}`) : '';
   const iaPendiente = !p.ia_estado || p.ia_estado==='pendiente';
   const estadoNoExitoso = p.estado_transferencia_ia && !['exitosa','enviada','completada','cargada'].includes(p.estado_transferencia_ia);
   const iaInfo = iaPendiente
@@ -12473,15 +12480,15 @@ function _ppwCard(p){
       ? '⚠️ La IA no pudo analizar esta imagen. Completá los datos manualmente.'
       : p.ia_estado==='no_es_comprobante'
         ? '⚠️ La IA no detectó un comprobante de transferencia válido en esta imagen. Revisá manualmente.'
-        : `🪄 IA detectó: ${p.monto_sugerido?'Gs. '+Number(p.monto_sugerido).toLocaleString('es-PY'):'monto no visible'}${p.fecha_sugerida?' · '+p.fecha_sugerida:''}${p.banco_detectado?' · '+p.banco_detectado:''}${p.referencia_detectada?' · ref. '+p.referencia_detectada:''}${p.nombre_detectado?' · remitente: '+p.nombre_detectado:''} — verificá antes de aprobar.`;
+        : `🪄 IA detectó: ${p.monto_sugerido?'Gs. '+escH(Number(p.monto_sugerido).toLocaleString('es-PY')):'monto no visible'}${p.fecha_sugerida?' · '+escH(p.fecha_sugerida):''}${p.banco_detectado?' · '+escH(p.banco_detectado):''}${p.referencia_detectada?' · ref. '+escH(p.referencia_detectada):''}${p.nombre_detectado?' · remitente: '+escH(p.nombre_detectado):''} — verificá antes de aprobar.`;
   return `<div class="card mb12" id="ppw-${p.id}" style="border:2px solid ${estadoNoExitoso?'#dc2626':'#fde68a'}">
-    ${estadoNoExitoso?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:12px;color:#991b1b;margin-bottom:10px;font-weight:700">🚨 El comprobante indica estado "${p.estado_transferencia_ia}" — la transferencia puede no haberse acreditado todavía. Verificá con especial cuidado antes de aprobar.</div>`:''}
+    ${estadoNoExitoso?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:12px;color:#991b1b;margin-bottom:10px;font-weight:700">🚨 El comprobante indica estado "${escH(p.estado_transferencia_ia)}" — la transferencia puede no haberse acreditado todavía. Verificá con especial cuidado antes de aprobar.</div>`:''}
     <div style="display:flex;gap:16px;flex-wrap:wrap">
-      <img src="data:${p.imagen_mime};base64,${p.imagen_data}" style="width:160px;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer" title="Clic para ampliar" onclick="verImagenComprobante(this.src)"/>
+      <img src="data:${escH(p.imagen_mime)};base64,${escH(p.imagen_data)}" style="width:160px;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer" title="Clic para ampliar" onclick="verImagenComprobante(this.src)"/>
       <div style="flex:1;min-width:240px">
         <div style="font-size:13px;color:#6b7280;margin-bottom:8px">
-          📞 ${p.numero} ${p.nombre_contacto?'· '+p.nombre_contacto:''} · ${(p.fecha||'').slice(0,16)}
-          ${p.mensaje_texto?`<br/>💬 "${p.mensaje_texto}"`:''}
+          📞 ${escH(p.numero)} ${p.nombre_contacto?'· '+escH(p.nombre_contacto):''} · ${(p.fecha||'').slice(0,16)}
+          ${p.mensaje_texto?`<br/>💬 "${escH(p.mensaje_texto)}"`:''}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
           <div style="flex:1;min-width:200px">
@@ -12518,11 +12525,11 @@ function _ppwCard(p){
           </div>
           <div style="flex:1;min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Monto (Gs.)</label>
-            <input id="ppw-mon-${p.id}" type="number" value="${p.monto_sugerido||''}" placeholder="0" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+            <input id="ppw-mon-${p.id}" type="number" value="${escH(p.monto_sugerido)}" placeholder="0" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
           <div style="flex:1;min-width:140px">
             <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:3px">Fecha de pago</label>
-            <input id="ppw-fec-${p.id}" type="date" value="${p.fecha_sugerida||''}" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
+            <input id="ppw-fec-${p.id}" type="date" value="${escH(p.fecha_sugerida)}" style="width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px">
           </div>
         </div>
         <div id="ppw-mat-wrap-${p.id}" style="display:none;margin-bottom:10px">
@@ -13254,16 +13261,16 @@ async function pgSolicitudes(el){
           return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${r.estado==='pendiente'?'#fde68a':r.estado==='aprobado'?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${r.estado==='pendiente'?'#fffbeb':r.estado==='aprobado'?'#f0fdf4':'#fef2f2'}">
             <div style="flex:1;min-width:0">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
-                <span style="font-weight:700;font-size:14px;color:#1e293b">${r.apellido}, ${r.nombre}</span>
+                <span style="font-weight:700;font-size:14px;color:#1e293b">${escH(r.apellido)}, ${escH(r.nombre)}</span>
                 <span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:600">🔑 Pide acceso</span>
               </div>
-              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${r.ci||'—'}</strong> · Tel: <strong>${r.telefono||'—'}</strong> · Carrera indicada: <strong>${r.carrera_nombre||'—'}</strong> · ${(r.fecha||'').split(' ')[0]||(r.fecha||'').split('T')[0]}</div>
+              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${escH(r.ci)||'—'}</strong> · Tel: <strong>${escH(r.telefono)||'—'}</strong> · Carrera indicada: <strong>${escH(r.carrera_nombre)||'—'}</strong> · ${escH((r.fecha||'').split(' ')[0]||(r.fecha||'').split('T')[0])}</div>
               ${r.alumno_id?`<div style="font-size:11px;margin-top:5px;padding:6px 10px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0">
-                <strong style="color:#166534">✓ Encontrado en el sistema:</strong> ${r.al_apellido}, ${r.al_nombre} — Matrícula <strong>${r.al_matricula||'—'}</strong><br/>
-                Carrera actual: <strong style="color:${coincideCarrera?'#166534':'#dc2626'}">${r.al_carrera_nombre||'—'}</strong>${r.al_curso_anio?' · '+r.al_curso_anio+'° año'+(r.al_curso_division&&r.al_curso_division!=='U'?' Secc. '+r.al_curso_division:''):''} ${!coincideCarrera?'⚠️ no coincide con lo que indicó':''}
+                <strong style="color:#166534">✓ Encontrado en el sistema:</strong> ${escH(r.al_apellido)}, ${escH(r.al_nombre)} — Matrícula <strong>${escH(r.al_matricula)||'—'}</strong><br/>
+                Carrera actual: <strong style="color:${coincideCarrera?'#166534':'#dc2626'}">${escH(r.al_carrera_nombre)||'—'}</strong>${r.al_curso_anio?' · '+escH(r.al_curso_anio)+'° año'+(r.al_curso_division&&r.al_curso_division!=='U'?' Secc. '+escH(r.al_curso_division):''):''} ${!coincideCarrera?'⚠️ no coincide con lo que indicó':''}
                 ${yaTeniaAcceso?'<br/><span style="color:#b45309">⚠️ Este alumno ya tiene un usuario creado</span>':''}
               </div>`:`<div style="font-size:11px;margin-top:5px;color:#dc2626">⚠️ No se encontró ficha de alumno vinculada</div>`}
-              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${r.motivo_rechazo}</div>`:''}
+              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${escH(r.motivo_rechazo)}</div>`:''}
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
               <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
@@ -13284,9 +13291,9 @@ async function pgSolicitudes(el){
     <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;background:#fff;overflow:hidden">
       ${regsQr.length?regsQr.map(r=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1f5f9;${r.estado!=='pendiente'?'opacity:0.55':''}">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px">${r.apellido}, ${r.nombre} <span style="font-size:10px;font-weight:400;color:var(--t3)">· ${r.carrera_nombre}${r.curso_anio?' · '+r.curso_anio+'° año'+(r.curso_division&&r.curso_division!=='U'?' Secc. '+r.curso_division:''):''}</span></div>
-          <div style="font-size:11px;color:var(--t2);margin-top:2px">CI: ${r.ci||'—'} · Tel: ${r.telefono||'—'} · ${r.fecha?.split('T')[0]||r.fecha?.split(' ')[0]||''}</div>
-          ${r.motivo_rechazo?'<div style="font-size:11px;color:#dc2626;margin-top:2px">Motivo: '+r.motivo_rechazo+'</div>':''}
+          <div style="font-weight:700;font-size:13px">${escH(r.apellido)}, ${escH(r.nombre)} <span style="font-size:10px;font-weight:400;color:var(--t3)">· ${escH(r.carrera_nombre)}${r.curso_anio?' · '+escH(r.curso_anio)+'° año'+(r.curso_division&&r.curso_division!=='U'?' Secc. '+escH(r.curso_division):''):''}</span></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">CI: ${escH(r.ci)||'—'} · Tel: ${escH(r.telefono)||'—'} · ${escH(r.fecha?.split('T')[0]||r.fecha?.split(' ')[0]||'')}</div>
+          ${r.motivo_rechazo?'<div style="font-size:11px;color:#dc2626;margin-top:2px">Motivo: '+escH(r.motivo_rechazo)+'</div>':''}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
           <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
@@ -13361,17 +13368,17 @@ async function pgSolicitudes(el){
               </div>
               <div style="padding:14px">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-                  <div style="width:42px;height:42px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
+                  <div style="width:42px;height:42px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0">${escH(((it.alumno||'?')[0]||'?')).toUpperCase()}</div>
                   <div style="min-width:0">
-                    <div style="font-size:14px;font-weight:900;color:#0f172a;line-height:1.3">${it.alumno}</div>
-                    <div style="font-size:11px;color:#64748b;margin-top:2px">CI: ${it.ci}</div>
+                    <div style="font-size:14px;font-weight:900;color:#0f172a;line-height:1.3">${escH(it.alumno)}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px">CI: ${escH(it.ci)}</div>
                   </div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;margin-bottom:13px">
-                  ${it.carrera&&it.carrera!=='—'?`<div>🏫 <strong style="color:#1e293b">${it.carrera}</strong></div>`:''}
-                  ${it.seccion&&it.seccion!=='—'?`<div>📚 ${it.seccion}</div>`:''}
-                  ${it.tel?`<div>📞 ${it.tel}</div>`:''}
-                  ${it.extra?`<div style="color:#64748b">💬 ${it.extra}</div>`:''}
+                  ${it.carrera&&it.carrera!=='—'?`<div>🏫 <strong style="color:#1e293b">${escH(it.carrera)}</strong></div>`:''}
+                  ${it.seccion&&it.seccion!=='—'?`<div>📚 ${escH(it.seccion)}</div>`:''}
+                  ${it.tel?`<div>📞 ${escH(it.tel)}</div>`:''}
+                  ${it.extra?`<div style="color:#64748b">💬 ${escH(it.extra)}</div>`:''}
                 </div>
                 ${it.acciones?`<div style="display:flex;gap:8px">${it.acciones}</div>`:''}
               </div>
@@ -13404,15 +13411,15 @@ async function pgSolicitudes(el){
                 <option value="rechazado">❌ Rechazado</option>
               </select>
             </div>
-            ${procItems.map(it=>`<div class="hist-row" data-busq="${(it.alumno+' '+it.ci).toLowerCase()}" data-tipo="${it.tipo}" data-estado="${it.estado}" style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9;border-left:4px solid ${borderMap[it.tipo]||'#94a3b8'}">
-              <div style="width:30px;height:30px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0">${((it.alumno||'?')[0]||'?').toUpperCase()}</div>
+            ${procItems.map(it=>`<div class="hist-row" data-busq="${escH((it.alumno+' '+it.ci).toLowerCase())}" data-tipo="${escH(it.tipo)}" data-estado="${escH(it.estado)}" style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid #f1f5f9;border-left:4px solid ${borderMap[it.tipo]||'#94a3b8'}">
+              <div style="width:30px;height:30px;border-radius:50%;background:${gradMap[it.tipo]||'#64748b'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;flex-shrink:0">${escH(((it.alumno||'?')[0]||'?')).toUpperCase()}</div>
               <div style="flex:1;min-width:0">
-                <div style="font-weight:700;font-size:12px;color:#1e293b">${it.alumno} <span style="font-size:10px;font-weight:400;color:#94a3b8">CI: ${it.ci}</span></div>
+                <div style="font-weight:700;font-size:12px;color:#1e293b">${escH(it.alumno)} <span style="font-size:10px;font-weight:400;color:#94a3b8">CI: ${escH(it.ci)}</span></div>
                 <div style="font-size:11px;color:#64748b;display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
                   <span style="font-size:10px;padding:1px 6px;border-radius:6px;background:#e0e7ff;color:#3730a3;font-weight:600">${it.icono} ${it.tipLabel}</span>
-                  ${it.carrera&&it.carrera!=='—'?`<span>🏫 ${it.carrera}</span>`:''}
-                  ${it.seccion&&it.seccion!=='—'?`<span>📚 ${it.seccion}</span>`:''}
-                  ${it.extra?`<span>💬 ${it.extra.slice(0,50)}</span>`:''}
+                  ${it.carrera&&it.carrera!=='—'?`<span>🏫 ${escH(it.carrera)}</span>`:''}
+                  ${it.seccion&&it.seccion!=='—'?`<span>📚 ${escH(it.seccion)}</span>`:''}
+                  ${it.extra?`<span>💬 ${escH(it.extra.slice(0,50))}</span>`:''}
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
@@ -13429,21 +13436,21 @@ async function pgSolicitudes(el){
       ${informes.map((i,idx)=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:18px 14px;border-bottom:3px solid #fde68a;border-left:4px solid #f59e0b;${idx%2===1?'background:#fffdf0':''}${i.estado!=='pendiente'?';opacity:0.55':''}">
         <span style="font-size:20px;flex-shrink:0">🔔</span>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px">${i.alumno_apellido||''}, ${i.alumno_nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${i.alumno_ci||'—'}</span></div>
-          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${i.materia||'—'} · ${i.carrera||''} ${i.anio||''}°${i.division&&i.division!=='U'?i.division:''}</div>
-          <div style="font-size:11px;color:var(--t3)">👤 ${i.docente_apellido||''}, ${i.docente_nombre||''} — ${i.fecha||''}</div>
-          ${i.observacion?`<div style="font-size:11px;color:#374151;background:#f9fafb;padding:3px 8px;border-radius:5px;margin-top:3px;display:inline-block">💬 "${i.observacion}"</div>`:''}
-          ${i.estado==='pendiente'?`<div style="display:flex;gap:6px;margin-top:6px"><button class="bn" style="font-size:10px;padding:3px 8px;background:#dc2626;border:none" onclick="resolverInformeGA('${i.id}','retirado','${i.alumno_id}')">🚫 Retirado</button><button class="bs" style="font-size:10px;padding:3px 8px" onclick="resolverInformeGA('${i.id}','visto',null)">✓ Visto</button></div>`:''}
+          <div style="font-weight:700;font-size:13px">${escH(i.alumno_apellido)}, ${escH(i.alumno_nombre)} <span style="font-size:10px;color:var(--t3)">CI: ${escH(i.alumno_ci)||'—'}</span></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${escH(i.materia)||'—'} · ${escH(i.carrera)} ${escH(i.anio)}°${i.division&&i.division!=='U'?escH(i.division):''}</div>
+          <div style="font-size:11px;color:var(--t3)">👤 ${escH(i.docente_apellido)}, ${escH(i.docente_nombre)} — ${escH(i.fecha)}</div>
+          ${i.observacion?`<div style="font-size:11px;color:#374151;background:#f9fafb;padding:3px 8px;border-radius:5px;margin-top:3px;display:inline-block">💬 "${escH(i.observacion)}"</div>`:''}
+          ${i.estado==='pendiente'?`<div style="display:flex;gap:6px;margin-top:6px"><button class="bn" style="font-size:10px;padding:3px 8px;background:#dc2626;border:none" onclick="resolverInformeGA('${idSeguro(i.id)}','retirado','${idSeguro(i.alumno_id)}')">🚫 Retirado</button><button class="bs" style="font-size:10px;padding:3px 8px" onclick="resolverInformeGA('${idSeguro(i.id)}','visto',null)">✓ Visto</button></div>`:''}
         </div>
         <span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;flex-shrink:0;${i.estado==='pendiente'?'background:#fef3c7;color:#92400e':i.estado==='visto'?'background:#dbeafe;color:#1e40af':'background:#d1fae5;color:#065f46'}">${i.estado==='pendiente'?'⏳ PENDIENTE':i.estado==='visto'?'👁 VISTO':'✓ RESUELTO'}</span>
       </div>`).join('')}
       ${ausencias.map((a,idx)=>`<div style="display:flex;gap:8px;align-items:center;padding:18px 14px;border-bottom:3px solid #fca5a5;border-left:4px solid #dc2626;${idx%2===1?'background:#fff5f5':''}">
         <span style="font-size:20px;flex-shrink:0">⚠️</span>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:13px">${a.apellido||''}, ${a.nombre||''} <span style="font-size:10px;color:var(--t3)">CI: ${a.ci||'—'}</span></div>
-          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${a.materia||'—'} · ${a.carrera||''} ${a.anio||''}°${a.division&&a.division!=='U'?a.division:''}</div>
-          ${a.ultima_asistencia?`<div style="font-size:11px;color:var(--t3)">Última asistencia: ${a.ultima_asistencia}</div>`:''}
-          <button class="bs d" style="font-size:10px;padding:2px 8px;margin-top:5px" onclick="marcarNoViene('${a.alumno_id}','${(a.apellido||'')+', '+(a.nombre||'')}','${a.asignacion_id}')">🚫 Retirar</button>
+          <div style="font-weight:700;font-size:13px">${escH(a.apellido)}, ${escH(a.nombre)} <span style="font-size:10px;color:var(--t3)">CI: ${escH(a.ci)||'—'}</span></div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px">📚 ${escH(a.materia)||'—'} · ${escH(a.carrera)} ${escH(a.anio)}°${a.division&&a.division!=='U'?escH(a.division):''}</div>
+          ${a.ultima_asistencia?`<div style="font-size:11px;color:var(--t3)">Última asistencia: ${escH(a.ultima_asistencia)}</div>`:''}
+          <button class="bs d" style="font-size:10px;padding:2px 8px;margin-top:5px" onclick="marcarNoViene(this.dataset.a,this.dataset.n,this.dataset.s)" data-a="${escH(a.alumno_id)}" data-n="${escH((a.apellido||'')+', '+(a.nombre||''))}" data-s="${escH(a.asignacion_id)}">🚫 Retirar</button>
         </div>
         <div style="text-align:center;min-width:70px;flex-shrink:0"><div style="font-size:26px;font-weight:900;color:#dc2626;line-height:1">${a.ausencias_consecutivas}</div><div style="font-size:10px;color:#991b1b;font-weight:600">sin asistir</div></div>
       </div>`).join('')}`:''
@@ -13462,9 +13469,9 @@ async function pgSolicitudes(el){
         return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid #e0e7ff;border-left:4px solid #6366f1">
           <span style="font-size:16px;flex-shrink:0;margin-top:1px">${ico}</span>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:12px;color:#1e3a8a">${a.accion||'Acción'}</div>
-            ${det?`<div style="font-size:11px;color:#374151;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${det}</div>`:''}
-            <div style="font-size:11px;color:var(--t3);margin-top:1px">👤 ${a.usuario_nombre||a.usuario||'—'} <span style="background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:4px;font-size:10px">${a.rol||''}</span></div>
+            <div style="font-weight:700;font-size:12px;color:#1e3a8a">${escH(a.accion||'Acción')}</div>
+            ${det?`<div style="font-size:11px;color:#374151;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(det)}</div>`:''}
+            <div style="font-size:11px;color:var(--t3);margin-top:1px">👤 ${escH(a.usuario_nombre||a.usuario)||'—'} <span style="background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:4px;font-size:10px">${escH(a.rol)}</span></div>
           </div>
           <div style="flex-shrink:0;color:var(--t3);font-size:11px;text-align:right">${fec}</div>
         </div>`;

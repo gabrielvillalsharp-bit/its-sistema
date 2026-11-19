@@ -2847,6 +2847,34 @@ function nowSys() { return new Date(Date.now() + _timeOffsetMs); }
 function nowStr() { return nowSys().toISOString().replace('T',' ').slice(0,19); }
 function nowDate() { return nowSys().toISOString().split('T')[0]; }
 
+// ── TEXTO QUE VIENE DE AFUERA (formularios públicos, WhatsApp, lo que lee la IA de una imagen) ───────────────────
+// Se limpia ANTES de guardarlo para que nunca pueda llevar código a las pantallas del panel (el panel arma muchas listas con
+// innerHTML). Las pantallas que muestran estos datos además los escapan al dibujarlos (escH en index.html): son dos capas.
+// Nombres: solo letras (con tildes), espacios, punto y guion; la comilla simple se vuelve ’ (D'Elía → D’Elía).
+function limpiarNombre(s, max = 80) {
+  return String(s == null ? '' : s).normalize('NFC').replace(/['`´]/g, '’').replace(/[^\p{L}\p{M}\s.’-]/gu, '')
+    .replace(/\s+/g, ' ').trim().slice(0, max);
+}
+function limpiarTelefono(s) { return String(s == null ? '' : s).replace(/[^\d+()\-\s.]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30); }
+// Texto libre (mensajes, respuestas, datos leídos por la IA): se conserva casi todo, pero los símbolos que arman código HTML o
+// rompen un atributo se cambian por otros parecidos (< → ‹, > → ›, " → ”, ' → ’, & → ＆, ` → ´, \ → ／).
+function neutralizarHTML(s, max = 4000) {
+  return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/</g, '‹').replace(/>/g, '›').replace(/"/g, '”').replace(/'/g, '’').replace(/&/g, '＆').replace(/`/g, '´').replace(/\\/g, '／')
+    .slice(0, max);
+}
+// Datos de una persona que llegan por un formulario público: nombre, apellido, teléfono y cédula limpios; ids solo con letras/números
+function limpiarPersona(b) {
+  const o = { ...(b || {}) };
+  if ('nombre' in o) o.nombre = limpiarNombre(o.nombre);
+  if ('apellido' in o) o.apellido = limpiarNombre(o.apellido);
+  if ('telefono' in o) o.telefono = limpiarTelefono(o.telefono);
+  if ('ci' in o) o.ci = String(o.ci == null ? '' : o.ci).replace(/\D/g, '').slice(0, 15);
+  for (const k of ['tipo', 'alumno_id', 'carrera_id', 'curso_id', 'division']) if (k in o && o[k] != null) o[k] = String(o[k]).replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 60);
+  if ('anio' in o && o.anio != null) o.anio = String(o.anio).replace(/\D/g, '').slice(0, 2);
+  return o;
+}
+
 // ── AUDITORÍA ─────────────────────────────────────────────────────────────────
 function audit(usuario_id, accion, tabla, registro_id, detalle = null) {
   try {
@@ -11041,8 +11069,10 @@ async function analizarComprobanteWA(ppid, imgB64, mime) {
     monto_sugerido=?, fecha_sugerida=?, nombre_detectado=?, banco_detectado=?, referencia_detectada=?,
     ia_estado=?, estado_transferencia_ia=?, alumno_id=COALESCE(alumno_id,?)
     WHERE id=?`)
-    .run(datos.monto||null, datos.fecha||null, datos.nombre_remitente||null, datos.banco||null, datos.referencia||null,
-      datos.es_comprobante===false?'no_es_comprobante':'ok', datos.estado_transferencia||null, alumnoIdPorNombre, ppid);
+    // Lo que la IA lee de la imagen es texto de afuera (alguien puede escribir código en la foto): se neutraliza antes de guardarlo
+    .run(datos.monto||null, datos.fecha ? neutralizarHTML(datos.fecha, 40) : null, datos.nombre_remitente ? neutralizarHTML(datos.nombre_remitente, 120) : null,
+      datos.banco ? neutralizarHTML(datos.banco, 80) : null, datos.referencia ? neutralizarHTML(datos.referencia, 80) : null,
+      datos.es_comprobante===false?'no_es_comprobante':'ok', datos.estado_transferencia ? neutralizarHTML(datos.estado_transferencia, 60) : null, alumnoIdPorNombre, ppid);
 }
 
 function manejarWebhookWA(req, res) {
@@ -11121,12 +11151,15 @@ function manejarWebhookWA(req, res) {
       const numero = remoteJid.endsWith('@lid') ? remoteJid : remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
       if (!numero) continue;
       const msg = msgObj.message || {};
-      const texto = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '';
-      const nombre = msgObj.pushName || data.pushName || '';
+      // Texto y nombre de quien escribe: vienen de afuera, se neutralizan antes de guardarlos (ver neutralizarHTML)
+      const texto = neutralizarHTML(msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || '');
+      const nombre = neutralizarHTML(msgObj.pushName || data.pushName || '', 80);
 
       // Imagen recibida (posible comprobante de transferencia) → guardar como pago pendiente
       if (msg.imageMessage) {
-        const imgB64 = msgObj.base64 || msg.base64 || data.base64 || null;
+        let imgB64 = msgObj.base64 || msg.base64 || data.base64 || null;
+        // La imagen y su tipo vienen de afuera: solo se aceptan base64 válido y un tipo con forma image/xxx (van dentro de un atributo del panel)
+        if (imgB64 && !/^[A-Za-z0-9+\/=\s]+$/.test(String(imgB64))) imgB64 = null;
         if (imgB64) {
           try {
             const numSin0 = numero.replace(/\D/g,'').replace(/^595/,'');
@@ -11134,7 +11167,8 @@ function manejarWebhookWA(req, res) {
               SELECT id FROM alumnos WHERE (telefono LIKE ? OR telefono LIKE ?) AND estado='Activo' LIMIT 1
             `).get('%'+numSin0, '%0'+numSin0);
             const ppid = 'ppw_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
-            const mime = msg.imageMessage.mimetype||'image/jpeg';
+            const mimeRaw = String(msg.imageMessage.mimetype || '');
+            const mime = /^image\/[A-Za-z0-9.+-]{1,20}$/.test(mimeRaw) ? mimeRaw : 'image/jpeg';
             db.prepare(`INSERT INTO pagos_pendientes_wa (id,numero,nombre_contacto,alumno_id,imagen_data,imagen_mime,mensaje_texto)
               VALUES (?,?,?,?,?,?,?)`)
               .run(ppid, numero, nombre, alumno?.id||null, imgB64, mime, texto.trim()||null);
@@ -11996,7 +12030,8 @@ app.post('/api/solicitudes-alumno/verificar', auth(['director','docente']), (req
 });
 
 app.post('/api/solicitudes-alumno', auth(['director','docente']), (req, res) => {
-  const { nombre, apellido, ci, asignacion_id, observacion } = req.body;
+  const { nombre, apellido, ci } = limpiarPersona(req.body); // nombre/apellido/cédula limpios (los muestra el panel del director)
+  const { asignacion_id, observacion } = req.body;
   if (!nombre || !asignacion_id) return res.status(400).json({ error: 'Nombre y asignación requeridos' });
   const doc = db.prepare('SELECT id FROM docentes WHERE usuario_id=?').get(req.user.id);
   const docId = doc?.id || req.body.docente_id;
@@ -13009,8 +13044,11 @@ app.post('/pub/formularios/:id/responder', (req, res) => {
     const rid = 'resp_' + Date.now();
     db.prepare('INSERT INTO formulario_respuestas (id,formulario_id) VALUES (?,?)').run(rid, req.params.id);
     const insVal = db.prepare('INSERT INTO formulario_respuesta_valores (id,respuesta_id,pregunta_id,valor) VALUES (?,?,?,?)');
+    const idsPreguntas = new Set(preguntas.map(p => String(p.id)));
     Object.entries(respuestas).forEach(([pid, valor], i) => {
-      if (String(valor||'').trim()) insVal.run('rv_'+Date.now()+'_'+i, rid, pid, String(valor));
+      if (!idsPreguntas.has(String(pid))) return; // solo se guardan respuestas a preguntas de ESTE formulario
+      const limpio = neutralizarHTML(valor, 2000).trim(); // texto de afuera: nada que arme código en el panel
+      if (limpio) insVal.run('rv_'+Date.now()+'_'+i, rid, pid, limpio);
     });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -13056,7 +13094,7 @@ app.use('/pub', pubLimiter);
 
 // ── REGISTRO DIRECTO QR — nuevo alumno (crea cuenta activa + WA) ──────────────
 app.post('/pub/registro-directo', async (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id, anio, division } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id, anio, division } = limpiarPersona(req.body);
   if (!nombre?.trim() || !apellido?.trim()) return res.status(400).json({ error: 'Nombre y apellido son obligatorios' });
   if (!ci || String(ci).replace(/\D/g,'').length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
   if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
@@ -13105,8 +13143,10 @@ app.post('/pub/registro-directo', async (req, res) => {
 });
 
 app.get('/pub/institucion', (req, res) => {
-  const inst = db.prepare('SELECT nombre, logo_base64 FROM instituciones LIMIT 1').get();
-  res.json(inst || { nombre: 'ITS', logo_base64: null });
+  // La tabla se llama `institucion` (singular); con `instituciones` daba error 500 y el logo del QR nunca aparecía.
+  let inst = null;
+  try { inst = db.prepare('SELECT nombre, logo_base64 FROM institucion WHERE id=1').get(); } catch {}
+  res.json({ nombre: (inst && inst.nombre) || 'ITS Santísima Trinidad', logo_base64: (inst && inst.logo_base64) || null });
 });
 
 app.get('/pub/carreras', (req, res) => {
@@ -13156,7 +13196,7 @@ const _credPorCi = new Map(); // cédula → marcas de tiempo de los envíos de 
 app.post('/pub/alumno/reenviar-credenciales', credLimiterIp, async (req, res) => {
   const tokens = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ')
     .split(/\s+/).filter(t => t.length >= 2);
-  const { nombre, apellido, ci, telefono } = req.body || {};
+  const { nombre, apellido, ci, telefono } = limpiarPersona(req.body);
   const ciNorm = String(ci||'').replace(/\D/g,'');
   const tipeado = [...tokens(nombre), ...tokens(apellido)];
   if (!tokens(nombre).length || !tokens(apellido).length) return res.status(400).json({ error: 'Ingresá tu nombre y tu apellido.' });
@@ -13231,7 +13271,7 @@ app.post('/pub/alumno/reenviar-credenciales', credLimiterIp, async (req, res) =>
 });
 
 app.post('/pub/solicitud-registro', (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id, curso_id, alumno_id, tipo } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id, curso_id, alumno_id, tipo } = limpiarPersona(req.body);
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
   if (!telefono || String(telefono).replace(/\D/g,'').length < 7) return res.status(400).json({ error: 'El número de teléfono es obligatorio' });
   const carrera = db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id);
@@ -13322,7 +13362,7 @@ app.post('/pub/solicitud-registro', (req, res) => {
 // todavía no tienen acceso al sistema (usuario_id vacío). Distinto de
 // /pub/solicitud-registro, que es para gente que TODAVÍA no es alumna.
 app.post('/pub/incorporacion-academica', (req, res) => {
-  const { nombre, apellido, ci, telefono, carrera_id } = req.body;
+  const { nombre, apellido, ci, telefono, carrera_id } = limpiarPersona(req.body);
   if (!nombre || !apellido) return res.status(400).json({ error: 'Nombre y apellido son requeridos' });
   const ciNorm = String(ci||'').replace(/\D/g,'');
   if (ciNorm.length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
@@ -14063,7 +14103,7 @@ app.post('/api/rsvp/fiorella', (req, res) => {
   const { nombre, cantidad, telefono, mensaje } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
   db.prepare('INSERT INTO rsvp_fiorella (nombre, cantidad, telefono, mensaje) VALUES (?,?,?,?)')
-    .run(nombre.trim(), parseInt(cantidad)||1, telefono||null, mensaje||null);
+    .run(limpiarNombre(nombre) || 'Sin nombre', Math.min(Math.max(parseInt(cantidad)||1, 1), 50), limpiarTelefono(telefono) || null, neutralizarHTML(mensaje, 500) || null);
   res.json({ ok: true });
 });
 app.get('/api/rsvp/fiorella', auth(['director']), (req, res) => {
