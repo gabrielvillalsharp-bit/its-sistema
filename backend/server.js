@@ -10492,9 +10492,11 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
   const EVO_KEY  = process.env.EVOLUTION_KEY;
   const EVO_INST = process.env.EVOLUTION_INSTANCE;
   const APP_URL  = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
-  const webhookUrl = `${APP_URL}/webhook/whatsapp`;
+  const webhookUrl = waWebhookUrl(APP_URL);
+  const _clave = waWebhookClave();
+  const ocultar = v => { try { return _clave ? JSON.parse(JSON.stringify(v).split(_clave).join('***')) : v; } catch(e) { return v; } };
 
-  const resultado = { webhookUrl, configEnv: { EVO_URL: !!EVO_URL, EVO_KEY: !!EVO_KEY, EVO_INST: !!EVO_INST, APP_URL } };
+  const resultado = { webhookUrl: ocultar(webhookUrl), claveWebhook: { exigida: waWebhookExigida(), sinClaveRecibidos: _waSinClave }, configEnv: { EVO_URL: !!EVO_URL, EVO_KEY: !!EVO_KEY, EVO_INST: !!EVO_INST, APP_URL } };
 
   if (!EVO_URL || !EVO_KEY || !EVO_INST) {
     return res.json({ ...resultado, error: 'Variables de entorno faltantes' });
@@ -10505,7 +10507,7 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
     const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/find/${EVO_INST}`, {
       headers: { apikey: EVO_KEY }, signal: AbortSignal.timeout(6000)
     });
-    resultado.webhookActual = await r.json();
+    resultado.webhookActual = ocultar(await r.json());
   } catch(e) { resultado.webhookActual = { error: e.message }; }
 
   // 2. Reconfigurar webhook (si se pasa ?reconfigurar=1)
@@ -10522,8 +10524,8 @@ app.get('/api/whatsapp/webhook-diagnostico', auth(ADM), async (req, res) => {
         });
         const txt = await r2.text();
         let json; try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-        resultado.reconfiguracion = { method, status: r2.status, ok: r2.ok, response: json };
-        if (r2.ok) break; // si salió bien, no hace falta intentar el otro método
+        resultado.reconfiguracion = { method, status: r2.status, ok: r2.ok, response: ocultar(json) };
+        if (r2.ok) { resultado.claveWebhook.confirmadaEnEvolution = await waConfirmarClaveEnEvolution(EVO_URL, EVO_KEY, EVO_INST); resultado.claveWebhook.exigida = waWebhookExigida(); break; } // si salió bien, no hace falta intentar el otro método
       } catch(e) { resultado.reconfiguracion = { method, error: e.message }; }
     }
   }
@@ -11075,6 +11077,60 @@ async function analizarComprobanteWA(ppid, imgB64, mime) {
       datos.es_comprobante===false?'no_es_comprobante':'ok', datos.estado_transferencia ? neutralizarHTML(datos.estado_transferencia, 60) : null, alumnoIdPorNombre, ppid);
 }
 
+// ── WHATSAPP: clave secreta del webhook ──────────────────────────────────────────────────────────────────────────
+// Evolution avisa de cada mensaje que llega haciendo POST a /webhook/whatsapp?k=<clave>. Antes cualquiera en internet podía
+// mandar mensajes o comprobantes falsos a esa dirección (y gastar la IA que lee comprobantes). Ahora hace falta la clave.
+// - La clave se genera sola la primera vez y queda guardada en la base (se puede fijar con la variable WA_WEBHOOK_KEY).
+// - Al arrancar, el sistema le registra a Evolution la URL con la clave y VERIFICA que Evolution la tiene guardada.
+// - Recién entonces ('wa_webhook_exigir'='1') rechaza lo que llega sin clave. Antes de eso solo avisa en el log, para no cortar mensajes.
+function waWebhookClave() {
+  if (process.env.WA_WEBHOOK_KEY) return String(process.env.WA_WEBHOOK_KEY);
+  try {
+    let k = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_webhook_clave'").get()?.valor;
+    if (!k) {
+      db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('wa_webhook_clave',?)").run(require('crypto').randomBytes(24).toString('hex'));
+      k = db.prepare("SELECT valor FROM configuracion WHERE clave='wa_webhook_clave'").get()?.valor;
+    }
+    return k || null;
+  } catch(e) { console.warn('[WEBHOOK WA] clave:', e.message); return null; }
+}
+function waWebhookExigida() {
+  try { return db.prepare("SELECT valor FROM configuracion WHERE clave='wa_webhook_exigir'").get()?.valor === '1'; } catch(e) { return false; }
+}
+function waWebhookUrl(appUrl) {
+  const k = waWebhookClave();
+  return `${String(appUrl).replace(/\/+$/,'')}/webhook/whatsapp` + (k ? `?k=${k}` : '');
+}
+function waClaveValida(req) {
+  const k = waWebhookClave();
+  const dada = req.query && req.query.k;
+  if (!k || typeof dada !== 'string') return false;
+  const a = Buffer.from(dada), b = Buffer.from(k);
+  return a.length === b.length && require('crypto').timingSafeEqual(a, b);
+}
+// Le pregunta a Evolution qué URL tiene guardada; si ya trae la clave, activa el rechazo de lo que llegue sin ella.
+async function waConfirmarClaveEnEvolution(EVO_URL, EVO_KEY, EVO_INST) {
+  try {
+    const k = waWebhookClave();
+    if (!k) return false;
+    const r = await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/find/${EVO_INST}`, { headers: { apikey: EVO_KEY }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return false;
+    const d = await r.json().catch(() => null);
+    if (!d || !JSON.stringify(d).includes(`/webhook/whatsapp?k=${k}`)) return false;
+    db.prepare("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('wa_webhook_exigir','1')").run();
+    return true;
+  } catch(e) { console.warn('[WEBHOOK WA] confirmar clave:', e.message); return false; }
+}
+let _waSinClave = 0;
+function verificarClaveWebhookWA(req, res, next) {
+  if (waClaveValida(req)) return next();
+  _waSinClave++;
+  const exigida = waWebhookExigida();
+  if (_waSinClave === 1 || _waSinClave % 100 === 0) console.warn(`[WEBHOOK WA] llegó sin clave válida (${_waSinClave} en total) desde ${req.ip} — ${exigida ? 'RECHAZADO' : 'aceptado: la clave todavía no está confirmada en Evolution'}`);
+  if (!exigida) return next();
+  return res.status(401).json({ error: 'No autorizado' });
+}
+
 function manejarWebhookWA(req, res) {
   res.json({ ok: true }); // responder rápido
   try {
@@ -11192,8 +11248,8 @@ function manejarWebhookWA(req, res) {
     }
   } catch(e) { console.error('[WEBHOOK WA]', e.message); }
 }
-app.post('/api/whatsapp/webhook', manejarWebhookWA);
-app.post('/webhook/whatsapp', manejarWebhookWA);
+app.post('/api/whatsapp/webhook', verificarClaveWebhookWA, manejarWebhookWA);
+app.post('/webhook/whatsapp', verificarClaveWebhookWA, manejarWebhookWA);
 
 // ── WHATSAPP: mensajes recibidos ──────────────────────────────────────────────
 app.get('/api/whatsapp/recibidos', auth(ADM), (req, res) => {
@@ -14167,12 +14223,15 @@ app.listen(PORT, () => {
     setTimeout(async () => {
       try {
         const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app';
+        // La URL lleva la clave secreta (?k=...): sin ella el sistema rechaza lo que llegue al webhook (ver waWebhookClave)
         await fetch(`${EVO_URL.replace(/\/+$/,'')}/webhook/set/${EVO_INSTANCE}`, {
           method: 'POST',
           headers: { 'apikey': EVO_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ webhook: { enabled: true, url: `${APP_URL}/webhook/whatsapp`, events: ['MESSAGES_UPSERT', 'CONTACTS_UPSERT'] } })
+          body: JSON.stringify({ webhook: { enabled: true, url: waWebhookUrl(APP_URL), events: ['MESSAGES_UPSERT', 'CONTACTS_UPSERT'] } })
         });
-        console.log('[BOT] ✅ Webhook Evolution configurado →', APP_URL+'/webhook/whatsapp');
+        console.log('[BOT] ✅ Webhook Evolution configurado →', APP_URL+'/webhook/whatsapp (con clave)');
+        const confirmada = await waConfirmarClaveEnEvolution(EVO_URL, EVO_KEY, EVO_INSTANCE);
+        console.log(confirmada ? '[BOT] 🔒 Evolution confirmó la clave del webhook: se rechaza todo lo que llegue sin ella.' : '[BOT] ⚠️ Evolution no confirmó la clave del webhook: por ahora se acepta sin clave (se reintenta en el próximo arranque).');
       } catch(e) { console.warn('[BOT] Webhook config falló:', e.message); }
     }, 8000);
   }
