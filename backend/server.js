@@ -13137,91 +13137,11 @@ app.get('/pub/carrera/:id/cursos', (req, res) => {
   res.json(cursos);
 });
 
-app.get('/pub/carrera/:id/alumnos', (req, res) => {
-  const { curso_id } = req.query;
-  // Si se filtra por curso, incluir también alumnos sin sección asignada (curso_id IS NULL)
-  // de la misma carrera, para que aparezcan al buscar en cualquier sección
-  const alumnos = curso_id
-    ? db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND (a.curso_id=? OR a.curso_id IS NULL) AND a.estado='Activo' ORDER BY a.curso_id NULLS LAST, a.apellido, a.nombre`).all(req.params.id, curso_id)
-    : db.prepare(`SELECT a.id, a.nombre, a.apellido, a.ci, a.telefono, a.curso_id FROM alumnos a WHERE a.carrera_id=? AND a.estado='Activo' ORDER BY a.apellido, a.nombre`).all(req.params.id);
-  res.json(alumnos);
-});
+// ── RUTAS PÚBLICAS CERRADAS (2026-11-18, orden del director) ─────────────────────────────────────────────────────
+// Se quitaron GET /pub/carrera/:id/alumnos, POST /pub/alumno/completar y GET /pub/buscar-alumno: eran públicas (sin sesión) y
+// devolvían cédula y teléfono de los alumnos o permitían modificar la ficha de cualquiera con solo su id. Ninguna página las usa:
+// el QR usa /pub/registro-directo (alumno nuevo) y /pub/alumno/reenviar-credenciales (ya soy alumno/a).
 
-app.post('/pub/alumno/completar', (req, res) => {
-  const { alumno_id, ci, telefono, carrera_id, nombre, apellido, curso_id } = req.body;
-  if (!alumno_id || !carrera_id) return res.status(400).json({ error: 'Datos incompletos' });
-  const alumno = db.prepare('SELECT * FROM alumnos WHERE id=?').get(alumno_id);
-  if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
-  if (!db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id)) {
-    return res.status(400).json({ error: 'Carrera no válida' });
-  }
-  const logQR = (campo, anterior, nuevo) => {
-    const a = String(anterior||'').trim(), n = String(nuevo||'').trim();
-    if (a !== n && n !== '') {
-      db.prepare('INSERT INTO qr_cambios (id,alumno_id,campo,valor_anterior,valor_nuevo) VALUES (?,?,?,?,?)')
-        .run('qrc_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), alumno_id, campo, a, n);
-    }
-  };
-  try {
-    if (ci) {
-      const ciNorm = String(ci).replace(/[^0-9]/g,'');
-      if (ciNorm) {
-        const dup = db.prepare('SELECT id FROM alumnos WHERE ci=? AND id!=?').get(ciNorm, alumno_id);
-        if (dup) return res.status(400).json({ error: 'Ese número de cédula ya está registrado para otro alumno' });
-        db.prepare('UPDATE alumnos SET ci=? WHERE id=?').run(ciNorm, alumno_id);
-        if (alumno.usuario_id) db.prepare('UPDATE usuarios SET ci=? WHERE id=?').run(ciNorm, alumno.usuario_id);
-        logQR('ci', alumno.ci, ciNorm);
-      }
-    }
-    if (telefono) {
-      db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(telefono, alumno_id);
-      logQR('telefono', alumno.telefono, telefono);
-    }
-    if (nombre && nombre.trim()) {
-      db.prepare('UPDATE alumnos SET nombre=? WHERE id=?').run(nombre.trim(), alumno_id);
-      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET nombre=? WHERE id=?').run(nombre.trim(), alumno.usuario_id);
-      logQR('nombre', alumno.nombre, nombre.trim());
-    }
-    if (apellido && apellido.trim()) {
-      db.prepare('UPDATE alumnos SET apellido=? WHERE id=?').run(apellido.trim(), alumno_id);
-      if (alumno.usuario_id) db.prepare('UPDATE usuarios SET apellido=? WHERE id=?').run(apellido.trim(), alumno.usuario_id);
-      logQR('apellido', alumno.apellido, apellido.trim());
-    }
-    // Si cambió nombre o apellido, regenerar el email/usuario
-    if (alumno.usuario_id && ((nombre && nombre.trim()) || (apellido && apellido.trim()))) {
-      const norm = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-      const nuevoNombre = (nombre && nombre.trim()) ? nombre.trim() : (alumno.nombre||'');
-      const nuevoApellido = (apellido && apellido.trim()) ? apellido.trim() : (alumno.apellido||'');
-      const ciNum = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
-      const emailActual = db.prepare('SELECT email FROM usuarios WHERE id=?').get(alumno.usuario_id)?.email||'';
-      const nuevoEmail = emailTrasRenombrar(alumno.usuario_id, alumno.nombre, alumno.apellido, nuevoNombre, nuevoApellido, ciNum);
-      if (nuevoEmail && nuevoEmail !== emailActual) {
-        db.prepare('UPDATE usuarios SET email=? WHERE id=?').run(nuevoEmail, alumno.usuario_id);
-        logQR('email', emailActual, nuevoEmail);
-      }
-    }
-    if (curso_id && !alumno.curso_id) {
-      const cursoValido = db.prepare('SELECT id FROM cursos WHERE id=? AND carrera_id=?').get(curso_id, carrera_id);
-      if (cursoValido) db.prepare('UPDATE alumnos SET curso_id=? WHERE id=?').run(curso_id, alumno_id);
-    }
-    // Planillas de notas del curso (período activo y semestre en curso): sin ellas el alumno entra y ve todo en blanco
-    crearNotasPendientes(alumno_id, db.prepare('SELECT curso_id FROM alumnos WHERE id=?').get(alumno_id)?.curso_id);
-    // Asignar carrera si el alumno no tenía ninguna (tipo sin_asignar)
-    if (!alumno.carrera_id && carrera_id) {
-      db.prepare('UPDATE alumnos SET carrera_id=? WHERE id=?').run(carrera_id, alumno_id);
-      logQR('carrera_id', '', carrera_id);
-    }
-    // Enviar WhatsApp de bienvenida con credenciales
-    const alumnoActual = db.prepare('SELECT a.*, u.email FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id WHERE a.id=?').get(alumno_id);
-    const telefonoFinal = telefono || alumno.telefono;
-    const ciActual = String(ci||alumno.ci||'').replace(/[^0-9]/g,'');
-    const nombreCompleto = (nombre||alumno.nombre||'')+(apellido||alumno.apellido?(' '+(apellido||alumno.apellido)):'');
-    if (telefonoFinal && alumnoActual?.email) {
-      enviarBienvenidaQR(telefonoFinal, nombreCompleto.trim(), alumnoActual.email, ciActual);
-    }
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // ── QR "YA SOY ALUMNO/A — QUIERO MIS DATOS OTRA VEZ" ─────────────────────────
 // La persona escribe nombre, apellido y cédula; si coinciden con una ficha de alumno se le reenvía por WhatsApp su
@@ -14072,78 +13992,6 @@ app.put('/api/solicitudes-registro/:id/resolver', auth(ADM), (req, res) => {
   res.json({ ok: true });
 });
 
-// ── BÚSQUEDA GLOBAL DE ALUMNOS (para registro QR) ────────────────────────────
-app.get('/pub/buscar-alumno', (req, res) => {
-  const { q, carrera_id, curso_id } = req.query;
-  const ciParam = String(req.query.ci||'').replace(/[^0-9]/g,'');
-  const qTrim = (q||'').trim();
-  if (qTrim.length < 2 && ciParam.length < 4) return res.json([]);
-
-  // Normalización segura con escape Unicode explícito (evita corrupción CRLF)
-  const norm = s => (s||'').toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')   // quita tildes/acentos
-    .replace(/[^a-z0-9 ]/g, '')        // solo letras, dígitos y espacio
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const qNorm   = norm(qTrim);
-  const palabras = qNorm.split(' ').filter(p => p.length >= 2);
-
-  try {
-    // JOIN con usuarios para capturar nombres que solo están en esa tabla
-    const todos = db.prepare(`
-      SELECT al.id, al.estado, al.curso_id, al.carrera_id, al.telefono,
-        COALESCE(al.nombre,   u.nombre,   '') AS nombre,
-        COALESCE(al.apellido, u.apellido, '') AS apellido,
-        COALESCE(al.ci,       u.ci,       '') AS ci,
-        c.nombre  AS carrera_nombre,
-        cu.anio   AS curso_anio,
-        cu.division AS curso_division
-      FROM alumnos al
-      LEFT JOIN usuarios  u  ON al.usuario_id  = u.id
-      LEFT JOIN carreras  c  ON al.carrera_id  = c.id
-      LEFT JOIN cursos    cu ON al.curso_id     = cu.id
-      WHERE al.estado NOT IN ('Retirado','Inactivo')
-      ORDER BY COALESCE(al.apellido, u.apellido), COALESCE(al.nombre, u.nombre)
-    `).all();
-
-    const filtrados = todos.filter(a => {
-      const nom = norm(a.nombre);
-      const ape = norm(a.apellido);
-      // Partes individuales del nombre completo (para matching por inicio de palabra)
-      const partes = (ape + ' ' + nom).split(' ').filter(Boolean);
-      const aCi = String(a.ci||'').replace(/[^0-9]/g,'');
-
-      // CI filter (if ci param provided, must match)
-      if (ciParam.length >= 4) {
-        if (!aCi || !aCi.includes(ciParam)) return false;
-        // If no name query, CI alone is enough
-        if (!palabras.length) return true;
-      }
-
-      // Name filter
-      if (!palabras.length) return false;
-      // Cada palabra buscada debe encontrarse al INICIO de alguna parte del nombre
-      // Ej: "garc" → matchea "garcia" pero NO "angelica"
-      return palabras.every(p => partes.some(parte => parte.startsWith(p)));
-    });
-
-    const resultado = filtrados.slice(0, 15).map(a => {
-      const mismaCarrera = carrera_id && a.carrera_id === carrera_id;
-      const mismoCurso   = curso_id   && a.curso_id   === curso_id;
-      let match_tipo;
-      if      (!a.carrera_id)                    match_tipo = 'sin_asignar';
-      else if (mismaCarrera && mismoCurso)        match_tipo = 'perfecto';
-      else if (mismaCarrera && !a.curso_id)       match_tipo = 'misma_carrera_sin_curso';
-      else if (mismaCarrera)                      match_tipo = 'misma_carrera_otro_curso';
-      else                                        match_tipo = 'otra_carrera';
-      return { ...a, match_tipo };
-    });
-    res.json(resultado);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 // ── OLVIDÉ MI CONTRASEÑA (público, autoservicio con verificación de identidad) ──
 // Sin email/SMS configurado: se verifica identidad pidiendo varios datos que
 // deben coincidir TODOS con la ficha real del alumno (nombre, CI, usuario,
@@ -14222,6 +14070,8 @@ app.get('/api/rsvp/fiorella', auth(['director']), (req, res) => {
   const lista = db.prepare('SELECT * FROM rsvp_fiorella ORDER BY id DESC').all();
   res.json({ lista, total: lista.reduce((s,r)=>s+r.cantidad,0) });
 });
+// Una ruta /pub que no existe (p. ej. las que se cerraron) responde 404 en JSON, no la página de inicio
+app.use('/pub', (req, res) => res.status(404).json({ error: 'No encontrado' }));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','index.html')));
 // ── SEMBRAR ARANCELES EXÁMENES CON COSTO ─────────────────────────────────────
 try {
