@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Inscripción 2do Semestre 2026 — ITS Santísima Trinidad</title>
+<title>Inscripción 2027 — ITS Santísima Trinidad</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;min-height:100vh;color:#1a202c}
@@ -74,22 +74,31 @@ async function init() {
   }
 }
 
+// Carrera que eligió en la página de carreras (?carrera=Nombre). Se compara sin tildes ni mayúsculas.
+const _nrm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
+function carreraElegida() {
+  const q = _nrm(new URLSearchParams(location.search).get('carrera'));
+  if (!q) return null;
+  return carreras.find(c => _nrm(c.nombre) === q) || carreras.find(c => _nrm(c.nombre).includes(q) || q.includes(_nrm(c.nombre))) || null;
+}
+
 function renderForm() {
+  const elegida = carreraElegida();
   document.getElementById('app').innerHTML = `
     <div class="header">
       <div class="header-logo">🎓</div>
       <h1>ITS Santísima Trinidad</h1>
       <div class="header-sub">Inscripción de Alumnos</div>
-      <div class="badge">📅 2do Semestre 2026</div>
+      <div class="badge">📅 Año lectivo 2027</div>
     </div>
 
     <div class="card">
       <div class="card-title">📝 Formulario de inscripción</div>
-      <div class="card-sub">Completá todos los campos para registrar tu solicitud.</div>
+      <div class="card-sub">Completá todos los campos para anotarte.</div>
 
       <div class="info-row">
         <span class="info-icon">ℹ️</span>
-        <span>Una vez enviado, el director revisará tu solicitud y te avisará cuando esté aprobada.</span>
+        <span>Una vez enviado, la Dirección se comunicará con vos por WhatsApp para confirmar tu inscripción.</span>
       </div>
 
       <div id="err-form"></div>
@@ -119,12 +128,13 @@ function renderForm() {
         <label>Carrera a inscribirse<span class="req">*</span></label>
         <select id="inp-carrera">
           <option value="">— Seleccioná tu carrera —</option>
-          ${carreras.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+          ${carreras.map(c => `<option value="${c.id}"${elegida && elegida.id === c.id ? ' selected' : ''}>${c.nombre}</option>`).join('')}
         </select>
+        <a href="/carreras.html" style="display:inline-block;margin-top:8px;font-size:12px;color:#166534;font-weight:700">← Ver la información de las carreras</a>
       </div>
 
       <button class="btn btn-primary" id="btn-enviar" onclick="enviar()">
-        📤 Enviar solicitud de inscripción
+        📤 Enviar mi inscripción
       </button>
     </div>`;
 }
@@ -154,12 +164,12 @@ async function enviar() {
     const res = await fetch('/pub/solicitud-registro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, apellido, ci, telefono, carrera_id, tipo: 'formulario_web' })
+      body: JSON.stringify({ nombre, apellido, ci, telefono, carrera_id, tipo: 'inscripcion_2027' })
     });
     const data = await res.json();
     if (!res.ok) {
       btn.disabled = false;
-      btn.innerHTML = '📤 Enviar solicitud de inscripción';
+      btn.innerHTML = '📤 Enviar mi inscripción';
       if (data.duplicate) {
         err.innerHTML = `<div class="alert alert-warn">⚠️ ${data.error}<br/><span style="font-size:12px;margin-top:4px;display:block">Si creés que es un error, comunicate con el director.</span></div>`;
       } else {
@@ -170,7 +180,7 @@ async function enviar() {
     renderExito(nombre, apellido, carreras.find(c => c.id === carrera_id)?.nombre || '');
   } catch(e) {
     btn.disabled = false;
-    btn.innerHTML = '📤 Enviar solicitud de inscripción';
+    btn.innerHTML = '📤 Enviar mi inscripción';
     err.innerHTML = '<div class="alert alert-err">❌ Error de conexión. Verificá tu internet e intentá de nuevo.</div>';
   }
 }
@@ -181,18 +191,18 @@ function renderExito(nombre, apellido, carrera) {
       <div class="header-logo">🎓</div>
       <h1>ITS Santísima Trinidad</h1>
       <div class="header-sub">Inscripción de Alumnos</div>
-      <div class="badge">📅 2do Semestre 2026</div>
+      <div class="badge">📅 Año lectivo 2027</div>
     </div>
     <div class="card">
       <div class="success-screen">
         <div class="success-icon">📬</div>
-        <div class="success-title">¡Solicitud enviada!</div>
-        <div class="success-sub">Tu solicitud de inscripción fue recibida correctamente.<br/>El director la revisará y te contactará para confirmar.</div>
+        <div class="success-title">¡Inscripción recibida!</div>
+        <div class="success-sub">Tu inscripción fue recibida correctamente.<br/>La Dirección se comunicará con vos por WhatsApp para confirmar tu lugar.</div>
         <div class="success-detail">
-          <strong>📋 Resumen de tu solicitud:</strong>
+          <strong>📋 Resumen de tu inscripción:</strong>
           👤 ${apellido}, ${nombre}<br/>
           🎓 Carrera: ${carrera}<br/>
-          📅 Período: 2do Semestre 2026
+          📅 Año lectivo 2027
         </div>
       </div>
     </div>`;

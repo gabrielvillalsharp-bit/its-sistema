@@ -153,13 +153,7 @@ label{font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;display:blo
 </div>
 <script>
 const params = new URLSearchParams(location.search);
-const carreraId = params.get('c');
-let carrera = null;
-let cursos = [];
-let cursoSeleccionado = null;
-let alumnoSeleccionado = null;
-let _searchTimer = null;
-let _resultados = [];
+const carreraId = params.get('c'); // QR de una carrera puntual: deja esa carrera elegida en el registro de alumno nuevo
 
 async function apiFetch(method, url, body) {
   const res = await fetch(url, {
@@ -167,10 +161,12 @@ async function apiFetch(method, url, body) {
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   });
-  const data = await res.json();
+  let data = {};
+  try { data = await res.json(); } catch {}
   if (!res.ok) {
     const err = new Error(data.error || 'Error de servidor');
     err.duplicate = !!data.duplicate;
+    err.status = res.status;
     throw err;
   }
   return data;
@@ -184,14 +180,12 @@ async function init() {
     apiFetch('GET', '/pub/carreras'),
     apiFetch('GET', '/pub/institucion')
   ]); } catch { try { _carreras = await apiFetch('GET', '/pub/carreras'); } catch {} }
-  // Si viene con ?c=ID&modo=alumno (redirect desde selector de carrera) ir directo al flujo de alumno existente
-  if (carreraId && params.get('modo') === 'alumno') {
-    await init_legacy();
-  } else {
-    renderBienvenida();
-  }
+  // Los links viejos con ?modo=alumno ("ya soy alumno") van directo a esa opción
+  if (params.get('modo') === 'alumno') renderYaSoyAlumno();
+  else renderBienvenida();
 }
 
+// ── PANTALLA INICIAL: dos opciones ─────────────────────────────────────────────
 function renderBienvenida() {
   const app = document.getElementById('app');
   const instNombre = _instData?.nombre || 'ITS Santísima Trinidad';
@@ -211,16 +205,16 @@ function renderBienvenida() {
       <button class="bv-btn bv-btn-a" onclick="renderFormNuevoAlumno()">
         <div class="bv-ico-wrap bv-ico-wrap-a"><i class="ti ti-user-plus bv-ico" aria-hidden="true"></i></div>
         <div class="bv-btn-txt">
-          <div class="bv-btn-h">Soy nuevo/a en el ITS</div>
-          <div class="bv-btn-p">Registro por primera vez</div>
+          <div class="bv-btn-h">Quiero registrarme</div>
+          <div class="bv-btn-p">Soy alumno/a nuevo/a</div>
         </div>
         <i class="ti ti-chevron-right bv-arr" aria-hidden="true"></i>
       </button>
-      <button class="bv-btn bv-btn-b" onclick="initYaSoyAlumno()">
+      <button class="bv-btn bv-btn-b" onclick="renderYaSoyAlumno()">
         <div class="bv-ico-wrap"><i class="ti ti-id-badge-2 bv-ico" aria-hidden="true"></i></div>
         <div class="bv-btn-txt">
-          <div class="bv-btn-h">Ya soy alumno/a</div>
-          <div class="bv-btn-p">Vincularme al sistema</div>
+          <div class="bv-btn-h">Ya soy alumno/a registrado/a</div>
+          <div class="bv-btn-p">Quiero recibir mis datos de acceso otra vez</div>
         </div>
         <i class="ti ti-chevron-right bv-arr" aria-hidden="true"></i>
       </button>
@@ -228,45 +222,96 @@ function renderBienvenida() {
     </div>`;
 }
 
-async function initYaSoyAlumno() {
-  const app = document.getElementById('app');
-  if (!carreraId) {
-    // Sin QR de carrera específica — mostrar selector
-    app.innerHTML = `
-      <div class="header">
-        <div class="header-logo">👤</div>
-        <h1>Ya soy alumno/a</h1>
-        <div class="header-carrera">Seleccioná tu carrera para continuar</div>
+// ── YA SOY ALUMNO/A: nombre + apellido + cédula → se reenvían usuario y contraseña por WhatsApp ──────────────
+function renderYaSoyAlumno() {
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">🔑</div>
+      <h1>Ya soy alumno/a</h1>
+      <div class="header-carrera">Recibí tus datos de acceso otra vez</div>
+    </div>
+    <div class="card" style="margin-top:8px">
+      <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
+      <div class="hint"><span class="hint-icon">💡</span><span>Escribí tus datos como figuran en el ITS. Si coinciden, te enviamos tu <strong>usuario y contraseña por WhatsApp</strong>.</span></div>
+      <div class="field">
+        <label>Nombre/s <span style="color:#dc2626">*</span></label>
+        <input id="ya-nombre" type="text" placeholder="Ej: María Alejandra" autocapitalize="words" autocomplete="given-name"/>
       </div>
-      <div class="card" style="margin-top:8px">
-        <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
-        <div class="field">
-          <label>¿En qué carrera estás inscripto/a?</label>
-          <select id="sel-carrera" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-size:15px;background:#fff;color:#1a202c">
-            <option value="">-- Elegí una carrera --</option>
-            ${_carreras.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
-          </select>
-        </div>
-        <button class="btn btn-primary" onclick="seleccionarCarreraAlumno()">Continuar →</button>
-      </div>`;
-    return;
-  }
+      <div class="field">
+        <label>Apellido/s <span style="color:#dc2626">*</span></label>
+        <input id="ya-apellido" type="text" placeholder="Ej: González Romero" autocapitalize="words" autocomplete="family-name"/>
+      </div>
+      <div class="field">
+        <label>Cédula de identidad <span style="color:#dc2626">*</span></label>
+        <input id="ya-ci" type="tel" inputmode="numeric" placeholder="Solo números, sin puntos"/>
+      </div>
+      <div class="field" id="ya-tel-wrap" style="display:none">
+        <label>Tu número de WhatsApp <span style="color:#dc2626">*</span></label>
+        <input id="ya-tel" type="tel" inputmode="numeric" placeholder="Ej: 0981123456"/>
+      </div>
+      <div id="ya-msg"></div>
+      <button class="btn btn-primary" id="ya-btn" onclick="enviarYaSoyAlumno()" style="margin-top:6px">📲 Enviarme mis datos</button>
+    </div>`;
+}
+
+async function enviarYaSoyAlumno() {
+  const val = id => document.getElementById(id)?.value.trim() || '';
+  const nombre = val('ya-nombre'), apellido = val('ya-apellido'), ci = val('ya-ci').replace(/\D/g, ''), tel = val('ya-tel');
+  const msg = document.getElementById('ya-msg'), btn = document.getElementById('ya-btn');
+  const wrapTel = document.getElementById('ya-tel-wrap');
+  const pidiendoTel = wrapTel.style.display !== 'none';
+  const error = t => { msg.innerHTML = `<div class="alert alert-err">⚠️ ${t}</div>`; };
+  if (!nombre)   return error('Ingresá tu nombre.');
+  if (!apellido) return error('Ingresá tu apellido.');
+  if (ci.length < 5) return error('Ingresá tu número de cédula.');
+  if (pidiendoTel && tel.replace(/\D/g, '').length < 7) return error('Ingresá un número de WhatsApp válido.');
+  msg.innerHTML = '<div class="loading"><div class="spinner"></div> Buscando tus datos…</div>';
+  btn.disabled = true;
   try {
-    [carrera, cursos] = await Promise.all([
-      apiFetch('GET', '/pub/carrera/' + carreraId),
-      apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
-    ]);
-    renderStep0();
-  } catch(e) {
-    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
+    const r = await apiFetch('POST', '/pub/alumno/reenviar-credenciales', { nombre, apellido, ci, telefono: pidiendoTel ? tel : undefined });
+    btn.disabled = false;
+    if (r.necesita_telefono) {
+      // Te encontramos pero la ficha no tiene teléfono: se pide el WhatsApp y se vuelve a enviar
+      wrapTel.style.display = '';
+      msg.innerHTML = `<div class="alert alert-ok">✅ Te encontramos${r.nombre ? ', <strong>' + r.nombre + '</strong>' : ''}. No tenemos tu número de WhatsApp: escribilo y te mandamos tus datos ahí.</div>`;
+      btn.textContent = '📲 Enviar a este número';
+      document.getElementById('ya-tel')?.focus();
+      return;
+    }
+    renderResultadoYa(r);
+  } catch (e) {
+    btn.disabled = false;
+    error(e.message);
   }
 }
 
-async function seleccionarCarreraAlumno() {
-  const sel = document.getElementById('sel-carrera');
-  const id = sel?.value;
-  if (!id) { alert('Elegí una carrera para continuar.'); return; }
-  window.location.href = '/registro?c=' + id + '&modo=alumno';
+function renderResultadoYa(r) {
+  const nombre = r.nombre ? ', ' + r.nombre : '';
+  let icono = '📲', titulo = '¡Listo' + nombre + '!', cuerpo = '';
+  if (r.estado === 'enviado') {
+    cuerpo = `Te enviamos tu <strong>usuario y contraseña por WhatsApp</strong> al número que termina en <strong>${r.termina}</strong>.${r.sinConfirmar ? '<br/><br/>Puede demorar unos minutos en llegar.' : ''}<br/><br/><span style="font-size:12px;color:#6b7280">Si ese número ya no es tuyo, avisá en la Secretaría del ITS.</span>`;
+  } else if (r.estado === 'acceso_solicitado') {
+    icono = '📝'; titulo = '¡Pedido registrado' + nombre + '!';
+    cuerpo = 'Encontramos tu ficha, pero todavía no tenés usuario para el sistema.<br/>Dejamos tu pedido y la Dirección te habilitará el acceso. Te avisarán por WhatsApp.';
+  } else if (r.estado === 'sin_carrera') {
+    icono = 'ℹ️'; titulo = 'Casi' + nombre;
+    cuerpo = 'Encontramos tu ficha, pero todavía no tiene una carrera asignada.<br/>Acercate a la Secretaría del ITS para completarla y habilitar tu acceso.';
+  } else {
+    cuerpo = 'Listo.';
+  }
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="header-logo">🎓</div>
+      <h1>ITS Santísima Trinidad</h1>
+    </div>
+    <div class="card">
+      <div class="success-screen">
+        <div class="success-icon">${icono}</div>
+        <div class="success-title">${titulo}</div>
+        <div class="success-sub">${cuerpo}</div>
+        <button class="btn btn-secondary" style="margin-top:28px;width:auto;padding:12px 32px" onclick="renderBienvenida()">← Volver al inicio</button>
+      </div>
+    </div>`;
 }
 
 // ── FORMULARIO NUEVO ALUMNO ────────────────────────────────────────────────────
@@ -392,6 +437,14 @@ async function enviarRegistroNuevo() {
     btn.disabled = false;
     btn.textContent = '✅ Registrarme y recibir acceso';
     mostrarError(e.message);
+    if (e.duplicate) {
+      // Ya está en el sistema: se lo lleva a la otra opción en vez de dejarlo sin salida
+      const b = document.createElement('button');
+      b.className = 'btn btn-secondary'; b.style.marginTop = '10px';
+      b.textContent = 'Ya soy alumno/a: recibir mis datos →';
+      b.onclick = renderYaSoyAlumno;
+      errEl.appendChild(b);
+    }
   }
 }
 
@@ -415,479 +468,6 @@ function renderExitoNuevo(nombre, email) {
     </div>`;
 }
 
-async function init_legacy() {
-  const modo = params.get('modo');
-  if (carreraId && modo === 'alumno') {
-    try {
-      [carrera, cursos] = await Promise.all([
-        apiFetch('GET', '/pub/carrera/' + carreraId),
-        apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
-      ]);
-      renderStep0();
-    } catch(e) {
-      document.getElementById('app').innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
-    }
-    return;
-  }
-  try {
-    [carrera, cursos] = await Promise.all([
-      apiFetch('GET', '/pub/carrera/' + carreraId),
-      apiFetch('GET', '/pub/carrera/' + carreraId + '/cursos'),
-    ]);
-    renderStep0();
-  } catch(e) {
-    app.innerHTML = `<div class="card"><div class="alert alert-err">❌ ${e.message}</div></div>`;
-  }
-}
-
-async function seleccionarCarrera() {
-  const sel = document.getElementById('sel-carrera');
-  const id = sel?.value;
-  if (!id) { alert('Elegí una carrera para continuar.'); return; }
-  // Redirigir con el parámetro de carrera
-  window.location.href = '/registro?c=' + id;
-}
-
-function renderHeader(sub) {
-  return `<div class="header">
-    <div class="header-logo">🎓</div>
-    <h1>ITS Santísima Trinidad</h1>
-    <div class="header-carrera">${carrera.nombre}</div>
-    ${sub ? `<div class="header-sub">📍 ${sub}</div>` : ''}
-  </div>`;
-}
-
-function renderSteps(current, total) {
-  return `<div class="step-indicator">${Array.from({length:total},(_,i)=>`<div class="step ${i<current?'done':i===current?'active':''}"></div>`).join('')}</div>`;
-}
-
-function labelCurso(c) {
-  const div = c.division === 'U' ? '' : ` Sección ${c.division}`;
-  return `${c.anio}° año${div}`;
-}
-
-// PASO 0: Seleccionar año/sección
-function renderStep0() {
-  const app = document.getElementById('app');
-  if (cursos.length === 0) { cursoSeleccionado = null; renderStep1(); return; }
-  if (cursos.length === 1) { cursoSeleccionado = cursos[0]; renderStep1(); return; }
-  app.innerHTML = renderHeader() + renderSteps(0, 3) + `
-  <div class="card">
-    <button class="back-btn" onclick="renderBienvenida()">← Volver</button>
-    <h2>📚 ¿A qué año y sección pertenecés?</h2>
-    <div class="hint"><span class="hint-icon">👇</span><span>Tocá el cuadro que corresponde a tu año y sección</span></div>
-    <div class="curso-grid">
-      ${cursos.map(c => `
-        <div class="curso-card" onclick="seleccionarCurso('${c.id}')">
-          <div class="anio">${c.anio}</div>
-          <div class="label">${c.division !== 'U' ? 'Sección ' + c.division : 'Año'}</div>
-          ${c.turno ? `<div class="seccion">${c.turno}</div>` : ''}
-          <div class="curso-card-tap">👆</div>
-        </div>
-      `).join('')}
-    </div>
-  </div>`;
-}
-
-function seleccionarCurso(id) {
-  cursoSeleccionado = cursos.find(c => c.id === id) || null;
-  renderStep1();
-}
-
-// PASO 1: Buscar nombre en toda la BD
-function renderStep1() {
-  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
-  const stepNum = cursos.length > 1 ? 1 : 0;
-  const totalSteps = cursos.length > 1 ? 3 : 2;
-  document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(stepNum, totalSteps) + `
-  <div class="card">
-    ${cursos.length > 1 ? `<button class="back-btn" onclick="renderStep0()">← Cambiar año/sección</button>` : ''}
-    <h2>🔍 Buscá tu nombre</h2>
-    <div class="hint" style="margin-bottom:14px">
-      <span class="hint-icon">💡</span>
-      <span>Escribí tu <strong>apellido</strong> primero para encontrarte más rápido. Si no aparecés, intentá con el nombre completo.</span>
-    </div>
-    <div class="field" style="margin-bottom:8px">
-      <label>👉 Apellido o nombre</label>
-      <input id="busqueda" type="text" placeholder="Ej: García   o   Juan García"
-        autocapitalize="words" autocomplete="off" spellcheck="false"
-        oninput="debounceBuscar()" style="border:2.5px solid #166534;box-shadow:0 0 0 4px rgba(22,101,52,.12);font-size:17px;padding:14px;"/>
-    </div>
-    <div class="field" style="margin-bottom:8px">
-      <label>🪪 Cédula de identidad <span style="font-weight:400;color:#9ca3af;text-transform:none">(opcional — para búsqueda más precisa)</span></label>
-      <input id="busqueda-ci" type="tel" inputmode="numeric" placeholder="Ej: 4512345"
-        autocomplete="off" oninput="debounceBuscar()"
-        style="font-size:16px;padding:12px;border:2px solid #e2e8f0;letter-spacing:1px"/>
-    </div>
-    <div id="busq-hint" style="font-size:12px;color:#6b7280;margin-bottom:12px;min-height:18px"></div>
-    <div id="lista-resultados">
-      <div class="empty"><span class="empty-icon">🔍</span><span>Escribí tu apellido o tu número de cédula para buscar</span></div>
-    </div>
-  </div>`;
-  setTimeout(() => document.getElementById('busqueda')?.focus(), 100);
-}
-
-function debounceBuscar() {
-  clearTimeout(_searchTimer);
-  _searchTimer = setTimeout(buscarAlumno, 400);
-}
-
-async function buscarAlumno() {
-  const q = document.getElementById('busqueda')?.value.trim() || '';
-  const lista = document.getElementById('lista-resultados');
-  const hint  = document.getElementById('busq-hint');
-  if (!lista) return;
-  const ciVal2 = document.getElementById('busqueda-ci')?.value.replace(/[^0-9]/g,'') || '';
-  if (q.length < 2 && ciVal2.length < 4) {
-    lista.innerHTML = '<div class="empty"><span class="empty-icon">🔍</span><span>Escribí tu apellido o tu número de cédula para buscar</span></div>';
-    if (hint) hint.textContent = '';
-    return;
-  }
-  const busqLabel = q.length >= 2 ? ('"' + q + '"') : ('CI: ' + ciVal2);
-  lista.innerHTML = '<div class="loading"><div class="spinner"></div> Buscando <strong>' + busqLabel + '</strong>...</div>';
-  if (hint) hint.textContent = '';
-  try {
-    const cursoId = cursoSeleccionado?.id || '';
-    const ciVal = document.getElementById('busqueda-ci')?.value.replace(/[^0-9]/g,'') || '';
-    const resultados = await apiFetch('GET', `/pub/buscar-alumno?q=${encodeURIComponent(q)}&ci=${ciVal}&carrera_id=${carreraId}&curso_id=${cursoId}`);
-    _resultados = resultados;
-    if (hint) {
-      if (resultados.length === 0) hint.textContent = '';
-      else hint.textContent = `${resultados.length} resultado${resultados.length>1?'s':''} encontrado${resultados.length>1?'s':''}`;
-    }
-    renderResultados(resultados, q);
-  } catch(e) {
-    lista.innerHTML = `<div class="alert alert-err">❌ Error al buscar: ${e.message}</div>`;
-  }
-}
-
-function renderResultados(resultados, q) {
-  const lista = document.getElementById('lista-resultados');
-  if (!lista) return;
-
-  if (!resultados.length) {
-    lista.innerHTML = `
-      <div style="border:2px dashed #fbbf24;border-radius:14px;padding:20px;text-align:center;background:#fffbeb;margin-top:8px">
-        <div style="font-size:32px;margin-bottom:10px">🔎</div>
-        <div style="font-weight:800;font-size:15px;color:#92400e;margin-bottom:8px">"${q}" no está en el sistema</div>
-        <div style="font-size:13px;color:#78350f;margin-bottom:6px">Antes de pedir registro, probá estas búsquedas:</div>
-        <div style="font-size:12px;color:#78350f;background:#fef9c3;border-radius:8px;padding:10px;margin-bottom:14px;text-align:left">
-          ✏️ Solo el <strong>apellido</strong> (sin el nombre)<br/>
-          ✏️ El apellido <strong>sin tilde</strong>: "Rodriguez" en vez de "Rodríguez"<br/>
-          ✏️ Primeras 4 letras del apellido: "Garc" para "García"
-        </div>
-        <button class="btn btn-primary" style="max-width:280px;margin:0 auto" onclick="renderFormNuevo()">📝 No aparezco — pedir registro</button>
-      </div>`;
-    return;
-  }
-
-  // Agrupar por tipo
-  const perfectos     = resultados.filter(r => r.match_tipo === 'perfecto');
-  const sinCurso      = resultados.filter(r => r.match_tipo === 'misma_carrera_sin_curso');
-  const otroCurso     = resultados.filter(r => r.match_tipo === 'misma_carrera_otro_curso');
-  const otraCarrera   = resultados.filter(r => r.match_tipo === 'otra_carrera');
-  const sinAsignar    = resultados.filter(r => r.match_tipo === 'sin_asignar');
-
-  let html = '';
-
-  // ── Coincidencias perfectas (misma carrera + mismo curso)
-  if (perfectos.length) {
-    html += `<div style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">✅ Encontrado en tu curso</div>`;
-    html += perfectos.map((a, i) => itemAlumno(a, i, 'perfecto')).join('');
-  }
-
-  // ── Misma carrera pero sin curso asignado
-  if (sinCurso.length) {
-    html += `<div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📋 En tu carrera — sin sección asignada aún</div>`;
-    html += sinCurso.map((a, i) => itemAlumno(a, perfectos.length + i, 'sin_curso')).join('');
-  }
-
-  // ── Misma carrera pero otro año/curso
-  if (otroCurso.length) {
-    html += `<div style="font-size:11px;font-weight:800;color:#d97706;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">⚠️ En tu carrera — año diferente al seleccionado</div>`;
-    html += otroCurso.map((a, i) => itemAlumno(a, perfectos.length + sinCurso.length + i, 'otro_curso')).join('');
-  }
-
-  // ── Sin asignar (ninguna carrera)
-  if (sinAsignar.length) {
-    html += `<div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">📂 Registrado sin carrera asignada</div>`;
-    html += sinAsignar.map((a, i) => itemAlumno(a, perfectos.length + sinCurso.length + otroCurso.length + i, 'sin_asignar')).join('');
-  }
-
-  // ── Otra carrera — puede solicitar cambio
-  if (otraCarrera.length) {
-    html += `<div style="font-size:11px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.04em;margin:10px 0 6px">🚨 Registrado en otra carrera</div>`;
-    html += otraCarrera.map((a, i) => `
-      <div style="border:2px solid #fecaca;border-radius:14px;padding:14px 16px;margin-bottom:8px;background:#fef2f2">
-        <div style="font-weight:800;font-size:14px;color:#991b1b">${a.apellido}, ${a.nombre}</div>
-        <div style="font-size:12px;color:#7f1d1d;margin-top:4px">📚 Actualmente en: <strong>${a.carrera_nombre}</strong>${a.curso_anio ? ' · ' + a.curso_anio + '° año' : ''}</div>
-        <div style="font-size:12px;color:#7f1d1d;margin-top:2px">CI: ${a.ci || '—'}</div>
-        <div style="margin-top:10px;padding:10px;background:#fff5f5;border-radius:8px;border:1px solid #fecaca">
-          <div style="font-size:12px;color:#991b1b;font-weight:700;margin-bottom:8px">¿Querés pasarte a <strong>${carrera.nombre}</strong>?</div>
-          <div style="font-size:11px;color:#7f1d1d;margin-bottom:10px">El director va a revisar tu solicitud y confirmar el cambio. Te avisarán cuando esté listo.</div>
-          <button onclick="solicitarCambioCarrera(${perfectos.length+sinCurso.length+otroCurso.length+sinAsignar.length+i})"
-            style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;width:100%">
-            📤 Solicitar cambio a ${carrera.nombre}
-          </button>
-        </div>
-      </div>`).join('');
-  }
-
-  lista.innerHTML = html;
-}
-
-function itemAlumno(a, idx, tipo) {
-  const tieneCI = !!a.ci;
-  const tieneTel = !!a.telefono;
-  const incompleto = !tieneCI || !tieneTel;
-
-  let borderColor = '#e2e8f0', bgColor = '#fff', tagHtml = '', nota = '';
-  if (tipo === 'perfecto') {
-    borderColor = '#86efac'; bgColor = '#f0fff4';
-    tagHtml = `<span class="tag tag-ok">✅ Tu curso</span>`;
-  } else if (tipo === 'sin_curso') {
-    borderColor = '#93c5fd'; bgColor = '#eff6ff';
-    tagHtml = `<span class="tag" style="background:#dbeafe;color:#1d4ed8">📋 Sin sección</span>`;
-    nota = `<div style="font-size:11px;color:#1d4ed8;margin-top:4px">Al confirmar te asignaremos a ${cursoSeleccionado ? labelCurso(cursoSeleccionado) : 'tu curso'}</div>`;
-  } else if (tipo === 'otro_curso') {
-    borderColor = '#fcd34d'; bgColor = '#fffbeb';
-    tagHtml = `<span class="tag tag-warn">⚠️ Año ${a.curso_anio || '?'}°</span>`;
-    nota = `<div style="font-size:11px;color:#92400e;margin-top:4px">Estás en ${a.curso_anio}° año — verificá con el director si es correcto</div>`;
-  } else if (tipo === 'sin_asignar') {
-    borderColor = '#c4b5fd'; bgColor = '#faf5ff';
-    tagHtml = `<span class="tag" style="background:#ede9fe;color:#7c3aed">📂 Sin carrera</span>`;
-    nota = `<div style="font-size:11px;color:#7c3aed;margin-top:4px">Al confirmar te asignaremos a ${carrera.nombre}${cursoSeleccionado ? ' · ' + labelCurso(cursoSeleccionado) : ''}</div>`;
-  }
-
-  return `
-    <div class="alumno-item ${incompleto ? 'incompleto' : ''}" style="border-color:${borderColor};background:${bgColor}"
-      onclick="seleccionarAlumno(${idx})">
-      <div style="flex:1;min-width:0">
-        <div class="alumno-nombre">${a.apellido}, ${a.nombre}</div>
-        <div class="alumno-detalle">
-          ${tieneCI ? 'CI: ' + a.ci : '<span style="color:#d97706">⚠ Sin cédula</span>'}
-          ${tieneTel ? ' · 📞 ' + a.telefono : ' · <span style="color:#d97706">Sin teléfono</span>'}
-        </div>
-        ${nota}
-        ${incompleto ? '<div class="alumno-cta">✏️ Completá tus datos →</div>' : ''}
-      </div>
-      <div class="alumno-right">
-        ${tagHtml}
-        <span class="chevron">›</span>
-      </div>
-    </div>`;
-}
-
-function seleccionarAlumno(idx) {
-  alumnoSeleccionado = _resultados[idx];
-  renderFormCompletar(alumnoSeleccionado);
-}
-
-function solicitarCambioCarrera(idx) {
-  const a = _resultados[idx];
-  if (!a) return;
-  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
-  const totalSteps = cursos.length > 1 ? 3 : 2;
-  document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
-  <div class="card">
-    <button class="back-btn" onclick="renderStep1()">← Volver a la búsqueda</button>
-    <h2>📤 Solicitar cambio de carrera</h2>
-    <div class="hint" style="background:#fef2f2;border-color:#fecaca;margin-bottom:14px">
-      <span class="hint-icon">🔄</span>
-      <div style="color:#991b1b">
-        <strong>Actualmente en: ${a.carrera_nombre}</strong><br/>
-        <span style="font-size:12px">Tu solicitud será enviada al director del ITS. Cuando la apruebe, quedarás registrado en <strong>${carrera.nombre}</strong>.</span>
-      </div>
-    </div>
-    <div id="err-cambio"></div>
-    <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
-      <div><strong>${a.apellido}, ${a.nombre}</strong></div>
-      ${a.ci ? '<div style="color:#6b7280;margin-top:3px">CI: ' + a.ci + '</div>' : ''}
-    </div>
-    <div class="field"><label>Teléfono de contacto <span style="color:#dc2626">*</span></label>
-      <input id="inp-tel-cambio" type="tel" inputmode="tel"
-        value="${(a.telefono||'').replace(/"/g,'&quot;')}"
-        placeholder="Ej: 0981 123456"/>
-    </div>
-    <button class="btn btn-primary" onclick="enviarSolicitudCambio('${a.id}','${(a.nombre||'').replace(/'/g,"\\'")}','${(a.apellido||'').replace(/'/g,"\\'")}','${(a.ci||'').replace(/'/g,"\\'")}')">
-      📤 Enviar solicitud al director
-    </button>
-    <button class="btn btn-secondary" onclick="renderStep1()">← Cancelar</button>
-  </div>`;
-}
-
-async function enviarSolicitudCambio(alumnoId, nombre, apellido, ci) {
-  const tel = document.getElementById('inp-tel-cambio')?.value.trim() || '';
-  const err = document.getElementById('err-cambio');
-  if (!tel) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de teléfono para que puedan contactarte</div>'; return; }
-  err.innerHTML = '<div class="loading"><div class="spinner"></div> Enviando solicitud...</div>';
-  try {
-    await apiFetch('POST', '/pub/solicitud-registro', {
-      nombre, apellido, ci,
-      telefono: tel,
-      carrera_id: carreraId,
-      curso_id: cursoSeleccionado?.id || null,
-      alumno_id: alumnoId,
-      tipo: 'cambio_carrera'
-    });
-    renderExito('cambio');
-  } catch(e) {
-    err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
-  }
-}
-
-// PASO 2A: Completar datos de alumno existente
-function renderFormCompletar(a) {
-  const sinSeccion = !a.curso_id && cursoSeleccionado;
-  const esOtraCarrera = a.carrera_id && a.carrera_id !== carreraId;
-  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
-  const totalSteps = cursos.length > 1 ? 3 : 2;
-  const app = document.getElementById('app');
-
-  let avisoCarrera = '';
-  if (esOtraCarrera) {
-    avisoCarrera = `<div class="hint" style="background:#fef2f2;border-color:#fecaca">
-      <span class="hint-icon">🚨</span>
-      <div style="color:#991b1b"><strong>Estás en ${a.carrera_nombre}</strong><br/>
-      <span style="font-size:12px">Al guardar, tus datos se actualizarán pero tu carrera actual no cambia. Contactá al director para cambiar de carrera.</span></div>
-    </div>`;
-  } else if (a.curso_anio && cursoSeleccionado && a.curso_anio != cursoSeleccionado.anio) {
-    avisoCarrera = `<div class="hint">
-      <span class="hint-icon">⚠️</span>
-      <div style="color:#713f12"><strong>Estás registrado en ${a.curso_anio}° año</strong><br/>
-      <span style="font-size:12px">Si querés cambiar de año, contactá al director. Podés actualizar tus datos de contacto.</span></div>
-    </div>`;
-  } else if (sinSeccion) {
-    avisoCarrera = `<div class="hint" style="background:#eff6ff;border-color:#93c5fd">
-      <span class="hint-icon">📌</span>
-      <span style="color:#1e40af">Se te asignará a <strong>${subLabel}</strong> al guardar.</span>
-    </div>`;
-  }
-
-  app.innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
-  <div class="card">
-    <button class="back-btn" onclick="renderStep1()">← Volver a la búsqueda</button>
-    <h2>✏️ Completá tus datos</h2>
-    <p style="font-size:13px;color:#718096;margin-bottom:14px">Corregí o agregá cualquier dato. Solo vos podés ver esta información.</p>
-    ${avisoCarrera}
-    <div id="err-completar"></div>
-    <div class="grid2">
-      <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label>
-        <input id="inp-nombre" value="${(a.nombre||'').replace(/"/g,'&quot;')}" placeholder="Tu nombre"/></div>
-      <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label>
-        <input id="inp-apellido" value="${(a.apellido||'').replace(/"/g,'&quot;')}" placeholder="Tu apellido"/></div>
-    </div>
-    <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label>
-      <input id="inp-ci" type="tel" value="${(a.ci||'').replace(/"/g,'&quot;')}" placeholder="Solo números, sin puntos" inputmode="numeric"/>
-      ${a.ci ? '<p style="font-size:11px;color:#6b7280;margin-top:4px">Podés corregirla si hay un error</p>' : ''}
-    </div>
-    <div class="field"><label>Teléfono <span style="color:#dc2626">*</span></label>
-      <input id="inp-tel" type="tel" value="${(a.telefono||'').replace(/"/g,'&quot;')}" placeholder="Ej: 0981 123456" inputmode="tel"/>
-    </div>
-    <button class="btn btn-primary" onclick="guardarDatos()">💾 Guardar mis datos</button>
-    <button class="btn btn-secondary" onclick="renderStep1()">← Volver</button>
-  </div>`;
-}
-
-async function guardarDatos() {
-  const nombre   = document.getElementById('inp-nombre')?.value.trim() || '';
-  const apellido = document.getElementById('inp-apellido')?.value.trim() || '';
-  const ci       = document.getElementById('inp-ci')?.value.replace(/[^0-9]/g,'') || '';
-  const tel      = document.getElementById('inp-tel')?.value.trim() || '';
-  const err      = document.getElementById('err-completar');
-  if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Nombre y apellido son obligatorios</div>'; return; }
-  if (!ci) { err.innerHTML = '<div class="alert alert-err">Por favor ingresá tu número de cédula</div>'; return; }
-  if (!tel || tel.replace(/\D/g,'').length < 7) { err.innerHTML = '<div class="alert alert-err">El número de teléfono es obligatorio</div>'; return; }
-  err.innerHTML = '<div class="loading"><div class="spinner"></div> Guardando...</div>';
-  try {
-    await apiFetch('POST', '/pub/alumno/completar', {
-      alumno_id: alumnoSeleccionado.id,
-      carrera_id: carreraId,
-      nombre, apellido, ci,
-      telefono: tel,
-      curso_id: cursoSeleccionado?.id || undefined
-    });
-    renderExito('completar');
-  } catch(e) {
-    err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
-  }
-}
-
-// PASO 2B: Solicitar incorporación (alumno no encontrado)
-function renderFormNuevo() {
-  const subLabel = cursoSeleccionado ? labelCurso(cursoSeleccionado) : '';
-  const totalSteps = cursos.length > 1 ? 3 : 2;
-  document.getElementById('app').innerHTML = renderHeader(subLabel) + renderSteps(totalSteps-1, totalSteps) + `
-  <div class="card">
-    <button class="back-btn" onclick="renderStep1()">← Volver a buscar mi nombre</button>
-    <h2>📝 Colocar mi nombre en la lista</h2>
-    <div class="hint" style="background:#fef9c3;border-color:#fde047;margin-bottom:16px">
-      <span class="hint-icon">⚠️</span>
-      <div style="color:#713f12">
-        <strong>¿Ya intentaste buscar tu nombre?</strong><br/>
-        <span style="font-size:12px">Si no apareció después de escribirlo, completá este formulario. El director revisará tu solicitud y te agregará al sistema.</span>
-      </div>
-    </div>
-    <div id="err-nuevo"></div>
-    <div class="field"><label>Nombre <span style="color:#dc2626">*</span></label><input id="inp-nombre" placeholder="Tu nombre" autocomplete="given-name"/></div>
-    <div class="field"><label>Apellido <span style="color:#dc2626">*</span></label><input id="inp-apellido" placeholder="Tu apellido" autocomplete="family-name"/></div>
-    <div class="field"><label>Cédula de identidad <span style="color:#dc2626">*</span></label><input id="inp-ci2" type="tel" placeholder="Solo números, sin puntos" inputmode="numeric"/></div>
-    <div class="field"><label>Teléfono <span style="color:#dc2626">*</span></label><input id="inp-tel2" type="tel" placeholder="Ej: 0981 123456" inputmode="tel"/></div>
-    <button class="btn btn-primary" onclick="enviarSolicitud()">📤 Enviar solicitud al director</button>
-    <button class="btn btn-secondary" onclick="renderStep1()">← Volver a buscar</button>
-  </div>`;
-}
-
-async function enviarSolicitud() {
-  const nombre   = document.getElementById('inp-nombre').value.trim();
-  const apellido = document.getElementById('inp-apellido').value.trim();
-  const ci       = document.getElementById('inp-ci2').value.replace(/[^0-9]/g,'');
-  const telefono = document.getElementById('inp-tel2').value.trim();
-  const err      = document.getElementById('err-nuevo');
-  if (!nombre || !apellido) { err.innerHTML = '<div class="alert alert-err">Completá nombre y apellido</div>'; return; }
-  if (!ci)       { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de cédula</div>'; return; }
-  if (!telefono) { err.innerHTML = '<div class="alert alert-err">Ingresá tu número de teléfono</div>'; return; }
-  err.innerHTML = '<div class="loading"><div class="spinner"></div> Enviando solicitud...</div>';
-  try {
-    await apiFetch('POST', '/pub/solicitud-registro', {
-      nombre, apellido, ci, telefono,
-      carrera_id: carreraId,
-      curso_id: cursoSeleccionado?.id || null,
-      tipo: 'qr'
-    });
-    renderExito('nuevo');
-  } catch(e) {
-    if (e.duplicate) {
-      err.innerHTML = `<div class="alert" style="background:#fef9c3;border:1.5px solid #fbbf24;color:#92400e;border-radius:12px;padding:16px">
-        <div style="font-weight:800;font-size:15px;margin-bottom:8px">⚠️ Ya estás registrado/a en el sistema</div>
-        <div style="font-size:13px;margin-bottom:10px">${e.message}</div>
-        <div style="font-size:12px;color:#78350f;margin-bottom:12px">Buscá tu nombre en la lista y completá tus datos desde ahí.</div>
-        <button class="btn" style="background:#fef3c7;color:#92400e;border:1.5px solid #fbbf24;width:auto;padding:10px 20px" onclick="renderStep1()">← Volver a buscar mi nombre</button>
-      </div>`;
-    } else {
-      err.innerHTML = `<div class="alert alert-err">❌ ${e.message}</div>`;
-    }
-  }
-}
-
-function renderExito(tipo) {
-  const iconos = { nuevo:'📬', completar:'✅', cambio:'🔄' };
-  const titulos = { nuevo:'¡Solicitud enviada!', completar:'¡Datos guardados!', cambio:'¡Solicitud de cambio enviada!' };
-  const subs = {
-    nuevo: 'Tu solicitud fue enviada al director del ITS.<br/>Te avisarán cuando sea procesada.',
-    completar: '¡Tus datos fueron registrados correctamente!<br/>Muchas gracias 😊',
-    cambio: 'Tu solicitud de cambio de carrera fue enviada al director.<br/>Te avisarán cuando esté aprobada.'
-  };
-  document.getElementById('app').innerHTML = renderHeader() + `
-  <div class="card">
-    <div class="success-screen">
-      <div class="success-icon">${iconos[tipo]||'✅'}</div>
-      <div class="success-title">${titulos[tipo]||'¡Listo!'}</div>
-      <div class="success-sub">${subs[tipo]||''}</div>
-      <button class="btn btn-secondary" style="margin-top:28px;width:auto;padding:12px 32px" onclick="init()">← Volver al inicio</button>
-    </div>
-  </div>`;
-}
 
 init();
 </script>

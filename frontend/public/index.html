@@ -2047,7 +2047,8 @@ async function pgDash(el){
     me.rol==='director' ? api('GET','/api/whatsapp/watchdog-estado').catch(()=>({caido:false})) : Promise.resolve({caido:false}),
   ]);
   window._exPendDir = exPendDir||[];
-  const _solQRPend = (solQR||[]).filter(s=>s.estado==='pendiente'&&s.tipo!=='bot_wa');
+  // Los interesados de Inscripción 2027 todavía no son alumnos: tienen su propio espacio en Gestión de Alumnos y no suman acá
+  const _solQRPend = (solQR||[]).filter(s=>s.estado==='pendiente'&&s.tipo!=='bot_wa'&&s.tipo!=='inscripcion_2027');
   const _solBotPend = (solQR||[]).filter(s=>s.estado==='pendiente'&&s.tipo==='bot_wa');
   const _solDocPend = (solDocentes||[]).filter(s=>s.estado==='pendiente');
   const _solTotalPend = _solQRPend.length + _solBotPend.length + _solDocPend.length;
@@ -2255,28 +2256,17 @@ function filtrarDocHabilitados(){
   if(cnt) cnt.textContent=datos.length+' registro'+(datos.length!==1?'s':'');
 }
 
+// Inscripción 2027: un único link (página de carreras → "Inscribirme" → formulario)
 function copiarLinkInscripcion(){
-  const link=location.origin+'/inscripcion';
+  const link=location.origin+'/carreras.html';
   navigator.clipboard.writeText(link).then(()=>{
     const t=document.getElementById('link-inscripcion-toast');
     if(t){t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
   }).catch(()=>{
-    prompt('Copiá este link:',location.origin+'/inscripcion');
+    prompt('Copiá este link:',link);
   });
 }
 function abrirLinkInscripcion(){
-  window.open('/inscripcion','_blank');
-}
-function copiarLinkCarreras(){
-  const link=location.origin+'/carreras.html';
-  navigator.clipboard.writeText(link).then(()=>{
-    const t=document.getElementById('link-carreras-toast');
-    if(t){t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
-  }).catch(()=>{
-    prompt('Copiá este link:',location.origin+'/carreras.html');
-  });
-}
-function abrirLinkCarreras(){
   window.open('/carreras.html','_blank');
 }
 function copiarLinkIncorpAcad(){
@@ -2531,13 +2521,13 @@ async function pgWhatsApp(el){
     <div id="link-incorpacad-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#1e40af;font-weight:700;background:#fff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
   </div>
 
-  <!-- Inscripción: link para gente nueva (todavía no es alumno del instituto) -->
+  <!-- Inscripción 2027: un solo link para interesados. Elige la carrera, ve su información y toca "Inscribirme" (formulario). -->
   <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">📝</span>
+      <span style="font-size:22px">🎓</span>
       <div>
-        <div style="font-size:13px;font-weight:800;color:#166534">Inscripción — Alumnos nuevos</div>
-        <div style="font-size:11px;color:#15803d;margin-top:1px">Para gente que todavía no es alumna del instituto y quiere anotarse</div>
+        <div style="font-size:13px;font-weight:800;color:#166534">Inscripción 2027</div>
+        <div style="font-size:11px;color:#15803d;margin-top:1px">Para quien todavía no es alumno/a: elige su carrera, ve la información y se inscribe. Las inscripciones llegan a Gestión de Alumnos → Inscripción 2027</div>
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
@@ -2545,22 +2535,6 @@ async function pgWhatsApp(el){
       <button onclick="abrirLinkInscripcion()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
     </div>
     <div id="link-inscripcion-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#166534;font-weight:700;background:#fff;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
-  </div>
-
-  <!-- Carreras: presentación pública de las 9 carreras (perfil, horario, valores, inscripción) -->
-  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">🎓</span>
-      <div>
-        <div style="font-size:13px;font-weight:800;color:#166534">Carreras — Presentación para interesados</div>
-        <div style="font-size:11px;color:#15803d;margin-top:1px">Página navegable con perfil, horario y valores de cada carrera</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button onclick="copiarLinkCarreras()" class="bs" style="background:#fff;border-color:#86efac;color:#166534;font-size:12px">📋 Copiar link</button>
-      <button onclick="abrirLinkCarreras()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
-    </div>
-    <div id="link-carreras-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#166534;font-weight:700;background:#fff;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
   </div>
 
   <!-- KPIs -->
@@ -10830,71 +10804,50 @@ async function repararNotas(){
     toast(`✅ Reparación completa: ${r.alumnos_reparados} alumno(s) reparado(s), ${r.notas_creadas} nota(s) creada(s)`,'ok',6000);
   }catch(e){toast('Error al reparar: '+(e.message||e),'err',5000);}
 }
-// ── INSCRIPCIÓN AGOSTO 2026 ───────────────────────────────────────────────────
-function insCarreraChange(){
-  const carreraId=v('ins-carrera');
-  const sel=document.getElementById('ins-curso');
-  if(!sel)return;
-  const cursos=(W._insCursos||[]).filter(c=>c.carrera_id===carreraId&&c.activo!==0).sort((a,b)=>a.anio-b.anio);
-  sel.innerHTML=cursos.length
-    ?cursos.map(c=>`<option value="${c.id}">${c.anio}° año${c.division&&c.division!=='U'?' — Secc. '+c.division:''} (${c.turno||''})</option>`).join('')
-    :'<option value="">Sin cursos disponibles</option>';
-}
+// ── INSCRIPCIÓN 2027 ──────────────────────────────────────────────────────────
+// Interesados (todavía NO alumnos) que se anotan por el link /carreras.html → "Inscribirme", o que carga la Dirección a mano.
 function limpiarFormIns(){
   ['ins-nombre','ins-apellido','ins-ci','ins-tel'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
   const c=document.getElementById('ins-carrera');if(c)c.value='';
-  const cu=document.getElementById('ins-curso');if(cu)cu.innerHTML='<option value="">— Primero seleccioná carrera —</option>';
   const m=document.getElementById('ins-msg');if(m)m.innerHTML='';
   document.getElementById('ins-nombre')?.focus();
 }
-async function inscribirAlumnoAgosto(){
+async function agregarInscripcion2027(){
   const nombre=v('ins-nombre').trim();
   const apellido=v('ins-apellido').trim();
   const ci=v('ins-ci').trim();
   const telefono=v('ins-tel').trim();
   const carrera_id=v('ins-carrera');
-  const curso_id=v('ins-curso');
   const msg=document.getElementById('ins-msg');
   if(!nombre||!apellido){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Nombre y apellido son requeridos</span>';return;}
+  if(!ci){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Ingresá la cédula</span>';return;}
   if(!carrera_id){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Seleccioná una carrera</span>';return;}
-  if(!curso_id){if(msg)msg.innerHTML='<span style="color:var(--red)">⚠ Seleccioná el año/curso</span>';return;}
-  if(msg)msg.innerHTML='<span style="color:var(--t2)">⏳ Registrando...</span>';
+  if(msg)msg.innerHTML='<span style="color:var(--t2)">⏳ Guardando...</span>';
   try{
-    const r=await api('POST','/api/alumnos',{nombre,apellido,ci,telefono,carrera_id,curso_id});
-    // Agregar a la lista de inscritos
-    const lista=document.getElementById('ins-lista');
-    if(lista){
-      if(!lista.querySelector('table')){
-        lista.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">✅ Inscriptos en esta sesión</div>
-        <div style="border:1px solid #d1fae5;border-radius:8px;overflow:hidden">
-        <table style="width:100%;border-collapse:collapse;font-size:12px" id="ins-tabla">
-          <thead><tr style="background:#ecfdf5">
-            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Alumno</th>
-            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">CI</th>
-            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Matrícula</th>
-            <th style="padding:7px 10px;text-align:left;font-weight:700;color:#065f46">Contraseña</th>
-          </tr></thead>
-          <tbody id="ins-tbody"></tbody>
-        </table></div>`;
-      }
-      const tbody=document.getElementById('ins-tbody');
-      if(tbody){
-        const tr=document.createElement('tr');
-        tr.style.borderTop='1px solid #d1fae5';
-        tr.innerHTML=`<td style="padding:7px 10px"><strong>${apellido}, ${nombre}</strong></td>
-          <td style="padding:7px 10px;font-family:monospace">${ci||'—'}</td>
-          <td style="padding:7px 10px;font-family:monospace;color:#059669;font-weight:700">${r.matricula||'—'}</td>
-          <td style="padding:7px 10px;font-family:monospace;background:#f0fdf4;font-weight:700">${ci||'(sin CI)'}</td>`;
-        tbody.appendChild(tr);
-      }
-    }
-    if(msg)msg.innerHTML=`<span style="color:var(--green);font-weight:700">✓ ${apellido}, ${nombre} inscripto — Matrícula: ${r.matricula}</span>`;
-    // Limpiar campos pero mantener carrera/curso para siguiente inscripción
-    ['ins-nombre','ins-apellido','ins-ci','ins-tel'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-    document.getElementById('ins-nombre')?.focus();
+    await api('POST','/api/inscripciones-2027',{nombre,apellido,ci,telefono,carrera_id});
+    toast('✅ Agregado a Inscripción 2027','ok');
+    await go('solicitudes');
+    setTimeout(()=>{const s=document.getElementById('gest-sec-inscripcion');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('inscripcion');},150);
   }catch(e){
-    if(msg)msg.innerHTML=`<span style="color:var(--red)">✗ Error: ${e.message}</span>`;
+    if(msg)msg.innerHTML=`<span style="color:var(--red)">✗ ${e.message}</span>`;
   }
+}
+// nuevo=true: inscripción 2027 (Matricular = alta como alumno / Descartar); nuevo=false: inscripciones anteriores (Aprobar / Rechazar)
+async function resolverInscripcion(id, accion, nuevo){
+  if(accion==='rechazar'){
+    const motivo=prompt(nuevo?'Motivo (opcional):':'Motivo del rechazo (opcional):');
+    if(motivo===null)return;
+    try{ await api('PUT','/api/solicitudes-registro/'+id+'/resolver',{accion:'rechazar',motivo}); }
+    catch(e){ toast('Error: '+e.message,'err'); return; }
+  } else {
+    if(nuevo && !confirm('¿Matricular a esta persona?\n\nSe crea su alumno/a, su usuario y sus planillas de notas del período en curso. Después pasale su usuario y contraseña por WhatsApp.')) return;
+    try{
+      await api('PUT','/api/solicitudes-registro/'+id+'/resolver',{accion:'aprobar'});
+      toast(nuevo?'✅ Matriculado/a: ya es alumno/a del instituto':'✅ Alumno incorporado correctamente','ok',5000);
+    }catch(e){ toast('Error: '+e.message,'err'); return; }
+  }
+  await go('solicitudes');
+  setTimeout(()=>{const s=document.getElementById('gest-sec-inscripcion');if(s&&(s.style.display==='none'||!s.style.display))toggleGestSec('inscripcion');},150);
 }
 async function resolverRegistroQr(id, accion){
   if(accion==='rechazar'){
@@ -13136,11 +13089,15 @@ async function pgSolicitudes(el){
   // formulario_web = nuevos alumnos inscriptos por web (solo para agosto 2026)
   // incorporacion_academica = alumnos YA matriculados que piden acceso al sistema
   // Incorporaciones = alumnos ya vinculados al instituto: qr, cambio_carrera, nuevo, sin tipo
+  // inscripcion_2027 = interesados que se anotaron por el link de Inscripción 2027: NO son alumnos todavía, tienen su propio espacio
   const regsForm=regs.filter(r=>r.tipo==='formulario_web');
+  const regsInsc27=regs.filter(r=>r.tipo==='inscripcion_2027');
   const regsIncorpAcad=regs.filter(r=>r.tipo==='incorporacion_academica');
-  const regsIncorp=regs.filter(r=>r.tipo!=='formulario_web'&&r.tipo!=='incorporacion_academica');
+  const regsIncorp=regs.filter(r=>r.tipo!=='formulario_web'&&r.tipo!=='incorporacion_academica'&&r.tipo!=='inscripcion_2027');
   const regsQr=regsIncorp.filter(r=>r.tipo==='qr'||r.tipo==='cambio_carrera');
   const regsFormPend=regsForm.filter(r=>r.estado==='pendiente');
+  const regsInsc27Pend=regsInsc27.filter(r=>r.estado==='pendiente');
+  const inscPendTotal=regsInsc27Pend.length+regsFormPend.length;
   const regsQrPend=regsQr.filter(r=>r.estado==='pendiente');
   const regsIncorpAcadPend=regsIncorpAcad.filter(r=>r.estado==='pendiente');
   const regsPend=regsFormPend; // alias para compatibilidad
@@ -13169,7 +13126,7 @@ async function pgSolicitudes(el){
     <button class="bs" onclick="go('solicitudes')">&#x21BB; Actualizar</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:14px;margin-bottom:20px">
-    ${_gc('inscripcion','🎓','Inscripción Agosto 2026',regsFormPend.length?(regsFormPend.length+' pendiente'+(regsFormPend.length!==1?'s':'')):(regsForm.length?regsForm.length+' recibida'+(regsForm.length!==1?'s':''):'Sin solicitudes'),'#059669','#f0fdf4',regsFormPend.length>0)}
+    ${_gc('inscripcion','🎓','Inscripción 2027',inscPendTotal?(inscPendTotal+' pendiente'+(inscPendTotal!==1?'s':'')):(regsInsc27.length?regsInsc27.length+' inscripto'+(regsInsc27.length!==1?'s':''):'Sin inscriptos'),'#059669','#f0fdf4',inscPendTotal>0)}
     ${_gc('incorpacad','🔑','Incorporación Académica',regsIncorpAcadPend.length?(regsIncorpAcadPend.length+' pendiente'+(regsIncorpAcadPend.length!==1?'s':'')):(regsIncorpAcad.length?regsIncorpAcad.length+' recibida'+(regsIncorpAcad.length!==1?'s':''):'Sin solicitudes'),'#1d4ed8','#eff6ff',regsIncorpAcadPend.length>0)}
     ${_gc('qr','📱','Registro QR',regsQrPend.length?(regsQrPend.length+' pendiente'+(regsQrPend.length!==1?'s':'')):(regsQr.length+' total'),'#2563eb','#eff6ff',regsQrPend.length>0)}
     ${_gc('historial','📋','Incorporaciones & Historial',totalHistPend>0?(totalHistPend+' pendiente'+(totalHistPend!==1?'s':'')):'Al día','#0369a1','#e0f2fe',totalHistPend>0)}
@@ -13188,20 +13145,21 @@ async function pgSolicitudes(el){
       <div style="font-size:10px;padding:2px 10px;border-radius:20px;font-weight:700;background:#eff6ff;color:#1d4ed8">Notas por alumno</div>
     </div>
   </div>
-  <!-- SECCIÓN INSCRIPCIÓN AGOSTO 2026 -->
+  <!-- SECCIÓN INSCRIPCIÓN 2027 -->
   <div id="gest-sec-inscripcion" style="display:none;margin-bottom:16px">
     <div style="background:linear-gradient(135deg,#065f46,#059669);border-radius:12px 12px 0 0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
-        <span style="color:#fff;font-size:14px;font-weight:800">🎓 Inscripción — 2do Semestre Agosto 2026</span>
-        <span style="color:#a7f3d0;font-size:11px;margin-left:10px">${regsFormPend.length} pendiente${regsFormPend.length!==1?'s':''} · ${regsForm.filter(r=>r.estado==='aprobado').length} aprobado${regsForm.filter(r=>r.estado==='aprobado').length!==1?'s':''}</span>
+        <span style="color:#fff;font-size:14px;font-weight:800">🎓 Inscripción 2027</span>
+        <span style="color:#a7f3d0;font-size:11px;margin-left:10px">${regsInsc27Pend.length} por contactar · ${regsInsc27.filter(r=>r.estado==='aprobado').length} matriculado${regsInsc27.filter(r=>r.estado==='aprobado').length!==1?'s':''}</span>
       </div>
-      <button onclick="toggleGestSubsec('ins-form')" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:11px;padding:5px 14px;border-radius:20px;cursor:pointer">➕ Inscribir manualmente</button>
+      <button onclick="toggleGestSubsec('ins-form')" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:11px;padding:5px 14px;border-radius:20px;cursor:pointer">➕ Agregar interesado</button>
     </div>
     <div style="border:1.5px solid #059669;border-top:none;border-radius:0 0 12px 12px;background:#fff;padding:18px">
+      <div style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.5">Personas que se inscribieron desde el link de <strong>Inscripción 2027</strong> (<code>/carreras.html</code>). Todavía <strong>no son alumnos</strong>: contactalas por WhatsApp y, cuando confirmen, tocá <strong>Matricular</strong> para darlas de alta con su usuario.</div>
 
-      <!-- Formulario manual (colapsado por defecto) -->
+      <!-- Alta manual de un interesado (colapsado por defecto) -->
       <div id="ins-form" style="display:none;margin-bottom:20px;padding-bottom:18px;border-bottom:1.5px solid #d1fae5">
-        <div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:12px">Registrar alumno manualmente</div>
+        <div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:12px">Agregar un interesado (se anotó en persona o por WhatsApp)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Nombre *</label>
@@ -13216,86 +13174,78 @@ async function pgSolicitudes(el){
             <input id="ins-ci" placeholder="Ej: 5234567" type="number" style="width:100%">
           </div>
           <div>
-            <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Teléfono / Celular</label>
+            <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Teléfono / WhatsApp</label>
             <input id="ins-tel" placeholder="Ej: 0981123456" style="width:100%">
           </div>
-          <div>
+          <div style="grid-column:1/-1">
             <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Carrera *</label>
-            <select id="ins-carrera" onchange="insCarreraChange()" style="width:100%">
+            <select id="ins-carrera" style="width:100%">
               <option value="">— Seleccionar carrera —</option>
               ${(carrerasAll||[]).filter(c=>c.activo!==0).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
             </select>
           </div>
-          <div>
-            <label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Año / Curso *</label>
-            <select id="ins-curso" style="width:100%">
-              <option value="">— Primero seleccioná carrera —</option>
-            </select>
-          </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="bn" style="background:#059669;border-color:#047857;min-width:160px" onclick="inscribirAlumnoAgosto()">➕ Inscribir alumno</button>
+          <button class="bn" style="background:#059669;border-color:#047857;min-width:160px" onclick="agregarInscripcion2027()">➕ Agregar a Inscripción 2027</button>
           <button class="bs" onclick="limpiarFormIns()">🗑 Limpiar</button>
           <span id="ins-msg" style="font-size:12px"></span>
         </div>
-        <div id="ins-lista" style="margin-top:12px"></div>
       </div>
 
-      <!-- PENDIENTES: solicitudes que necesitan acción -->
       ${(()=>{
-        const pends = regsForm.filter(r=>r.estado==='pendiente');
-        const restos = regsForm.filter(r=>r.estado!=='pendiente');
-        function _origenBadge(r){
-          if(r.tipo==='formulario_web') return `<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:10px;font-weight:600">📤 Formulario web</span>`;
-          return `<span style="font-size:10px;background:#f5f3ff;color:#6d28d9;padding:2px 7px;border-radius:10px;font-weight:600">📋 Inscripción directa</span>`;
-        }
-        function _regRow(r){
-          return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${r.estado==='pendiente'?'#fde68a':r.estado==='aprobado'?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${r.estado==='pendiente'?'#fffbeb':r.estado==='aprobado'?'#f0fdf4':'#fef2f2'}">
+        const _e=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const _wa=t=>{let d=String(t||'').replace(/\D/g,'');if(d.length<7)return '';d=d.startsWith('0')?'595'+d.slice(1):(d.startsWith('595')?d:'595'+d);return 'https://wa.me/'+d;};
+        // nuevo=true → inscripción 2027 (Matricular / Descartar); nuevo=false → inscripciones anteriores del 2.º semestre 2026 (Aprobar / Rechazar)
+        function _fila(r,nuevo){
+          const pend=r.estado==='pendiente', ok=r.estado==='aprobado';
+          const wa=_wa(r.telefono);
+          const etq=pend?(nuevo?'⏳ Por contactar':'⏳ Pendiente'):ok?(nuevo?'✅ Matriculado':'✅ Aprobado'):(nuevo?'❌ Descartado':'❌ Rechazado');
+          return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;border:1.5px solid ${pend?'#fde68a':ok?'#bbf7d0':'#fecaca'};margin-bottom:8px;background:${pend?'#fffbeb':ok?'#f0fdf4':'#fef2f2'}">
             <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
-                <span style="font-weight:700;font-size:14px;color:#1e293b">${r.apellido}, ${r.nombre}</span>
-                ${_origenBadge(r)}
-              </div>
-              <div style="font-size:12px;color:#059669;font-weight:600;margin-top:2px">${r.carrera_nombre||'—'}</div>
-              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${r.ci||'—'}</strong> · Tel: <strong>${r.telefono||'—'}</strong> · ${(r.fecha||'').split('T')[0]}</div>
-              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${r.motivo_rechazo}</div>`:''}
+              <div style="font-weight:700;font-size:14px;color:#1e293b">${_e(r.apellido)}, ${_e(r.nombre)}</div>
+              <div style="font-size:12px;color:#059669;font-weight:600;margin-top:2px">${_e(r.carrera_nombre)||'—'}</div>
+              <div style="font-size:11px;color:var(--t2);margin-top:3px">CI: <strong>${_e(r.ci)||'—'}</strong> · Tel: <strong>${_e(r.telefono)||'—'}</strong> · ${_e((r.fecha||'').split('T')[0].split(' ')[0])}</div>
+              ${r.motivo_rechazo?`<div style="font-size:11px;color:#dc2626;margin-top:3px">Motivo: ${_e(r.motivo_rechazo)}</div>`:''}
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
-              <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${r.estado==='pendiente'?'#fef3c7':r.estado==='aprobado'?'#dcfce7':'#fee2e2'};color:${r.estado==='pendiente'?'#92400e':r.estado==='aprobado'?'#166534':'#991b1b'}">${r.estado==='pendiente'?'⏳ Pendiente':r.estado==='aprobado'?'✅ Aprobado':'❌ Rechazado'}</span>
-              ${r.estado==='pendiente'?`<button class="bn" style="font-size:11px;padding:5px 14px;background:#059669;border-color:#047857" onclick="resolverRegistroQr('${r.id}','aprobar')">✓ Aprobar</button>
-              <button class="bs d" style="font-size:11px;padding:5px 14px" onclick="resolverRegistroQr('${r.id}','rechazar')">✕ Rechazar</button>`:''}
+              <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;background:${pend?'#fef3c7':ok?'#dcfce7':'#fee2e2'};color:${pend?'#92400e':ok?'#166534':'#991b1b'}">${etq}</span>
+              ${pend&&nuevo&&wa?`<a href="${wa}" target="_blank" rel="noopener" style="font-size:11px;padding:5px 14px;border-radius:8px;background:#25D366;color:#fff;font-weight:700;text-decoration:none">💬 WhatsApp</a>`:''}
+              ${pend?`<button class="bn" style="font-size:11px;padding:5px 14px;background:#059669;border-color:#047857" onclick="resolverInscripcion('${r.id}','aprobar',${nuevo})">${nuevo?'✓ Matricular':'✓ Aprobar'}</button>
+              <button class="bs d" style="font-size:11px;padding:5px 14px" onclick="resolverInscripcion('${r.id}','rechazar',${nuevo})">${nuevo?'✕ Descartar':'✕ Rechazar'}</button>`:''}
             </div>
           </div>`;
         }
-        function _grupo(lista, titulo, color){
+        function _grupo(lista,titulo,color,nuevo){
           if(!lista.length) return '';
           return `<div style="margin-bottom:16px">
             <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid #e2e8f0">${titulo} (${lista.length})</div>
-            ${lista.map(_regRow).join('')}
+            ${lista.map(r=>_fila(r,nuevo)).join('')}
           </div>`;
         }
-        let html = '';
-        if(pends.length){
-          const pendWeb = pends.filter(r=>r.tipo==='formulario_web');
-          const pendDir = pends.filter(r=>r.tipo!=='formulario_web');
-          html += _grupo(pendWeb, '📤 Formulario web — pendientes', '#1d4ed8');
-          html += _grupo(pendDir, '📋 Inscripción directa — pendientes', '#6d28d9');
+        const pend27=regsInsc27.filter(r=>r.estado==='pendiente');
+        const proc27=regsInsc27.filter(r=>r.estado!=='pendiente');
+        let html='';
+        if(pend27.length){
+          html+=_grupo(pend27,'📋 Por contactar y matricular','#047857',true);
         } else {
-          html += `<div style="text-align:center;padding:30px 20px;color:var(--t3)">
-            <div style="font-size:28px;margin-bottom:8px">✅</div>
-            <div style="font-size:14px;font-weight:600">Sin solicitudes pendientes</div>
-            <div style="font-size:12px;margin-top:5px">Link del formulario:
-              <a href="https://its-sistema-production.up.railway.app/inscripcion" target="_blank" style="color:#059669;font-weight:600">its-sistema-production.up.railway.app/inscripcion</a>
-            </div>
+          html+=`<div style="text-align:center;padding:26px 20px;color:var(--t3)">
+            <div style="font-size:28px;margin-bottom:8px">${regsInsc27.length?'✅':'📭'}</div>
+            <div style="font-size:14px;font-weight:600">${regsInsc27.length?'No hay interesados por contactar':'Todavía no hay inscriptos para 2027'}</div>
+            <div style="font-size:12px;margin-top:5px">Link para compartir: <a href="/carreras.html" target="_blank" style="color:#059669;font-weight:600">${_e(location.origin)}/carreras.html</a></div>
           </div>`;
         }
-        if(restos.length){
-          const restosWeb = restos.filter(r=>r.tipo==='formulario_web');
-          const restosDir = restos.filter(r=>r.tipo!=='formulario_web');
-          const histContent = _grupo(restosWeb,'📤 Formulario web','#1d4ed8') + _grupo(restosDir,'📋 Inscripción directa','#6d28d9');
-          html += `<div style="margin-top:12px">
-            <button onclick="toggleGestSubsec('ins-historial')" style="background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:6px 0">▾ Ver historial (${restos.length} procesado${restos.length!==1?'s':''})</button>
-            <div id="ins-historial" style="display:none;margin-top:8px">${histContent}</div>
+        if(proc27.length){
+          html+=`<div style="margin-top:12px">
+            <button onclick="toggleGestSubsec('ins-historial')" style="background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:6px 0">▾ Ver procesados (${proc27.length})</button>
+            <div id="ins-historial" style="display:none;margin-top:8px">${proc27.map(r=>_fila(r,true)).join('')}</div>
+          </div>`;
+        }
+        // Inscripciones del 2.º semestre 2026 (formulario anterior): se conservan por si quedó alguna sin resolver
+        if(regsForm.length){
+          const abierto=regsFormPend.length>0;
+          html+=`<div style="margin-top:18px;padding-top:12px;border-top:2px dashed #e2e8f0">
+            <button onclick="toggleGestSubsec('ins-anteriores')" style="background:none;border:none;font-size:12px;color:#6b7280;cursor:pointer;padding:6px 0;font-weight:700">▾ Inscripciones anteriores — 2.º semestre 2026 (${regsForm.length}${abierto?' · '+regsFormPend.length+' pendiente'+(regsFormPend.length!==1?'s':''):''})</button>
+            <div id="ins-anteriores" style="display:${abierto?'block':'none'};margin-top:8px">${regsForm.map(r=>_fila(r,false)).join('')}</div>
           </div>`;
         }
         return html;

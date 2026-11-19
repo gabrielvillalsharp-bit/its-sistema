@@ -10396,6 +10396,8 @@ const WA_TPL_DEFAULTS = {
 const WA_SISTEMA_DEFAULTS = {
   bienvenida_qr: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n¡Bienvenido/a, *{nombre}*! 🙌\n\nNos alegra tenerte como alumno/a y que seas parte de esta nueva etapa de evolución digital de nuestra institución. Esta innovación fue pensada para tu comodidad, para que puedas acceder a tu información académica en cualquier momento y desde cualquier lugar.\n\nA partir de ahora podés consultar tus notas, asistencia y estado de cuenta cuando lo necesites.\n\n📋 *Tus datos de acceso:*\n• Usuario: {email}\n• Contraseña: {ci}\n\n🔗 *Acceder al sistema:*\n{url}\n\n💡 _Te recomendamos guardar este mensaje para futuras consultas._\n\n— *Dirección Académica · ITS Santísima Trinidad*`,
   constancia_pago: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\n📄 *Constancia de Pago*\n\nHola, *{nombre}*. Te confirmamos que recibimos tu pago exitosamente.\n\n💳 *Detalle:*\n• Concepto: {concepto}{materia}\n• Monto: {monto}\n• Fecha: {fecha}\n\n✅ Tu pago quedó registrado en el sistema. Podés verificarlo ingresando a tu cuenta.\n\n🔗 {url}\n\n— *Administración · ITS Santísima Trinidad*`,
+  // Reenvío de datos de acceso a un alumno ya registrado (opción "Ya soy alumno/a" del QR público)
+  credenciales_reenvio: `🎓 *Instituto Técnico Superior Santísima Trinidad*\n\nHola, *{nombre}*. Como lo pediste desde el registro del instituto, te enviamos de nuevo tus datos de acceso:\n\n📋 *Tus datos de acceso:*\n• Usuario: {email}\n• Contraseña: {ci}\n\n🔗 *Acceder al sistema:*\n{url}\n\n💡 _Si no fuiste vos quien los pidió, avisá en la Secretaría._\n\n— *Dirección Académica · ITS Santísima Trinidad*`,
 };
 function getWASistemaTpl(clave) {
   const row = db.prepare("SELECT valor FROM configuracion WHERE clave=?").get('wa_sis_'+clave);
@@ -13036,6 +13038,17 @@ try {
   `);
 } catch {}
 
+// ── MIGRACIÓN: inscripciones web pendientes → grupo aparte «Inscripción 2027» (2026-11-18, orden del director) ───────
+// Quienes se anotaron por el formulario web y siguen pendientes son interesados, no alumnos: pasan al espacio
+// "Inscripción 2027" en vez de darse de alta ahora. Solo toca las PENDIENTES del formulario web (las ya aprobadas o
+// rechazadas del 2.º semestre 2026 quedan como están). Una sola vez.
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_insc2027_pendientes_20261118'").get()) {
+    const r = db.prepare("UPDATE solicitudes_registro SET tipo='inscripcion_2027' WHERE estado='pendiente' AND tipo='formulario_web'").run();
+    db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor,descripcion) VALUES ('mig_insc2027_pendientes_20261118',?,'Migración: inscripciones web pendientes pasadas al grupo Inscripción 2027')").run(String(r.changes));
+    console.log(`[Migración] Inscripción 2027: ${r.changes} inscripción(es) web pendiente(s) pasada(s) al grupo aparte ✓`);
+  }
+} catch (e) { console.warn('[Migración] Inscripción 2027:', e.message); }
 
 // ── REGISTRO PÚBLICO VÍA QR ──────────────────────────────────────────────────
 const pubLimiter = rateLimit({ windowMs: 60*1000, max: 80 });
@@ -13053,11 +13066,11 @@ app.post('/pub/registro-directo', async (req, res) => {
   try {
     // Verificar CI duplicado
     const existCI = db.prepare('SELECT a.nombre, a.apellido FROM alumnos a WHERE a.ci=?').get(ciNorm);
-    if (existCI) return res.status(409).json({ error: `Ya existe un alumno registrado con esa cédula: ${existCI.apellido}, ${existCI.nombre}. Si ya sos alumno/a usá la otra opción.`, duplicate: true });
+    if (existCI) return res.status(409).json({ error: 'Ya figurás como alumno/a del ITS con esa cédula. Usá la opción "Ya soy alumno/a" para recibir tus datos de acceso.', duplicate: true });
     // Verificar nombre duplicado
     const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]/g,'');
     const existNom = db.prepare('SELECT id FROM alumnos WHERE lower(nombre)=? AND lower(apellido)=? LIMIT 1').get(normStr(nombre.trim()), normStr(apellido.trim()));
-    if (existNom) return res.status(409).json({ error: 'Ya existe un alumno con ese nombre. Si ya sos alumno/a usá la otra opción.', duplicate: true });
+    if (existNom) return res.status(409).json({ error: 'Ya existe un alumno con ese nombre. Si ya sos alumno/a usá la opción "Ya soy alumno/a" para recibir tus datos de acceso.', duplicate: true });
     const carrera = db.prepare('SELECT id, nombre FROM carreras WHERE id=?').get(carrera_id);
     if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
     // Buscar curso para el año indicado (con sección específica si viene)
@@ -13210,6 +13223,93 @@ app.post('/pub/alumno/completar', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── QR "YA SOY ALUMNO/A — QUIERO MIS DATOS OTRA VEZ" ─────────────────────────
+// La persona escribe nombre, apellido y cédula; si coinciden con una ficha de alumno se le reenvía por WhatsApp su
+// usuario y contraseña, SIEMPRE al número que figura en la ficha (nunca a uno que escriba otra persona). Solo si la
+// ficha no tiene teléfono se pide uno y se guarda en la ficha. Si la ficha no tiene usuario del sistema todavía, se deja
+// un pedido de "Incorporación Académica" para que Dirección lo habilite. No devuelve ningún dato personal salvo el
+// final del número y el primer nombre. Límites: 60 intentos / 15 min por IP (el instituto comparte wifi: muchos alumnos
+// escanean el QR desde la misma IP) y 3 envíos / hora por cédula (el tope que de verdad frena el abuso).
+const credLimiterIp = rateLimit({ windowMs: 15*60*1000, max: 60, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Esperá unos minutos e intentá de nuevo, o consultá en la Secretaría del ITS.' } });
+const _credPorCi = new Map(); // cédula → marcas de tiempo de los envíos de la última hora
+app.post('/pub/alumno/reenviar-credenciales', credLimiterIp, async (req, res) => {
+  const tokens = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ')
+    .split(/\s+/).filter(t => t.length >= 2);
+  const { nombre, apellido, ci, telefono } = req.body || {};
+  const ciNorm = String(ci||'').replace(/\D/g,'');
+  const tipeado = [...tokens(nombre), ...tokens(apellido)];
+  if (!tokens(nombre).length || !tokens(apellido).length) return res.status(400).json({ error: 'Ingresá tu nombre y tu apellido.' });
+  if (ciNorm.length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula.' });
+  const NO_ENCONTRADO = { error: 'No encontramos un alumno con esos datos. Revisá que el nombre, el apellido y la cédula estén bien escritos, o consultá en la Secretaría del ITS.' };
+  try {
+    const cand = db.prepare(`SELECT a.id, a.nombre, a.apellido, a.telefono, a.estado, a.carrera_id, a.usuario_id,
+        u.nombre AS u_nombre, u.apellido AS u_apellido, u.email AS u_email, u.activo AS u_activo, u.rol AS u_rol
+      FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+      WHERE (a.ci=? OR u.ci=?) AND a.estado!='Retirado'`).all(ciNorm, ciNorm);
+    // Cada palabra escrita debe estar en el nombre o el apellido de la ficha (tolera tildes, mayúsculas y un solo nombre/apellido)
+    const posibles = cand.filter(a => {
+      const ficha = new Set([...tokens(a.nombre || a.u_nombre), ...tokens(a.apellido || a.u_apellido)]);
+      return tipeado.every(t => ficha.has(t));
+    });
+    if (!posibles.length) return res.status(404).json(NO_ENCONTRADO);
+    const tieneAcceso = a => !!(a.usuario_id && a.u_activo && a.u_rol === 'alumno' && a.u_email);
+    const al = posibles.find(tieneAcceso) || posibles[0];
+    const nombrePila = (tokens(al.nombre || al.u_nombre)[0] || '').replace(/^./, c => c.toUpperCase());
+    const telFicha = normalizarTelefono(al.telefono);
+    const telNuevo = normalizarTelefono(telefono);
+    const telUsar = telFicha || telNuevo;
+    if (!telUsar) return res.json({ necesita_telefono: true, nombre: nombrePila });
+
+    // Ficha sin teléfono: se guarda el que escribió (es el único caso en que se acepta uno de afuera)
+    const guardarTelSiFalta = () => {
+      if (!telFicha && telNuevo) {
+        db.prepare('UPDATE alumnos SET telefono=? WHERE id=?').run(String(telefono).trim(), al.id);
+        audit('sistema_publico', 'TELEFONO_AUTOSERVICIO', 'alumnos', al.id, { telefono: telNuevo });
+      }
+    };
+
+    // Ficha sin usuario del sistema → pedido de Incorporación Académica para que Dirección lo habilite
+    if (!tieneAcceso(al)) {
+      if (!al.carrera_id) return res.json({ estado: 'sin_carrera', nombre: nombrePila });
+      guardarTelSiFalta();
+      const yaPedido = db.prepare(`SELECT id FROM solicitudes_registro WHERE estado='pendiente' AND tipo='incorporacion_academica' AND alumno_id=?`).get(al.id);
+      if (!yaPedido) {
+        const id = 'sreg_' + Date.now();
+        db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,alumno_id,tipo) VALUES (?,?,?,?,?,?,?,?)')
+          .run(id, al.nombre || al.u_nombre || '', al.apellido || al.u_apellido || '', ciNorm, String(telefono || al.telefono || '').trim(), al.carrera_id, al.id, 'incorporacion_academica');
+        audit('sistema_publico', 'SOLICITUD_REGISTRO', 'solicitudes_registro', id, { tipo: 'incorporacion_academica', origen: 'qr_ya_soy_alumno', alumno_id: al.id });
+      }
+      return res.json({ estado: 'acceso_solicitado', nombre: nombrePila });
+    }
+
+    // Tope por cédula: 3 envíos por hora
+    const ahora = Date.now();
+    const previos = (_credPorCi.get(ciNorm) || []).filter(t => ahora - t < 3600*1000);
+    if (previos.length >= 3) return res.status(429).json({ error: 'Ya te enviamos tus datos varias veces en la última hora. Revisá tu WhatsApp o consultá en la Secretaría del ITS.' });
+    previos.push(ahora); _credPorCi.set(ciNorm, previos);
+
+    guardarTelSiFalta();
+    const APP_URL = process.env.APP_URL || 'https://its-sistema-production.up.railway.app/';
+    const nombreCompleto = `${al.nombre || al.u_nombre || ''} ${al.apellido || al.u_apellido || ''}`.replace(/\s+/g, ' ').trim();
+    const msg = getWASistemaTpl('credenciales_reenvio')
+      .replace(/\{nombre\}/g, nombreCompleto)
+      .replace(/\{email\}/g, al.u_email)
+      .replace(/\{ci\}/g, ciNorm)
+      .replace(/\{url\}/g, APP_URL);
+    const waRes = await sendWhatsApp(telUsar, msg, { motivo: 'credenciales_reenviadas', por: 'Autoservicio QR (alumno)' });
+    const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+    db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(wid, 'individual', 'alumno', al.id, nombreCompleto, telUsar, msg, waRes.ok ? 'enviado' : 'fallido', 'sistema_auto');
+    audit('sistema_publico', 'CREDENCIALES_AUTOSERVICIO', 'alumnos', al.id, { ok: !!waRes.ok, sinConfirmar: !!waRes.sinConfirmar, telefono: telUsar });
+    if (!waRes.ok && !waRes.sinConfirmar) {
+      _credPorCi.set(ciNorm, previos.slice(0, -1)); // un envío fallido no cuenta para el tope
+      return res.status(502).json({ error: 'No pudimos enviar el WhatsApp en este momento. Probá de nuevo en unos minutos o consultá en la Secretaría del ITS.' });
+    }
+    res.json({ ok: true, estado: 'enviado', nombre: nombrePila, termina: telUsar.slice(-3), sinConfirmar: !!waRes.sinConfirmar });
+  } catch(e) { console.error('[CREDENCIALES-AUTOSERVICIO]', e.message); res.status(500).json({ error: 'Ocurrió un error. Probá de nuevo en unos minutos.' }); }
+});
+
 app.post('/pub/solicitud-registro', (req, res) => {
   const { nombre, apellido, ci, telefono, carrera_id, curso_id, alumno_id, tipo } = req.body;
   if (!nombre || !apellido || !carrera_id) return res.status(400).json({ error: 'Nombre, apellido y carrera son requeridos' });
@@ -13218,8 +13318,19 @@ app.post('/pub/solicitud-registro', (req, res) => {
   if (!carrera) return res.status(400).json({ error: 'Carrera no válida' });
   const normStr = s => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const esCambioCarrera = tipo === 'cambio_carrera' && alumno_id;
+  // Inscripción 2027: interesados que todavía NO son alumnos (formulario público de /inscripcion). Quedan en su propio espacio
+  // de Gestión de Alumnos y no se dan de alta hasta que Dirección los matricula.
+  const esInsc2027 = tipo === 'inscripcion_2027';
+  if (esInsc2027) {
+    const ciInsc = String(ci||'').replace(/\D/g,'');
+    if (ciInsc.length < 5) return res.status(400).json({ error: 'Ingresá tu número de cédula' });
+    const yaAlumno = db.prepare('SELECT 1 FROM alumnos WHERE ci=? OR (lower(nombre)=? AND lower(apellido)=?) LIMIT 1').get(ciInsc, normStr(nombre), normStr(apellido));
+    if (yaAlumno) return res.status(409).json({ error: 'Ya figurás como alumno/a del instituto, así que no necesitás inscribirte de nuevo. Si querés seguir cursando o tenés dudas, consultá en la Secretaría del ITS.', duplicate: true });
+    const yaInscripto = db.prepare(`SELECT 1 FROM solicitudes_registro WHERE estado='pendiente' AND tipo='inscripcion_2027' AND ((ci!='' AND ci=?) OR (lower(nombre)=? AND lower(apellido)=?)) LIMIT 1`).get(ciInsc, normStr(nombre), normStr(apellido));
+    if (yaInscripto) return res.status(409).json({ error: 'Ya recibimos tu inscripción. Dirección se va a comunicar con vos por WhatsApp.', duplicate: true });
+  }
 
-  if (!esCambioCarrera) {
+  if (!esCambioCarrera && !esInsc2027) {
     // Verificar duplicado por CI (LEFT JOIN incluye alumnos sin carrera asignada)
     if (ci) {
       const ciNorm = String(ci).replace(/[^0-9]/g,'');
@@ -13278,8 +13389,8 @@ app.post('/pub/solicitud-registro', (req, res) => {
     const carreraNom = db.prepare('SELECT nombre FROM carreras WHERE id=?').get(carrera_id)?.nombre || carrera_id;
     if (director) {
       db.prepare('INSERT INTO avisos (id,titulo,contenido,tipo,fijado,destinatario,usuario_id) VALUES (?,?,?,?,?,?,?)')
-        .run('av_solreg_' + Date.now(), autoAprobado ? '✅ Alumno nuevo registrado por QR' : '📝 Nueva solicitud de registro (QR)',
-          `Alumno: <strong>${apellido}, ${nombre}</strong> — Carrera: <strong>${carreraNom}</strong><br>CI: ${ci||'—'} · Tel: ${telefono}<br>${autoAprobado ? 'Dado de alta automáticamente: ya puede ingresar y ver sus materias.' : 'Revisar y aprobar en Alumnos y Usuarios.'}`, 'info', 0, 'director', director.id);
+        .run('av_solreg_' + Date.now(), esInsc2027 ? '🎓 Nueva inscripción 2027' : (autoAprobado ? '✅ Alumno nuevo registrado por QR' : '📝 Nueva solicitud de registro (QR)'),
+          `${esInsc2027 ? 'Interesado/a' : 'Alumno'}: <strong>${apellido}, ${nombre}</strong> — Carrera: <strong>${carreraNom}</strong><br>CI: ${ci||'—'} · Tel: ${telefono}<br>${esInsc2027 ? 'Quedó en Gestión de Alumnos → Inscripción 2027, para contactarla y matricularla.' : (autoAprobado ? 'Dado de alta automáticamente: ya puede ingresar y ver sus materias.' : 'Revisar y aprobar en Alumnos y Usuarios.')}`, 'info', 0, 'director', director.id);
     }
   } catch(e) { console.warn('[SOLICITUD_REGISTRO] Error al avisar:', e.message); }
   audit('sistema_publico', 'SOLICITUD_REGISTRO', 'solicitudes_registro', id, { nombre, apellido, ci, carrera_id, autoAprobado });
@@ -13803,6 +13914,25 @@ app.get('/api/solicitudes-registro', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Inscripción 2027 cargada a mano por la Dirección (alguien que se acerca o escribe por WhatsApp): queda en el mismo espacio
+// que las del formulario web. No crea alumno: solo registra al interesado para contactarlo y matricularlo después.
+app.post('/api/inscripciones-2027', auth(ADM), (req, res) => {
+  try {
+    const { nombre, apellido, ci, telefono, carrera_id } = req.body || {};
+    if (!String(nombre||'').trim() || !String(apellido||'').trim()) return res.status(400).json({ error: 'Nombre y apellido son requeridos' });
+    const ciNorm = String(ci||'').replace(/\D/g,'');
+    if (ciNorm.length < 5) return res.status(400).json({ error: 'Ingresá la cédula' });
+    if (!carrera_id || !db.prepare('SELECT id FROM carreras WHERE id=?').get(carrera_id)) return res.status(400).json({ error: 'Seleccioná la carrera' });
+    if (db.prepare('SELECT 1 FROM alumnos WHERE ci=?').get(ciNorm)) return res.status(409).json({ error: 'Esa cédula ya pertenece a un alumno del instituto' });
+    if (db.prepare(`SELECT 1 FROM solicitudes_registro WHERE estado='pendiente' AND tipo='inscripcion_2027' AND ci=?`).get(ciNorm)) return res.status(409).json({ error: 'Esa cédula ya está anotada en Inscripción 2027' });
+    const id = 'sreg_' + Date.now();
+    db.prepare('INSERT INTO solicitudes_registro (id,nombre,apellido,ci,telefono,carrera_id,tipo) VALUES (?,?,?,?,?,?,?)')
+      .run(id, String(nombre).trim(), String(apellido).trim(), ciNorm, String(telefono||'').trim(), carrera_id, 'inscripcion_2027');
+    audit(req.user.id, 'INSCRIPCION_2027_MANUAL', 'solicitudes_registro', id, { nombre, apellido, ci: ciNorm, carrera_id });
+    res.json({ ok: true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Aprobación de una solicitud de alta de alumno nuevo (QR / formulario): crea usuario + alumno + planillas de notas
 // (período activo y semestre en curso) y envía la bienvenida por WhatsApp. La usa el director al aprobar y el alta
 // automática del QR "Soy nuevo/a" (sin aprobación manual). Devuelve { aid } o lanza error.
@@ -14063,7 +14193,11 @@ app.post('/pub/olvide-password/verificar', (req, res) => {
 });
 
 app.get('/registro', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','registro.html')));
-app.get('/inscripcion', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html')));
+// Un solo camino de inscripción: la página de carreras (elige carrera → ve la información → "Inscribirme"). El formulario
+// solo se abre con la carrera elegida (?carrera=); los links viejos de /inscripcion sin carrera van a la página de carreras.
+app.get('/inscripcion', (req, res) => req.query.carrera
+  ? res.sendFile(path.join(__dirname,'..','frontend','public','inscripcion.html'))
+  : res.redirect(302, '/carreras.html'));
 app.get('/incorporacion-academica', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','incorporacion-academica.html')));
 app.get('/formulario/:id', (req, res) => res.sendFile(path.join(__dirname,'..','frontend','public','formulario-publico.html')));
 // ── RSVP FIORELLA ─────────────────────────────────────────────────────────────

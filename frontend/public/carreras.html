@@ -173,7 +173,7 @@ h2.carrera-name{font-family:var(--serif);font-size:clamp(26px,8vw,34px);margin:0
     </div>
     <div class="grid-label">— elegí tu carrera —</div>
     <div class="windows" id="windows"></div>
-    <div class="foot-note">its-sistema-production.up.railway.app/inscripcion</div>
+    <div class="foot-note">Inscripciones 2027 abiertas · its-sistema-production.up.railway.app/carreras.html</div>
   </section>
 
   <section class="screen" id="screen-carrera"></section>
@@ -307,7 +307,7 @@ function renderStep2(c){ // Salida laboral + Horarios
       <div class="stat-row"><span>Duración</span><b>${c.duracion||'2 años'}</b></div>
       <div class="stat-row"><span>Turno</span><b>19:00 a 22:00 hs</b></div>
       <div class="stat-row"><span>Días</span><b>${c.dias}</b></div>
-      <div class="stat-row"><span>Inicio de clases</span><b>10 de agosto</b></div>`)}
+      <div class="stat-row"><span>Inscripciones abiertas</span><b>Año lectivo 2027</b></div>`)}
     <div class="nav-fixed">
       <button class="btn-ghost" onclick="stepSub(-1)">← Atrás</button>
       <button class="btn-main" onclick="stepSub(1)">Requisitos y valores →</button>
@@ -328,7 +328,6 @@ function renderStep3(c){ // Valores + Requisitos
         <div class="precio"><div class="l">Cuota 1° año</div><div class="v">Gs. 300.000</div></div>
         <div class="precio"><div class="l">Cuota 2° año</div><div class="v">Gs. 400.000</div></div>
       </div>
-      <div style="font-size:11px;color:var(--ink-dim);margin-top:8px">La cuota de 2° año rige a partir de agosto de 2026.</div>
       <div class="testi-title">Testimonios de alumnos</div>
       <div class="testi" id="testiBox">
         <div class="testi-txt" id="testiTxt"></div>
@@ -400,19 +399,9 @@ function showScreen(target){
   window.scrollTo({top:0});
 }
 
+// "Inscribirme": abre el formulario de Inscripción 2027 en esta misma pestaña, con la carrera ya elegida
 function irAInscripcion(nombreCarrera){
-  screenConfirm.innerHTML = `
-    <div class="topbar"><button class="back-btn" onclick="goHome()">← Todas las carreras</button></div>
-    <div class="confirm-box">
-      <div class="ico">🚀</div>
-      <h2>Abriendo el formulario…</h2>
-      <p>Te estamos llevando al formulario oficial de inscripción para <b>${nombreCarrera}</b>. Completalo con tus datos y Dirección te contacta por WhatsApp para confirmar tu cupo.</p>
-      <a class="btn-main" style="display:inline-block;text-decoration:none" href="${INSCRIPCION_URL}" target="_blank" rel="noopener">Abrir formulario ahora</a>
-    </div>
-  `;
-  showScreen(screenConfirm);
-  history.pushState({page:'confirm'}, '', '#inscripcion');
-  setTimeout(() => window.open(INSCRIPCION_URL, '_blank'), 900);
+  window.location.href = INSCRIPCION_URL + '?carrera=' + encodeURIComponent(nombreCarrera);
 }
 
 window.addEventListener('popstate', (e) => {
