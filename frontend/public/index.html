@@ -2256,31 +2256,23 @@ function filtrarDocHabilitados(){
   if(cnt) cnt.textContent=datos.length+' registro'+(datos.length!==1?'s':'');
 }
 
-// Inscripción 2027: un único link (página de carreras → "Inscribirme" → formulario)
-function copiarLinkInscripcion(){
-  const link=location.origin+'/carreras.html';
+// Copia un link al portapapeles y avisa (con el cartelito de la pantalla si existe, si no con un aviso)
+function _copiarLink(ruta, toastId){
+  const link=location.origin+ruta;
   navigator.clipboard.writeText(link).then(()=>{
-    const t=document.getElementById('link-inscripcion-toast');
+    const t=document.getElementById(toastId);
     if(t){t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
+    else toast('✅ Link copiado','ok');
   }).catch(()=>{
     prompt('Copiá este link:',link);
   });
 }
-function abrirLinkInscripcion(){
-  window.open('/carreras.html','_blank');
-}
-function copiarLinkIncorpAcad(){
-  const link=location.origin+'/incorporacion-academica';
-  navigator.clipboard.writeText(link).then(()=>{
-    const t=document.getElementById('link-incorpacad-toast');
-    if(t){t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
-  }).catch(()=>{
-    prompt('Copiá este link:',location.origin+'/incorporacion-academica');
-  });
-}
-function abrirLinkIncorpAcad(){
-  window.open('/incorporacion-academica','_blank');
-}
+// Link para alumnos (el del QR): /registro → "Quiero registrarme" o "Ya soy alumno/a"
+function copiarLinkAlumnos(){ _copiarLink('/registro','link-alumnos-toast'); }
+function abrirLinkAlumnos(){ window.open('/registro','_blank'); }
+// Inscripción 2027 (para interesados): página de carreras → "Inscribirme" → formulario. Se copia desde Gestión de Alumnos → Inscripción 2027
+function copiarLinkInscripcion(){ _copiarLink('/carreras.html','link-inscripcion-toast'); }
+function abrirLinkInscripcion(){ window.open('/carreras.html','_blank'); }
 
 // ── MODAL NOTAS PENDIENTES ───────────────────────────────────────────────────
 function mostrarPendientesNotas(){
@@ -2505,36 +2497,21 @@ async function pgWhatsApp(el){
     <button onclick="recargarWA()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:12px">🔄 Actualizar</button>
   </div>
 
-  <!-- Incorporación Académica: link para alumnos ya inscriptos sin acceso al sistema -->
-  <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">🔑</span>
-      <div>
-        <div style="font-size:13px;font-weight:800;color:#1e40af">Incorporación Académica</div>
-        <div style="font-size:11px;color:#2563eb;margin-top:1px">Para alumnos que ya están en el instituto pero no tienen acceso al sistema</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button onclick="copiarLinkIncorpAcad()" class="bs" style="background:#fff;border-color:#93c5fd;color:#1e40af;font-size:12px">📋 Copiar link</button>
-      <button onclick="abrirLinkIncorpAcad()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
-    </div>
-    <div id="link-incorpacad-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#1e40af;font-weight:700;background:#fff;border:1px solid #93c5fd;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
-  </div>
-
-  <!-- Inscripción 2027: un solo link para interesados. Elige la carrera, ve su información y toca "Inscribirme" (formulario). -->
+  <!-- Link para alumnos (el del QR): "Quiero registrarme" (alumno nuevo) o "Ya soy alumno/a" (recibe su usuario y contraseña otra vez por WhatsApp) -->
   <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">🎓</span>
+      <span style="font-size:22px">📲</span>
       <div>
-        <div style="font-size:13px;font-weight:800;color:#166534">Inscripción 2027</div>
-        <div style="font-size:11px;color:#15803d;margin-top:1px">Para quien todavía no es alumno/a: elige su carrera, ve la información y se inscribe. Las inscripciones llegan a Gestión de Alumnos → Inscripción 2027</div>
+        <div style="font-size:13px;font-weight:800;color:#166534">Link para alumnos</div>
+        <div style="font-size:11px;color:#15803d;margin-top:1px">El alumno elige <strong>«Quiero registrarme»</strong> (alumno nuevo) o <strong>«Ya soy alumno/a»</strong> (recibe su usuario y contraseña otra vez por WhatsApp)</div>
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      <button onclick="copiarLinkInscripcion()" class="bs" style="background:#fff;border-color:#86efac;color:#166534;font-size:12px">📋 Copiar link</button>
-      <button onclick="abrirLinkInscripcion()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
+      <button onclick="copiarLinkAlumnos()" class="bs" style="background:#fff;border-color:#86efac;color:#166534;font-size:12px">📋 Copiar link</button>
+      <button onclick="mQrGeneral()" class="bs" style="background:#fff;border-color:#86efac;color:#166534;font-size:12px">📱 Ver QR</button>
+      <button onclick="abrirLinkAlumnos()" class="bn" style="font-size:12px;padding:6px 12px">🔗 Abrir</button>
     </div>
-    <div id="link-inscripcion-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#166534;font-weight:700;background:#fff;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
+    <div id="link-alumnos-toast" style="display:none;width:100%;margin-top:2px;font-size:12px;color:#166534;font-weight:700;background:#fff;border:1px solid #86efac;border-radius:8px;padding:6px 10px">✅ ¡Link copiado! Pegalo en tu WhatsApp.</div>
   </div>
 
   <!-- KPIs -->
@@ -4268,7 +4245,7 @@ function mQrGeneral(){
   const url = location.origin+'/registro';
   const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=7c3aed&data='+encodeURIComponent(url);
   modal(`<h4>📱 QR General de Registro</h4>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">El alumno escanea, elige su carrera y sigue el proceso normal de registro.</p>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">El alumno escanea y elige: <strong>«Quiero registrarme»</strong> (alumno nuevo) o <strong>«Ya soy alumno/a»</strong> (recibe su usuario y contraseña otra vez por WhatsApp).</p>
   <div style="display:flex;justify-content:center;margin-bottom:14px">
     <img src="${qrSrc}" width="220" height="220" style="border-radius:10px;border:2px solid #7c3aed" onerror="this.parentElement.innerHTML='<p style=color:#888;font-size:12px>QR no disponible sin conexión</p>'"/>
   </div>
@@ -13152,7 +13129,10 @@ async function pgSolicitudes(el){
         <span style="color:#fff;font-size:14px;font-weight:800">🎓 Inscripción 2027</span>
         <span style="color:#a7f3d0;font-size:11px;margin-left:10px">${regsInsc27Pend.length} por contactar · ${regsInsc27.filter(r=>r.estado==='aprobado').length} matriculado${regsInsc27.filter(r=>r.estado==='aprobado').length!==1?'s':''}</span>
       </div>
-      <button onclick="toggleGestSubsec('ins-form')" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:11px;padding:5px 14px;border-radius:20px;cursor:pointer">➕ Agregar interesado</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="copiarLinkInscripcion()" title="Link para mandar a los interesados: elige la carrera, ve la información y toca Inscribirme" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:11px;padding:5px 14px;border-radius:20px;cursor:pointer">📋 Copiar link de inscripción</button>
+        <button onclick="toggleGestSubsec('ins-form')" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:11px;padding:5px 14px;border-radius:20px;cursor:pointer">➕ Agregar interesado</button>
+      </div>
     </div>
     <div style="border:1.5px solid #059669;border-top:none;border-radius:0 0 12px 12px;background:#fff;padding:18px">
       <div style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.5">Personas que se inscribieron desde el link de <strong>Inscripción 2027</strong> (<code>/carreras.html</code>). Todavía <strong>no son alumnos</strong>: contactalas por WhatsApp y, cuando confirmen, tocá <strong>Matricular</strong> para darlas de alta con su usuario.</div>
