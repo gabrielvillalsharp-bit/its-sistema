@@ -4484,7 +4484,7 @@ async function mMateria(m){
     W._periodosMat?Promise.resolve(W._periodosMat):api('GET','/api/periodos')
   ]);
   W._periodosMat=periodos;
-  const periodoActivo=periodos.find(p=>p.activo)||periodos[0];
+  const periodoActivo=semVigente(periodos)||periodos.find(p=>p.activo)||periodos[0]; // por defecto el semestre en curso (no el período "activo" = 1.er semestre)
   modal(`<h4>${e?'Editar':'Nueva'} materia</h4>
   <div style="background:#e8f5e9;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#2e7d32">
     ✓ Al guardar, la materia y su asignación aparecen automáticamente en Notas y Asistencia. El día y horario se ubican después desde Horario Semanal.
@@ -5961,6 +5961,7 @@ async function pgAsig(el){
   el.innerHTML=`<div class="ph"><h3>Asignaciones</h3><button class="bn" onclick="mAsig()">+ Nueva</button></div>
   <p class="tip" style="margin-bottom:8px">Vincula docente → materia → curso → período.</p>
   <div class="fb" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select id="filtAsigSem" onchange="renderAsigs()" style="min-width:150px;font-weight:700">${semOpciones(pers,String((semVigente(pers)||{}).id||''),true)}</select>
     <select id="filtAsigDoc" onchange="renderAsigs()" style="min-width:200px">
       <option value="">Todos los docentes</option>
       ${[...new Map((docs||[]).map(d=>[d.docente_id,d])).values()].sort((a,b)=>(a.apellido||'').localeCompare(b.apellido||'')).map(d=>`<option value="${d.docente_id}">${d.apellido||''}, ${d.nombre||''}</option>`).join('')}
@@ -5974,7 +5975,7 @@ async function pgAsig(el){
   renderAsigs();
 }
 function renderAsigs(){
-  let asigs=W._asigs_all||[];
+  let asigs=semFiltrar(W._asigs_all||[],document.getElementById('filtAsigSem')?.value||'');
   const fd=document.getElementById('filtAsigDoc')?.value||'';
   const fc=document.getElementById('filtAsigCarr')?.value||'';
   if(fd)asigs=asigs.filter(a=>a.docente_id===fd);
@@ -6025,7 +6026,7 @@ function mAsig(){
     </div>
     <div class="fr">
       <div class="f"><label>Período <span style="color:var(--red)">*</span></label>
-        <select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
+        <select id="asp">${(pers||[]).map(p=>`<option value="${p.id}" ${(semVigente(pers)||{}).id===p.id?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
     </div>
     <div class="fr">
       <div class="f"><label>Carrera <span style="color:var(--red)">*</span></label>
@@ -6127,6 +6128,7 @@ async function pgExamenes(el){
       ${esDir?`<button class="bn" onclick="mExamen()">+ Programar examen</button>`:''}
     </div></div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+    <select id="filtExSem" onchange="filtExAll()" style="min-width:150px;font-weight:700">${semOpciones(pers,String((semVigente(pers)||{}).id||''),true)}</select>
     ${esDir?`<select id="filtExGrupo" onchange="filtExAll()" style="min-width:160px">
       <option value="">Todos los tipos</option>
       <optgroup label="─ Parciales ─">
@@ -6155,7 +6157,7 @@ async function pgExamenes(el){
     </select>`:''}
   </div>
   <div id="extb"></div>`;
-  renderExsByDay(exs, document.getElementById('extb'));
+  filtExAll(); // aplica el semestre en curso por defecto (antes mostraba los exámenes de los dos semestres juntos)
 }
 
 // Ir directo a la sección notas con una asignación preseleccionada
@@ -7051,9 +7053,9 @@ function filtExCursos(){
   sel.innerHTML='<option value="">Todas las secciones</option>'+cursos.map(cu=>`<option value="${cu.id}">${cu.carrera_nombre} ${cu.anio}°${cu.division==='U'?'':cu.division}</option>`).join('');
 }
 function filtExAll(){
-  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),docenteId=v('filtExDocente');
+  const tipo=v('filtExGrupo'),carrId=v('filtExCarr'),anio=v('filtExAnio'),cursoId=v('filtExCurso'),docenteId=v('filtExDocente'),semId=v('filtExSem');
   const wrap=document.getElementById('extb');if(!wrap)return;
-  let l=W._exs||[];
+  let l=semFiltrar(W._exs||[],semId);
   if(tipo)l=l.filter(e=>(e.tipo||'').toLowerCase()===tipo.toLowerCase());
   if(carrId)l=l.filter(e=>!e.carrera_id||e.carrera_id===carrId);
   if(anio)l=l.filter(e=>String(e.curso_anio)===anio);
@@ -8670,7 +8672,7 @@ async function mExamen(exData){
       <input id="exho" type="time" value="${e&&exData.hora?exData.hora:'19:00'}"/></div>
   </div>
   <div class="f"><label>Período</label>
-    <select id="expe">${pers.map(p=>`<option value="${p.id}" ${(e&&exData.periodo_id===p.id)||p.activo?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
+    <select id="expe">${pers.map(p=>`<option value="${p.id}" ${(e&&exData.periodo_id!=null?exData.periodo_id===p.id:(semVigente(pers)||{}).id===p.id)?'selected':''}>${p.nombre}</option>`).join('')}</select></div>
   <div class="fr">
     <div class="f"><label>Aula (opcional)</label><input id="exau" value="${e&&exData.aula?exData.aula:''}" placeholder="Ej: Aula 3"/></div>
     <div class="f"><label>Observaciones</label><input id="exob" value="${e&&exData.observacion?exData.observacion:''}" placeholder="Opcional"/></div>
@@ -9131,7 +9133,7 @@ async function pgCalClases(el){
     : null;
   const periodoActivo=periodoVigenteDoc
     || (periodoDestinoId&&periodos.find(p=>String(p.id)===String(periodoDestinoId)))
-    || periodos.find(p=>p.activo) || periodos[0] || null;
+    || semVigente(periodos) || periodos.find(p=>p.activo) || periodos[0] || null; // director/secretaría: el semestre en curso (antes abría el período "activo" = 1.er semestre)
   W._periodoHorario=periodoActivo;
   // Docente y alumno reciben solo su propio recorte directo desde el servidor
   // (el alumno no puede pedir el curso de otro — se resuelve server-side).
@@ -10435,10 +10437,29 @@ async function delAct(id){
 }
 function mActividadFecha(fecha){mActividad();setTimeout(()=>{const f=document.getElementById('actFec');if(f)f.value=fecha;},100);}
 // ── NOTAS ─────────────────────────────────────────────────────────────────────
+// ── SEMESTRES ─────────────────────────────────────────────────────────────────
+// El período "activo" sigue siendo el Año Lectivo (1.er semestre: de ahí cuelgan matrículas y cuotas); el semestre EN CURSO es el más reciente que ya empezó.
+// Las listas académicas del director/secretaría mezclaban las materias de los dos semestres: estas ayudas las separan (por defecto, el semestre en curso).
+async function semCargar(){ try{ return await api('GET','/api/periodos'); }catch(e){ return []; } }
+function semVigente(pers){
+  const hoy=hoyPY();
+  const c=(pers||[]).filter(p=>(p.fecha_inicio||'')<=hoy).sort((a,b)=>(b.anio-a.anio)||(b.semestre-a.semestre));
+  return c[0]||(pers||[])[0]||null;
+}
+function semNombre(p){ if(!p)return ''; return (p.semestre==1?'1.er semestre':(p.semestre?p.semestre+'.º semestre':p.nombre))+(p.anio?' '+p.anio:''); }
+function semOpciones(pers,selId,conTodos){
+  const vig=semVigente(pers);
+  const ord=[...(pers||[])].sort((a,b)=>(b.anio-a.anio)||(b.semestre-a.semestre));
+  return ord.map(p=>`<option value="${p.id}" ${String(p.id)===String(selId)?'selected':''}>${semNombre(p)}${vig&&p.id===vig.id?' (en curso)':''}</option>`).join('')+(conTodos?`<option value="todos" ${selId==='todos'?'selected':''}>Todos los semestres</option>`:'');
+}
+function semFiltrar(lista,semId,campo){ if(!semId||semId==='todos')return lista||[]; return (lista||[]).filter(x=>String(x[campo||'periodo_id'])===String(semId)); }
 async function pgNotas(el){
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const [asigs,carrs,cursos]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos')]);
-  W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs;
+  const [asigs,carrs,cursos,pers]=await Promise.all([api('GET',url),api('GET','/api/carreras'),api('GET','/api/cursos'),semCargar()]);
+  W._notasCarrs=carrs; W._notasCursos=cursos; W._notasAsigs=asigs; W._notasPers=pers; W._alumnoNotasSel=null;
+  // Director/secretaría: por defecto el semestre en curso (el docente ya recibe solo ese semestre desde el servidor)
+  const semVig=semVigente(pers); const semDef=(me.rol!=='docente'&&semVig)?String(semVig.id):'';
+  const asigsLista=semFiltrar(asigs,semDef);
   const anios=[...new Set(cursos.map(cu=>cu.anio).filter(Boolean))].sort();
   // Cards de materias propias para docentes
   const misMatCards=me.rol==='docente'&&asigs.length?`
@@ -10479,6 +10500,12 @@ async function pgNotas(el){
     <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px">🔍 Filtrar por materia</div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
       ${me.rol!=='docente'?`
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:170px">
+        <label style="font-size:11px;font-weight:600;color:#64748b">Semestre</label>
+        <select id="filtNotaSem" onchange="cambioSemNotas()" style="padding:9px 12px;border:1.5px solid #166534;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+          ${semOpciones(pers,semDef,true)}
+        </select>
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;min-width:180px;flex:1">
         <label style="font-size:11px;font-weight:600;color:#64748b">Carrera</label>
         <select id="filtNotaCarr" onchange="filtNotasCursos()" style="padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)" onfocus="this.style.borderColor='#166534'" onblur="this.style.borderColor='#e2e8f0'">
@@ -10497,7 +10524,7 @@ async function pgNotas(el){
         <label style="font-size:11px;font-weight:600;color:#64748b">Materia</label>
         <select id="selAsigNotas" onchange="cambiarAsigNotas(this.value)" style="padding:9px 12px;border:1.5px solid #166534;border-radius:9px;font-size:13px;background:#fff;color:#1e293b;outline:none;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)" onfocus="this.style.boxShadow='0 0 0 3px rgba(22,101,52,.15)'" onblur="this.style.boxShadow='0 1px 3px rgba(0,0,0,.08)'">
           <option value="">— Seleccionar materia —</option>
-          ${asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
+          ${asigsLista.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -10507,6 +10534,9 @@ async function pgNotas(el){
   if(window._pendingAsigNotas){
     const asigId=window._pendingAsigNotas;
     window._pendingAsigNotas=null;
+    // si la materia es de otro semestre, se cambia el filtro a ese semestre para que aparezca en la lista
+    const _as=asigs.find(a=>a.id===asigId), _ss=document.getElementById('filtNotaSem');
+    if(_as&&_ss&&String(_as.periodo_id)!==String(_ss.value)){ _ss.value=String(_as.periodo_id); filtNotasAsigs(); }
     selMateriaNota(asigId);
   }
 }
@@ -13964,21 +13994,25 @@ async function seleccionarAlumnoNotasGlobal(idx){
   resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">Cargando materias de ${nombreCompleto}...</div>`;
   let notas=[];
   try{
-    const r=await api('GET','/api/alumnos/'+a.id+'/boletin');
+    const r=await api('GET','/api/alumnos/'+a.id+'/boletin?periodo_id='+encodeURIComponent(semSelV));
     notas=r.notas||[];
   }catch(e){
     resumen.innerHTML=`<div class="alert-err" style="padding:12px;border-radius:8px">No se pudieron cargar las materias: ${e.message}</div>`;
     return;
   }
   if(!notas.length){
-    resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">${nombreCompleto} no tiene materias asignadas en el período activo.</div>`;
+    resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">${nombreCompleto} no tiene materias asignadas en ${semTxt}.</div>`;
     return;
   }
   const estColor=e=>e==='Aprobado'?'#166534':e==='Reprobado'?'#dc2626':'#64748b';
   const estBg=e=>e==='Aprobado'?'#f0fdf4':e==='Reprobado'?'#fef2f2':'#f8fafc';
   resumen.innerHTML=`<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <div style="font-size:11px;font-weight:700;color:#64748b">📚 Materias de <strong style="color:#1e293b">${nombreCompleto}</strong> — clic en una para cargar/editar sus notas</div>
+  W._alumnoNotasSel=a;
+  // Semestre elegido en el filtro (por defecto el que está en curso): antes siempre traía el período "activo" = 1.er semestre
+  const semSelV=v('filtNotaSem')||'todos';
+  const semTxt=semSelV==='todos'?'todos los semestres':semNombre((W._notasPers||[]).find(p=>String(p.id)===semSelV));
+      <div style="font-size:11px;font-weight:700;color:#64748b">📚 Materias de <strong style="color:#1e293b">${nombreCompleto}</strong> · ${semTxt} — clic en una para cargar/editar sus notas</div>
       <div style="display:flex;gap:6px">
         <button onclick="cargarPtsDireccionTodasMaterias('${a.id}','${nombreCompleto.replace(/'/g,"\\'")}','sumar')" style="background:#f0fdf4;border:1.5px solid #bbf7d0;color:#166534;font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap">➕ Sumar puntos</button>
         <button onclick="cargarPtsDireccionTodasMaterias('${a.id}','${nombreCompleto.replace(/'/g,"\\'")}','restar')" style="background:#fff1f2;border:1.5px solid #fecdd3;color:#be123c;font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap">➖ Restar puntos</button>
@@ -13989,7 +14023,7 @@ async function seleccionarAlumnoNotasGlobal(idx){
         style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:9px;background:${estBg(n.estado)};border:1px solid ${estColor(n.estado)}22;cursor:pointer" onmouseenter="this.style.filter='brightness(0.97)'" onmouseleave="this.style.filter=''">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:13px;color:#1e293b">${n.materia_nombre}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:1px">TP: ${n.tp_total??'—'} · Parcial: ${n.parcial_efectivo??n.parcial??'—'} · Final: ${n.final_efectivo??n.final_ord??'—'}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:1px">TP: ${n.tp_total??'—'} · Parcial: ${n.parcial_efectivo??n.parcial??'—'} · Final: ${n.final_efectivo??n.final_ord??'—'}${semSelV==='todos'&&n.periodo_nombre?' · '+n.periodo_nombre:''}</div>
         </div>
         <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#fff;color:${estColor(n.estado)};white-space:nowrap">${n.estado||'Pendiente'}${n.nota_final!=null?' · '+n.nota_final:''}</span>
       </div>`).join('')}
@@ -14005,7 +14039,7 @@ function cargarPtsDireccionTodasMaterias(alumnoId,nombre,accion){
     ?'Se suma sobre lo que ya tenga en cada materia, con tope de 10 por materia.'
     :'Se resta de lo que ya tenga en cada materia, con piso de 0 por materia.';
   confirm2(titulo,
-    `<p style="font-size:13px;margin-bottom:10px">¿Cuántos puntos querés <strong>${esSumar?'sumarle':'restarle'}</strong> a <strong>${nombre}</strong> en <strong>todas sus materias</strong> del período activo?</p>
+    `<p style="font-size:13px;margin-bottom:10px">¿Cuántos puntos querés <strong>${esSumar?'sumarle':'restarle'}</strong> a <strong>${nombre}</strong> en <strong>todas sus materias</strong> del <strong>${semNombre(_perBulk)||'período activo'}</strong>?</p>
      <input type="number" id="ptsDireccionBulkInp" value="5" min="1" step="1" oninput="window._ptsDireccionBulkVal=this.value" style="width:100%;padding:9px 12px;border:1.5px solid ${colorBorde};border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:8px"/>
      <div style="font-size:11px;color:#6b7280">${hint}</div>`,
     async function(){
@@ -14014,8 +14048,12 @@ function cargarPtsDireccionTodasMaterias(alumnoId,nombre,accion){
       if(!Number.isFinite(abs)||abs<=0){toast('Ingresá un número mayor a cero','warn');return;}
       const puntos=esSumar?abs:-abs;
       try{
-        const r=await api('POST',`/api/alumnos/${alumnoId}/director-pts-bulk`,{puntos});
+        const r=await api('POST',`/api/alumnos/${alumnoId}/director-pts-bulk`,{puntos,periodo_id:_pidBulk});
         toast(`✓ ${r.materias_actualizadas} de ${r.materias_totales} materia(s) actualizada(s)`,'ok');
+  // Los puntos van al semestre elegido en el filtro; si dice "Todos", al semestre en curso (nunca al 1.er semestre por defecto)
+  const _selSem=v('filtNotaSem');
+  const _perBulk=(_selSem&&_selSem!=='todos')?(W._notasPers||[]).find(p=>String(p.id)===_selSem):semVigente(W._notasPers||[]);
+  const _pidBulk=_perBulk?_perBulk.id:null;
         seleccionarAlumnoNotasGlobalPorId(alumnoId);
       }catch(e){toast('Error: '+e.message,'err');}
     },null);
@@ -14051,7 +14089,7 @@ function filtNotasAsigs(){
   const anio=v('filtNotaAnio');
   const sel=document.getElementById('selAsigNotas');
   if(!sel)return;
-  let asigs=W._notasAsigs||[];
+  let asigs=semFiltrar(W._notasAsigs||[],semId);
   if(carrId) asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(anio)   asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   sel.innerHTML='<option value="">— Seleccionar materia —</option>'+asigs.map(a=>`<option value="${a.id}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}</option>`).join('');
@@ -14063,9 +14101,16 @@ async function mGenerarActaExamen(asigId){
   const TIPOS=[
     {val:'Parcial',lbl:'📋 Parcial Ordinario'},
     {val:'Recuperatorio',lbl:'🔄 Recuperatorio Parcial'},
+function cambioSemNotas(){
+  filtNotasAsigs();
+  // si hay un alumno elegido en el buscador, se vuelve a cargar su resumen con el semestre elegido
+  const a=W._alumnoNotasSel;
+  if(a){ const idx=(W._buscarAlumnoNotasResults||[]).findIndex(x=>x.id===a.id); if(idx>=0) seleccionarAlumnoNotasGlobal(idx); }
+}
     {val:'Final',lbl:'🎯 Final Ordinario'},
     {val:'Final Recuperatorio',lbl:'🔁 Final Recuperatorio'},
     {val:'Complementario',lbl:'➕ Complementario'},
+  const semId=v('filtNotaSem');
     {val:'Extraordinario',lbl:'⭐ Extraordinario'},
   ];
   // Mostrar spinner mientras verifica
@@ -14244,13 +14289,18 @@ async function pgActas(el){
     <button class="bn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9)" onclick="imprimirActasSeleccionadas()">🖨 Imprimir seleccionadas (<span id="actasSelCount">0</span>)</button>
   </div>`;
   filtActas();
+  // Semestre: por defecto el que está en curso si ya tiene actas; si todavía no, se muestran todas (hoy las actas son del 1.er semestre)
+  const persA=await semCargar(); W._actasPers=persA;
+  const vigA=semVigente(persA); const conActas=new Set(actas.map(a=>(persA.find(p=>p.nombre===a.periodo_nombre)||{}).id));
+  const semDefAc=(vigA&&conActas.has(vigA.id))?String(vigA.id):'todos';
 }
 function filtActas(){
-  const carrera=v('actasFiltCarrera'), docente=v('actasFiltDocente'), tipo=v('actasFiltTipo');
+  const carrera=v('actasFiltCarrera'), docente=v('actasFiltDocente'), tipo=v('actasFiltTipo'), semId=v('actasFiltSem');
   let actas=W._actasTodas||[];
   if(carrera) actas=actas.filter(a=>a.carrera_nombre===carrera);
   if(docente) actas=actas.filter(a=>a.docente_id===docente);
   if(tipo) actas=actas.filter(a=>a.tipo_examen===tipo);
+    <select id="actasFiltSem" onchange="filtActas()" style="min-width:150px;font-weight:700">${semOpciones(persA,semDefAc,true)}</select>
   const cont=document.getElementById('actasLista'); if(!cont)return;
   const TIPO_COLOR={'Parcial':'#1d4ed8','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
   cont.innerHTML=!actas.length?'<div class="es">No hay actas que coincidan con el filtro</div>':actas.map(a=>{
@@ -14265,6 +14315,7 @@ function filtActas(){
             <span style="display:inline-block;margin-left:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${color}22;color:${color}">${a.tipo_examen}</span>
           </div>
           <div style="display:flex;gap:6px">
+  if(semId&&semId!=='todos'){ const _p=(W._actasPers||[]).find(x=>String(x.id)===semId); if(_p) actas=actas.filter(a=>a.periodo_nombre===_p.nombre); }
             ${a.estado==='cerrada'?`<button class="bs" style="font-size:10px;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="imprimirActaExamenCerrada('${a.id}')">🖨 Imprimir</button>
             <button class="bs d" style="font-size:10px" onclick="desbloquearActa('${a.id}')">🔓 Desbloquear</button>`
             :`<span class="bx ba" style="font-size:10px">🔓 Desbloqueada</span>`}
@@ -14945,11 +14996,13 @@ async function pgAsist(el){
   // Limpiar estado previo
   W._asistAsigs=null; W._asistHorarios=null; W._asistId=null;
   const url='/api/asignaciones'+(me.rol==='docente'&&me.docenteId?'?docente_id='+me.docenteId:'');
-  const [asigs,horarios]=await Promise.all([api('GET',url),api('GET','/api/horarios')]);
-  W._asistAsigs=asigs; W._asistHorarios=horarios;
+  const [asigs,horarios,pers]=await Promise.all([api('GET',url),api('GET','/api/horarios'),semCargar()]);
+  W._asistAsigs=asigs; W._asistHorarios=horarios; W._asistPers=pers;
+  // Director/secretaría: por defecto el semestre en curso (el docente ya recibe solo ese semestre desde el servidor)
+  const semVigA=semVigente(pers); const semDefA=(me.rol!=='docente'&&semVigA)?String(semVigA.id):''; W._asistSem=semDefA;
   const diasN=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const diaHoy=diasN[new Date().getDay()];
-  let asigsFiltradas=asigs;
+  let asigsFiltradas=semFiltrar(asigs,semDefA);
   if(me.rol==='docente'){
     const asigIdsHoy=new Set(horarios.filter(h=>h.dia===diaHoy&&h.asignacion_id).map(h=>h.asignacion_id));
     asigsFiltradas=asigs.filter(a=>asigIdsHoy.has(a.id));
@@ -15014,6 +15067,7 @@ async function pgAsist(el){
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
         const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
+    <select id="filtAsistSem" onchange="filtAsistAsigs()" style="min-width:150px;font-weight:700">${semOpciones(pers,semDefA,true)}</select>
         return `<option value="${a.id}" data-dia="${a.dia||h?.dia||''}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
       }).join('')}
     </select>
@@ -15114,7 +15168,8 @@ function filtAsistAsigs(){
   const docenteId=v('filtAsistDocente');
   const sel=document.getElementById('selAsistAsig');
   if(!sel)return;
-  let asigs=W._asistAsigs||[];
+  const semId=v('filtAsistSem'); W._asistSem=semId;
+  let asigs=semFiltrar(W._asistAsigs||[],semId);
   const horarios=W._asistHorarios||[];
   if(carrId)    asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(anio)      asigs=asigs.filter(a=>String(a.curso_anio)===anio);
@@ -15127,12 +15182,15 @@ function filtAsistAsigs(){
   const ac=document.getElementById('ac');if(ac)ac.innerHTML='';
 }
 async function verCalSemestral(){
-  const asigs=W._asistAsigs||[];
+  // Semestre elegido en el filtro de Asistencia (si dice "Todos", el semestre en curso): antes siempre mostraba Mayo a Julio (1.er semestre)
+  const _perSel=(W._asistSem&&W._asistSem!=='todos'?(W._asistPers||[]).find(p=>String(p.id)===String(W._asistSem)):null)||semVigente(W._asistPers||[]);
+  const _es2=!!_perSel&&_perSel.semestre==2;
+  const asigs=_perSel?semFiltrar(W._asistAsigs||[],String(_perSel.id)):(W._asistAsigs||[]);
   const horarios=W._asistHorarios||[];
-  const meses=[{n:'Mayo',m:'2026-05'},{n:'Junio',m:'2026-06'},{n:'Julio',m:'2026-07'}];
+  const meses=_es2?[{n:'Agosto',m:'2026-08'},{n:'Septiembre',m:'2026-09'},{n:'Octubre',m:'2026-10'},{n:'Noviembre',m:'2026-11'},{n:'Diciembre',m:'2026-12'}]:[{n:'Mayo',m:'2026-05'},{n:'Junio',m:'2026-06'},{n:'Julio',m:'2026-07'}];
   const diasSem=['Lunes','Martes','Miércoles','Jueves','Viernes'];
   const colores={'1':'#dcfce7','2':'#fff3e0'};
-  let html=`<h4>📊 Calendario Semestral 2026 — Mayo a Julio</h4>
+  let html=`<h4>📊 Calendario Semestral 2026 — ${_es2?'Agosto a Diciembre ('+semNombre(_perSel)+')':'Mayo a Julio'}</h4>
   <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Vista por mes · Carrera · Materia · Docente · Horario</p>`;
   meses.forEach(({n,m})=>{
     html+=`<div style="margin-bottom:20px"><p style="font-weight:700;font-size:14px;margin-bottom:8px">📅 ${n} 2026</p>`;
@@ -15756,7 +15814,7 @@ async function imprimirActaTP(asigId){
   }catch(e){toast('Error al generar acta: '+e.message,'err');}
 }
 async function mResumenAsist(){
-  const asigs=W._asistAsigs||[];
+  const asigs=semFiltrar(W._asistAsigs||[],W._asistSem);
   const horarios=W._asistHorarios||[];
   const carrs=[...new Map(asigs.filter(a=>a.carrera_id).map(a=>[a.carrera_id,{id:a.carrera_id,nombre:a.carrera_nombre}])).values()];
   const anios=[...new Set(asigs.map(a=>a.curso_anio).filter(Boolean))].sort();
@@ -15785,7 +15843,7 @@ function filtRsAsigs(){
   const carrId=v('rsCarr'),turno=v('rsTurno'),anio=v('rsAnioCarr');
   const sel=document.getElementById('rsAsig');
   if(!sel)return;
-  let asigs=W._asistAsigs||[];
+  let asigs=semFiltrar(W._asistAsigs||[],W._asistSem);
   if(carrId)asigs=asigs.filter(a=>a.carrera_id===carrId);
   if(anio)asigs=asigs.filter(a=>String(a.curso_anio)===anio);
   if(turno){

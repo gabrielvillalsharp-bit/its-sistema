@@ -11641,7 +11641,7 @@ app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
     WHERE a.id=?`).get(req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   const notas = db.prepare(`
-    SELECT n.*, m.nombre as materia_nombre, m.codigo as materia_codigo,
+    SELECT n.*, m.nombre as materia_nombre, m.codigo as materia_codigo, p.nombre as periodo_nombre, p.semestre as periodo_semestre,
       COALESCE(ud.nombre,'') as doc_nombre, COALESCE(ud.apellido,'') as doc_apellido
     FROM notas n
     JOIN asignaciones asig ON n.asignacion_id=asig.id
@@ -11649,8 +11649,8 @@ app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
     JOIN periodos p ON asig.periodo_id=p.id
     LEFT JOIN docentes d ON asig.docente_id=d.id
     LEFT JOIN usuarios ud ON d.usuario_id=ud.id
-    WHERE n.alumno_id=? AND p.activo=1
-    ORDER BY m.nombre`).all(req.params.id);
+    WHERE n.alumno_id=? AND ${todosPer ? '1=1' : (pidSel ? 'p.id=?' : 'p.activo=1')}
+    ORDER BY p.anio, p.semestre, m.nombre`).all(req.params.id, ...((pidSel && !todosPer) ? [pidSel] : []));
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   res.json({ alumno: al, notas, institucion: inst });
 });
@@ -11668,10 +11668,10 @@ app.post('/api/alumnos/:id/director-pts-bulk', auth(['director']), (req, res) =>
     const asigs = db.prepare(`
       SELECT a.id FROM asignaciones a
       JOIN periodos p ON a.periodo_id=p.id
-      WHERE p.activo=1 AND (
+      WHERE ${pidB ? 'p.id=?' : 'p.activo=1'} AND (
         a.curso_id=?
         OR (? IS NOT NULL AND ? IS NULL AND a.curso_id IN (SELECT id FROM cursos WHERE carrera_id=?))
-      )`).all(al.curso_id, al.carrera_id, al.curso_id, al.carrera_id);
+      )`).all(...(pidB ? [pidB] : []), al.curso_id, al.carrera_id, al.curso_id, al.carrera_id);
 
     const { calcularPuntaje } = require('./db');
     let actualizadas = 0;
@@ -11712,8 +11712,8 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
     FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
     LEFT JOIN carreras c ON a.carrera_id=c.id
     LEFT JOIN cursos cu ON a.curso_id=cu.id
-    LEFT JOIN periodos p ON p.activo=1
-    WHERE a.id=?`).get(req.params.id);
+    LEFT JOIN periodos p ON ${pidSel ? 'p.id=?' : 'p.activo=1'}
+    WHERE a.id=?`).get(...(pidSel ? [pidSel] : []), req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   // Registrar emisión
@@ -11802,6 +11802,11 @@ app.delete('/api/alumnos/:id/exonerar-deuda/:exonId', auth(ADM), (req, res) => {
     const ex = db.prepare('SELECT * FROM deuda_exoneraciones WHERE id=? AND alumno_id=?').get(req.params.exonId, req.params.id);
     if (!ex) return res.status(404).json({ error: 'Exoneración no encontrada' });
     db.prepare('DELETE FROM deuda_exoneraciones WHERE id=?').run(req.params.exonId);
+  // ?periodo_id=<id> → notas de ESE semestre; ?periodo_id=todos → todos los semestres; sin parámetro → período activo
+  // (como siempre: lo usan el boletín impreso y las constancias). El Registro de notas manda el semestre que eligió el director.
+  const pq = String(req.query.periodo_id || '');
+  const todosPer = pq === 'todos';
+  const pidSel = /^\d+$/.test(pq) ? Number(pq) : null;
     audit(req.user.id, 'DELETE_EXONERACION_DEUDA', 'deuda_exoneraciones', req.params.exonId, { alumno_id: req.params.id, monto: ex.monto });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -11837,6 +11842,8 @@ app.get('/api/alumnos/:id/compromiso-pago', auth(), (req, res) => {
 
 app.post('/api/alumnos/:id/compromiso-pago', auth(ADM), (req, res) => {
   try {
+    // Semestre al que van los puntos: el que manda la pantalla (periodo_id) o, si no viene, el período activo como antes.
+    const pidB = Number(req.body.periodo_id) || null;
     const { fecha_limite, monto_total, concepto } = req.body;
     if (!fecha_limite) return res.status(400).json({ error: 'Fecha límite requerida' });
     const al = db.prepare('SELECT id, nombre, apellido FROM alumnos WHERE id=?').get(req.params.id);
