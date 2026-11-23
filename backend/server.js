@@ -468,9 +468,9 @@ Clases: 3 veces por semana, de 19:00 a 22:00 hs (días según carrera).
 Siempre hay cupo disponible en todas las carreras.
 
 PRECIOS (1° AÑO — la mayoría de los interesados):
-Cuota mensual: *Gs. 300.000/mes*. Matrícula de inscripción: *GRATIS* para 1° año.
+Cuota mensual: *Gs. 300.000/mes*. La matrícula de inscripción es *GRATIS* (en todos los años).
 10 cuotas por año (marzo a diciembre). Pago: efectivo en secretaría o transferencia bancaria.
-Solo si preguntan específicamente por 2° año: cuota Gs. 400.000/mes + matrícula (monto exacto lo confirma un asesor).${periodoTxt}
+Solo si preguntan específicamente por 2° año: cuota Gs. 400.000/mes (la matrícula también es gratis).${periodoTxt}
 
 REQUISITOS DE INSCRIPCIÓN:
 - Certificado de estudios *autenticado* (título de bachiller)
@@ -1351,6 +1351,178 @@ try {
     if (r.changes) console.log(`[Migración] Aviso de exámenes suspendidos 14/10 eliminado (${r.changes}) ✓`);
   }
 } catch (e) { console.warn('[Migración] quitar aviso suspendidos:', e.message); }
+// ── MIGRACIÓN: calendario de EXÁMENES FINALES ORDINARIOS — 2do Semestre 2026 (2026-11-17) ──────────────────────
+// 86 exámenes tipo 'final_ord' (una fila por asignación, 100 pts) del 03 al 22/12 (el 03/12 solo Bioquímica Aplicada de Cosmiatría 2.°); el 08/12 es feriado y no se toma ningún examen.
+// Todos a las 19:00, máx. 7 aulas por día (clase unificada = 1 aula). Mismas exclusiones que los parciales (Electricidad e Introducción
+// a la Enfermería). Calendario definido con el director el 17/11 con sus cambios y excepciones: varios exámenes se toman FUERA de su día de
+// clase (hay que confirmarlos con el docente), Patología Quirúrgica (Instrumentación Quirúrgica 1°) y Patología General (Farmacia 1°) se
+// rinden unificadas el 18/12, Informática (Cosmiatría 2.°) con Hematología (Instrumentación Quirúrgica 2.°) el 07/12 y Matemática de Agropecuaria 1.°
+// con la de Radiología 2.° e Instrumentación Quirúrgica 2.° el 09/12 (misma fecha y hora: comparten aula), y se crea la materia Bioquímica de Radiología 2.° año (docente Angela
+// Aranda, sin día de clase asignado todavía) con su examen del 21/12. Detalle en Calendario_Finales_2do_Semestre_2026.pdf.
+// Solo corre una vez, solo si la asignación sigue teniendo el mismo día y turno de clase, y no pisa finales ya cargados.
+// REVERTIR: la auditoría CARGA_FINALES_2S guarda las instrucciones exactas (detalle.revertir).
+{
+  try {
+    const flag = db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_finales_2s_2026'").get();
+    const per = db.prepare("SELECT id FROM periodos WHERE anio=2026 AND semestre=2").get();
+    if (!flag && per) {
+      const cal = [ // [curso_id, materia, fecha, hora, dia de clase, turno de clase]
+        ["cosA_2u","Bioquímica Aplicada A La Cosmetología","2026-12-03","19:00","Jueves",2],
+        ["cosA_1a","Biologia De La Piel Ii","2026-12-04","19:00","Miércoles",1],
+        ["cosA_1b","Castellano","2026-12-04","19:00","Miércoles",1],
+        ["crim_1u","Sociologia","2026-12-04","19:00","Miércoles",1],
+        ["crim_2u","Practicas","2026-12-04","19:00","Miércoles",1],
+        ["enf_2u","Castellano","2026-12-04","19:00","Miércoles",1],
+        ["farm_2u","Castellano","2026-12-04","19:00","Viernes",1],
+        ["instr_2u","Castellano","2026-12-04","19:00","Viernes",1],
+        ["rad_2u","Castellano","2026-12-04","19:00","Viernes",1],
+        ["agro_1u","Produccion Bovina","2026-12-07","19:00","Miércoles",1],
+        ["agro_2u","Produccion Bovina","2026-12-07","19:00","Miércoles",1],
+        ["cosA_2u","Informática","2026-12-07","19:00","Jueves",1],
+        ["enf_1u","Psicologia","2026-12-07","19:00","Lunes",1],
+        ["enf_2u","Bioseguridad","2026-12-07","19:00","Lunes",1],
+        ["farm_1u","Castellano","2026-12-07","19:00","Lunes",1],
+        ["farm_2u","Marketing","2026-12-07","19:00","Lunes",2],
+        ["instr_1u","Castellano","2026-12-07","19:00","Lunes",1],
+        ["instr_2u","Hematología","2026-12-07","19:00","Lunes",1],
+        ["rad_1u","Psicologia","2026-12-07","19:00","Lunes",1],
+        ["rad_2u","Biología","2026-12-07","19:00","Lunes",2],
+        ["agro_1u","Matematica","2026-12-09","19:00","Miércoles",1],
+        ["cosA_1a","Castellano","2026-12-09","19:00","Jueves",1],
+        ["cosA_1b","Guaraní","2026-12-09","19:00","Miércoles",1],
+        ["cosA_2u","Emprendimiento Laboral","2026-12-09","19:00","Miércoles",1],
+        ["instr_2u","Matematica","2026-12-09","19:00","Miércoles",2],
+        ["rad_2u","Matematica","2026-12-09","19:00","Miércoles",2],
+        ["agro_1u","Biologia Aplicada","2026-12-10","19:00","Jueves",1],
+        ["agro_2u","Matematica","2026-12-10","19:00","Jueves",1],
+        ["cosA_1a","Guaraní","2026-12-10","19:00","Jueves",1],
+        ["cosA_1b","Tecnicas Cosmeticas","2026-12-10","19:00","Jueves",1],
+        ["crim_1u","Genetica Forense","2026-12-10","19:00","Jueves",1],
+        ["crim_2u","Metodologia","2026-12-10","19:00","Jueves",1],
+        ["enf_1u","Anatomía y Fisiología Humana II","2026-12-11","19:00","Lunes",2],
+        ["enf_2u","Informatica","2026-12-11","19:00","Viernes",2],
+        ["farm_1u","Farmacotecnia","2026-12-11","19:00","Viernes",1],
+        ["farm_2u","Informatica","2026-12-11","19:00","Viernes",2],
+        ["instr_1u","Fundamentos En Instrumentacion Qx","2026-12-11","19:00","Viernes",1],
+        ["instr_2u","Ingles","2026-12-11","19:00","Lunes",2],
+        ["rad_1u","Anatomía y Fisiología Humana II","2026-12-11","19:00","Lunes",2],
+        ["rad_2u","Embriologia Basica","2026-12-11","19:00","Viernes",2],
+        ["agro_2u","Economia","2026-12-14","19:00","Martes",1],
+        ["cosA_2u","Semiología de la Piel II","2026-12-14","19:00","Martes",1],
+        ["farm_1u","Primeros Auxilios","2026-12-14","19:00","Lunes",2],
+        ["farm_2u","Quimica Organica","2026-12-14","19:00","Lunes",1],
+        ["instr_1u","Primeros Auxilios","2026-12-14","19:00","Lunes",2],
+        ["instr_2u","Enfermería Quirúrgica","2026-12-14","19:00","Lunes",1],
+        ["rad_1u","Castellano","2026-12-14","19:00","Lunes",2],
+        ["rad_2u","Patología Médica","2026-12-14","19:00","Lunes",1],
+        ["agro_1u","Suelo y Clima","2026-12-15","19:00","Martes",1],
+        ["agro_2u","Emprendedurismo","2026-12-15","19:00","Martes",1],
+        ["cosA_1a","Quimica","2026-12-15","19:00","Martes",1],
+        ["cosA_1b","Etica","2026-12-15","19:00","Martes",1],
+        ["crim_1u","Medicina Legal","2026-12-15","19:00","Martes",2],
+        ["crim_2u","Guarani","2026-12-15","19:00","Martes",1],
+        ["cosA_2u","Uso De Aparatologia","2026-12-16","19:00","Martes",2],
+        ["enf_1u","Tecnologia En Enfermeria","2026-12-16","19:00","Miércoles",2],
+        ["enf_2u","Guarani","2026-12-16","19:00","Miércoles",2],
+        ["farm_1u","Ingles","2026-12-16","19:00","Miércoles",2],
+        ["farm_2u","Botanica Farmaceutica","2026-12-16","19:00","Miércoles",1],
+        ["instr_1u","Ingles","2026-12-16","19:00","Miércoles",2],
+        ["instr_2u","Tecnicas Radiologicas","2026-12-16","19:00","Miércoles",1],
+        ["rad_1u","Tecnicas Radiologicas","2026-12-16","19:00","Miércoles",2],
+        ["agro_1u","Guarani","2026-12-17","19:00","Jueves",2],
+        ["agro_2u","Guarani","2026-12-17","19:00","Jueves",2],
+        ["cosA_1a","Tecnicas Cosmeticas","2026-12-17","19:00","Jueves",2],
+        ["cosA_1b","Biologia De La Piel Ii","2026-12-17","19:00","Jueves",2],
+        ["crim_1u","Fisica","2026-12-17","19:00","Jueves",2],
+        ["crim_2u","Matematica","2026-12-17","19:00","Jueves",2],
+        ["rad_2u","Prácticas Radiológicas","2026-12-17","19:00","Jueves",2],
+        ["agro_2u","Produccion De Aves","2026-12-18","19:00","Jueves",1],
+        ["enf_1u","Epidemiologia","2026-12-18","19:00","Viernes",2],
+        ["enf_2u","Enfermería en Salud Mental y Psiquiatría","2026-12-18","19:00","Viernes",1],
+        ["farm_1u","Patología General","2026-12-18","19:00","Viernes",2],
+        ["farm_2u","Guarani","2026-12-18","19:00","Viernes",1],
+        ["instr_1u","Patología Quirúrgica","2026-12-18","19:00","Viernes",2],
+        ["instr_2u","Guarani","2026-12-18","19:00","Viernes",1],
+        ["enf_1u","Castellano","2026-12-21","19:00","Viernes",1],
+        ["farm_2u","Atencion Al Cliente","2026-12-21","19:00","Lunes",2],
+        ["rad_1u","Practicas Radiologicas","2026-12-21","19:00","Viernes",2],
+        ["agro_1u","Horticultura","2026-12-22","19:00","Martes",2],
+        ["agro_2u","Horticultura","2026-12-22","19:00","Martes",2],
+        ["cosA_1a","Bioética","2026-12-22","19:00","Martes",2],
+        ["cosA_1b","Quimica","2026-12-22","19:00","Martes",2],
+        ["crim_1u","Documentologia","2026-12-22","19:00","Martes",1],
+        ["crim_2u","Informatica","2026-12-22","19:00","Martes",2],
+      ];
+      // Materia nueva pedida por el director: Bioquímica (Radiología 2.° año, Angela Aranda). Se crea solo si todavía no existe.
+      // Queda sin día ni hora de clase (el director no los indicó): se completan después desde Horarios.
+      const nueva = { carrera: 'rad', curso: 'rad_2u', materia: 'Bioquímica', codigo: 'RAD-115', docente: 'doc_aranda', fecha: '2026-12-21', hora: '19:00' };
+      const buscar = db.prepare('SELECT a.id, a.dia, a.turno FROM asignaciones a JOIN materias m ON m.id=a.materia_id WHERE a.periodo_id=? AND a.curso_id=? AND m.nombre=?');
+      const yaTiene = db.prepare("SELECT 1 FROM examenes WHERE asignacion_id=? AND tipo='final_ord'");
+      const ins = db.prepare("INSERT OR IGNORE INTO examenes (id,asignacion_id,tipo,fecha,hora,aula,periodo_id,observacion,puntos_max) VALUES (?,?,'final_ord',?,?,NULL,?,NULL,100)");
+      let creados = 0; const faltan = [], cambiaron = []; const nuevaInfo = {};
+      db.transaction(() => {
+        cal.forEach(([curso, mat, fecha, hora, dia, turno], i) => {
+          const a = buscar.get(per.id, curso, mat);
+          if (!a) { faltan.push(curso + ' / ' + mat); return; }
+          if (a.dia !== dia || Number(a.turno) !== turno) { cambiaron.push(curso + ' / ' + mat); return; } // el horario de clase cambió: no se carga
+          if (yaTiene.get(a.id)) return;
+          ins.run('ef2_' + String(i + 1).padStart(3, '0'), a.id, fecha, hora, per.id);
+          creados++;
+        });
+        // materia nueva + su asignación (sin horario) + notas vacías para los alumnos activos del curso + su examen
+        const docOk = db.prepare('SELECT 1 FROM docentes WHERE id=?').get(nueva.docente);
+        const cursoOk = db.prepare('SELECT 1 FROM cursos WHERE id=?').get(nueva.curso);
+        if (docOk && cursoOk) {
+          let m = db.prepare('SELECT id FROM materias WHERE carrera_id=? AND nombre=?').get(nueva.carrera, nueva.materia);
+          if (!m) {
+            const mid = 'm_' + Date.now() + '_bq';
+            db.prepare('INSERT INTO materias (id,carrera_id,nombre,codigo,horas_semanales,anio,peso_tp,peso_parcial,peso_final,dia,turno,curso_id,docente_id,periodo_id,tipo) VALUES (?,?,?,?,4,2,25,25,50,NULL,NULL,?,?,?,?)')
+              .run(mid, nueva.carrera, nueva.materia, nueva.codigo, nueva.curso, nueva.docente, per.id, 'regular');
+            m = { id: mid }; nuevaInfo.materia_creada = mid;
+          }
+          let a = db.prepare('SELECT id FROM asignaciones WHERE periodo_id=? AND curso_id=? AND materia_id=?').get(per.id, nueva.curso, m.id);
+          if (!a) {
+            const aid = 'asig_' + Date.now() + '_bq';
+            db.prepare('INSERT INTO asignaciones (id,docente_id,materia_id,curso_id,periodo_id,dia,turno,hora_inicio,hora_fin,aula) VALUES (?,?,?,?,?,NULL,1,?,?,NULL)')
+              .run(aid, nueva.docente, m.id, nueva.curso, per.id, '19:00', '20:20');
+            const als = db.prepare("SELECT id FROM alumnos WHERE curso_id=? AND estado='Activo'").all(nueva.curso);
+            als.forEach((al, k) => db.prepare('INSERT OR IGNORE INTO notas (id,alumno_id,asignacion_id,estado) VALUES (?,?,?,?)').run('n_' + Date.now() + '_' + k + '_bq', al.id, aid, 'Pendiente'));
+            a = { id: aid }; nuevaInfo.asignacion_creada = aid; nuevaInfo.notas_creadas = als.length;
+          }
+          if (!yaTiene.get(a.id)) { ins.run('ef2_' + String(cal.length + 1).padStart(3, '0'), a.id, nueva.fecha, nueva.hora, per.id); creados++; }
+        } else faltan.push(nueva.curso + ' / ' + nueva.materia + ' (el docente o el curso no existe)');
+        db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_finales_2s_2026','1')").run();
+        const revertir = ["DELETE FROM examenes WHERE id LIKE 'ef2_%' AND tipo='final_ord'"];
+        if (nuevaInfo.asignacion_creada) revertir.push("DELETE FROM notas WHERE asignacion_id='" + nuevaInfo.asignacion_creada + "'", "DELETE FROM asignaciones WHERE id='" + nuevaInfo.asignacion_creada + "'");
+        if (nuevaInfo.materia_creada) revertir.push("DELETE FROM materias WHERE id='" + nuevaInfo.materia_creada + "'");
+        db.prepare("INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha,origen) VALUES (?,?,?,?,?,?,datetime('now','localtime'),'automatico')")
+          .run('aud_ef2_' + Date.now(), 'sistema', 'CARGA_FINALES_2S', 'examenes', 'ef2_*', JSON.stringify({ creados, sin_asignacion: faltan, horario_cambiado: cambiaron, materia_nueva: nuevaInfo, revertir }));
+      })();
+      console.log(`[Migración] Finales 2do semestre: ${creados} exámenes cargados (03–22/12) ✓`);
+      if (nuevaInfo.materia_creada || nuevaInfo.asignacion_creada) console.log('[Migración] Finales 2do semestre — materia nueva Bioquímica (Radiología 2°):', JSON.stringify(nuevaInfo));
+      if (faltan.length) console.warn('[Migración] Finales 2do semestre — sin asignación para:', faltan.join('; '));
+      if (cambiaron.length) console.warn('[Migración] Finales 2do semestre — cambió el día/turno de clase, no se cargó:', cambiaron.join('; '));
+    }
+  } catch (e) { console.warn('Migración finales 2do semestre:', e.message); }
+}
+// ── MIGRACIÓN: matrícula gratuita y Cosmiatría de 3 años (2026-11-09, pedido del director) ───────────────────────
+// La matrícula es GRATIS: el arancel 'matricula' figuraba en Gs. 500.000 (valor incorrecto) y pasa a 0. Cosmiatría dura 3 años (6 semestres,
+// antes 4); los semestres del 3.er año se crean el año que viene. Los pagos de matrícula ya registrados NO se tocan.
+// REVERTIR: el monto y los semestres anteriores quedan en la auditoría (accion MATRICULA_GRATIS_COSM3).
+try {
+  if (!db.prepare("SELECT 1 FROM configuracion WHERE clave='mig_matricula_gratis_cosm3_20261109'").get()) {
+    const antesAr = db.prepare("SELECT id, monto FROM aranceles WHERE tipo='matricula'").all();
+    const antesCar = db.prepare("SELECT id, semestres FROM carreras WHERE id IN ('cosA','cc_cosA')").all();
+    db.transaction(() => {
+      db.prepare("UPDATE aranceles SET monto=0, fecha_actualizacion=datetime('now','localtime') WHERE tipo='matricula'").run();
+      db.prepare("UPDATE carreras SET semestres=6 WHERE id IN ('cosA','cc_cosA')").run();
+      db.prepare("INSERT OR IGNORE INTO configuracion (clave,valor) VALUES ('mig_matricula_gratis_cosm3_20261109','1')").run();
+      db.prepare("INSERT INTO auditoria (id,usuario_id,accion,tabla,registro_id,detalle,fecha,origen) VALUES (?,?,?,?,?,?,datetime('now','localtime'),'automatico')")
+        .run('aud_matgrat_' + Date.now(), 'sistema', 'MATRICULA_GRATIS_COSM3', 'aranceles', 'matricula', JSON.stringify({ aranceles_antes: antesAr, carreras_antes: antesCar }));
+    })();
+    console.log('[Migración] Matrícula gratis (arancel en 0) y Cosmiatría a 3 años ✓');
+  }
+} catch (e) { console.warn('[Migración] matrícula gratis / Cosmiatría 3 años:', e.message); }
 // ── MIGRACIÓN: Cosmiatría 1°B — se invierten los recuperatorios de Guaraní y Castellano (2026-10-21, pedido del director) ──
 // Guaraní pasa del miércoles 04/11 al miércoles 18/11 y Castellano (clase unificada con Enfermería 2°) del 18/11 al 04/11, ambos 19:00.
 // Solo actúa si las fechas actuales son las esperadas (si el director ya las cambió a mano, no toca nada). Una sola vez.
@@ -11630,6 +11802,11 @@ cron.schedule('0 7 * * *', async () => {
 
 // ── BOLETÍN DE CALIFICACIONES ─────────────────────────────────────────────────
 app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
+  // ?periodo_id=<id> → notas de ESE semestre; ?periodo_id=todos → todos los semestres; sin parámetro → período activo
+  // (como siempre: lo usan el boletín impreso y las constancias). El Registro de notas manda el semestre que eligió el director.
+  const pq = String(req.query.periodo_id || '');
+  const todosPer = pq === 'todos';
+  const pidSel = /^\d+$/.test(pq) ? Number(pq) : null;
   const al = db.prepare(`
     SELECT a.*, COALESCE(a.nombre,u.nombre) as disp_nombre, COALESCE(a.apellido,u.apellido) as disp_apellido,
       COALESCE(a.ci,u.ci) as disp_ci, c.nombre as carrera_nombre,
@@ -11637,8 +11814,8 @@ app.get('/api/alumnos/:id/boletin', auth(['director']), (req, res) => {
     FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
     LEFT JOIN carreras c ON a.carrera_id=c.id
     LEFT JOIN cursos cu ON a.curso_id=cu.id
-    LEFT JOIN periodos p ON p.activo=1
-    WHERE a.id=?`).get(req.params.id);
+    LEFT JOIN periodos p ON ${pidSel ? 'p.id=?' : 'p.activo=1'}
+    WHERE a.id=?`).get(...(pidSel ? [pidSel] : []), req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   const notas = db.prepare(`
     SELECT n.*, m.nombre as materia_nombre, m.codigo as materia_codigo, p.nombre as periodo_nombre, p.semestre as periodo_semestre,
@@ -11665,6 +11842,8 @@ app.post('/api/alumnos/:id/director-pts-bulk', auth(['director']), (req, res) =>
     const al = db.prepare('SELECT id, curso_id, carrera_id FROM alumnos WHERE id=?').get(req.params.id);
     if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
 
+    // Semestre al que van los puntos: el que manda la pantalla (periodo_id) o, si no viene, el período activo como antes.
+    const pidB = Number(req.body.periodo_id) || null;
     const asigs = db.prepare(`
       SELECT a.id FROM asignaciones a
       JOIN periodos p ON a.periodo_id=p.id
@@ -11712,8 +11891,8 @@ app.get('/api/alumnos/:id/constancia', auth(['director']), (req, res) => {
     FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
     LEFT JOIN carreras c ON a.carrera_id=c.id
     LEFT JOIN cursos cu ON a.curso_id=cu.id
-    LEFT JOIN periodos p ON ${pidSel ? 'p.id=?' : 'p.activo=1'}
-    WHERE a.id=?`).get(...(pidSel ? [pidSel] : []), req.params.id);
+    LEFT JOIN periodos p ON p.activo=1
+    WHERE a.id=?`).get(req.params.id);
   if (!al) return res.status(404).json({ error: 'Alumno no encontrado' });
   const inst = db.prepare('SELECT * FROM institucion WHERE id=1').get() || {};
   // Registrar emisión
@@ -11802,11 +11981,6 @@ app.delete('/api/alumnos/:id/exonerar-deuda/:exonId', auth(ADM), (req, res) => {
     const ex = db.prepare('SELECT * FROM deuda_exoneraciones WHERE id=? AND alumno_id=?').get(req.params.exonId, req.params.id);
     if (!ex) return res.status(404).json({ error: 'Exoneración no encontrada' });
     db.prepare('DELETE FROM deuda_exoneraciones WHERE id=?').run(req.params.exonId);
-  // ?periodo_id=<id> → notas de ESE semestre; ?periodo_id=todos → todos los semestres; sin parámetro → período activo
-  // (como siempre: lo usan el boletín impreso y las constancias). El Registro de notas manda el semestre que eligió el director.
-  const pq = String(req.query.periodo_id || '');
-  const todosPer = pq === 'todos';
-  const pidSel = /^\d+$/.test(pq) ? Number(pq) : null;
     audit(req.user.id, 'DELETE_EXONERACION_DEUDA', 'deuda_exoneraciones', req.params.exonId, { alumno_id: req.params.id, monto: ex.monto });
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -11842,8 +12016,6 @@ app.get('/api/alumnos/:id/compromiso-pago', auth(), (req, res) => {
 
 app.post('/api/alumnos/:id/compromiso-pago', auth(ADM), (req, res) => {
   try {
-    // Semestre al que van los puntos: el que manda la pantalla (periodo_id) o, si no viene, el período activo como antes.
-    const pidB = Number(req.body.periodo_id) || null;
     const { fecha_limite, monto_total, concepto } = req.body;
     if (!fecha_limite) return res.status(400).json({ error: 'Fecha límite requerida' });
     const al = db.prepare('SELECT id, nombre, apellido FROM alumnos WHERE id=?').get(req.params.id);

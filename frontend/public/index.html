@@ -13929,6 +13929,23 @@ function filtrarInactivos(){
     row.style.display=hayq?'flex':'none';
   });
 }
+// Reactivar desde el panel de pagos del alumno (solo director, solo si figura Inactivo). Usa la ruta por lote para que quede en auditoría.
+async function reactivarAlumnoPago(alId){
+  const al=(W._pdata?.als||[]).find(a=>String(a.id)===String(alId))||{};
+  const nombre=((al.display_apellido||al.apellido||'')+', '+(al.display_nombre||al.nombre||'')).replace(/^,\s*/,'').trim()||'este alumno';
+  confirm2('↩ Reactivar alumno',
+    `<p>¿Reactivar a <strong>${nombre}</strong>?</p>
+    <p style="font-size:12px;color:var(--t2);margin-top:8px">Pasa al estado <strong>Activo</strong> y vuelve a aparecer en las listas y en las planillas de los docentes, sin necesidad de registrar un pago. Queda en la auditoría.</p>`,
+    async()=>{
+      try{
+        const r=await api('POST','/api/alumnos/estado-lote',{ids:[alId],estado:'Activo',motivo:'Reactivado manualmente desde el panel de pagos'});
+        toast(r.cambiados?'✓ Alumno reactivado':'El alumno ya no figuraba como inactivo',r.cambiados?'ok':'warn',4000);
+        if(al&&al.id) al.estado='Activo';
+        refreshKanban(alId);
+      }catch(e){toast('Error: '+e.message,'err');}
+    }
+  );
+}
 async function reactivarAlumno(alId, nombre){
   confirm2('↩ Reactivar alumno',
     `<p>¿Reactivar a <strong>${nombre}</strong>?</p>
@@ -13991,6 +14008,10 @@ async function seleccionarAlumnoNotasGlobal(idx){
 
   const resumen=document.getElementById('alumnoNotasResumen');
   if(!resumen)return;
+  W._alumnoNotasSel=a;
+  // Semestre elegido en el filtro (por defecto el que está en curso): antes siempre traía el período "activo" = 1.er semestre
+  const semSelV=v('filtNotaSem')||'todos';
+  const semTxt=semSelV==='todos'?'todos los semestres':semNombre((W._notasPers||[]).find(p=>String(p.id)===semSelV));
   resumen.innerHTML=`<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">Cargando materias de ${nombreCompleto}...</div>`;
   let notas=[];
   try{
@@ -14008,10 +14029,6 @@ async function seleccionarAlumnoNotasGlobal(idx){
   const estBg=e=>e==='Aprobado'?'#f0fdf4':e==='Reprobado'?'#fef2f2':'#f8fafc';
   resumen.innerHTML=`<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-  W._alumnoNotasSel=a;
-  // Semestre elegido en el filtro (por defecto el que está en curso): antes siempre traía el período "activo" = 1.er semestre
-  const semSelV=v('filtNotaSem')||'todos';
-  const semTxt=semSelV==='todos'?'todos los semestres':semNombre((W._notasPers||[]).find(p=>String(p.id)===semSelV));
       <div style="font-size:11px;font-weight:700;color:#64748b">📚 Materias de <strong style="color:#1e293b">${nombreCompleto}</strong> · ${semTxt} — clic en una para cargar/editar sus notas</div>
       <div style="display:flex;gap:6px">
         <button onclick="cargarPtsDireccionTodasMaterias('${a.id}','${nombreCompleto.replace(/'/g,"\\'")}','sumar')" style="background:#f0fdf4;border:1.5px solid #bbf7d0;color:#166534;font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap">➕ Sumar puntos</button>
@@ -14033,6 +14050,10 @@ async function seleccionarAlumnoNotasGlobal(idx){
 function cargarPtsDireccionTodasMaterias(alumnoId,nombre,accion){
   const esSumar=accion!=='restar';
   window._ptsDireccionBulkVal='5';
+  // Los puntos van al semestre elegido en el filtro; si dice "Todos", al semestre en curso (nunca al 1.er semestre por defecto)
+  const _selSem=v('filtNotaSem');
+  const _perBulk=(_selSem&&_selSem!=='todos')?(W._notasPers||[]).find(p=>String(p.id)===_selSem):semVigente(W._notasPers||[]);
+  const _pidBulk=_perBulk?_perBulk.id:null;
   const titulo=esSumar?'➕ Sumar puntos de dirección':'➖ Restar puntos de dirección';
   const colorBorde=esSumar?'#bbf7d0':'#fecdd3';
   const hint=esSumar
@@ -14050,10 +14071,6 @@ function cargarPtsDireccionTodasMaterias(alumnoId,nombre,accion){
       try{
         const r=await api('POST',`/api/alumnos/${alumnoId}/director-pts-bulk`,{puntos,periodo_id:_pidBulk});
         toast(`✓ ${r.materias_actualizadas} de ${r.materias_totales} materia(s) actualizada(s)`,'ok');
-  // Los puntos van al semestre elegido en el filtro; si dice "Todos", al semestre en curso (nunca al 1.er semestre por defecto)
-  const _selSem=v('filtNotaSem');
-  const _perBulk=(_selSem&&_selSem!=='todos')?(W._notasPers||[]).find(p=>String(p.id)===_selSem):semVigente(W._notasPers||[]);
-  const _pidBulk=_perBulk?_perBulk.id:null;
         seleccionarAlumnoNotasGlobalPorId(alumnoId);
       }catch(e){toast('Error: '+e.message,'err');}
     },null);
@@ -14084,9 +14101,16 @@ document.addEventListener('click',function(e){
 function filtNotasCursos(){
   filtNotasAsigs();
 }
+function cambioSemNotas(){
+  filtNotasAsigs();
+  // si hay un alumno elegido en el buscador, se vuelve a cargar su resumen con el semestre elegido
+  const a=W._alumnoNotasSel;
+  if(a){ const idx=(W._buscarAlumnoNotasResults||[]).findIndex(x=>x.id===a.id); if(idx>=0) seleccionarAlumnoNotasGlobal(idx); }
+}
 function filtNotasAsigs(){
   const carrId=v('filtNotaCarr');
   const anio=v('filtNotaAnio');
+  const semId=v('filtNotaSem');
   const sel=document.getElementById('selAsigNotas');
   if(!sel)return;
   let asigs=semFiltrar(W._notasAsigs||[],semId);
@@ -14101,16 +14125,9 @@ async function mGenerarActaExamen(asigId){
   const TIPOS=[
     {val:'Parcial',lbl:'📋 Parcial Ordinario'},
     {val:'Recuperatorio',lbl:'🔄 Recuperatorio Parcial'},
-function cambioSemNotas(){
-  filtNotasAsigs();
-  // si hay un alumno elegido en el buscador, se vuelve a cargar su resumen con el semestre elegido
-  const a=W._alumnoNotasSel;
-  if(a){ const idx=(W._buscarAlumnoNotasResults||[]).findIndex(x=>x.id===a.id); if(idx>=0) seleccionarAlumnoNotasGlobal(idx); }
-}
     {val:'Final',lbl:'🎯 Final Ordinario'},
     {val:'Final Recuperatorio',lbl:'🔁 Final Recuperatorio'},
     {val:'Complementario',lbl:'➕ Complementario'},
-  const semId=v('filtNotaSem');
     {val:'Extraordinario',lbl:'⭐ Extraordinario'},
   ];
   // Mostrar spinner mientras verifica
@@ -14272,6 +14289,10 @@ async function pgActas(el){
   let actas=[];
   try{ actas=await api('GET','/api/actas-examen'); }catch(e){ el.innerHTML='<div class="es">Error al cargar actas</div>'; return; }
   W._actasTodas=actas;
+  // Semestre: por defecto el que está en curso si ya tiene actas; si todavía no, se muestran todas (hoy las actas son del 1.er semestre)
+  const persA=await semCargar(); W._actasPers=persA;
+  const vigA=semVigente(persA); const conActas=new Set(actas.map(a=>(persA.find(p=>p.nombre===a.periodo_nombre)||{}).id));
+  const semDefAc=(vigA&&conActas.has(vigA.id))?String(vigA.id):'todos';
   const carreras=[...new Set(actas.map(a=>a.carrera_nombre).filter(Boolean))].sort();
   const docMap=new Map();
   actas.forEach(a=>{ if(a.docente_id && !docMap.has(a.docente_id)) docMap.set(a.docente_id,`${a.docente_nombre||''} ${a.docente_apellido||''}`.trim()); });
@@ -14279,6 +14300,7 @@ async function pgActas(el){
   const tipos=[...new Set(actas.map(a=>a.tipo_examen).filter(Boolean))];
   el.innerHTML=`<div class="ph"><h3>📋 Actas de examen</h3><span class="bx ba">${actas.length} acta${actas.length!==1?'s':''}</span></div>
   <div class="fb" style="gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <select id="actasFiltSem" onchange="filtActas()" style="min-width:150px;font-weight:700">${semOpciones(persA,semDefAc,true)}</select>
     ${esDirec?`<select id="actasFiltCarrera" onchange="filtActas()" style="min-width:170px"><option value="">Todas las carreras</option>${carreras.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}
     ${esDirec?`<select id="actasFiltDocente" onchange="filtActas()" style="min-width:190px"><option value="">Todos los docentes</option>${docList.map(([id,n])=>`<option value="${id}">${n}</option>`).join('')}</select>`:''}
     <select id="actasFiltTipo" onchange="filtActas()" style="min-width:160px"><option value="">Todos los tipos</option>${tipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
@@ -14289,18 +14311,14 @@ async function pgActas(el){
     <button class="bn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9)" onclick="imprimirActasSeleccionadas()">🖨 Imprimir seleccionadas (<span id="actasSelCount">0</span>)</button>
   </div>`;
   filtActas();
-  // Semestre: por defecto el que está en curso si ya tiene actas; si todavía no, se muestran todas (hoy las actas son del 1.er semestre)
-  const persA=await semCargar(); W._actasPers=persA;
-  const vigA=semVigente(persA); const conActas=new Set(actas.map(a=>(persA.find(p=>p.nombre===a.periodo_nombre)||{}).id));
-  const semDefAc=(vigA&&conActas.has(vigA.id))?String(vigA.id):'todos';
 }
 function filtActas(){
   const carrera=v('actasFiltCarrera'), docente=v('actasFiltDocente'), tipo=v('actasFiltTipo'), semId=v('actasFiltSem');
   let actas=W._actasTodas||[];
+  if(semId&&semId!=='todos'){ const _p=(W._actasPers||[]).find(x=>String(x.id)===semId); if(_p) actas=actas.filter(a=>a.periodo_nombre===_p.nombre); }
   if(carrera) actas=actas.filter(a=>a.carrera_nombre===carrera);
   if(docente) actas=actas.filter(a=>a.docente_id===docente);
   if(tipo) actas=actas.filter(a=>a.tipo_examen===tipo);
-    <select id="actasFiltSem" onchange="filtActas()" style="min-width:150px;font-weight:700">${semOpciones(persA,semDefAc,true)}</select>
   const cont=document.getElementById('actasLista'); if(!cont)return;
   const TIPO_COLOR={'Parcial':'#1d4ed8','Recuperatorio':'#7c3aed','Final':'#b91c1c','Final Recuperatorio':'#9a3412','Complementario':'#065f46','Extraordinario':'#6d28d9'};
   cont.innerHTML=!actas.length?'<div class="es">No hay actas que coincidan con el filtro</div>':actas.map(a=>{
@@ -14315,7 +14333,6 @@ function filtActas(){
             <span style="display:inline-block;margin-left:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${color}22;color:${color}">${a.tipo_examen}</span>
           </div>
           <div style="display:flex;gap:6px">
-  if(semId&&semId!=='todos'){ const _p=(W._actasPers||[]).find(x=>String(x.id)===semId); if(_p) actas=actas.filter(a=>a.periodo_nombre===_p.nombre); }
             ${a.estado==='cerrada'?`<button class="bs" style="font-size:10px;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="imprimirActaExamenCerrada('${a.id}')">🖨 Imprimir</button>
             <button class="bs d" style="font-size:10px" onclick="desbloquearActa('${a.id}')">🔓 Desbloquear</button>`
             :`<span class="bx ba" style="font-size:10px">🔓 Desbloqueada</span>`}
@@ -15050,6 +15067,7 @@ async function pgAsist(el){
     </div>
   </div>
   <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:4px">
+    <select id="filtAsistSem" onchange="filtAsistAsigs()" style="min-width:150px;font-weight:700">${semOpciones(pers,semDefA,true)}</select>
     <select id="filtAsistCarr" onchange="filtAsistAsigs()" style="min-width:160px">
       <option value="">Todas las carreras</option>
       ${carrsEnAsigs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}
@@ -15067,7 +15085,6 @@ async function pgAsist(el){
       ${asigsFiltradas.map(a=>{
         const h=horarios.find(x=>x.asignacion_id===a.id);
         const tl=h?` [${h.turno===1?'T1 19:00':'T2 20:40'}]`:'';
-    <select id="filtAsistSem" onchange="filtAsistAsigs()" style="min-width:150px;font-weight:700">${semOpciones(pers,semDefA,true)}</select>
         return `<option value="${a.id}" data-dia="${a.dia||h?.dia||''}">${a.materia_nombre} · ${a.carrera_nombre} ${a.curso_anio}°${a.curso_division==='U'?'':a.curso_division}${tl}</option>`;
       }).join('')}
     </select>
@@ -16715,6 +16732,7 @@ async function selAlumnoPago(alId){
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${me.rol==='director'&&esInactivo?`<button onclick="reactivarAlumnoPago('${alId}')" style="background:#fff;color:#14532d;border:none;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:800" title="Pasa al alumno a Activo sin necesidad de registrar un pago">↩ Reactivar alumno</button>`:''}
           ${me.rol==='director'?`<button onclick="habilitarDesdeHistorial('${alId}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">🔓 Habilitar examen</button>`:''}
           ${me.rol==='director'&&rDeuda&&rDeuda.deudaNeta>0?`<button onclick="mExonerarDeuda('${alId}',${rDeuda.deudaNeta})" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">💸 Exonerar deuda</button>`:''}
           ${me.rol==='director'?`<button onclick="mEditarNombreAlumno('${alId}','${(al.nombre||'').replace(/'/g,"\\'")}','${(al.apellido||'').replace(/'/g,"\\'")}')" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">✏ Modificar nombre</button>`:''}
@@ -16829,7 +16847,7 @@ async function selAlumnoPago(alId){
           </div>`;
         })()}
 
-        ${esInactivo?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:11px 16px;font-size:12.5px;color:#991b1b;line-height:1.5">🚫 <strong>Alumno inactivo.</strong> No figura en las listas ni en las planillas de los docentes. Vuelve a estar activo automáticamente al registrarle un pago de cuota, matrícula o examen.</div>`:''}
+        ${esInactivo?`<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:11px 16px;font-size:12.5px;color:#991b1b;line-height:1.5">🚫 <strong>Alumno inactivo.</strong> No figura en las listas ni en las planillas de los docentes. Vuelve a estar activo automáticamente al registrarle un pago de cuota, matrícula o examen, o con el botón <strong>↩ Reactivar alumno</strong> de arriba.</div>`:''}
         <!-- Estado de cuotas -->
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
           <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">💰 Estado de cuotas</div>
