@@ -4669,7 +4669,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
 
   // Query unificada: incluye alumnos con curso_id exacto + alumnos con misma carrera sin curso asignado
   const alumnos = db.prepare(`
-    SELECT al.id, al.matricula, al.curso_id as al_curso_id,
+    SELECT al.id, al.matricula, al.curso_id as al_curso_id, al.estado as estado_alumno,
       COALESCE(al.ci,u.ci) as alumno_ci,
       COALESCE(al.nombre,u.nombre) as alumno_nombre,
       COALESCE(al.apellido,u.apellido) as alumno_apellido,
@@ -4687,7 +4687,7 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
     FROM alumnos al
     LEFT JOIN usuarios u ON al.usuario_id=u.id
     LEFT JOIN notas n ON n.alumno_id=al.id AND n.asignacion_id=?
-    WHERE al.estado='Activo'
+    WHERE al.estado IN ('Activo','Inactivo')  -- los Inactivos (mora) siguen en la lista del docente para que pueda cargarles puntaje
       AND (
         al.curso_id=?
         OR (? IS NOT NULL AND al.carrera_id=? AND al.curso_id IS NULL)
@@ -4709,6 +4709,34 @@ app.get('/api/notas/asignacion/:asig_id', auth(), (req, res) => {
 
   res.json({ alumnos, parcial_bloqueado: asig.parcial_bloqueado ? 1 : 0 });
 });
+
+// ── AVISO AUTOMÁTICO a un alumno INACTIVO cuando un docente le carga puntaje ─────────────────────
+// Desde el 4/12/2026: si el alumno está Inactivo (mora) y tiene teléfono, se le avisa por WhatsApp que está atrasado,
+// que no ve sus notas y que no podrá rendir los finales hasta regularizar en Secretaría. Máximo 1 aviso cada 14 días
+// por alumno (no se repite por cada nota que cargue el docente) y siempre queda en wa_mensajes + auditoría.
+const AVISO_INACTIVO_PUNTAJE_DESDE = process.env.AVISO_INACTIVO_DESDE || '2026-12-04';
+const AVISO_INACTIVO_PUNTAJE_DIAS = 14;
+async function avisarInactivoPorPuntaje(alumnoId, porUserId) {
+  try {
+    if (hoyPY() < AVISO_INACTIVO_PUNTAJE_DESDE) return;
+    const al = db.prepare("SELECT id, COALESCE(nombre,'') as nombre, COALESCE(apellido,'') as apellido, telefono, estado FROM alumnos WHERE id=?").get(alumnoId);
+    if (!al || al.estado !== 'Inactivo' || !al.telefono) return;
+    const clave = 'aviso_inactivo_puntaje_' + alumnoId;
+    const previo = db.prepare('SELECT valor FROM configuracion WHERE clave=?').get(clave)?.valor;
+    if (previo && (Date.now() - new Date(previo + 'T00:00:00').getTime()) < AVISO_INACTIVO_PUNTAJE_DIAS * 86400000) return;
+    // se marca ANTES de enviar: si el docente guarda varias notas seguidas no se manda dos veces
+    db.prepare('INSERT OR REPLACE INTO configuracion (clave,valor,descripcion) VALUES (?,?,?)').run(clave, hoyPY(), 'Último aviso automático a alumno inactivo con puntaje cargado');
+    const { meses_deuda, cuotas_faltantes } = calcularMesesDeuda(alumnoId);
+    const mora = meses_deuda ? `${meses_deuda} cuota${meses_deuda > 1 ? 's' : ''} (${cuotas_faltantes.join(', ')})` : 'sus cuotas';
+    const msg = `Estimado/a ${al.nombre || 'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que se encuentra atrasado/a en el pago de ${mora}. Por esa razón no puede ver sus notas y no podrá rendir los exámenes finales. Le solicitamos pasar por Secretaría para regularizar su situación. ¡Muchas gracias!`;
+    const r = await sendWhatsApp(al.telefono, msg, { motivo: 'aviso_inactivo_puntaje', por: porUserId });
+    const wid = 'wam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+    db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(wid, 'aviso', 'alumno', alumnoId, (al.apellido + ', ' + al.nombre).trim(), al.telefono, msg, r.ok ? 'enviado' : 'fallido', porUserId || 'sistema_auto');
+    audit(porUserId || 'sistema', 'AVISO_INACTIVO_PUNTAJE', 'alumnos', alumnoId, { ok: !!r.ok, meses_deuda });
+    if (!r.ok) db.prepare('DELETE FROM configuracion WHERE clave=?').run(clave); // si falló, se reintenta con la próxima nota
+  } catch (e) { console.warn('[AVISO_INACTIVO_PUNTAJE] error:', e.message); }
+}
 
 app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, res) => {
   try {
@@ -4813,6 +4841,7 @@ app.put('/api/notas/:alumno_id/:asig_id', auth(['director','docente']), (req, re
         }
       } catch(e) { console.warn('[POSIBLE_PERDIDA_NOTA] Error al avisar:', e.message); }
     }
+    if (req.user.rol === 'docente') avisarInactivoPorPuntaje(req.params.alumno_id, req.user.id).catch(() => {});
     res.json({ puntaje: nota.puntaje, nota: nota.nota, estado: nota.estado, tp_total: nota.tp_total, parcial_efectivo: nota.parcial_ef, final_efectivo: nota.final_ef });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -11121,6 +11150,23 @@ app.get('/api/whatsapp/inactivo-por-ci', auth(ADM), (req, res) => {
     } catch {}
     return { ...al, meses_deuda, cuotas_faltantes, motivo_registrado };
   }));
+});
+
+// Alumnos INACTIVOS a los que algún docente ya les cargó puntaje (candidatos al aviso del 4/12)
+app.get('/api/whatsapp/inactivos-con-puntaje', auth(ADM), (req, res) => {
+  try {
+    const filas = db.prepare(`
+      SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
+        COALESCE(a.ci,u.ci) as ci, a.telefono, ca.nombre as carrera_nombre, cu.anio,
+        COUNT(DISTINCT n.asignacion_id) as materias_con_puntaje
+      FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+      LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id
+      JOIN notas n ON n.alumno_id=a.id
+      WHERE a.estado='Inactivo'
+        AND COALESCE(n.tp1,n.tp2,n.tp3,n.tp4,n.tp5,n.parcial,n.parcial_recuperatorio,n.final_ord,n.final_recuperatorio,n.complementario,n.extraordinario) IS NOT NULL
+      GROUP BY a.id ORDER BY ca.nombre, apellido, nombre`).all();
+    res.json(filas.map(f => { const { meses_deuda, cuotas_faltantes } = calcularMesesDeuda(f.id); return { ...f, meses_deuda, cuotas_faltantes }; }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {

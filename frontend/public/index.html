@@ -3226,6 +3226,41 @@ function waInaElegir(i){
   document.getElementById('waInaMotivo').value='auto';
   waInaArmar();
 }
+// ── Aviso a inactivos que YA tienen puntaje cargado por el docente (se envía desde el 4/12, a mano y de a uno con pausas) ──
+const WA_FECHA_AVISO_PUNTAJE='2026-12-04';
+function waMsgInactivoPuntaje(a){
+  const mora=a.meses_deuda?`${a.meses_deuda} cuota${a.meses_deuda>1?'s':''} (${a.cuotas_faltantes.join(', ')})`:'sus cuotas';
+  return `Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que se encuentra atrasado/a en el pago de ${mora}. Por esa razón no puede ver sus notas y no podrá rendir los exámenes finales. Le solicitamos pasar por Secretaría para regularizar su situación. ¡Muchas gracias!`;
+}
+async function mInactivosPuntaje(){
+  modal(`<div class="mh"><h4>📲 Inactivos con puntaje cargado</h4><button class="mc" onclick="cm()">✕</button></div><div class="es" style="padding:30px">Cargando...</div>`,true);
+  let l; try{ l=await api('GET','/api/whatsapp/inactivos-con-puntaje'); }catch(e){ cm(); return toast('No se pudo cargar: '+(e.message||e),'err'); }
+  W._ip=l; const antes=hoyPY()<WA_FECHA_AVISO_PUNTAJE;
+  modal(`<div class="mh"><h4>📲 Inactivos con puntaje cargado</h4><button class="mc" onclick="cm()">✕</button></div>
+    <div class="ir" style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:6px;padding:10px;margin-bottom:10px;font-size:12px">
+      Alumnos <strong>inactivos</strong> a los que un docente ya les cargó puntaje. El aviso les dice que están atrasados en sus cuotas, que no ven sus notas, que no podrán rendir los finales y que pasen por Secretaría. ${antes?'<br><strong>Se habilita el envío desde el 4 de diciembre.</strong>':''}
+    </div>
+    <div style="max-height:45vh;overflow:auto"><table class="als-table" style="width:100%"><thead><tr><th></th><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Mat. c/ puntaje</th><th>Mora</th><th>Teléfono</th></tr></thead><tbody>${l.map((a,i)=>`<tr><td><input type="checkbox" class="ipChk" data-i="${i}" ${a.telefono&&!antes?'checked':'disabled'}></td><td><strong>${escH(a.apellido||'')}, ${escH(a.nombre||'')}</strong></td><td>${escH(a.ci||'')}</td><td style="font-size:11px">${escH(a.carrera_nombre||'')} ${a.anio||''}°</td><td>${a.materias_con_puntaje}</td><td>${a.meses_deuda?a.meses_deuda+' cuota'+(a.meses_deuda>1?'s':''):'—'}</td><td>${a.telefono?escH(a.telefono):'<span style="color:#dc2626">sin teléfono</span>'}</td></tr>`).join('')||'<tr><td colspan="7" class="es">Ningún alumno inactivo tiene puntaje cargado por ahora</td></tr>'}</tbody></table></div>
+    <div style="margin:10px 0 4px;font-size:11px;color:#64748b">Vista previa del mensaje:</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:12px">${l[0]?escH(waMsgInactivoPuntaje(l[0])):'—'}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><button class="bn" id="ipBtn" onclick="ipEnviar()" ${antes||!l.length?'disabled style="opacity:.5"':''}>📤 Enviar a los seleccionados</button><span id="ipEst" style="font-size:12px"></span></div>`,true);
+}
+async function ipEnviar(){
+  if(hoyPY()<WA_FECHA_AVISO_PUNTAJE) return toast('El envío se habilita el 4 de diciembre','warn');
+  const sel=[...document.querySelectorAll('.ipChk:checked')].map(c=>W._ip[+c.dataset.i]);
+  if(!sel.length) return toast('Seleccioná al menos un alumno','warn');
+  if(!confirm('¿Enviar el aviso a '+sel.length+' alumno(s)? Se envía de a uno con una pausa entre mensajes.')) return;
+  const est=document.getElementById('ipEst'), btn=document.getElementById('ipBtn'); btn.disabled=true;
+  let ok=0, fallos=[];
+  for(let k=0;k<sel.length;k++){
+    const a=sel[k]; est.textContent='Enviando '+(k+1)+' de '+sel.length+'...';
+    try{ await api('POST','/api/whatsapp/enviar',{telefono:a.telefono,mensaje:waMsgInactivoPuntaje(a),destinatario_tipo:'alumno',destinatario_id:a.id,destinatario_nombre:a.apellido+', '+a.nombre}); ok++; }
+    catch(e){ fallos.push(a.apellido+': '+(e.message||e)); }
+    if(k<sel.length-1) await new Promise(r=>setTimeout(r,12000+Math.random()*8000));
+  }
+  est.innerHTML=`<span style="color:#16a34a">✓ ${ok} enviados</span>${fallos.length?' · <span style="color:#dc2626">'+fallos.length+' fallaron: '+escH(fallos.join(' | '))+'</span>':''}`;
+  btn.disabled=false;
+}
 // Misma función que en la pestaña Enviar de WhatsApp, ahora también dentro de Gestión de alumnos
 function mAvisoInactivo(){
   W._waIna=null;
@@ -3270,7 +3305,7 @@ function waInaArmar(){
   else if(m==='retraso') razon='retraso en el pago de sus cuotas';
   else if(m==='mora') razon=mora||'mora en el pago de sus cuotas';
   else razon=mora||a.motivo_registrado||'pagos pendientes de regularizar';
-  document.getElementById('waMsgInd').value=`Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que su estado de alumno/a pasó a INACTIVO por ${razon}; por ese motivo ya no figura en la lista de los docentes. Le solicitamos pasar por Secretaría para regularizar su situación; de lo contrario no podrá rendir los exámenes finales. ¡Muchas gracias!`;
+  document.getElementById('waMsgInd').value=`Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que su estado de alumno/a pasó a INACTIVO por ${razon}. Le solicitamos pasar por Secretaría para regularizar su situación; de lo contrario no podrá rendir los exámenes finales. ¡Muchas gracias!`;
 }
 function _waAlumnoId(){
   const val=(document.getElementById('waAlumnoSel')?.value||'').trim();
@@ -14962,7 +14997,7 @@ W.loadNotas=async(asigId,_tipo)=>{
         <div style="display:flex;align-items:center;gap:8px">
           <span style="min-width:20px;font-size:11px;font-weight:800;color:#94a3b8;text-align:right;flex-shrink:0">${idx+1}</span>
           <div>
-            <div style="font-weight:700;color:#0f172a;font-size:12.5px">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span></div>
+            <div style="font-weight:700;color:#0f172a;font-size:12.5px">${a.alumno_apellido||''}<span style="font-weight:400;color:#475569">, ${a.alumno_nombre||''}</span>${a.estado_alumno==='Inactivo'?' <span title="Alumno inactivo por mora: puede cargarle puntaje" style="font-size:9.5px;font-weight:800;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:1px 6px;margin-left:4px">INACTIVO</span>':''}</div>
             ${a.alumno_ci?`<div style="font-size:9px;color:#94a3b8;margin-top:1px;font-family:monospace">${a.alumno_ci}</div>`:''}
           </div>
         </div>
@@ -21783,6 +21818,7 @@ async function pgUsuarios(el,initialTab){
         <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
         <button class="bs" style="background:#7c3aed;color:#fff;border:none" onclick="mUltimoAnio()">🎓 Último año · notas pendientes</button>
         <button class="bs" style="background:#128C7E;color:#fff;border:none" onclick="mAvisoInactivo()">📲 Avisar a inactivo (WhatsApp)</button>
+        <button class="bs" style="background:#b45309;color:#fff;border:none" onclick="mInactivosPuntaje()">📲 Inactivos con puntaje cargado</button>
       </div>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div>
