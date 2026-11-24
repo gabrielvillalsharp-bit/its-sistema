@@ -3256,7 +3256,7 @@ async function waInaEnviar(){
   if(!confirm('¿Enviar este aviso a '+a.apellido+', '+a.nombre+' ('+a.telefono+')?'))return;
   info.innerHTML='<span style="color:#888">Enviando...</span>';
   try{
-    await api('POST','/api/whatsapp/enviar',{telefono:a.telefono,mensaje:msg,destinatario_tipo:'inactivo',destinatario_id:a.id,destinatario_nombre:a.apellido+', '+a.nombre});
+    await api('POST','/api/whatsapp/enviar',{telefono:a.telefono,mensaje:msg,destinatario_tipo:'alumno',destinatario_id:a.id,destinatario_nombre:a.apellido+', '+a.nombre});
     info.innerHTML='<span style="color:#16a34a">✓ Aviso enviado</span>';
   }catch(e){info.innerHTML=`<span style="color:#dc2626">${escH(e.message)}</span>`;}
 }
@@ -3319,7 +3319,7 @@ async function waEnviarInd(){
   if(!tel||!msg){info.innerHTML='<span style="color:#dc2626">Completá teléfono y mensaje</span>';return;}
   info.innerHTML='<span style="color:#888">Enviando...</span>';
   try{
-    await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:msg,destinatario_tipo:tipo,destinatario_id:did||null,destinatario_nombre:nombre||null});
+    await api('POST','/api/whatsapp/enviar',{telefono:tel,mensaje:msg,destinatario_tipo:tipo==='inactivo'?'alumno':tipo,destinatario_id:did||null,destinatario_nombre:nombre||null});
     info.innerHTML='<span style="color:#16a34a">✓ Enviado correctamente</span>';
     document.getElementById('waMsgInd').value='';
   }catch(e){info.innerHTML=`<span style="color:#dc2626">${e.message}</span>`;}

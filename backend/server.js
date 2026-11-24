@@ -11131,7 +11131,7 @@ app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   const id = 'wam_'+Date.now()+'_'+Math.random().toString(36).slice(2,5);
   db.prepare(`INSERT INTO wa_mensajes (id,tipo,destinatario_tipo,destinatario_id,destinatario_nombre,destinatario_telefono,mensaje,estado,enviado_por)
     VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(id,'individual',destinatario_tipo||'custom',destinatario_id||null,destinatario_nombre||null,telefono,mensaje,ok?'enviado':'fallido',req.user.id);
+    .run(id,'individual',['docente','alumno','custom'].includes(destinatario_tipo)?destinatario_tipo:'custom',destinatario_id||null,destinatario_nombre||null,telefono,mensaje,ok?'enviado':'fallido',req.user.id);
   audit(req.user.id,'WA_INDIVIDUAL','wa_mensajes',id,{ tel: telefono, ok });
   if (!ok) return res.status(500).json({ error: waRes.error || 'No se pudo enviar. Verificá la conexión WhatsApp.' });
   res.json({ ok: true, id });
