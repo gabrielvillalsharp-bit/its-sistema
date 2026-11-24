@@ -2552,7 +2552,25 @@ async function pgWhatsApp(el){
         <option value="docente">Docente del sistema</option>
         <option value="alumno">Alumno (reenviar usuario y contraseña)</option>
         <option value="custom">Número personalizado</option>
+        <option value="inactivo">Alumno inactivo (aviso por nombre o cédula)</option>
       </select>
+      <div id="waDestInactivo" style="display:none">
+        <label style="font-size:12px;color:#555">Nombre o cédula del alumno</label>
+        <div style="display:flex;gap:6px;margin:4px 0 8px">
+          <input id="waInaCi" type="text" inputmode="numeric" placeholder="Ej: 5123456 o Juan Pérez" onkeydown="if(event.key==='Enter')waInaBuscar()" style="flex:1;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+          <button onclick="waInaBuscar()" style="background:#128C7E;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:13px">🔍 Buscar</button>
+        </div>
+        <div id="waInaInfo" style="font-size:12px;margin-bottom:8px"></div>
+        <div id="waInaMotivoWrap" style="display:none">
+          <label style="font-size:12px;color:#555">Motivo</label>
+          <select id="waInaMotivo" onchange="waInaArmar()" style="width:100%;margin:4px 0 8px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+            <option value="auto">Automático (razón verificada en el sistema)</option><option value="mora">Mora en cuotas (cantidad calculada)</option>
+            <option value="retraso">Retraso en el pago</option>
+            <option value="otro">Otro (escribo el motivo)</option>
+          </select>
+          <input id="waInaOtro" type="text" placeholder="Motivo..." oninput="waInaArmar()" style="display:none;width:100%;margin-bottom:8px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+      </div>
       <div id="waDestDoc">
         <label style="font-size:12px;color:#555">Seleccionar docente</label>
         <select id="waDocSel" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
@@ -3180,10 +3198,79 @@ function waDestChange(){
   document.getElementById('waDestDoc').style.display=t==='docente'?'block':'none';
   document.getElementById('waDestAlumno').style.display=t==='alumno'?'block':'none';
   document.getElementById('waDestCustom').style.display=t==='custom'?'block':'none';
+  const _di=document.getElementById('waDestInactivo'); if(_di) _di.style.display=t==='inactivo'?'block':'none';
   // Para alumno, el mensaje es una plantilla fija del sistema — no hace falta escribirlo
   document.getElementById('waMsgIndWrap').style.display=t==='alumno'?'none':'block';
+  if(t==='inactivo'&&W._waIna) waInaArmar();
   const btn=document.getElementById('waEnviarIndBtn');
   if(btn) btn.textContent=t==='alumno'?'📨 Enviar usuario y contraseña':'📤 Enviar ahora';
+}
+// ── Aviso a alumno INACTIVO: buscar por cédula + mensaje con el motivo (mora / retraso / otro) ──
+async function waInaBuscar(){
+  const info=document.getElementById('waInaInfo'), q=(document.getElementById('waInaCi')?.value||'').trim();
+  W._waIna=null; document.getElementById('waInaMotivoWrap').style.display='none';
+  if(q.length<3){info.innerHTML='<span style="color:#dc2626">Escribí el nombre o la cédula</span>';return;}
+  info.innerHTML='<span style="color:#888">Buscando...</span>';
+  try{
+    const l=await api('GET','/api/whatsapp/inactivo-por-ci?q='+encodeURIComponent(q));
+    W._waInaLista=l;
+    if(l.length===1) return waInaElegir(0);
+    info.innerHTML='<div style="margin-bottom:4px;color:#555">Hay '+l.length+' alumnos inactivos que coinciden, elegí uno:</div>'+l.map((a,i)=>`<div><button onclick="waInaElegir(${i})" style="margin:2px 0;padding:5px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:12px">${escH(a.apellido||'')}, ${escH(a.nombre||'')} · CI ${escH(a.ci||'')} · ${escH(a.carrera_nombre||'')}</button></div>`).join('');
+  }catch(e){info.innerHTML=`<span style="color:#dc2626">${escH(e.message)}</span>`;}
+}
+function waInaElegir(i){
+  const a=(W._waInaLista||[])[i]; if(!a) return; W._waIna=a;
+  const info=document.getElementById('waInaInfo');
+  info.innerHTML=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px"><strong>${escH(a.apellido||'')}, ${escH(a.nombre||'')}</strong> · CI ${escH(a.ci||'')} · <span class="bx br">${escH(a.estado)}</span><br><span style="color:#555">${escH(a.carrera_nombre||'Sin carrera')} ${a.anio?a.anio+'°':''}</span><br>📱 ${a.telefono?escH(a.telefono):'<span style="color:#dc2626">Sin teléfono registrado</span>'}<br><strong>Razón verificada:</strong> ${a.meses_deuda?'mora de '+a.meses_deuda+' cuota'+(a.meses_deuda>1?'s':'')+' ('+escH(a.cuotas_faltantes.join(', '))+')':'sin cuotas vencidas en el sistema'}${a.motivo_registrado?'<br>Motivo registrado al inactivarlo: '+escH(a.motivo_registrado):''}</div>`;
+  document.getElementById('waInaMotivoWrap').style.display='block';
+  document.getElementById('waInaMotivo').value='auto';
+  waInaArmar();
+}
+// Misma función que en la pestaña Enviar de WhatsApp, ahora también dentro de Gestión de alumnos
+function mAvisoInactivo(){
+  W._waIna=null;
+  modal(`<div class="mh"><h4>📲 Avisar a alumno inactivo</h4><button class="mc" onclick="cm()">✕</button></div>
+    <label style="font-size:12px;color:#555">Nombre o cédula del alumno</label>
+    <div style="display:flex;gap:6px;margin:4px 0 8px">
+      <input id="waInaCi" type="text" inputmode="numeric" placeholder="Ej: 5123456 o Juan Pérez" onkeydown="if(event.key==='Enter')waInaBuscar()" style="flex:1;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+      <button class="bn" onclick="waInaBuscar()">🔍 Buscar</button>
+    </div>
+    <div id="waInaInfo" style="font-size:12px;margin-bottom:8px"></div>
+    <div id="waInaMotivoWrap" style="display:none">
+      <label style="font-size:12px;color:#555">Motivo</label>
+      <select id="waInaMotivo" onchange="waInaArmar()" style="width:100%;margin:4px 0 8px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+        <option value="auto">Automático (razón verificada en el sistema)</option><option value="mora">Mora en cuotas (cantidad calculada)</option><option value="retraso">Retraso en el pago</option><option value="otro">Otro (escribo el motivo)</option>
+      </select>
+      <input id="waInaOtro" type="text" placeholder="Motivo..." oninput="waInaArmar()" style="display:none;width:100%;margin-bottom:8px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+      <label style="font-size:12px;color:#555">Mensaje (editable)</label>
+      <textarea id="waMsgInd" rows="6" style="width:100%;margin:4px 0 10px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box"></textarea>
+      <button class="bn" onclick="waInaEnviar()">📤 Enviar por WhatsApp</button>
+    </div>
+    <div id="waIndMsg" style="font-size:12px;margin-top:8px"></div>`);
+}
+async function waInaEnviar(){
+  const a=W._waIna, info=document.getElementById('waIndMsg'), msg=(document.getElementById('waMsgInd')?.value||'').trim();
+  if(!a){info.innerHTML='<span style="color:#dc2626">Buscá primero al alumno por cédula</span>';return;}
+  if(!a.telefono){info.innerHTML='<span style="color:#dc2626">El alumno no tiene teléfono registrado</span>';return;}
+  if(!msg){info.innerHTML='<span style="color:#dc2626">Escribí el mensaje</span>';return;}
+  if(!confirm('¿Enviar este aviso a '+a.apellido+', '+a.nombre+' ('+a.telefono+')?'))return;
+  info.innerHTML='<span style="color:#888">Enviando...</span>';
+  try{
+    await api('POST','/api/whatsapp/enviar',{telefono:a.telefono,mensaje:msg,destinatario_tipo:'inactivo',destinatario_id:a.id,destinatario_nombre:a.apellido+', '+a.nombre});
+    info.innerHTML='<span style="color:#16a34a">✓ Aviso enviado</span>';
+  }catch(e){info.innerHTML=`<span style="color:#dc2626">${escH(e.message)}</span>`;}
+}
+function waInaArmar(){
+  const a=W._waIna; if(!a) return;
+  const m=document.getElementById('waInaMotivo').value, otro=document.getElementById('waInaOtro');
+  otro.style.display=m==='otro'?'block':'none';
+  const mora=a.meses_deuda?`mora de ${a.meses_deuda} cuota${a.meses_deuda>1?'s':''} (${a.cuotas_faltantes.join(', ')})`:'';
+  let razon;
+  if(m==='otro') razon=(otro.value||'').trim()||'[escribí el motivo]';
+  else if(m==='retraso') razon='retraso en el pago de sus cuotas';
+  else if(m==='mora') razon=mora||'mora en el pago de sus cuotas';
+  else razon=mora||a.motivo_registrado||'pagos pendientes de regularizar';
+  document.getElementById('waMsgInd').value=`Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que su matrícula fue dada de baja (INACTIVA) por ${razon}. Le solicitamos acercarse a Secretaría de la institución a fin de regularizar sus pagos para ser activado/a nuevamente y poder acceder a los exámenes finales. ¡Muchas gracias!`;
 }
 function _waAlumnoId(){
   const val=(document.getElementById('waAlumnoSel')?.value||'').trim();
@@ -3220,6 +3307,11 @@ async function waEnviarInd(){
     tel=sel?.value||'';
     nombre=sel?.options[sel.selectedIndex]?.dataset?.nombre||'';
     did=sel?.options[sel.selectedIndex]?.dataset?.id||'';
+  } else if(tipo==='inactivo'){
+    if(!W._waIna){info.innerHTML='<span style="color:#dc2626">Buscá primero al alumno por cédula</span>';return;}
+    tel=W._waIna.telefono||''; nombre=((W._waIna.apellido||'')+', '+(W._waIna.nombre||'')); did=W._waIna.id;
+    if(!tel){info.innerHTML='<span style="color:#dc2626">El alumno no tiene teléfono registrado</span>';return;}
+    if(!confirm('¿Enviar este aviso a '+nombre+' ('+tel+')?'))return;
   } else {
     tel=document.getElementById('waTelCustom')?.value||'';
   }
@@ -5143,6 +5235,44 @@ async function crearAccesosMasivos(){
     }, null);
 }
 // ── ELIMINAR POR GRUPO ────────────────────────────────────────────────────────
+// ── Alumnos de último año (egresan este año) a quienes les falta nota ──
+async function mUltimoAnio(){
+  modal(`<div class="mh"><h4>🎓 Último año · notas pendientes</h4><button class="mc" onclick="cm()">✕</button></div><div class="es" style="padding:30px">Cargando...</div>`,true);
+  try{ W._ua=await api('GET','/api/alumnos/ultimo-anio-pendientes'); }catch(e){ cm(); return toast('No se pudo cargar: '+(e.message||e),'err'); }
+  const carrs=[...new Map((W._ua||[]).map(a=>[a.carrera_id,a.carrera_nombre])).entries()];
+  modal(`<div class="mh"><h4>🎓 Último año · notas pendientes</h4><button class="mc" onclick="cm()">✕</button></div>
+    <div class="ir" style="background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6;border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px">
+      Alumnos <strong>activos</strong> que cursan el <strong>último año de su carrera</strong> (egresan este año). Se revisan las materias de su curso en todos los semestres: <strong>sin nota</strong> = materia sin cerrar; <strong>reprobada</strong> = nota 1 (queda extraordinario).
+    </div>
+    <div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap">
+      <select id="uaCarr" onchange="uaRender()" style="flex:2;font-size:12px;padding:7px"><option value="">Todas las carreras</option>${carrs.map(([id,n])=>`<option value="${id}">${escH(n)}</option>`).join('')}</select>
+      <select id="uaVer" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="pend">Solo con pendientes</option><option value="todos">Todos los de último año</option></select>
+      <select id="uaSem" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="1">Pendientes del 1.er semestre</option><option value="2">Pendientes del 2.º semestre</option><option value="">Ambos semestres</option></select>
+      <input id="uaBus" oninput="uaRender()" placeholder="Nombre o CI..." style="flex:2;font-size:12px;padding:7px"/>
+    </div>
+    <div id="uaResumen" style="font-size:12px;color:#64748b;margin-bottom:8px"></div>
+    <div style="max-height:55vh;overflow:auto"><table class="als-table" style="width:100%"><thead><tr><th>Alumno</th><th>C.I.</th><th>Carrera</th><th>Aprob.</th><th>Sin nota</th><th>Reprob.</th><th>Mora</th></tr></thead><tbody id="uaTb"></tbody></table></div>`,true);
+  uaRender();
+}
+function uaRender(){
+  const carr=v('uaCarr'), ver=v('uaVer'), bus=(v('uaBus')||'').toLowerCase().trim(), sem=v('uaSem');
+  const fs_=x=>!sem||String(x.semestre)===sem;
+  let l=(W._ua||[]).map(a=>({...a,sin_nota:a.sin_nota.filter(fs_),reprobadas:a.reprobadas.filter(fs_)}));
+  if(carr) l=l.filter(a=>String(a.carrera_id)===carr);
+  if(bus) l=l.filter(a=>((a.apellido||'')+' '+(a.nombre||'')).toLowerCase().includes(bus)||(a.ci||'').toLowerCase().includes(bus));
+  const conPend=a=>a.sin_nota.length||a.reprobadas.length;
+  if(ver==='pend') l=l.filter(conPend);
+  const lista=(arr)=>arr.length?arr.map(x=>`<div style="font-size:11px">${escH(x.materia)} <span style="color:#94a3b8">(${x.semestre}.º sem)</span></div>`).join(''):'<span style="color:#94a3b8">—</span>';
+  const tb=document.getElementById('uaTb'); if(!tb) return;
+  tb.innerHTML=l.map(a=>`<tr>
+    <td><strong>${escH(a.apellido||'')}, ${escH(a.nombre||'')}</strong></td><td>${escH(a.ci||'')}</td>
+    <td style="font-size:11px">${escH(a.carrera_nombre)} ${a.anio}°${a.division==='U'?'':escH(a.division||'')}</td>
+    <td>${a.aprobadas}/${a.total_materias}</td>
+    <td>${lista(a.sin_nota)}</td><td>${lista(a.reprobadas)}</td>
+    <td>${a.meses_deuda?`<span class="bx br">${a.meses_deuda} cuota${a.meses_deuda>1?'s':''}</span>`:'<span style="color:#94a3b8">—</span>'}</td></tr>`).join('')||'<tr><td colspan="7" class="es">Sin alumnos con estos filtros</td></tr>';
+  const r=document.getElementById('uaResumen');
+  if(r) r.innerHTML=`Mostrando <strong>${l.length}</strong> alumno${l.length===1?'':'s'} · de último año en total: ${(W._ua||[]).length} · con algo pendiente (según el semestre elegido): ${(W._ua||[]).map(a=>({sin_nota:a.sin_nota.filter(fs_),reprobadas:a.reprobadas.filter(fs_)})).filter(conPend).length}`;
+}
 function mEliminarGrupo(){
   const carrs=W._carrs||[];
   const cursos=W._cursos||[];
@@ -21651,6 +21781,8 @@ async function pgUsuarios(el,initialTab){
         <button class="bs" style="background:#b71c1c;color:#fff;border:none" onclick="mEliminarGrupo()">🗑 Eliminar por Grupo</button>
         <button class="bs i" onclick="mImp()">📥 Importar Excel</button>
         <button class="bs o" onclick="exportarListaPDF()">📄 Exportar PDF</button>
+        <button class="bs" style="background:#7c3aed;color:#fff;border:none" onclick="mUltimoAnio()">🎓 Último año · notas pendientes</button>
+        <button class="bs" style="background:#128C7E;color:#fff;border:none" onclick="mAvisoInactivo()">📲 Avisar a inactivo (WhatsApp)</button>
       </div>
       <button class="bn" onclick="mAl()">+ Nuevo alumno</button>
     </div>

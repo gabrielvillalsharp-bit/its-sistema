@@ -11087,6 +11087,42 @@ app.get('/api/whatsapp/qr', auth(ADM), async (req, res) => {
 });
 
 // ── WHATSAPP GESTIÓN: envío individual ───────────────────────────────────────
+// Busca alumnos INACTIVOS por nombre/apellido o cédula (ignora puntos/espacios/tildes) y verifica en el sistema
+// por qué están inactivos: cuotas adeudadas (mora) y, si existe, el motivo registrado al inactivarlos.
+app.get('/api/whatsapp/inactivo-por-ci', auth(ADM), (req, res) => {
+  const q = String(req.query.q || req.query.ci || '').trim();
+  if (q.length < 3) return res.status(400).json({ error: 'Escribí el nombre o la cédula del alumno' });
+  const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const esCi = /^[0-9.\-\s]+$/.test(q);
+  const qCi = q.replace(/[^0-9]/g, ''), palabras = norm(q).split(' ').filter(Boolean);
+  const todos = db.prepare(`
+    SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
+      COALESCE(a.ci,u.ci) as ci, a.telefono, a.estado, ca.nombre as carrera_nombre, cu.anio, cu.division
+    FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+    LEFT JOIN cursos cu ON a.curso_id=cu.id LEFT JOIN carreras ca ON cu.carrera_id=ca.id`).all();
+  const coincide = todos.filter(f => {
+    if (esCi) return String(f.ci || '').replace(/[^0-9]/g, '') === qCi;
+    const nom = norm((f.apellido || '') + ' ' + (f.nombre || ''));
+    return palabras.every(w => nom.includes(w));
+  });
+  if (!coincide.length) return res.status(404).json({ error: 'No se encontró ningún alumno con ese nombre o cédula' });
+  const inactivos = coincide.filter(f => f.estado === 'Inactivo');
+  if (!inactivos.length) {
+    const f = coincide[0];
+    return res.status(409).json({ error: `${f.apellido}, ${f.nombre} no está inactivo (estado: ${f.estado})` });
+  }
+  const qAud = db.prepare("SELECT detalle, fecha FROM auditoria WHERE registro_id=? AND detalle LIKE '%Inactivo%' ORDER BY fecha DESC LIMIT 1");
+  res.json(inactivos.slice(0, 15).map(al => {
+    const { meses_deuda, cuotas_faltantes } = calcularMesesDeuda(al.id);
+    let motivo_registrado = null;
+    try {
+      const r = qAud.get(al.id);
+      if (r) { const d = JSON.parse(r.detalle || '{}'); motivo_registrado = d.motivo || null; }
+    } catch {}
+    return { ...al, meses_deuda, cuotas_faltantes, motivo_registrado };
+  }));
+});
+
 app.post('/api/whatsapp/enviar', auth(ADM), async (req, res) => {
   const { telefono, mensaje, destinatario_tipo, destinatario_id, destinatario_nombre } = req.body;
   if (!telefono || !mensaje) return res.status(400).json({ error: 'Teléfono y mensaje requeridos' });
@@ -12496,6 +12532,40 @@ app.get('/api/gestion-alumnos/inactivos', auth(ADM), (req, res) => {
     `).all();
     res.json(alumnos);
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ALUMNOS DE ÚLTIMO AÑO (egresan este año) con materias sin nota o reprobadas ──────────────
+// Último año = el año más alto de cursos que tiene su carrera. Mira las notas de su curso en TODOS los
+// semestres. Falta nota = nota_final NULL (materia sin cerrar); reprobada = nota_final 1 (queda extraordinario).
+app.get('/api/alumnos/ultimo-anio-pendientes', auth(ADM), (req, res) => {
+  try {
+    const maxAnio = {};
+    db.prepare('SELECT carrera_id, MAX(anio) m FROM cursos GROUP BY carrera_id').all().forEach(r => { maxAnio[r.carrera_id] = r.m; });
+    // la duración oficial (carreras.semestres / 2) manda sobre los cursos creados: ej. Cosmiatría = 3 años aunque aún no exista el curso 3°
+    db.prepare('SELECT id, semestres FROM carreras').all().forEach(r => { if (r.semestres >= 2) maxAnio[r.id] = Math.ceil(r.semestres / 2); });
+    const alumnos = db.prepare(`
+      SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
+        COALESCE(a.ci,u.ci) as ci, a.telefono, ca.id as carrera_id, ca.nombre as carrera_nombre,
+        cu.id as curso_id, cu.anio, cu.division
+      FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
+      JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+      WHERE a.estado='Activo' ORDER BY ca.nombre, apellido, nombre`).all()
+      .filter(a => a.anio === maxAnio[a.carrera_id]);
+    const qNotas = db.prepare(`
+      SELECT m.nombre as materia, n.nota_final, n.estado, p.semestre, p.nombre as periodo
+      FROM notas n JOIN asignaciones asg ON n.asignacion_id=asg.id
+      JOIN materias m ON asg.materia_id=m.id JOIN periodos p ON asg.periodo_id=p.id
+      WHERE n.alumno_id=? AND asg.curso_id=? ORDER BY p.semestre, m.nombre`);
+    const out = alumnos.map(a => {
+      const notas = qNotas.all(a.id, a.curso_id);
+      const sin_nota = notas.filter(n => n.nota_final === null).map(n => ({ materia: n.materia, semestre: n.semestre }));
+      const reprobadas = notas.filter(n => n.nota_final === 1).map(n => ({ materia: n.materia, semestre: n.semestre }));
+      const { meses_deuda } = calcularMesesDeuda(a.id);
+      return { ...a, total_materias: notas.length, aprobadas: notas.filter(n => n.nota_final >= 2).length,
+        sin_nota, reprobadas, meses_deuda };
+    });
+    res.json(out);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/alumnos/candidatos-egreso', auth(ADM), (req, res) => {
