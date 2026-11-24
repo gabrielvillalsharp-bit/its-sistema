@@ -3270,7 +3270,7 @@ function waInaArmar(){
   else if(m==='retraso') razon='retraso en el pago de sus cuotas';
   else if(m==='mora') razon=mora||'mora en el pago de sus cuotas';
   else razon=mora||a.motivo_registrado||'pagos pendientes de regularizar';
-  document.getElementById('waMsgInd').value=`Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que su matrícula fue dada de baja (INACTIVA) por ${razon}. Le solicitamos acercarse a Secretaría de la institución a fin de regularizar sus pagos para ser activado/a nuevamente y poder acceder a los exámenes finales. ¡Muchas gracias!`;
+  document.getElementById('waMsgInd').value=`Estimado/a ${a.nombre||'alumno/a'}: le saludamos del Instituto Técnico Superior Santísima Trinidad. Le informamos que su matrícula fue dada de baja (INACTIVA) por ${razon}; por tal motivo ya no figura en las listas de los docentes. Le solicitamos acercarse a Secretaría de la institución a fin de regularizar sus pagos para ser activado/a nuevamente y poder acceder a los exámenes finales. ¡Muchas gracias!`;
 }
 function _waAlumnoId(){
   const val=(document.getElementById('waAlumnoSel')?.value||'').trim();
