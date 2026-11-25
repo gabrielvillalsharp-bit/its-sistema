@@ -4,12 +4,7 @@
 //  · Opción 2: los pagos NO se borran: se anulan (queda el número, el motivo, quién y cuándo) y toda edición guarda "antes y después".
 //  · Opción 5: alerta de pagos posiblemente duplicados.
 // El número se asigna con un TRIGGER de la base: vale para TODOS los caminos que insertan pagos (manual, lote, WhatsApp, importaciones).
-const hoyPY = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Asuncion' });
-const horaPY = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Asuncion' });
-const utcAPY = (utc) => {
-  const d = new Date(String(utc || '').replace(' ', 'T') + 'Z');
-  return isNaN(d) ? null : d.toLocaleString('sv-SE', { timeZone: 'America/Asuncion' });
-};
+const { hoyPY, horaPY, utcAPY } = require('./fechas'); // dayjs + zona America/Asuncion (mismo formato de siempre)
 const fmtRecibo = n => 'R-' + String(n).padStart(6, '0');
 // Conceptos que normalmente se pagan UNA vez por alumno (y materia): si se repiten, se avisa. Constancias, certificados y "Otro" pueden repetirse.
 const SQL_CONCEPTO_UNICO = "(concepto LIKE 'Cuota %' OR concepto LIKE 'Matr%' OR concepto LIKE 'Examen %' OR concepto LIKE 'Parcial %' OR concepto LIKE 'Final %')";

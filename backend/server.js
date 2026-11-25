@@ -8,10 +8,14 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const { excelBuffer } = require('./excel');
+const { pdfTabla } = require('./pdf');
+const { fmtDMY } = require('./fechas');
 const archiver = require('archiver');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
-const cron = require('node-cron');
+const cron = process.env.ITS_TEST ? { schedule: () => ({ stop() {}, start() {} }) } : require('node-cron'); // en las pruebas automáticas no se programan tareas
+const { default: PQueue } = require('p-queue');
 const { db, init, calcularPuntaje, DB_PATH } = require('./db');
 const { iaChat, iaLeerComprobante, iaProveedor, iaConfigurado } = require('./ia');
 const { crearHerramientasBot } = require('./bot_tools');
@@ -108,6 +112,8 @@ app.use('/api', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'public')));
 init();
 prepararPagos(db); // número de recibo, historial, anulación (ver pagos_recibos.js)
+// La auditoría ya debe tener sus columnas extra antes de que prepararCodigos escriba en ella (en una base nueva fallaba)
+for (const c of ['ip','dispositivo','origen']) { try { db.prepare('ALTER TABLE auditoria ADD COLUMN '+c+' TEXT').run(); } catch {} }
 prepararCodigos(db); // matrícula automática, nº de constancia/acta/solicitud/beca/exoneración, código de docente y de materia (ver codigos.js)
 
 // ── MIGRACIÓN: tabla interesados_bot ─────────────────────────────────────────
@@ -4394,14 +4400,11 @@ app.post('/api/alumnos/crear-accesos', auth(ADM), (req, res) => {
   res.json({creados,errores:errores.slice(0,10),mensaje:`Se crearon ${creados} accesos nuevos`});
 });
 
-app.get('/api/alumnos/plantilla', auth(ADM), (req, res) => {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet([
+app.get('/api/alumnos/plantilla', auth(ADM), async (req, res) => {
+  const buf = await excelBuffer([{ nombre: 'Alumnos', filas: [
     { nombre:'Ana',apellido:'García',ci:'3.456.789',telefono:'0981-111-001',carrera:'CRM',anio:1,division:'A' },
     { nombre:'Luis',apellido:'Pérez',ci:'4.567.890',telefono:'0982-222-002',carrera:'FAR',anio:1,division:'B' },
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws, 'Alumnos');
-  const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+  ] }]);
   res.setHeader('Content-Disposition','attachment; filename="plantilla_alumnos_ITS.xlsx"');
   res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(buf);
@@ -7012,7 +7015,7 @@ app.get('/api/dashboard', auth(), (req, res) => {
 });
 
 // ── EXPORT EXCEL GENÉRICO ─────────────────────────────────────────────────────
-app.get('/api/export/:tabla', auth(ADM), (req, res) => {
+app.get('/api/export/:tabla', auth(ADM), async (req, res) => {
   const tablas = {
     alumnos: `SELECT COALESCE(al.apellido,u.apellido) as Apellido,COALESCE(al.nombre,u.nombre) as Nombre,
       COALESCE(al.ci,u.ci) as CI,al.matricula as Matricula,c.nombre as Carrera,
@@ -7048,9 +7051,7 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
   if (!sql) return res.status(404).json({ error: 'Tabla no disponible' });
   try {
     const rows = db.prepare(sql).all();
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), req.params.tabla);
-    const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+    const buf = await excelBuffer([{ nombre: req.params.tabla, filas: rows }]);
     res.setHeader('Content-Disposition', `attachment; filename="ITS_${req.params.tabla}_${nowDate()}.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
@@ -7058,7 +7059,44 @@ app.get('/api/export/:tabla', auth(ADM), (req, res) => {
 });
 
 // Plantilla Excel para importar exámenes
-app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
+// Calendario de exámenes en PDF, generado en el servidor. Filtros opcionales: periodo_id, desde, hasta, tipo, carrera_id.
+app.get('/api/examenes/calendario.pdf', auth(ADM), async (req, res) => {
+  try {
+    const { periodo_id, desde, hasta, tipo, carrera_id } = req.query;
+    const sede = req.user.sede || 'pjc';
+    let where = 'WHERE ca.sede_id=?'; const params = [sede];
+    if (periodo_id) { where += ' AND e.periodo_id=?'; params.push(periodo_id); }
+    if (desde) { where += ' AND e.fecha>=?'; params.push(desde); }
+    if (hasta) { where += ' AND e.fecha<=?'; params.push(hasta); }
+    if (tipo) { where += ' AND e.tipo=?'; params.push(tipo); }
+    if (carrera_id) { where += ' AND ca.id=?'; params.push(carrera_id); }
+    const rows = db.prepare(`
+      SELECT e.fecha, e.hora, e.tipo, m.nombre as materia, ca.nombre as carrera, cu.anio, cu.division,
+        COALESCE(u.apellido,'') as dape, COALESCE(u.nombre,'') as dnom
+      FROM examenes e
+      JOIN asignaciones a ON e.asignacion_id=a.id JOIN materias m ON a.materia_id=m.id
+      JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
+      LEFT JOIN docentes d ON a.docente_id=d.id LEFT JOIN usuarios u ON d.usuario_id=u.id
+      ${where} ORDER BY e.fecha, e.hora, ca.nombre, cu.anio`).all(...params);
+    const DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const filas = rows.map(r => [
+      DIAS[new Date(r.fecha + 'T12:00:00Z').getUTCDay()], fmtDMY(r.fecha), r.hora || '',
+      r.carrera + ' ' + r.anio + '°' + (r.division && r.division !== 'U' ? ' ' + r.division : ''),
+      r.materia, (r.dape + ' ' + r.dnom).trim(),
+    ]);
+    const buf = await pdfTabla({
+      titulo: 'Calendario de exámenes',
+      subtitulo: 'Instituto Técnico Superior Santísima Trinidad · ' + filas.length + ' exámenes' + (desde || hasta ? ' · ' + (desde ? fmtDMY(desde) : '…') + ' al ' + (hasta ? fmtDMY(hasta) : '…') : ''),
+      columnas: [{ t: 'Día', w: 62 }, { t: 'Fecha', w: 62 }, { t: 'Hora', w: 42 }, { t: 'Carrera / curso', w: 190 }, { t: 'Materia', w: 240 }, { t: 'Docente', w: 160 }],
+      filas, pie: 'Generado el ' + fmtDMY(nowDate()),
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="calendario_examenes.pdf"');
+    res.send(buf);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/examenes/plantilla', auth(ADM), async (req, res) => {
   const asigs = db.prepare(`
     SELECT a.id as asignacion_id, m.nombre as materia, m.codigo,
       ca.nombre as carrera, cu.anio, cu.division
@@ -7067,7 +7105,6 @@ app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
     JOIN cursos cu ON a.curso_id=cu.id
     JOIN carreras ca ON cu.carrera_id=ca.id
     ORDER BY ca.nombre, cu.anio, m.nombre LIMIT 5`).all();
-  const wb = XLSX.utils.book_new();
   const rows = asigs.map(a => ({
     asignacion_id: a.asignacion_id,
     materia: a.materia,
@@ -7077,12 +7114,10 @@ app.get('/api/examenes/plantilla', auth(ADM), (req, res) => {
     tipo: 'Parcial',
     fecha: nowDate(),
     hora: '19:00',
-    aula: '',
     observacion: ''
   }));
-  if (!rows.length) rows.push({ asignacion_id:'PEGAR_ID_ASIGNACION', materia:'Ejemplo', carrera:'', anio:1, division:'U', tipo:'Parcial', fecha:'2026-05-10', hora:'19:00', aula:'Aula 1', observacion:'' });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Examenes');
-  const buf = XLSX.write(wb, { type:'buffer', bookType:'xlsx' });
+  if (!rows.length) rows.push({ asignacion_id:'PEGAR_ID_ASIGNACION', materia:'Ejemplo', carrera:'', anio:1, division:'U', tipo:'Parcial', fecha:'2026-05-10', hora:'19:00', observacion:'' });
+  const buf = await excelBuffer([{ nombre: 'Examenes', filas: rows }]);
   res.setHeader('Content-Disposition','attachment; filename="plantilla_examenes_ITS.xlsx"');
   res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.send(buf);
@@ -7434,7 +7469,7 @@ app.get('/api/reportes/sin-final', auth(ADM), (req, res) => {
     res.json(d);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.get('/api/reportes/sin-final.xlsx', auth(ADM), (req, res) => {
+app.get('/api/reportes/sin-final.xlsx', auth(ADM), async (req, res) => {
   try {
     const d = datosSinFinal(_sinFinalParams(req.query));
     if (!d) return res.status(404).json({ error: 'Período no encontrado' });
@@ -7450,14 +7485,10 @@ app.get('/api/reportes/sin-final.xlsx', auth(ADM), (req, res) => {
       'Final recuperatorio': est(al.rec), 'Fecha recuperatorio': al.rec.habilitado ? fmt(al.rec.fecha) : '', 'Recibo recuperatorio': al.rec.recibo || '',
       'Complementario': est(al.comp), 'Extraordinario': est(al.ext),
       Parcial: al.parcial, 'Puntaje total': al.puntaje_total, Ausente: al.ausente ? 'Sí' : '' })));
-    const wb = XLSX.utils.book_new();
-    const hojaAl = XLSX.utils.json_to_sheet(filas);
-    hojaAl['!cols'] = [26, 7, 9, 38, 28, 22, 24, 11, 14, 14, 26, 12, 14, 26, 12, 14, 16, 16, 8, 10, 8].map(w => ({ wch: w }));
-    const hojaRes = XLSX.utils.json_to_sheet(resumen);
-    hojaRes['!cols'] = [26, 7, 9, 38, 28, 14, 10, 14, 34].map(w => ({ wch: w }));
-    XLSX.utils.book_append_sheet(wb, hojaAl, 'Habilitados y sin nota');
-    XLSX.utils.book_append_sheet(wb, hojaRes, 'Resumen por materia');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const buf = await excelBuffer([
+      { nombre: 'Habilitados y sin nota', filas, anchos: [26, 7, 9, 38, 28, 22, 24, 11, 14, 14, 26, 12, 14, 26, 12, 14, 16, 16, 8, 10, 8] },
+      { nombre: 'Resumen por materia', filas: resumen, anchos: [26, 7, 9, 38, 28, 14, 10, 14, 34] },
+    ]);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="finales_sin_nota_${d.periodo.semestre || ''}sem_${d.periodo.anio || ''}.xlsx"`);
     res.send(buf);
@@ -10035,8 +10066,12 @@ async function _sendWhatsAppInterno(phone, message) {
   return { ok: false, error: `Evolution API: ${lastErr}`, numero, _texto: mensajeVariado, _canal: 'evolution' };
 }
 // Envío con registro detallado. meta = { motivo, por }  (por = id de usuario si lo disparó una persona)
+// Cola de envíos: de a un mensaje por vez y con una pausa mínima entre uno y otro. Protege el número frente a ráfagas
+// (Meta lo restringió en julio) sin importar desde qué parte del sistema se pida el envío.
+const WA_INTERVALO_MS = parseInt(process.env.WA_INTERVALO_MS || '2500', 10);
+const waCola = new PQueue({ concurrency: 1, interval: WA_INTERVALO_MS, intervalCap: 1 });
 async function sendWhatsApp(phone, message, meta = {}) {
-  const r = await _sendWhatsAppInterno(phone, message);
+  const r = await waCola.add(() => _sendWhatsAppInterno(phone, message));
   waRegistrarEnvio({
     telefono: r.numero || phone, mensaje: r._texto || message,
     estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'),
@@ -10080,7 +10115,7 @@ async function _enviarImagenWhatsApp(phone, png, caption, nombreArchivo) {
   return { ok: false, error: `Evolution API: ${lastErr}`, numero, _texto: textoPie, _canal: 'evolution' };
 }
 async function sendWhatsAppImagen(phone, png, caption, meta = {}) {
-  const r = await _enviarImagenWhatsApp(phone, png, caption, meta.archivo || 'constancia.png');
+  const r = await waCola.add(() => _enviarImagenWhatsApp(phone, png, caption, meta.archivo || 'constancia.png'));
   waRegistrarEnvio({
     telefono: r.numero || phone, mensaje: `[Imagen: ${meta.archivo || 'constancia.png'}] ${r._texto || caption}`,
     estado: r.ok ? 'enviado' : (r.sinConfirmar ? 'sin_confirmar' : 'fallido'),
@@ -14493,7 +14528,7 @@ try {
   }
 } catch(e) { console.error('Arancel monografía seed error:', e.message); }
 
-app.listen(PORT, () => {
+if (process.env.ITS_TEST) { module.exports = { app, db }; } else app.listen(PORT, () => {
   console.log(`✓ ITS v4 en http://localhost:${PORT}`);
   // Auto-reconectar WhatsApp al arranque si estaba conectado previamente
   const EVO_URL = process.env.EVOLUTION_URL;
