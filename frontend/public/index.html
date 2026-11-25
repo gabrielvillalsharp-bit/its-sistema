@@ -4816,7 +4816,7 @@ function mImportarExcel(){
     <div class="f"><label>Archivo Excel (.xlsx) <span style="color:var(--red)">*</span></label>
       <label class="bs" style="cursor:pointer;width:100%;text-align:center;padding:10px">
         📁 Seleccionar archivo
-        <input type="file" accept=".xlsx,.xls" id="impFile" style="display:none" onchange="document.getElementById('impFileName').textContent=this.files[0]?.name||''"/>
+        <input type="file" accept=".xlsx,.csv" id="impFile" style="display:none" onchange="document.getElementById('impFileName').textContent=this.files[0]?.name||''"/>
       </label>
       <div id="impFileName" style="margin-top:6px;font-size:11px;color:var(--t2)"></div>
     </div>
@@ -5061,7 +5061,7 @@ function mSegundoSemestre(){
     <div class="f"><label>Importar materias/docentes/horarios desde Excel (opcional)</label>
       <label class="bs" style="cursor:pointer;width:100%;text-align:center;padding:10px">
         📥 Seleccionar archivo Excel (.xlsx)
-        <input type="file" accept=".xlsx,.xls" id="s2file" style="display:none" onchange="previewSegundoSemestre(this)"/>
+        <input type="file" accept=".xlsx,.csv" id="s2file" style="display:none" onchange="previewSegundoSemestre(this)"/>
       </label>
       <div id="s2preview" style="margin-top:8px"></div>
     </div>
@@ -5101,7 +5101,7 @@ function mPer(){modal(`<h4>Nuevo período académico</h4><div class="fg">
   <div class="f"><label>Importar asignaciones desde Excel (opcional)</label>
     <label class="bs" style="cursor:pointer;padding:8px 14px;display:block;text-align:center">
       📥 Seleccionar archivo .xlsx
-      <input type="file" id="pFileAsig" accept=".xlsx,.xls" style="display:none" onchange="this.nextElementSibling.textContent=this.files[0]?.name||''"/>
+      <input type="file" id="pFileAsig" accept=".xlsx,.csv" style="display:none" onchange="this.nextElementSibling.textContent=this.files[0]?.name||''"/>
     </label>
     <span id="pFileNom" style="font-size:11px;color:var(--t2)"></span>
   </div>
@@ -6064,7 +6064,7 @@ function mImp(){
     <div id="impInfo" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:8px 12px;font-size:12px;color:#0369a1;margin-bottom:4px"></div>
     <div class="f"><label>4. Seleccionar archivo Excel</label>
       <div class="iz" onclick="document.getElementById('fxl').click()" style="margin-top:4px">📂 Clic para seleccionar archivo .xlsx
-        <input type="file" id="fxl" accept=".xlsx,.xls" style="display:none" onchange="doImp(this)"/></div>
+        <input type="file" id="fxl" accept=".xlsx,.csv" style="display:none" onchange="doImp(this)"/></div>
       <p style="font-size:11px;color:var(--t3);margin-top:4px">Columnas requeridas: <strong>Nombre Completo</strong> (o Nombre + Apellido) y <strong>Cédula</strong> (o CI)</p>
     </div>
   </div>
@@ -7408,7 +7408,7 @@ function nautRenderDetalle(el){
     <h3>📁 ${c.carrera_nombre} — ${c.anio}° año${c.seccion?' · Sección '+c.seccion:''}</h3>
   </div>
   <div class="fb" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
-    <label class="bn" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.xls" style="display:none" onchange="nautImportarExcel(this)"/></label>
+    <label class="bn" style="cursor:pointer">📥 Importar Excel<input type="file" accept=".xlsx,.csv" style="display:none" onchange="nautImportarExcel(this)"/></label>
     <button class="bn" onclick="nautDescargarZip()">⬇️ Descargar todo (ZIP)</button>
     <button class="bn" style="color:var(--red);margin-left:auto" onclick="nautEliminarCarpeta()">🗑️ Eliminar carpeta</button>
   </div>
@@ -18016,7 +18016,7 @@ function mImportarSinAsignar(){
   </div>
   <div class="fg">
     <div class="f"><label>Archivo Excel (.xlsx)</label>
-      <input type="file" id="archSinAsignar" accept=".xlsx,.xls" style="font-size:13px"/>
+      <input type="file" id="archSinAsignar" accept=".xlsx,.csv" style="font-size:13px"/>
     </div>
   </div>
   <div class="mf">
@@ -18261,7 +18261,7 @@ function mImportarPlanilla(){
       <select id="plnCurs"><option value="">Sin asignar sección</option></select></div>
     <div class="f"><label>4. Seleccionar archivo Excel</label>
       <div class="iz" onclick="document.getElementById('fxlPln').click()" style="margin-top:4px">📂 Clic para seleccionar archivo .xlsx / .xls
-        <input type="file" id="fxlPln" accept=".xlsx,.xls" style="display:none" onchange="doImportarPlanilla(this)"/>
+        <input type="file" id="fxlPln" accept=".xlsx,.csv" style="display:none" onchange="doImportarPlanilla(this)"/>
       </div>
     </div>
   </div>

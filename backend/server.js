@@ -7,8 +7,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const XLSX = require('xlsx');
-const { excelBuffer } = require('./excel');
+const { excelBuffer, leerFilas, leerObjetos } = require('./excel');
 const { pdfTabla } = require('./pdf');
 const { fmtDMY } = require('./fechas');
 const archiver = require('archiver');
@@ -3423,11 +3422,10 @@ function _capitalizar(s) {
   return String(s||'').trim().toLowerCase().replace(/(^|\s)([a-záéíóúñ])/g, (m,p1,p2) => p1+p2.toUpperCase());
 }
 // Analiza el Excel y devuelve una previsualización — no escribe nada en la BD.
-app.post('/api/materias/importar-excel', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/materias/importar-excel', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    const rows = await leerFilas(req.file.buffer);
     if (!rows.length) return res.status(400).json({ error: 'El archivo está vacío' });
 
     // Título (para sugerir carrera) — buscamos en las primeras filas la fila de encabezados real
@@ -4232,11 +4230,9 @@ app.delete('/api/alumnos/:id', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Error al eliminar: '+e.message }); }
 });
 
-app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/alumnos/importar', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+    const rows = await leerFilas(req.file.buffer);
 
     // Detectar fila de encabezados buscando "NOMBRE COMPLETO" o "nombre"
     let headerRow = -1, nameCol = -1, ciCol = -1;
@@ -7167,11 +7163,10 @@ app.get('/api/examenes/:id', auth(), (req, res) => {
 });
 
 // Importar exámenes desde Excel — devuelve preview para confirmar
-app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/examenes/importar', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
-    const wb = XLSX.read(req.file.buffer, { type:'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:'' });
+    const rows = await leerObjetos(req.file.buffer);
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
     const preview = [], pendientes = [];
     const TIPOS_OK = ['Parcial','Recuperatorio','Final','Final Recuperatorio','Complementario','Extraordinario'];
@@ -7907,10 +7902,9 @@ app.post('/api/alumnos/:id/aplicar-cambio-carrera', auth(ADM), (req, res) => {
 });
 
 // ── PREVISUALIZAR SIN ASIGNAR ─────────────────────────────────────────────────
-app.post('/api/pagos/previsualizar-sin-asignar', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/pagos/previsualizar-sin-asignar', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', header: 1, raw: true });
+    const rawRows = await leerFilas(req.file.buffer);
     if (!rawRows.length) return res.status(400).json({ error: 'Archivo vacío' });
     function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
     let headerRowIdx = -1;
@@ -7976,10 +7970,9 @@ app.post('/api/pagos/previsualizar-sin-asignar', auth(ADM), upload.single('archi
 });
 
 // ── IMPORTAR PAGOS SIN ASIGNAR CARRERA/SECCIÓN ───────────────────────────────
-app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', header: 1, raw: true });
+    const rawRows = await leerFilas(req.file.buffer);
     if (!rawRows.length) return res.status(400).json({ error: 'Archivo vacío' });
 
     // Detectar fila de encabezados
@@ -8114,10 +8107,9 @@ app.post('/api/pagos/importar-sin-asignar', auth(ADM), upload.single('archivo'),
 });
 
 // ── IMPORTACIÓN MASIVA DE PAGOS DESDE EXCEL ───────────────────────────────────
-app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+    const rows = await leerObjetos(req.file.buffer);
     const results = { ok: 0, conflictos: [], errores: [] };
     const periodo = db.prepare('SELECT id FROM periodos WHERE activo=1').get();
 
@@ -8161,11 +8153,8 @@ app.post('/api/pagos/importar', auth(ADM), upload.single('archivo'), (req, res) 
 });
 
 // ── HELPER COMPARTIDO: parsear planilla Excel → JSON (sin guardar en DB) ─────
-function parsearPlanillaXLSX(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  // raw:true → celdas numéricas devuelven números reales; garantiza mapeo estricto por posición
-  const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
+async function parsearPlanillaXLSX(buffer) {
+  const rawRows = await leerFilas(buffer);
   if (!rawRows.length) throw new Error('Sin datos en el archivo');
 
   const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^["']|["']$/g,'').trim();
@@ -8285,10 +8274,10 @@ function parsearPlanillaXLSX(buffer) {
 }
 
 // ── PASO 1: PREVISUALIZAR planilla (parse sin guardar, para revisión manual) ─
-app.post('/api/pagos/previsualizar-planilla', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/pagos/previsualizar-planilla', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     const { carrera_id, curso_id } = req.body;
-    const parsed = parsearPlanillaXLSX(req.file.buffer);
+    const parsed = await parsearPlanillaXLSX(req.file.buffer);
     res.json({ carrera_id, curso_id, ...parsed });
   } catch(e) { res.status(400).json({ error: 'Error al leer planilla: '+e.message }); }
 });
@@ -8384,15 +8373,11 @@ app.post('/api/pagos/importar-planilla-confirmada', auth(ADM), (req, res) => {
 });
 
 // ── IMPORTACIÓN PLANILLA DE PAGOS (formato: Nombre | CI | Matrícula | mes1 | mes2...) ─
-app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/pagos/importar-planilla', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     const { carrera_id, curso_id } = req.body;
 
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    // raw:true → celdas numéricas devuelven números reales (no strings formateados)
-    // Esto garantiza mapeo estricto: la posición de la columna define el mes, nunca el valor
-    const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true, header: 1 });
+    const rawRows = await leerFilas(req.file.buffer);
     if (!rawRows.length) return res.status(400).json({ error: 'Sin datos en el archivo' });
 
     const norm = h => String(h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^["']|["']$/g,'').trim();
@@ -12300,13 +12285,12 @@ app.post('/api/constancias/registrar-pago', auth(ADM), (req, res) => {
   res.json({ ok: true, pago_id: pid });
 });
 // Importar asignaciones para 2do semestre desde Excel
-app.post('/api/periodos/importar-asignaciones', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/periodos/importar-asignaciones', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
     const { periodo_id } = req.body;
     if (!periodo_id) return res.status(400).json({ error: 'periodo_id requerido' });
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+    const rows = await leerObjetos(req.file.buffer);
     let creadas = 0, errores = [];
     rows.forEach((row, i) => {
       try {
@@ -12908,14 +12892,13 @@ app.delete('/api/nautilus/carpetas/:id', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/nautilus/carpetas/:id/importar-excel', auth(ADM), upload.single('archivo'), (req, res) => {
+app.post('/api/nautilus/carpetas/:id/importar-excel', auth(ADM), upload.single('archivo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Sin archivo' });
     const carpeta = db.prepare('SELECT id FROM nautilus_carpetas WHERE id=?').get(req.params.id);
     if (!carpeta) return res.status(404).json({ error: 'Carpeta no encontrada' });
 
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    const rows = await leerFilas(req.file.buffer);
     if (!rows.length) return res.status(400).json({ error: 'El archivo está vacío' });
 
     const header = rows[0].map(c => _normTxt(c));
@@ -13353,7 +13336,7 @@ app.get('/api/formularios/:id/respuestas', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/formularios/:id/exportar-excel', auth(ADM), (req, res) => {
+app.get('/api/formularios/:id/exportar-excel', auth(ADM), async (req, res) => {
   try {
     const f = db.prepare('SELECT titulo FROM formularios WHERE id=?').get(req.params.id);
     if (!f) return res.status(404).json({ error: 'Formulario no encontrado' });
@@ -13370,35 +13353,8 @@ app.get('/api/formularios/:id/exportar-excel', auth(ADM), (req, res) => {
       (r.fecha||'').slice(0,16),
       ...preguntas.map(p => porRespuesta[r.id]?.[p.id] || '')
     ]);
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    // Ancho de columnas automático
-    ws['!cols'] = header.map((h, i) => {
-      const maxLen = Math.max(h.length, ...rows.map(r => String(r[i]||'').length));
-      return { wch: Math.min(Math.max(maxLen + 2, 12), 50) };
-    });
-    // Colores: encabezado verde ITS, filas alternadas blanco/verde claro
-    const HDR = { fgColor: { rgb: '166534' } };
-    const ROW_ALT = { fgColor: { rgb: 'f0fdf4' } };
-    const HDR_FONT = { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 };
-    const DATA_FONT = { sz: 10 };
-    const BORDER = { top:{style:'thin',color:{rgb:'d1d5db'}}, bottom:{style:'thin',color:{rgb:'d1d5db'}}, left:{style:'thin',color:{rgb:'d1d5db'}}, right:{style:'thin',color:{rgb:'d1d5db'}} };
-    header.forEach((_, ci) => {
-      const cell = XLSX.utils.encode_cell({ r: 0, c: ci });
-      if (!ws[cell]) return;
-      ws[cell].s = { fill: HDR, font: HDR_FONT, alignment: { wrapText: true, vertical: 'center' }, border: BORDER };
-    });
-    rows.forEach((_, ri) => {
-      const isAlt = ri % 2 === 1;
-      header.forEach((__, ci) => {
-        const cell = XLSX.utils.encode_cell({ r: ri + 1, c: ci });
-        if (!ws[cell]) ws[cell] = { t: 's', v: '' };
-        ws[cell].s = { fill: isAlt ? ROW_ALT : { fgColor: { rgb: 'FFFFFF' } }, font: DATA_FONT, alignment: { vertical: 'center' }, border: BORDER };
-      });
-    });
-    ws['!rows'] = [{ hpt: 28 }, ...rows.map(() => ({ hpt: 20 }))];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Respuestas');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const anchos = header.map((h, i) => Math.min(Math.max(Math.max(h.length, ...rows.map(r => String(r[i]||'').length)) + 2, 12), 50));
+    const buf = await excelBuffer([{ nombre: 'Respuestas', encabezados: header, matriz: rows, anchos, color: 'FF166534' }]);
     const nombre = (f.titulo||'formulario').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g,'_');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(nombre)}_respuestas.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
