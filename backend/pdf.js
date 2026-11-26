@@ -1,9 +1,10 @@
 // PDFs generados en el servidor con pdfkit (sin depender del navegador de quien los pide).
 // pdfTabla({ titulo, subtitulo, columnas:[{ t:'Fecha', w:70 }, ...], filas:[[...], ...], pie })  →  Promise<Buffer>
-const PDFDocument = require('pdfkit');
+// pdfkit se carga recién al generar un PDF: si la librería fallara, el servidor igual arranca (Railway usa Node 18)
 
 function pdfTabla({ titulo, subtitulo, columnas, filas, pie, apaisado = true }) {
   return new Promise((resolve, reject) => {
+    const PDFDocument = require('pdfkit');
     const doc = new PDFDocument({ size: 'A4', layout: apaisado ? 'landscape' : 'portrait', margin: 36, bufferPages: true });
     const partes = [];
     doc.on('data', c => partes.push(c));

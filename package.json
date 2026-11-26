@@ -26,7 +26,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.9",
     "p-queue": "^6.6.2",
-    "pdfkit": "^0.21.0",
+    "pdfkit": "0.15.2",
     "pino": "^9.14.0"
   },
   "engines": {
