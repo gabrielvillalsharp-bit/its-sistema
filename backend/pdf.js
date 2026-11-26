@@ -1,56 +1,141 @@
 // PDFs generados en el servidor con pdfkit (sin depender del navegador de quien los pide).
-// pdfTabla({ titulo, subtitulo, columnas:[{ t:'Fecha', w:70 }, ...], filas:[[...], ...], pie })  →  Promise<Buffer>
-// pdfkit se carga recién al generar un PDF: si la librería fallara, el servidor igual arranca (Railway usa Node 18)
+// pdfkit se carga recién al generar un PDF: si la librería fallara, el servidor igual arranca (Railway usa Node 18).
+//
+//  pdfTabla({ titulo, subtitulo, columnas:[{ t, w }], filas:[[...]], pie })         → tabla simple (calendario)
+//  pdfInforme({ titulo, subtitulo, resumen:{ titulo, filas }, carreras:[...], columnas, pie })  → informe por carrera/año/materia
+//     carreras: [{ nombre, cursos:[{ nombre, materias:[{ nombre, docente, filas:[[...]] }] }] }]
+const VERDE = '#0F6E56', VERDE_OSC = '#04342C', GRIS = '#475569', ROJO = '#b91c1c';
 
-function pdfTabla({ titulo, subtitulo, columnas, filas, pie, apaisado = true }) {
-  return new Promise((resolve, reject) => {
-    const PDFDocument = require('pdfkit');
-    const doc = new PDFDocument({ size: 'A4', layout: apaisado ? 'landscape' : 'portrait', margin: 36, bufferPages: true });
-    const partes = [];
+// Pie de página con "Página X de Y". Se escribe con el margen inferior en 0: si no, pdfkit agrega una hoja en blanco por cada pie.
+function ponerPies(doc, pie) {
+  const n = doc.bufferedPageRange().count;
+  for (let i = 0; i < n; i++) {
+    doc.switchToPage(i);
+    const mb = doc.page.margins.bottom; doc.page.margins.bottom = 0;
+    doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
+      .text(`${pie || ''}   ·   Página ${i + 1} de ${n}`, 36, doc.page.height - 26, { width: doc.page.width - 72, align: 'center', lineBreak: false });
+    doc.page.margins.bottom = mb;
+  }
+}
+
+function nuevoDoc(apaisado) {
+  const PDFDocument = require('pdfkit');
+  const doc = new PDFDocument({ size: 'A4', layout: apaisado ? 'landscape' : 'portrait', margin: 36, bufferPages: true });
+  const partes = [];
+  const listo = new Promise((resolve, reject) => {
     doc.on('data', c => partes.push(c));
     doc.on('end', () => resolve(Buffer.concat(partes)));
     doc.on('error', reject);
+  });
+  return { doc, listo };
+}
 
-    const ancho = doc.page.width - 72;
-    const sumaW = columnas.reduce((s, c) => s + c.w, 0);
-    const cols = columnas.map(c => ({ ...c, w: (c.w / sumaW) * ancho }));
-    const VERDE = '#0F6E56';
+// Dibuja una fila de tabla con altura según el texto más largo; salta de hoja si no entra.
+function fila(doc, cols, valores, i, opts = {}) {
+  doc.font(opts.negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.size || 8.5);
+  const alto = Math.max(16, ...valores.map((v, k) => doc.heightOfString(String(v ?? ''), { width: cols[k].w - 8 }) + 8));
+  if (doc.y + alto > doc.page.height - 48) { doc.addPage(); if (opts.alSaltar) opts.alSaltar(); }
+  const y = doc.y, ancho = cols.reduce((s, c) => s + c.w, 0);
+  if (i % 2 === 1) doc.rect(36, y, ancho, alto).fill('#F1F5F9');
+  let x = 36;
+  doc.fillColor('#0f172a');
+  valores.forEach((v, k) => { doc.text(String(v ?? ''), x + 4, y + 4, { width: cols[k].w - 8 }); x += cols[k].w; });
+  doc.y = y + alto;
+}
 
-    const encabezado = (conTitulo) => {
-      if (conTitulo) {
-        doc.font('Helvetica-Bold').fontSize(15).fillColor('#04342C').text(titulo, 36, 36, { width: ancho });
-        if (subtitulo) doc.font('Helvetica').fontSize(9.5).fillColor('#475569').text(subtitulo, { width: ancho });
-        doc.moveDown(0.6);
-      }
-      const y = doc.y;
-      doc.rect(36, y, ancho, 18).fill(VERDE);
-      let x = 36;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#FFFFFF');
-      cols.forEach(c => { doc.text(c.t, x + 4, y + 5, { width: c.w - 8, lineBreak: false }); x += c.w; });
-      doc.y = y + 18;
-    };
+function encabezadoTabla(doc, cols, color) {
+  const y = doc.y, ancho = cols.reduce((s, c) => s + c.w, 0);
+  doc.rect(36, y, ancho, 17).fill(color || VERDE);
+  let x = 36;
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#FFFFFF');
+  cols.forEach(c => { doc.text(c.t, x + 4, y + 5, { width: c.w - 8, lineBreak: false }); x += c.w; });
+  doc.y = y + 17;
+}
 
-    encabezado(true);
-    filas.forEach((f, i) => {
-      doc.font('Helvetica').fontSize(8.5);
-      const alto = Math.max(16, ...f.map((v, k) => doc.heightOfString(String(v ?? ''), { width: cols[k].w - 8 }) + 8));
-      if (doc.y + alto > doc.page.height - 50) { doc.addPage(); encabezado(false); }
-      const y = doc.y;
-      if (i % 2 === 1) doc.rect(36, y, ancho, alto).fill('#F1F5F9');
-      let x = 36;
-      doc.fillColor('#0f172a');
-      f.forEach((v, k) => { doc.text(String(v ?? ''), x + 4, y + 4, { width: cols[k].w - 8 }); x += cols[k].w; });
-      doc.y = y + alto;
-    });
+const escalar = (columnas, ancho) => { const s = columnas.reduce((a, c) => a + c.w, 0); return columnas.map(c => ({ ...c, w: (c.w / s) * ancho })); };
 
-    const n = doc.bufferedPageRange().count;
-    for (let i = 0; i < n; i++) {
-      doc.switchToPage(i);
-      doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
-        .text(`${pie || ''}   ·   Página ${i + 1} de ${n}`, 36, doc.page.height - 30, { width: ancho, align: 'center', lineBreak: false });
-    }
-    doc.end();
+// Si no queda lugar para el título + al menos 2 filas, pasa a la hoja siguiente (evita títulos huérfanos)
+const reservar = (doc, alto) => { if (doc.y + alto > doc.page.height - 48) doc.addPage(); };
+
+// ── TABLA SIMPLE ──────────────────────────────────────────────────────────────
+function pdfTabla({ titulo, subtitulo, columnas, filas, pie, apaisado = true }) {
+  return new Promise((resolve, reject) => {
+    try {
+      const { doc, listo } = nuevoDoc(apaisado);
+      listo.then(resolve, reject);
+      const cols = escalar(columnas, doc.page.width - 72);
+      doc.font('Helvetica-Bold').fontSize(15).fillColor(VERDE_OSC).text(titulo, 36, 36, { width: doc.page.width - 72 });
+      if (subtitulo) doc.font('Helvetica').fontSize(9.5).fillColor(GRIS).text(subtitulo, { width: doc.page.width - 72 });
+      doc.moveDown(0.6);
+      encabezadoTabla(doc, cols);
+      filas.forEach((f, i) => fila(doc, cols, f, i, { alSaltar: () => encabezadoTabla(doc, cols) }));
+      ponerPies(doc, pie);
+      doc.end();
+    } catch (e) { reject(e); }
   });
 }
 
-module.exports = { pdfTabla };
+// ── INFORME POR CARRERA → AÑO → MATERIA ───────────────────────────────────────
+function pdfInforme({ titulo, subtitulo, resumen, carreras, columnas, pie, apaisado = true }) {
+  return new Promise((resolve, reject) => {
+    try {
+      const { doc, listo } = nuevoDoc(apaisado);
+      listo.then(resolve, reject);
+      const W = doc.page.width - 72;
+      const cols = escalar(columnas, W);
+
+      // Portada con título y resumen por carrera
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(VERDE_OSC).text(titulo, 36, 36, { width: W });
+      if (subtitulo) doc.font('Helvetica').fontSize(10).fillColor(GRIS).text(subtitulo, { width: W });
+      doc.moveDown(0.8);
+      if (resumen && resumen.filas.length) {
+        const rc = escalar(resumen.columnas, Math.min(W, 460));
+        doc.font('Helvetica-Bold').fontSize(11).fillColor(VERDE_OSC).text(resumen.titulo, 36);
+        doc.moveDown(0.3);
+        encabezadoTabla(doc, rc);
+        resumen.filas.forEach((f, i) => fila(doc, rc, f, i, { negrita: f[0] === 'TOTAL' }));
+      }
+
+      carreras.forEach(car => {
+        doc.addPage();
+        const total = car.cursos.reduce((s, c) => s + c.materias.reduce((a, m) => a + m.filas.length, 0), 0);
+        // Banda de carrera
+        const y0 = doc.y;
+        doc.rect(36, y0, W, 26).fill(VERDE_OSC);
+        doc.font('Helvetica-Bold').fontSize(13).fillColor('#FFFFFF').text(car.nombre.toUpperCase(), 46, y0 + 7, { width: W - 160, lineBreak: false });
+        doc.font('Helvetica').fontSize(10).text(total + ' pendiente' + (total !== 1 ? 's' : ''), 36, y0 + 8, { width: W - 10, align: 'right', lineBreak: false });
+        doc.y = y0 + 34;
+
+        car.cursos.forEach(cur => {
+          const totalCur = cur.materias.reduce((a, m) => a + m.filas.length, 0);
+          reservar(doc, 80);
+          const y1 = doc.y;
+          doc.rect(36, y1, W, 20).fill('#D1FAE5');
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(VERDE_OSC).text(cur.nombre, 44, y1 + 5, { width: W - 120, lineBreak: false });
+          doc.font('Helvetica').fontSize(9).text(totalCur + ' alumno' + (totalCur !== 1 ? 's' : ''), 36, y1 + 6, { width: W - 8, align: 'right', lineBreak: false });
+          doc.y = y1 + 26;
+
+          cur.materias.forEach(mat => {
+            reservar(doc, 70);
+            doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#0f172a').text(mat.nombre, 40, doc.y, { continued: true, width: W - 8 });
+            doc.font('Helvetica').fillColor(GRIS).text(mat.docente ? '   ·   Docente: ' + mat.docente : '', { continued: false });
+            doc.moveDown(0.2);
+            encabezadoTabla(doc, cols, '#475569');
+            mat.filas.forEach((f, i) => fila(doc, cols, f, i, { alSaltar: () => encabezadoTabla(doc, cols, '#475569') }));
+            doc.moveDown(0.7);
+          });
+          doc.moveDown(0.3);
+        });
+      });
+
+      if (!carreras.length) {
+        doc.addPage();
+        doc.font('Helvetica').fontSize(12).fillColor(GRIS).text('No hay pendientes con los filtros elegidos.', 36, 60);
+      }
+      ponerPies(doc, pie);
+      doc.end();
+    } catch (e) { reject(e); }
+  });
+}
+
+module.exports = { pdfTabla, pdfInforme };

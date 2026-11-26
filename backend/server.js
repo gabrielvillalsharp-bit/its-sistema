@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { excelBuffer, leerFilas, leerObjetos } = require('./excel');
-const { pdfTabla } = require('./pdf');
+const { pdfTabla, pdfInforme } = require('./pdf');
 const { fmtDMY, diasEntre } = require('./fechas');
 const archiver = require('archiver');
 const rateLimit = require('express-rate-limit');
@@ -9263,25 +9263,39 @@ app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
     if (fecha) l = l.filter(r => String(r.fecha_examen).slice(0, 10) === fecha);
     if (carrera_id) l = l.filter(r => r.carrera_id === carrera_id);
     const dir = orden === 'desc' ? -1 : 1;
-    l.sort((a, b) => (a.carrera_nombre || '').localeCompare(b.carrera_nombre || '') || (a.anio - b.anio) || (a.materia_nombre || '').localeCompare(b.materia_nombre || '')
-      || dir * String(a.fecha_examen).localeCompare(String(b.fecha_examen)) || (a.alumno_nombre || '').localeCompare(b.alumno_nombre || ''));
-    const porCarrera = {}; l.forEach(r => { porCarrera[r.carrera_nombre] = (porCarrera[r.carrera_nombre] || 0) + 1; });
-    const filas = l.map(r => {
+    l.sort((a, b) => (a.carrera_nombre || '').localeCompare(b.carrera_nombre || '') || (a.anio - b.anio) || String(a.division || '').localeCompare(String(b.division || ''))
+      || (a.materia_nombre || '').localeCompare(b.materia_nombre || '') || dir * String(a.fecha_examen).localeCompare(String(b.fecha_examen))
+      || (a.alumno_nombre || '').localeCompare(b.alumno_nombre || ''));
+    // carrera → curso (año + sección) → materia
+    const carreras = [];
+    l.forEach(r => {
+      let car = carreras.find(c => c.id === r.carrera_id);
+      if (!car) { car = { id: r.carrera_id, nombre: r.carrera_nombre, cursos: [] }; carreras.push(car); }
+      const nomCurso = r.anio + '.° año' + (r.division && r.division !== 'U' ? ' · Sección ' + r.division : '');
+      let cur = car.cursos.find(c => c.nombre === nomCurso);
+      if (!cur) { cur = { nombre: nomCurso, materias: [] }; car.cursos.push(cur); }
+      let mat = cur.materias.find(m => m.id === r.asignacion_id);
+      if (!mat) { mat = { id: r.asignacion_id, nombre: r.materia_nombre, docente: r.docente_nombre, filas: [] }; cur.materias.push(mat); }
       const f = String(r.fecha_examen).slice(0, 10);
-      return [
-        r.carrera_nombre + ' ' + r.anio + '°' + (r.division && r.division !== 'U' ? ' ' + r.division : ''),
-        r.materia_nombre, r.docente_nombre || '—', r.alumno_nombre, r.alumno_ci || '',
-        'Falta la nota del ' + (TIPO[r.tipo_examen] || r.tipo_examen),
-        fmtDMY(f) + (r.hora_examen ? ' ' + r.hora_examen : ''), diasEntre(f, hoy) + ' d',
-      ];
+      mat.filas.push([
+        r.alumno_nombre, r.alumno_ci || '', 'Falta la nota del ' + (TIPO[r.tipo_examen] || r.tipo_examen),
+        fmtDMY(f) + (r.hora_examen ? ' ' + r.hora_examen : ''), diasEntre(f, hoy) + ' días',
+      ]);
     });
-    const buf = await pdfTabla({
+    const resumenFilas = carreras.map(c => {
+      const n = c.cursos.reduce((a, cu) => a + cu.materias.reduce((x, m) => x + m.filas.length, 0), 0);
+      const alumnos = new Set(l.filter(r => r.carrera_id === c.id).map(r => r.alumno_id)).size;
+      return [c.nombre, n, alumnos];
+    });
+    if (resumenFilas.length) resumenFilas.push(['TOTAL', l.length, new Set(l.map(r => r.alumno_id)).size]);
+    const buf = await pdfInforme({
       titulo: 'Habilitados con el examen rendido y sin nota',
-      subtitulo: filas.length + ' pendiente' + (filas.length !== 1 ? 's' : '') + (fecha ? ' · examen del ' + fmtDMY(fecha) : '') + ' · ' +
-        (Object.entries(porCarrera).map(([c, n]) => c + ': ' + n).join(' · ') || 'sin pendientes'),
-      columnas: [{ t: 'Carrera / curso', w: 120 }, { t: 'Materia', w: 130 }, { t: 'Docente', w: 100 }, { t: 'Alumno', w: 120 }, { t: 'C.I.', w: 55 },
-        { t: 'Nota que falta', w: 120 }, { t: 'Examen', w: 75 }, { t: 'Atraso', w: 38 }],
-      filas, pie: 'Generado el ' + fmtDMY(hoy),
+      subtitulo: 'Instituto Técnico Superior Santísima Trinidad · al ' + fmtDMY(hoy) + (fecha ? ' · exámenes del ' + fmtDMY(fecha) : '') +
+        '. Alumnos habilitados (pagaron o habilitó Dirección) cuyo examen ya se rindió y el docente todavía no cargó la nota.',
+      resumen: { titulo: 'Resumen por carrera', columnas: [{ t: 'Carrera', w: 220 }, { t: 'Notas pendientes', w: 90 }, { t: 'Alumnos', w: 70 }], filas: resumenFilas },
+      carreras,
+      columnas: [{ t: 'Alumno', w: 190 }, { t: 'C.I.', w: 70 }, { t: 'Nota que falta', w: 170 }, { t: 'Examen', w: 100 }, { t: 'Atraso', w: 60 }],
+      pie: 'Generado el ' + fmtDMY(hoy),
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="habilitados_sin_nota.pdf"');
