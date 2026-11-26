@@ -12599,7 +12599,7 @@ app.get('/api/gestion-alumnos/inactivos', auth(ADM), (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── ALUMNOS DE ÚLTIMO AÑO (egresan este año) con materias sin nota o reprobadas ──────────────
+// ── ALUMNOS DE ÚLTIMO AÑO (egresan este año), activos e inactivos, con materias sin nota o reprobadas ───────
 // Último año = el año más alto de cursos que tiene su carrera. Mira las notas de su curso en TODOS los
 // semestres. Falta nota = nota_final NULL (materia sin cerrar); reprobada = nota_final 1 (queda extraordinario).
 app.get('/api/alumnos/ultimo-anio-pendientes', auth(ADM), (req, res) => {
@@ -12610,11 +12610,11 @@ app.get('/api/alumnos/ultimo-anio-pendientes', auth(ADM), (req, res) => {
     db.prepare('SELECT id, semestres FROM carreras').all().forEach(r => { if (r.semestres >= 2) maxAnio[r.id] = Math.ceil(r.semestres / 2); });
     const alumnos = db.prepare(`
       SELECT a.id, COALESCE(a.nombre,u.nombre) as nombre, COALESCE(a.apellido,u.apellido) as apellido,
-        COALESCE(a.ci,u.ci) as ci, a.telefono, ca.id as carrera_id, ca.nombre as carrera_nombre,
+        COALESCE(a.ci,u.ci) as ci, a.telefono, a.estado, ca.id as carrera_id, ca.nombre as carrera_nombre,
         cu.id as curso_id, cu.anio, cu.division
       FROM alumnos a LEFT JOIN usuarios u ON a.usuario_id=u.id
       JOIN cursos cu ON a.curso_id=cu.id JOIN carreras ca ON cu.carrera_id=ca.id
-      WHERE a.estado='Activo' ORDER BY ca.nombre, apellido, nombre`).all()
+      WHERE a.estado IN ('Activo','Inactivo') ORDER BY ca.nombre, apellido, nombre`).all()
       .filter(a => a.anio === maxAnio[a.carrera_id]);
     const qNotas = db.prepare(`
       SELECT m.nombre as materia, n.nota_final, n.estado, p.semestre, p.nombre as periodo

@@ -5277,10 +5277,12 @@ async function mUltimoAnio(){
   const carrs=[...new Map((W._ua||[]).map(a=>[a.carrera_id,a.carrera_nombre])).entries()];
   modal(`<div class="mh"><h4>🎓 Último año · notas pendientes</h4><button class="mc" onclick="cm()">✕</button></div>
     <div class="ir" style="background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6;border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px">
-      Alumnos <strong>activos</strong> que cursan el <strong>último año de su carrera</strong> (egresan este año). Se revisan las materias de su curso en todos los semestres: <strong>sin nota</strong> = materia sin cerrar; <strong>reprobada</strong> = nota 1 (queda extraordinario).
+      Alumnos <strong>activos e inactivos</strong> que cursan el <strong>último año de su carrera</strong> (egresan este año). Se revisan las materias de su curso en todos los semestres: <strong>sin nota</strong> = materia sin cerrar; <strong>reprobada</strong> = nota 1 (queda extraordinario).
     </div>
     <div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap">
       <select id="uaCarr" onchange="uaRender()" style="flex:2;font-size:12px;padding:7px"><option value="">Todas las carreras</option>${carrs.map(([id,n])=>`<option value="${id}">${escH(n)}</option>`).join('')}</select>
+      <select id="uaEst" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="">Activos e inactivos</option><option value="Activo">Solo activos</option><option value="Inactivo">Solo inactivos</option></select>
+      <select id="uaMora" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="">Con y sin mora</option><option value="mora">Con cuotas adeudadas</option><option value="aldia">Al día</option></select>
       <select id="uaVer" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="pend">Solo con pendientes</option><option value="todos">Todos los de último año</option></select>
       <select id="uaSem" onchange="uaRender()" style="flex:1;font-size:12px;padding:7px"><option value="1">Pendientes del 1.er semestre</option><option value="2">Pendientes del 2.º semestre</option><option value="">Ambos semestres</option></select>
       <input id="uaBus" oninput="uaRender()" placeholder="Nombre o CI..." style="flex:2;font-size:12px;padding:7px"/>
@@ -5290,17 +5292,20 @@ async function mUltimoAnio(){
   uaRender();
 }
 function uaRender(){
-  const carr=v('uaCarr'), ver=v('uaVer'), bus=(v('uaBus')||'').toLowerCase().trim(), sem=v('uaSem');
+  const carr=v('uaCarr'), ver=v('uaVer'), bus=(v('uaBus')||'').toLowerCase().trim(), sem=v('uaSem'), est=v('uaEst'), mora=v('uaMora');
   const fs_=x=>!sem||String(x.semestre)===sem;
   let l=(W._ua||[]).map(a=>({...a,sin_nota:a.sin_nota.filter(fs_),reprobadas:a.reprobadas.filter(fs_)}));
   if(carr) l=l.filter(a=>String(a.carrera_id)===carr);
+  if(est) l=l.filter(a=>a.estado===est);
+  if(mora==='mora') l=l.filter(a=>a.meses_deuda>0);
+  if(mora==='aldia') l=l.filter(a=>!a.meses_deuda);
   if(bus) l=l.filter(a=>((a.apellido||'')+' '+(a.nombre||'')).toLowerCase().includes(bus)||(a.ci||'').toLowerCase().includes(bus));
   const conPend=a=>a.sin_nota.length||a.reprobadas.length;
   if(ver==='pend') l=l.filter(conPend);
   const lista=(arr)=>arr.length?arr.map(x=>`<div style="font-size:11px">${escH(x.materia)} <span style="color:#94a3b8">(${x.semestre}.º sem)</span></div>`).join(''):'<span style="color:#94a3b8">—</span>';
   const tb=document.getElementById('uaTb'); if(!tb) return;
   tb.innerHTML=l.map(a=>`<tr>
-    <td><strong>${escH(a.apellido||'')}, ${escH(a.nombre||'')}</strong></td><td>${escH(a.ci||'')}</td>
+    <td><strong>${escH(a.apellido||'')}, ${escH(a.nombre||'')}</strong>${a.estado==='Inactivo'?' <span class="bx br" style="font-size:9.5px">INACTIVO</span>':''}</td><td>${escH(a.ci||'')}</td>
     <td style="font-size:11px">${escH(a.carrera_nombre)} ${a.anio}°${a.division==='U'?'':escH(a.division||'')}</td>
     <td>${a.aprobadas}/${a.total_materias}</td>
     <td>${lista(a.sin_nota)}</td><td>${lista(a.reprobadas)}</td>
