@@ -13818,6 +13818,7 @@ async function pgSolicitudes(el){
           <option value="asc">Más antiguas primero</option>
           <option value="desc">Más recientes primero</option>
         </select>
+        <button onclick="hsnPdf()" style="padding:6px 12px;border:none;border-radius:7px;font-size:12px;font-weight:700;background:#b91c1c;color:#fff;cursor:pointer">📄 Descargar PDF con el detalle</button>
         <label style="font-size:11px;font-weight:700;color:#78350f">Fecha puntual:</label>
         <input type="date" id="hsn-fecha" onchange="hsnAplicarFiltro()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
         <button onclick="document.getElementById('hsn-fecha').value='';hsnAplicarFiltro()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:11px;background:#fff;cursor:pointer">✕ Limpiar fecha</button>
@@ -13830,6 +13831,18 @@ async function pgSolicitudes(el){
   hsnAplicarFiltro();
 }
 
+async function hsnPdf(){
+  try{
+    const q=new URLSearchParams(); const f=v('hsn-fecha'), o=v('hsn-orden');
+    if(f) q.set('fecha',f); if(o) q.set('orden',o);
+    const w=window.open('','_blank'); // se abre antes de pedir el PDF para que el navegador no lo bloquee
+    const r=await fetch('/api/admin/habilitados-sin-nota.pdf?'+q.toString(),{headers:{'Authorization':'Bearer '+tok}});
+    if(!r.ok){ if(w) w.close(); throw new Error('No se pudo generar el PDF'); }
+    const url=URL.createObjectURL(await r.blob());
+    if(w) w.location=url; else { const a=document.createElement('a'); a.href=url; a.download='habilitados_sin_nota.pdf'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){ toast(e.message,'err'); }
+}
 function hsnAplicarFiltro(){
   const orden=v('hsn-orden')||'asc';
   const fecha=v('hsn-fecha')||'';

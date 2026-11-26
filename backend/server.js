@@ -9,7 +9,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { excelBuffer, leerFilas, leerObjetos } = require('./excel');
 const { pdfTabla } = require('./pdf');
-const { fmtDMY } = require('./fechas');
+const { fmtDMY, diasEntre } = require('./fechas');
 const archiver = require('archiver');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
@@ -9210,8 +9210,7 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
 // carrera → año → materia. h.tipo_examen coincide 1:1 con el nombre de la
 // columna en `notas` (final_ord, final_recuperatorio, parcial_recuperatorio,
 // complementario, extraordinario), así que se puede leer directo con COALESCE.
-app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
-  try {
+function habilitadosSinNotaLista() {
     const rows = db.prepare(`
       SELECT h.id as hab_id, h.tipo_examen, h.fecha as fecha_habilitacion, h.asignacion_id,
         al.id as alumno_id, al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
@@ -9246,8 +9245,48 @@ app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
         tipo_examen: r.tipo_examen, fecha_habilitacion: r.fecha_habilitacion,
         fecha_examen: r.fecha_examen, hora_examen: r.hora_examen,
       }));
-    res.json(pendientes);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    return pendientes;
+}
+app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
+  try { res.json(habilitadosSinNotaLista()); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PDF con el detalle de qué nota le falta a cada habilitado cuyo examen YA se rindió (lo mismo que ve el director en pantalla).
+// Filtros opcionales: fecha (un día puntual), carrera_id, orden=asc|desc (por fecha de examen).
+app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
+  try {
+    const { fecha, carrera_id, orden } = req.query;
+    const hoy = hoyPY();
+    const TIPO = { parcial: 'Parcial', parcial_recuperatorio: 'Parcial Recuperatorio', final_ord: 'Final Ordinario', final_recuperatorio: 'Final Recuperatorio', complementario: 'Final Complementario', extraordinario: 'Final Extraordinario' };
+    let l = habilitadosSinNotaLista().filter(r => r.fecha_examen && String(r.fecha_examen).slice(0, 10) < hoy);
+    if (fecha) l = l.filter(r => String(r.fecha_examen).slice(0, 10) === fecha);
+    if (carrera_id) l = l.filter(r => r.carrera_id === carrera_id);
+    const dir = orden === 'desc' ? -1 : 1;
+    l.sort((a, b) => (a.carrera_nombre || '').localeCompare(b.carrera_nombre || '') || (a.anio - b.anio) || (a.materia_nombre || '').localeCompare(b.materia_nombre || '')
+      || dir * String(a.fecha_examen).localeCompare(String(b.fecha_examen)) || (a.alumno_nombre || '').localeCompare(b.alumno_nombre || ''));
+    const porCarrera = {}; l.forEach(r => { porCarrera[r.carrera_nombre] = (porCarrera[r.carrera_nombre] || 0) + 1; });
+    const filas = l.map(r => {
+      const f = String(r.fecha_examen).slice(0, 10);
+      return [
+        r.carrera_nombre + ' ' + r.anio + '°' + (r.division && r.division !== 'U' ? ' ' + r.division : ''),
+        r.materia_nombre, r.docente_nombre || '—', r.alumno_nombre, r.alumno_ci || '',
+        'Falta la nota del ' + (TIPO[r.tipo_examen] || r.tipo_examen),
+        fmtDMY(f) + (r.hora_examen ? ' ' + r.hora_examen : ''), diasEntre(f, hoy) + ' d',
+      ];
+    });
+    const buf = await pdfTabla({
+      titulo: 'Habilitados con el examen rendido y sin nota',
+      subtitulo: filas.length + ' pendiente' + (filas.length !== 1 ? 's' : '') + (fecha ? ' · examen del ' + fmtDMY(fecha) : '') + ' · ' +
+        (Object.entries(porCarrera).map(([c, n]) => c + ': ' + n).join(' · ') || 'sin pendientes'),
+      columnas: [{ t: 'Carrera / curso', w: 120 }, { t: 'Materia', w: 130 }, { t: 'Docente', w: 100 }, { t: 'Alumno', w: 120 }, { t: 'C.I.', w: 55 },
+        { t: 'Nota que falta', w: 120 }, { t: 'Examen', w: 75 }, { t: 'Atraso', w: 38 }],
+      filas, pie: 'Generado el ' + fmtDMY(hoy),
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="habilitados_sin_nota.pdf"');
+    res.send(buf);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── HABILITADOS DE MIS MATERIAS (para el docente, ej. desde el celular) ──────

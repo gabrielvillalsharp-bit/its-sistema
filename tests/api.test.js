@@ -70,4 +70,18 @@ describe('API', () => {
       expect(av).not.toContain('t_activo');
     });
   });
+  it('PDF de habilitados sin nota: solo exámenes ya rendidos, con el detalle de la nota que falta', async () => {
+    const asig = db.prepare('SELECT a.id, a.curso_id FROM asignaciones a LIMIT 1').get();
+    const per = db.prepare('SELECT id FROM periodos LIMIT 1').get().id;
+    db.prepare("INSERT INTO alumnos (id,nombre,apellido,ci,estado,curso_id,carrera_id) VALUES ('t_hab','Hab','Pendiente','5551234','Activo',?,(SELECT carrera_id FROM cursos WHERE id=?))").run(asig.curso_id, asig.curso_id);
+    db.prepare("INSERT INTO examenes (id,asignacion_id,tipo,fecha,hora,periodo_id) VALUES ('t_ex_pasado',?,'final_ord','2020-01-10','19:00',?)").run(asig.id, per);
+    db.prepare("INSERT INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado) VALUES ('t_h1','t_hab',?,'final_ord',1)").run(asig.id);
+    const j = await auth(request(app).get('/api/admin/habilitados-sin-nota'));
+    expect(j.status, JSON.stringify(j.body)).toBe(200);
+    expect(j.body.some(r => r.alumno_id === 't_hab' && r.tipo_examen === 'final_ord')).toBe(true);
+    const r = await auth(request(app).get('/api/admin/habilitados-sin-nota.pdf')).buffer(true).parse((res, cb) => { const c = []; res.on('data', d => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toBe('application/pdf');
+    expect(r.body.slice(0, 4).toString()).toBe('%PDF');
+  });
 });
