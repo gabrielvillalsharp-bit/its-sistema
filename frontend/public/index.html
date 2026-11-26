@@ -13245,7 +13245,7 @@ async function dupConfirmarUnificar(conservar_id, eliminar_id){
 
 async function pgSolicitudes(el){
   el.innerHTML='<div class="ph"><h3>👥 Gestión de Alumnos</h3></div>'+skeletonTable(4,4);
-  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios,auditAlumnos,habsSinNota]=await Promise.all([
+  const [sols,informes,ausencias,inactivos,sinAsignar,regs,habs,qrCambios,auditAlumnos,habsSinNotaTodos]=await Promise.all([
     api('GET','/api/solicitudes-alumno').catch(()=>[]),
     api('GET','/api/gestion-alumnos/informes').catch(()=>[]),
     api('GET','/api/gestion-alumnos/ausencias-consecutivas').catch(()=>[]),
@@ -13257,6 +13257,8 @@ async function pgSolicitudes(el){
     api('GET','/api/admin/auditoria?tabla=alumnos&limite=500').catch(()=>[]),
     api('GET','/api/admin/habilitados-sin-nota').catch(()=>[]),
   ]);
+  // Solo se muestran los habilitados cuyo examen YA pasó y siguen sin nota (los de exámenes que todavía no se rinden no se listan)
+  const habsSinNota=(habsSinNotaTodos||[]).filter(r=>r.fecha_examen&&r.fecha_examen<hoyPY());
   const pend=sols.filter(s=>s.estado==='pendiente');
   const otras=sols.filter(s=>s.estado!=='pendiente');
   const informesPend=informes.filter(i=>i.estado==='pendiente');
@@ -13841,30 +13843,19 @@ function renderHabsSinNotaSeparado(listaOriginal, orden, fechaFiltro){
   if(fechaFiltro) lista=lista.filter(r=>r.fecha_examen===fechaFiltro);
   if(!lista.length) return '<div class="es">✅ No hay habilitados pendientes de nota'+(fechaFiltro?' en esa fecha':'')+'</div>';
 
-  const hoy=new Date().toISOString().slice(0,10);
+  const hoy=hoyPY();
+  // Solo los de fecha vencida: los de exámenes que todavía no se rindieron no se muestran
   const vencidos=lista.filter(r=>r.fecha_examen && r.fecha_examen<hoy);
-  const proximos=lista.filter(r=>!r.fecha_examen || r.fecha_examen>=hoy);
+  if(!vencidos.length) return '<div class="es">✅ No hay habilitados con el examen ya rendido y sin nota'+(fechaFiltro?' en esa fecha':'')+'</div>';
 
   const dir=orden==='desc'?-1:1;
-  const sorter=(a,b)=>{
-    // Sin fecha de examen va al final, sin importar el orden elegido
-    if(!a.fecha_examen && !b.fecha_examen) return 0;
-    if(!a.fecha_examen) return 1;
-    if(!b.fecha_examen) return -1;
-    return dir*a.fecha_examen.localeCompare(b.fecha_examen);
-  };
-  vencidos.sort(sorter);
-  proximos.sort(sorter);
+  vencidos.sort((a,b)=>dir*a.fecha_examen.localeCompare(b.fecha_examen));
 
   return `
-    ${vencidos.length?`<div style="margin-bottom:16px">
+    <div style="margin-bottom:16px">
       <div style="font-size:12px;font-weight:800;color:#b91c1c;margin-bottom:8px">🔴 Ya evaluados — fecha vencida (${vencidos.length})</div>
       ${renderHabsSinNota(vencidos)}
-    </div>`:''}
-    ${proximos.length?`<div>
-      <div style="font-size:12px;font-weight:800;color:#0369a1;margin-bottom:8px">🟡 Próximos a evaluarse (${proximos.length})</div>
-      ${renderHabsSinNota(proximos)}
-    </div>`:''}
+    </div>
   `;
 }
 
