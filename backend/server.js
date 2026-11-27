@@ -9288,13 +9288,22 @@ app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
       return [c.nombre, n, alumnos];
     });
     if (resumenFilas.length) resumenFilas.push(['TOTAL', l.length, new Set(l.map(r => r.alumno_id)).size]);
+    const porDoc = {};
+    l.forEach(r => {
+      const k = r.docente_nombre || 'Sin docente asignado';
+      const d = porDoc[k] || (porDoc[k] = { mats: new Set(), n: 0, carr: new Set() });
+      d.mats.add(r.asignacion_id); d.n++; d.carr.add(r.carrera_nombre);
+    });
+    const resumenDocentes = Object.entries(porDoc).sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0]))
+      .map(([nom, d]) => [nom, d.mats.size, d.n, [...d.carr].join(', ')]);
     const buf = await pdfInforme({
       titulo: 'Habilitados con el examen rendido y sin nota',
-      subtitulo: 'Instituto Técnico Superior Santísima Trinidad · al ' + fmtDMY(hoy) + (fecha ? ' · exámenes del ' + fmtDMY(fecha) : '') +
+      subtitulo: 'Situación al ' + fmtDMY(hoy) + (fecha ? ' · exámenes del ' + fmtDMY(fecha) : '') +
         '. Alumnos habilitados (pagaron o habilitó Dirección) cuyo examen ya se rindió y el docente todavía no cargó la nota.',
+      resumen2: { titulo: 'Docentes con notas sin cargar', columnas: [{ t: 'Docente', w: 190 }, { t: 'Materias', w: 60 }, { t: 'Notas pendientes', w: 90 }, { t: 'Carrera(s)', w: 220 }], filas: resumenDocentes },
       resumen: { titulo: 'Resumen por carrera', columnas: [{ t: 'Carrera', w: 220 }, { t: 'Notas pendientes', w: 90 }, { t: 'Alumnos', w: 70 }], filas: resumenFilas },
       carreras,
-      columnas: [{ t: 'Alumno', w: 190 }, { t: 'C.I.', w: 70 }, { t: 'Nota que falta', w: 170 }, { t: 'Examen', w: 100 }, { t: 'Atraso', w: 60 }],
+      columnas: [{ t: 'Alumno', w: 190 }, { t: 'C.I.', w: 70 }, { t: 'NOTA QUE FALTA', w: 190, estilo: { negrita: true, color: '#b91c1c' } }, { t: 'Examen rendido', w: 100 }, { t: 'Atraso', w: 60, estilo: { negrita: true } }],
       pie: 'Generado el ' + fmtDMY(hoy),
     });
     res.setHeader('Content-Type', 'application/pdf');
