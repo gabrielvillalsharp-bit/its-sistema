@@ -13820,6 +13820,10 @@ async function pgSolicitudes(el){
             <option value="Activo">Solo activos</option>
             <option value="Inactivo">Solo inactivos</option>
           </select>
+          <select id="hsn-anio" onchange="hsnAplicarFiltro()" title="Filtra la lista y el PDF por año de la carrera" style="width:auto;flex:none;padding:6px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-weight:700;color:#78350f">
+            <option value="">Todos los años</option>
+            ${[...new Set((habsSinNota||[]).map(r=>r.anio).filter(Boolean))].sort().map(a=>`<option value="${a}">${a}.° año</option>`).join('')}
+          </select>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <label style="font-size:11px;font-weight:700;color:#78350f">Ordenar por fecha de examen:</label>
@@ -13845,6 +13849,7 @@ async function hsnPdf(){
     const q=new URLSearchParams(); const f=v('hsn-fecha'), o=v('hsn-orden');
     if(f) q.set('fecha',f); if(o) q.set('orden',o);
     const es=v('hsn-estado'); if(es) q.set('estado',es);
+    const an=v('hsn-anio'); if(an) q.set('anio',an);
     const w=window.open('','_blank'); // se abre antes de pedir el PDF para que el navegador no lo bloquee
     const r=await fetch('/api/admin/habilitados-sin-nota.pdf?'+q.toString(),{headers:{'Authorization':'Bearer '+tok}});
     if(!r.ok){ if(w) w.close(); throw new Error('No se pudo generar el PDF'); }
@@ -13858,8 +13863,8 @@ function hsnAplicarFiltro(){
   const fecha=v('hsn-fecha')||'';
   const cont=document.getElementById('hsn-contenido');
   if(!cont) return;
-  const est=v('hsn-estado')||'';
-  cont.innerHTML=renderHabsSinNotaSeparado((W._habsSinNota||[]).filter(r=>!est||r.estado_alumno===est), orden, fecha);
+  const est=v('hsn-estado')||'', anio=v('hsn-anio')||'';
+  cont.innerHTML=renderHabsSinNotaSeparado((W._habsSinNota||[]).filter(r=>(!est||r.estado_alumno===est)&&(!anio||String(r.anio)===anio)), orden, fecha);
 }
 
 function renderHabsSinNotaSeparado(listaOriginal, orden, fechaFiltro){
