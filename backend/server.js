@@ -9213,7 +9213,7 @@ app.get('/api/admin/habilitados', auth(ADM), (req, res) => {
 function habilitadosSinNotaLista() {
     const rows = db.prepare(`
       SELECT h.id as hab_id, h.tipo_examen, h.fecha as fecha_habilitacion, h.asignacion_id,
-        al.id as alumno_id, al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci,
+        al.id as alumno_id, al.nombre as alumno_nombre, al.apellido as alumno_apellido, al.ci as alumno_ci, al.estado as alumno_estado,
         ca.id as carrera_id, ca.nombre as carrera_nombre,
         cu.anio as anio, cu.division as division,
         m.nombre as materia_nombre,
@@ -9230,14 +9230,14 @@ function habilitadosSinNotaLista() {
       LEFT JOIN usuarios ud ON d.usuario_id=ud.id
       LEFT JOIN notas n ON n.alumno_id=h.alumno_id AND n.asignacion_id=h.asignacion_id
       LEFT JOIN examenes e ON e.asignacion_id=h.asignacion_id AND e.tipo=h.tipo_examen
-      WHERE h.habilitado=1 AND al.estado='Activo'
+      WHERE h.habilitado=1 AND al.estado IN ('Activo','Inactivo')
       ORDER BY ca.nombre, cu.anio, m.nombre, al.apellido
     `).all();
     const pendientes = rows
       .filter(r => r[r.tipo_examen] === null || r[r.tipo_examen] === undefined)
       .map(r => ({
         hab_id: r.hab_id, alumno_id: r.alumno_id,
-        alumno_nombre: `${r.alumno_apellido||''}, ${r.alumno_nombre||''}`, alumno_ci: r.alumno_ci,
+        alumno_nombre: `${r.alumno_apellido||''}, ${r.alumno_nombre||''}`, alumno_ci: r.alumno_ci, estado_alumno: r.alumno_estado,
         carrera_id: r.carrera_id, carrera_nombre: r.carrera_nombre,
         anio: r.anio, division: r.division,
         materia_nombre: r.materia_nombre, asignacion_id: r.asignacion_id,
@@ -9256,12 +9256,13 @@ app.get('/api/admin/habilitados-sin-nota', auth(ADM), (req, res) => {
 // Filtros opcionales: fecha (un día puntual), carrera_id, orden=asc|desc (por fecha de examen).
 app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
   try {
-    const { fecha, carrera_id, orden } = req.query;
+    const { fecha, carrera_id, orden, estado } = req.query;
     const hoy = hoyPY();
     const TIPO = { parcial: 'Parcial', parcial_recuperatorio: 'Parcial Recuperatorio', final_ord: 'Final Ordinario', final_recuperatorio: 'Final Recuperatorio', complementario: 'Final Complementario', extraordinario: 'Final Extraordinario' };
     let l = habilitadosSinNotaLista().filter(r => r.fecha_examen && String(r.fecha_examen).slice(0, 10) < hoy);
     if (fecha) l = l.filter(r => String(r.fecha_examen).slice(0, 10) === fecha);
     if (carrera_id) l = l.filter(r => r.carrera_id === carrera_id);
+    if (estado === 'Activo' || estado === 'Inactivo') l = l.filter(r => r.estado_alumno === estado);
     const dir = orden === 'desc' ? -1 : 1;
     l.sort((a, b) => (a.carrera_nombre || '').localeCompare(b.carrera_nombre || '') || (a.anio - b.anio) || String(a.division || '').localeCompare(String(b.division || ''))
       || (a.materia_nombre || '').localeCompare(b.materia_nombre || '') || dir * String(a.fecha_examen).localeCompare(String(b.fecha_examen))
@@ -9278,7 +9279,7 @@ app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
       if (!mat) { mat = { id: r.asignacion_id, nombre: r.materia_nombre, docente: r.docente_nombre, filas: [] }; cur.materias.push(mat); }
       const f = String(r.fecha_examen).slice(0, 10);
       mat.filas.push([
-        r.alumno_nombre, r.alumno_ci || '', 'Falta la nota del ' + (TIPO[r.tipo_examen] || r.tipo_examen),
+        r.alumno_nombre + (r.estado_alumno === 'Inactivo' ? ' (INACTIVO)' : ''), r.alumno_ci || '', 'Falta la nota del ' + (TIPO[r.tipo_examen] || r.tipo_examen),
         fmtDMY(f) + (r.hora_examen ? ' ' + r.hora_examen : ''), diasEntre(f, hoy) + ' días',
       ]);
     });
@@ -9298,7 +9299,7 @@ app.get('/api/admin/habilitados-sin-nota.pdf', auth(ADM), async (req, res) => {
       .map(([nom, d]) => [nom, d.mats.size, d.n, [...d.carr].join(', ')]);
     const buf = await pdfInforme({
       titulo: 'Habilitados con el examen rendido y sin nota',
-      subtitulo: 'Situación al ' + fmtDMY(hoy) + (fecha ? ' · exámenes del ' + fmtDMY(fecha) : '') +
+      subtitulo: 'Situación al ' + fmtDMY(hoy) + (fecha ? ' · exámenes del ' + fmtDMY(fecha) : '') + (estado === 'Activo' ? ' · solo alumnos activos' : estado === 'Inactivo' ? ' · solo alumnos inactivos' : ' · alumnos activos e inactivos') +
         '. Alumnos habilitados (pagaron o habilitó Dirección) cuyo examen ya se rindió y el docente todavía no cargó la nota.',
       resumen2: { titulo: 'Docentes con notas sin cargar', columnas: [{ t: 'Docente', w: 190 }, { t: 'Materias', w: 60 }, { t: 'Notas pendientes', w: 90 }, { t: 'Carrera(s)', w: 220 }], filas: resumenDocentes },
       resumen: { titulo: 'Resumen por carrera', columnas: [{ t: 'Carrera', w: 220 }, { t: 'Notas pendientes', w: 90 }, { t: 'Alumnos', w: 70 }], filas: resumenFilas },

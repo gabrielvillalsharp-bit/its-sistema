@@ -79,6 +79,15 @@ describe('API', () => {
     const j = await auth(request(app).get('/api/admin/habilitados-sin-nota'));
     expect(j.status, JSON.stringify(j.body)).toBe(200);
     expect(j.body.some(r => r.alumno_id === 't_hab' && r.tipo_examen === 'final_ord')).toBe(true);
+    db.prepare("INSERT INTO alumnos (id,nombre,apellido,ci,estado,curso_id,carrera_id) VALUES ('t_hab_ina','Hab','Inactivo','5559999','Inactivo',?,(SELECT carrera_id FROM cursos WHERE id=?))").run(asig.curso_id, asig.curso_id);
+    db.prepare("INSERT INTO habilitaciones_examen (id,alumno_id,asignacion_id,tipo_examen,habilitado) VALUES ('t_h2','t_hab_ina',?,'final_ord',1)").run(asig.id);
+    const todos = (await auth(request(app).get('/api/admin/habilitados-sin-nota'))).body;
+    expect(todos.find(r => r.alumno_id === 't_hab_ina')?.estado_alumno).toBe('Inactivo');
+    expect(todos.find(r => r.alumno_id === 't_hab')?.estado_alumno).toBe('Activo');
+    for (const est of ['Activo', 'Inactivo']) {
+      const pr = await auth(request(app).get('/api/admin/habilitados-sin-nota.pdf?estado=' + est)).buffer(true).parse((res, cb) => { const c = []; res.on('data', d => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
+      expect(pr.status).toBe(200); expect(pr.body.slice(0, 4).toString()).toBe('%PDF');
+    }
     const r = await auth(request(app).get('/api/admin/habilitados-sin-nota.pdf')).buffer(true).parse((res, cb) => { const c = []; res.on('data', d => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); });
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toBe('application/pdf');

@@ -13819,6 +13819,11 @@ async function pgSolicitudes(el){
           <option value="desc">Más recientes primero</option>
         </select>
         <button onclick="hsnPdf()" style="padding:6px 12px;border:none;border-radius:7px;font-size:12px;font-weight:700;background:#b91c1c;color:#fff;cursor:pointer">📄 Descargar PDF con el detalle</button>
+        <select id="hsn-estado" onchange="hsnAplicarFiltro()" title="Filtra la lista y el PDF" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-weight:700">
+          <option value="">Activos e inactivos</option>
+          <option value="Activo">Solo activos</option>
+          <option value="Inactivo">Solo inactivos</option>
+        </select>
         <label style="font-size:11px;font-weight:700;color:#78350f">Fecha puntual:</label>
         <input type="date" id="hsn-fecha" onchange="hsnAplicarFiltro()" style="padding:5px 9px;border:1px solid var(--bdr);border-radius:7px;font-size:12px">
         <button onclick="document.getElementById('hsn-fecha').value='';hsnAplicarFiltro()" style="padding:5px 10px;border:1px solid var(--bdr);border-radius:7px;font-size:11px;background:#fff;cursor:pointer">✕ Limpiar fecha</button>
@@ -13835,6 +13840,7 @@ async function hsnPdf(){
   try{
     const q=new URLSearchParams(); const f=v('hsn-fecha'), o=v('hsn-orden');
     if(f) q.set('fecha',f); if(o) q.set('orden',o);
+    const es=v('hsn-estado'); if(es) q.set('estado',es);
     const w=window.open('','_blank'); // se abre antes de pedir el PDF para que el navegador no lo bloquee
     const r=await fetch('/api/admin/habilitados-sin-nota.pdf?'+q.toString(),{headers:{'Authorization':'Bearer '+tok}});
     if(!r.ok){ if(w) w.close(); throw new Error('No se pudo generar el PDF'); }
@@ -13848,7 +13854,8 @@ function hsnAplicarFiltro(){
   const fecha=v('hsn-fecha')||'';
   const cont=document.getElementById('hsn-contenido');
   if(!cont) return;
-  cont.innerHTML=renderHabsSinNotaSeparado(W._habsSinNota||[], orden, fecha);
+  const est=v('hsn-estado')||'';
+  cont.innerHTML=renderHabsSinNotaSeparado((W._habsSinNota||[]).filter(r=>!est||r.estado_alumno===est), orden, fecha);
 }
 
 function renderHabsSinNotaSeparado(listaOriginal, orden, fechaFiltro){
@@ -13905,7 +13912,7 @@ function renderHabsSinNota(lista){
                 </div>
                 <div id="${rid}" style="display:none;padding:6px 12px 10px">
                   ${m.alumnos.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f8fafc;font-size:12px">
-                    <span>${a.alumno_nombre}${a.alumno_ci?` <span style="color:#94a3b8;font-family:monospace">(${a.alumno_ci})</span>`:''}</span>
+                    <span>${a.alumno_nombre}${a.estado_alumno==='Inactivo'?' <span style="font-size:9.5px;font-weight:800;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:1px 6px">INACTIVO</span>':''}${a.alumno_ci?` <span style="color:#94a3b8;font-family:monospace">(${a.alumno_ci})</span>`:''}</span>
                     <span style="color:#92400e;font-size:11px;font-weight:600">${TIPO_LBL[a.tipo_examen]||a.tipo_examen}${a.fecha_examen?' · examen '+String(a.fecha_examen).slice(0,10)+(a.hora_examen?' '+a.hora_examen:''):' · sin fecha de examen'}</span>
                   </div>`).join('')}
                 </div>
